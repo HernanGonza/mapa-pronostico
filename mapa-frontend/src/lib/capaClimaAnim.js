@@ -16,7 +16,7 @@ import { rampa, RAMPAS, clamp } from "./campoClima";
 const RES = 200;
 const FPS = 24;
 const DERIVA_PX_POR_MS = 0.0016; // px de deriva de la textura por ms y por (m/s)
-const ESCALA_RUIDO = 3.4; // "zoom" de la textura de nubes sobre el canvas
+const ESCALA_RUIDO = 2.1; // "zoom" de la textura: bajo = nubes más grandes y definidas
 const MARGEN = 0.13;
 
 const CAMPO = { nubes: "cloud", lluvia: "precip" };
@@ -26,11 +26,17 @@ function suavizar(t) {
   return t * t * (3 - 2 * t);
 }
 
-/* --- Ruido de valor 2D, dominio infinito, 3 octavas --- */
+/* --- Ruido de valor 2D, dominio infinito, 3 octavas ---
+ * OJO: la multiplicación tiene que ser `Math.imul` (32 bits reales). Con `*`
+ * el producto se va de los 53 bits seguros de JS, se pierden los bits bajos
+ * y el hash queda sesgado hacia abajo (media ~0.25 en vez de ~0.5) — eso
+ * hacía que la capa de lluvia, que tiene un umbral duro sobre el ruido,
+ * nunca se dibujara. */
 function hash(x, y) {
-  let h = x * 374761393 + y * 668265263;
-  h = (h ^ (h >> 13)) * 1274126177;
-  return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+  let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 }
 function ruidoValor(x, y) {
   const xi = Math.floor(x);
@@ -227,10 +233,24 @@ export class CapaClimaAnimada {
           alphaMul = parche * (0.5 + 0.5 * intensidad);
           valorRampa = mm;
         } else {
-          // Nubes: cobertura % con relieve de textura.
+          // Nubes: la textura fractal es la FORMA; la cobertura real sube
+          // el "nivel de agua". Umbral DURO: donde el ruido no llega hay
+          // cielo abierto (alpha 0), no humo. Poca cobertura → nubes
+          // sueltas; mucha → cielo tapado.
           const cob = clamp(cobertura / 100, 0, 1);
-          valorRampa = clamp(cob * 100 * (0.7 + 0.5 * (textura - 0.5)), 0, 100);
-          alphaMul = 1;
+          if (cob < 0.06) {
+            d[o * 4 + 3] = 0;
+            continue;
+          }
+          const nivel = 1.0 - cob * 0.62; // cob .4→.75 (ralas) · cob 1→.38
+          if (textura < nivel) {
+            d[o * 4 + 3] = 0;
+            continue;
+          }
+          const borde = clamp((textura - nivel) / 0.09, 0, 1);
+          const nube = borde * borde * (3 - 2 * borde);
+          valorRampa = 52 + nube * 48; // borde grisáceo → panza blanca
+          alphaMul = 0.12 + 0.74 * nube; // borde muy tenue, cuerpo sólido
         }
 
         if (alphaMul <= 0.002) {
@@ -246,6 +266,11 @@ export class CapaClimaAnimada {
       }
     }
     this.ctx.putImageData(this.img, 0, 0);
+    // El source `canvas` de MapLibre solo se re-lee si el mapa vuelve a
+    // pintar. Con globo v5 el loop de render se duerme si nada más lo
+    // mueve (p. ej. viento apagado), así que lo despertamos nosotros cada
+    // frame que dibujamos.
+    this.map.triggerRepaint();
   }
 
   start() {
@@ -253,7 +278,9 @@ export class CapaClimaAnimada {
     this.running = true;
     this.t0 = performance.now();
     this._last = 0;
-    this._raf = requestAnimationFrame((t) => this._frame(t));
+    // Primer frame YA (síncrono): la capa aparece con las nubes en su
+    // lugar, sin un frame en blanco ni "acomodamiento".
+    this._frame(this.t0);
   }
 
   stop() {

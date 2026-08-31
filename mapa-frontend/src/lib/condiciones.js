@@ -95,3 +95,31 @@ export function esTormenta(condicion) {
   const c = POR_NOMBRE.get(normalize(condicion));
   return !!c && c.grupo === "tormentas";
 }
+
+/**
+ * Descriptor del efecto visual (modo águila) por condición:
+ *   { tipo, intensidad 0..1, lluvia 0..1 (alto del techo de nubes), rayos }
+ * `tipo` ∈ "sol" · "nublado" · "llovizna" · "lluvia" · "tormenta" · "granizo".
+ * Sirve para que la animación de primer plano cambie según el municipio que
+ * la cámara está sobrevolando.
+ */
+const FX_POR_GRUPO = {
+  despejado: { tipo: "sol", intensidad: 1, lluvia: 0, rayos: false },
+  parcial: { tipo: "sol", intensidad: 0.45, lluvia: 0, rayos: false },
+  nublado: { tipo: "nublado", intensidad: 0, lluvia: 0.15, rayos: false },
+  lloviznas: { tipo: "llovizna", intensidad: 0.3, lluvia: 0.3, rayos: false },
+  lluvias: { tipo: "lluvia", intensidad: 0.6, lluvia: 0.6, rayos: false },
+  intensas: { tipo: "lluvia", intensidad: 1, lluvia: 0.95, rayos: false },
+  chaparrones: { tipo: "lluvia", intensidad: 0.72, lluvia: 0.7, rayos: false },
+  tormentas: { tipo: "tormenta", intensidad: 0.9, lluvia: 0.9, rayos: true },
+};
+
+const FX_NEUTRO = { tipo: "nublado", intensidad: 0, lluvia: 0, rayos: false };
+
+export function fxDeCondicion(condicion) {
+  if (condicion && /granizo/i.test(condicion)) {
+    return { tipo: "granizo", intensidad: 0.8, lluvia: 0.85, rayos: false };
+  }
+  const c = condicion ? POR_NOMBRE.get(normalize(condicion)) : null;
+  return c ? FX_POR_GRUPO[c.grupo] : FX_NEUTRO;
+}

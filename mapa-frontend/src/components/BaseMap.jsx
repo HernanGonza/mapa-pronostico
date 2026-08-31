@@ -9,7 +9,7 @@ import {
 } from "react";
 import maplibregl from "maplibre-gl";
 import { API_URL } from "../config";
-import { colorPorCondicion } from "../lib/condiciones";
+import { colorPorCondicion, fxDeCondicion } from "../lib/condiciones";
 import { WindParticleLayer } from "../lib/windParticles";
 import { generarCapaClima, horaActual, horaActualFrac } from "../lib/campoClima";
 import { CapaClimaAnimada } from "../lib/capaClimaAnim";
@@ -17,7 +17,7 @@ import { tiempoRelativo } from "../lib/tiempoRelativo";
 import WeatherIcon from "./WeatherIcon";
 import Legend from "./Legend";
 import LayerPanel from "./LayerPanel";
-import StreetViewPanel from "./StreetViewPanel";
+import CinematicFX from "./CinematicFX";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -68,10 +68,51 @@ function soportaWebGL() {
   }
 }
 
+// Paletas de cielo por momento del día (hora local 0..24). Se interpola
+// entre las dos más cercanas. `estrellas` marca noche/atardecer para el
+// campo de estrellas.
+const CIELOS = [
+  { h: 0, bg: "#080d18", sky: "#0a1020", horiz: "#141d33", fog: "#0a0f1c", estrellas: 1 },
+  { h: 5.5, bg: "#1a1a33", sky: "#243050", horiz: "#8a5a6e", fog: "#3a2f42", estrellas: 0.5 },
+  { h: 7, bg: "#c9a27a", sky: "#7aa6d6", horiz: "#e6b98a", fog: "#d8c3ad", estrellas: 0 },
+  { h: 12, bg: "#a9c4dd", sky: "#5b9bd8", horiz: "#c9dcec", fog: "#d5e2ee", estrellas: 0 },
+  { h: 17.5, bg: "#b98d6a", sky: "#6f9fd0", horiz: "#e0a878", fog: "#d3bfa9", estrellas: 0 },
+  { h: 19.5, bg: "#5a3a4a", sky: "#3a3f64", horiz: "#c26a52", fog: "#4a3444", estrellas: 0.4 },
+  { h: 21, bg: "#12172a", sky: "#141d33", horiz: "#2a2140", fog: "#10131f", estrellas: 0.9 },
+  { h: 24, bg: "#080d18", sky: "#0a1020", horiz: "#141d33", fog: "#0a0f1c", estrellas: 1 },
+];
+
+function mezclarHex(a, b, t) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const r = Math.round((pa >> 16) + ((pb >> 16) - (pa >> 16)) * t);
+  const g = Math.round(((pa >> 8) & 255) + (((pb >> 8) & 255) - ((pa >> 8) & 255)) * t);
+  const bl = Math.round((pa & 255) + ((pb & 255) - (pa & 255)) * t);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`;
+}
+
+function cieloParaHora(hora) {
+  const hh = ((hora % 24) + 24) % 24;
+  let i = 0;
+  while (i < CIELOS.length - 1 && CIELOS[i + 1].h <= hh) i++;
+  const a = CIELOS[i];
+  const b = CIELOS[Math.min(i + 1, CIELOS.length - 1)];
+  const t = b.h === a.h ? 0 : (hh - a.h) / (b.h - a.h);
+  return {
+    bg: mezclarHex(a.bg, b.bg, t),
+    sky: mezclarHex(a.sky, b.sky, t),
+    horiz: mezclarHex(a.horiz, b.horiz, t),
+    fog: mezclarHex(a.fog, b.fog, t),
+    estrellas: a.estrellas + (b.estrellas - a.estrellas) * t,
+  };
+}
+
 function alturaPorTemperatura(tmax) {
   const n = parseFloat(tmax);
   if (Number.isNaN(n)) return 0;
-  return Math.max(0, n) * 90;
+  // Relieve sutil: lo justo para leerse en 3D sin que los municipios altos
+  // tapen a los de atrás en la cámara giratoria del modo águila.
+  return Math.max(0, n) * 34;
 }
 
 /** Centroide (promedio de vértices del anillo exterior). */
@@ -116,7 +157,7 @@ const BaseMap = forwardRef(function BaseMap(
     titulo,
     publicadoEn,
     interactive = true,
-    intro = true,
+    intro = false,
     enableCapture = false,
   },
   ref
@@ -127,21 +168,86 @@ const BaseMap = forwardRef(function BaseMap(
   const windLayerRef = useRef(null);
   const capasAnimRef = useRef({}); // { nubes: CapaClimaAnimada, lluvia: ... }
   const datosPorId = useRef(new Map());
+  // El slider de hora solo "manda" una vez que el operador lo movió; hasta
+  // entonces las capas siguen la hora real (si no, arrancan renderizando
+  // la hora 0 y se ve un "acomodamiento" feo al aparecer).
+  const sliderTocadoRef = useRef(false);
   const selectedIdRef = useRef(null);
   const horaRef = useRef(0);
   // Getter de hora (fraccionaria) para las capas animadas: sigue el vivo
   // cuando el slider está en "ahora", o la hora elegida si se movió.
   const horaGetterRef = useRef(() => 0);
+  // MapLibre v5 + globo + fuentes GeoJSON: el loop de render se frena tras
+  // cargar el estilo y NO se despierta al agregar capas / hacer flyTo /
+  // cambiar feature-state — el mapa queda congelado en el primer frame
+  // hasta que el usuario toca algo (y en el <iframe> del ministerio no lo
+  // toca nadie). `marcarSucio(ms)` mantiene el bombeo de redraws vivo esa
+  // ventana; el intervalo del init lo atiende.
+  const dirtyUntilRef = useRef(0);
+  const motivoSalidaAguilaRef = useRef(null); // "boton" | "gesto"
+  const marcarSucio = useCallback((ms = 1500) => {
+    dirtyUntilRef.current = Math.max(dirtyUntilRef.current, Date.now() + ms);
+    mapRef.current?.triggerRepaint();
+  }, []);
+
+  // Ejecuta `fn(map)` cuando el estilo está REALMENTE cargado. Con globo v5
+  // el estilo puede reportar "listo" y volver atrás, así que agregar
+  // sources/layers antes de tiempo tira "Style is not done loading" y —
+  // peor— corta la cadena de efectos de React. Este helper reintenta en
+  // cada `styledata` hasta que `isStyleLoaded()` es true de verdad.
+  const conEstilo = useCallback((fn) => {
+    const map = mapRef.current;
+    if (!map) return undefined;
+    let cancel = false;
+    const intentar = () => {
+      if (cancel || mapRef.current !== map) return;
+      if (!map.isStyleLoaded()) return;
+      map.off("styledata", intentar);
+      map.off("idle", intentar);
+      try {
+        fn(map);
+      } catch (e) {
+        console.warn("[BaseMap] capa no agregada:", e.message);
+      }
+    };
+    map.on("styledata", intentar);
+    map.on("idle", intentar);
+    intentar();
+    return () => {
+      cancel = true;
+      map.off("styledata", intentar);
+      map.off("idle", intentar);
+    };
+  }, []);
 
   const [mapReady, setMapReady] = useState(false);
+  const [baseListas, setBaseListas] = useState(false); // capas base agregadas
   const [webglOk] = useState(soportaWebGL);
   const [activo, setActivo] = useState(null);
   const [capas, setCapas] = useState(CAPAS_DEFAULT);
   const [hora, setHora] = useState(0);
-  const [streetView, setStreetView] = useState(null); // { nombre, lngLat }
+  // Modo águila: null = apagado · "provincia" = sobrevuelo de toda Misiones
+  // · <id de municipio> = sobrevuelo de ese municipio con su clima.
+  const [aguila, setAguila] = useState(null);
+  const sobrevuelo = aguila != null;
   const relativo = useMemo(() => tiempoRelativo(publicadoEn), [publicadoEn]);
 
   const horaAhora = useMemo(() => (clima ? horaActual(clima) : 0), [clima]);
+
+  // Hora de reloj (0..24) del momento que se está mostrando — para pintar
+  // el cielo (día / atardecer / noche estrellada).
+  const horaReloj = useMemo(() => {
+    // Sin slider tocado: hora real fraccionaria (transición suave del cielo).
+    if (clima && !sliderTocadoRef.current) return horaActualFrac(clima) % 24;
+    const iso = clima?.horas?.[hora];
+    if (iso) {
+      const [, t] = iso.split("T");
+      const [H, M] = t.split(":").map(Number);
+      return H + (M || 0) / 60;
+    }
+    const n = new Date();
+    return n.getHours() + n.getMinutes() / 60;
+  }, [clima, hora]);
   useEffect(() => {
     if (clima) {
       const h = horaActual(clima);
@@ -150,16 +256,22 @@ const BaseMap = forwardRef(function BaseMap(
     }
   }, [clima]);
   useEffect(() => {
-    horaRef.current = hora;
-  }, [hora]);
+    // Si el slider vuelve a "ahora", deja de mandar (sigue el vivo).
+    if (hora === horaAhora) sliderTocadoRef.current = false;
+    horaRef.current = sliderTocadoRef.current || !clima ? hora : horaActualFrac(clima);
+  }, [hora, horaAhora, clima]);
 
-  // El getter que usan las capas animadas: en "ahora" devuelve la hora
-  // fraccionaria real (mapa en vivo); si el operador movió el slider,
-  // devuelve esa hora fija.
+  const onHora = useCallback((h) => {
+    sliderTocadoRef.current = true;
+    setHora(h);
+  }, []);
+
+  // El getter que usan las capas animadas: hasta que el operador toca el
+  // slider, siguen la hora real (fraccionaria → mapa "en vivo").
   useEffect(() => {
     horaGetterRef.current = () => {
-      if (!clima) return hora;
-      return hora === horaAhora ? horaActualFrac(clima) : hora;
+      if (!clima) return 0;
+      return sliderTocadoRef.current ? hora : horaActualFrac(clima);
     };
   }, [clima, hora, horaAhora]);
 
@@ -171,6 +283,45 @@ const BaseMap = forwardRef(function BaseMap(
     }
     return m;
   }, [municipiosGeojson]);
+
+  // Centro geográfico de la provincia (bbox de todos los municipios) para
+  // el "modo águila".
+  const centroProvincia = useMemo(() => {
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const { c } of centroides.values()) {
+      if (c[0] < x0) x0 = c[0];
+      if (c[0] > x1) x1 = c[0];
+      if (c[1] < y0) y0 = c[1];
+      if (c[1] > y1) y1 = c[1];
+    }
+    return Number.isFinite(x0)
+      ? [(x0 + x1) / 2, (y0 + y1) / 2]
+      : CENTRO_MISIONES;
+  }, [centroides]);
+
+  // Efecto de primer plano (modo águila) del municipio que la cámara está
+  // sobrevolando: se recalcula en cada frame del vuelo con el punto al que
+  // mira la cámara, así la lluvia "entra" al acercarse a un municipio con
+  // tormenta y se despeja sobre uno soleado.
+  const fxRef = useRef({ lluvia: 0, rayos: false, sol: false });
+  const fxEnPunto = useCallback((lng, lat) => {
+    let mejor = null;
+    let min = Infinity;
+    for (const [id, info] of centroides) {
+      const d = (info.c[0] - lng) ** 2 + (info.c[1] - lat) ** 2;
+      if (d < min) {
+        min = d;
+        mejor = id;
+      }
+    }
+    const cond = mejor
+      ? datosPorId.current.get(mejor)?.pronostico?.CONDICION
+      : null;
+    return fxDeCondicion(cond);
+  }, [centroides]);
 
   useImperativeHandle(ref, () => ({
     capturePng() {
@@ -207,25 +358,11 @@ const BaseMap = forwardRef(function BaseMap(
     }
   }, []);
 
-  const irANivelCalle = useCallback(
-    (id) => {
-      const map = mapRef.current;
-      const info = centroides.get(id);
-      if (!map || !info) return;
-      const [lng, lat] = info.c;
-      map.flyTo({
-        center: [lng, lat],
-        zoom: 14.5,
-        pitch: 72,
-        bearing: (Math.random() * 60 - 30) | 0,
-        duration: 2800,
-        curve: 1.6,
-        essential: true,
-      });
-      setTimeout(() => setStreetView({ nombre: info.nombre, lngLat: [lng, lat] }), 2400);
-    },
-    [centroides]
-  );
+  // Entra al modo águila sobre un municipio concreto (doble click o botón
+  // de la tarjeta).
+  const irAModoAguila = useCallback((id) => {
+    if (id) setAguila(id);
+  }, []);
 
   const toggleCapa = useCallback((id) => {
     setCapas((c) => ({ ...c, [id]: !c[id] }));
@@ -241,7 +378,10 @@ const BaseMap = forwardRef(function BaseMap(
       container: mapContainerRef.current,
       style: {
         version: 8,
-        projection: { type: "globe" },
+        // Sin proyección de globo: MapLibre v5 + globo + fuentes solo
+        // GeoJSON (sin tiles raster) frena el loop de render tras cargar el
+        // estilo y el mapa queda congelado hasta que el usuario toca algo
+        // — inservible en el <iframe> del ministerio. Mercator es estable.
         glyphs: `${API_URL}/glyphs/{fontstack}/{range}.pbf`,
         sources: {},
         layers: [
@@ -253,22 +393,11 @@ const BaseMap = forwardRef(function BaseMap(
         ],
         sky: {
           "sky-color": "#0a1622",
-          "sky-horizon-blend": 0.4,
+          "sky-horizon-blend": 0.5,
           "horizon-color": "#24384a",
-          "horizon-fog-blend": 0.4,
+          "horizon-fog-blend": 0.5,
           "fog-color": "#0c141c",
-          "fog-ground-blend": 0.1,
-          "atmosphere-blend": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            0,
-            0.4,
-            4,
-            0.15,
-            7,
-            0,
-          ],
+          "fog-ground-blend": 0.2,
         },
       },
       center: arranqueDirecto ? CENTRO_MISIONES : VISTA_GLOBO.center,
@@ -309,21 +438,48 @@ const BaseMap = forwardRef(function BaseMap(
       }
     });
 
-    map.on("sourcedata", () => map.triggerRepaint());
-    map.on("styledata", () => map.triggerRepaint());
+    map.on("sourcedata", () => marcarSucio(400));
+    map.on("styledata", () => marcarSucio(400));
+    map.on("moveend", () => marcarSucio(600));
 
-    // MapLibre v5 + globo + solo fuentes GeoJSON: el loop de render por rAF
-    // se frena y deja el estilo "a medio cargar", el evento `load` sin
-    // disparar y el flyTo congelado — peor todavía si la pestaña no está
-    // visible (rAF suspendido). Forzamos renders sincrónicos desde ya,
-    // mientras haya carga o movimiento pendiente.
+    // El contenedor puede tener 0px al crear el mapa (layout/fuentes aún
+    // cargando); MapLibre entonces no pinta nada hasta un resize.
+    const ro = new ResizeObserver(() => {
+      try {
+        map.resize();
+        marcarSucio(1500);
+      } catch {
+        /* noop */
+      }
+    });
+    ro.observe(mapContainerRef.current);
+
+    // Bombeo de redraws (ver `marcarSucio`). El intervalo vive hasta el
+    // unmount: así cualquier `marcarSucio()` posterior (capa nueva, dato
+    // nuevo cada 5 min, cambio de hora) se atiende aunque el usuario nunca
+    // haya tocado el mapa. `setInterval` (no rAF) para que siga con la
+    // pestaña oculta.
+    dirtyUntilRef.current = Date.now() + 30000;
     let ticks = 0;
     const bomba = setInterval(() => {
-      if (mapRef.current !== map || ticks++ > 900) return clearInterval(bomba);
-      if (ticks < 25) map.resize();
-      const ocupado = map.isMoving() || !map.loaded() || !map.isStyleLoaded();
-      if (ocupado) map.redraw();
-      iniciar(); // no-op una vez que el estilo terminó de cargar
+      if (mapRef.current !== map) return clearInterval(bomba);
+      try {
+        ticks++;
+        if (ticks < 40) map.resize();
+        iniciar(); // no-op una vez que el estilo terminó de cargar
+        const forzar = map.isMoving() || Date.now() < dirtyUntilRef.current;
+        if (forzar) {
+          // Un cambio de transform "nulo" ensucia el mapa; y reseteamos el
+          // frame pendiente para que `redraw()` no sea no-op — MapLibre v5
+          // con fuentes solo-GeoJSON deja un frame "colgado" que nunca se
+          // dibuja, y el mapa queda congelado hasta que el usuario toca algo.
+          if (ticks < 90) map.jumpTo({ center: map.getCenter() });
+          map._frameRequest = null;
+          map.redraw();
+        }
+      } catch {
+        /* el estilo todavía no está: reintenta al próximo tick */
+      }
     }, 33);
 
     const irAMisiones = (animado) => {
@@ -336,12 +492,14 @@ const BaseMap = forwardRef(function BaseMap(
       };
       if (animado) map.flyTo({ ...destino, duration: 4200, curve: 1.42, essential: true });
       else map.jumpTo(destino);
+      marcarSucio(animado ? 6000 : 800);
     };
 
     const alEstarListo = () => {
       if (mapRef.current !== map) return;
       setMapReady(true);
       map.resize();
+      marcarSucio(8000);
 
       if (!arranqueDirecto) {
         setTimeout(() => irAMisiones(true), 700);
@@ -360,13 +518,15 @@ const BaseMap = forwardRef(function BaseMap(
     let yaListo = false;
     function iniciar() {
       if (yaListo || mapRef.current !== map) return;
-      // El estilo tiene que estar realmente cargado antes de que las capas
-      // empiecen a hacer addSource (si no, "Style is not done loading").
-      if (!map.isStyleLoaded()) return;
       yaListo = true;
+      // `conEstilo` en cada efecto ya espera a que el estilo esté cargado
+      // de verdad antes de hacer addSource, así que acá no bloqueamos.
       alEstarListo();
     }
     map.once("load", iniciar);
+    // Red de seguridad: si `load` no dispara (stall del loop de render),
+    // arrancamos igual a los 1.2 s.
+    setTimeout(iniciar, 1200);
 
     const onZoomGlobo = () => {
       mapContainerRef.current?.parentElement?.classList.toggle(
@@ -381,6 +541,7 @@ const BaseMap = forwardRef(function BaseMap(
     if (import.meta.env?.DEV) window.__map = map;
     return () => {
       clearInterval(bomba);
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -389,8 +550,9 @@ const BaseMap = forwardRef(function BaseMap(
 
   // --- Países + rótulos (livianos, entran ya) ---
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !mundoGeojson || map.getSource("mundo")) return;
+    if (!mapReady || !mundoGeojson) return undefined;
+    return conEstilo((map) => {
+    if (map.getSource("mundo")) return;
     const FUENTE = ["Metropolis Regular"];
 
     map.addSource("mundo", { type: "geojson", data: mundoGeojson });
@@ -435,16 +597,15 @@ const BaseMap = forwardRef(function BaseMap(
       });
     }
     ordenarCapas(map);
-  }, [mapReady, mundoGeojson, paisesLabels]);
+    marcarSucio(3000);
+    });
+  }, [mapReady, mundoGeojson, paisesLabels, conEstilo, marcarSucio]);
 
-  // --- Provincias/estados + sus rótulos (más pesado: entra tras el intro) ---
+  // --- Provincias/estados + sus rótulos (más pesado) ---
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !provincias || map.getSource("provincias")) return;
-
-    let cancel = false;
-    const agregar = () => {
-      if (cancel || !mapRef.current || map.getSource("provincias")) return;
+    if (!mapReady || !provincias) return undefined;
+    return conEstilo((map) => {
+      if (map.getSource("provincias")) return;
       const FUENTE = ["Metropolis Regular"];
       map.addSource("provincias", { type: "geojson", data: provincias });
       map.addLayer({
@@ -485,24 +646,15 @@ const BaseMap = forwardRef(function BaseMap(
         });
       }
       ordenarCapas(map);
-    };
-
-    if (map.isMoving()) {
-      map.once("moveend", () => setTimeout(agregar, 150));
-      setTimeout(agregar, 7000);
-    } else {
-      setTimeout(agregar, 250);
-    }
-    return () => {
-      cancel = true;
-    };
-  }, [mapReady, provincias, provinciasLabels]);
+      marcarSucio(3000);
+    });
+  }, [mapReady, provincias, provinciasLabels, conEstilo, marcarSucio]);
 
   // --- Municipios de Misiones ---
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !municipiosGeojson || map.getSource("municipios"))
-      return;
+    if (!mapReady || !municipiosGeojson) return undefined;
+    return conEstilo((map) => {
+    if (map.getSource("municipios")) return;
 
     map.addSource("municipios", {
       type: "geojson",
@@ -523,6 +675,46 @@ const BaseMap = forwardRef(function BaseMap(
           COLOR_SIN_DATO,
         ],
         "fill-extrusion-opacity": 0.92,
+        "fill-extrusion-vertical-gradient": true,
+      },
+    });
+
+    // Techo de nubes de lluvia flotando SOBRE los municipios que tienen
+    // lluvia/tormenta pronosticada — solo sobre esos. En el modo águila la
+    // cámara pasa por abajo y las ve encima.
+    map.addLayer({
+      id: "municipios-nubes",
+      type: "fill-extrusion",
+      source: "municipios",
+      paint: {
+        "fill-extrusion-base": [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["feature-state", "nube"], 0],
+          0, 0,
+          0.05, 3200,
+        ],
+        "fill-extrusion-height": [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["feature-state", "nube"], 0],
+          0, 0,
+          0.05, 4200,
+          1, 5400,
+        ],
+        "fill-extrusion-color": [
+          "case",
+          ["==", ["coalesce", ["feature-state", "tormenta"], 0], 1],
+          "rgba(52,55,64,0.7)",
+          [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["feature-state", "nube"], 0],
+            0, "rgba(120,128,138,0)",
+            0.3, "rgba(122,130,140,0.34)",
+            1, "rgba(86,92,102,0.55)",
+          ],
+        ],
         "fill-extrusion-vertical-gradient": true,
       },
     });
@@ -570,39 +762,48 @@ const BaseMap = forwardRef(function BaseMap(
       });
       map.on("dblclick", "municipios-fill", (e) => {
         e.preventDefault();
-        if (e.features?.[0]) irANivelCalle(e.features[0].properties.id);
+        if (e.features?.[0]) irAModoAguila(e.features[0].properties.id);
       });
     }
     ordenarCapas(map);
-  }, [mapReady, municipiosGeojson, interactive, seleccionar, irANivelCalle]);
+    marcarSucio(3000);
+    setBaseListas(true);
+    });
+  }, [mapReady, municipiosGeojson, interactive, seleccionar, irAModoAguila, conEstilo, marcarSucio]);
 
-  // --- Datos por municipio (altura/color) ---
+  // --- Datos por municipio (altura/color/nube) ---
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !pronostico || !map.getSource("municipios"))
+    if (!map || !baseListas || !pronostico || !map.getSource("municipios"))
       return;
     const nuevo = new Map();
     for (const m of pronostico) {
       nuevo.set(m.id, m);
       const p = m.pronostico;
+      const fx = p ? fxDeCondicion(p.CONDICION) : null;
       map.setFeatureState(
         { source: "municipios", id: m.id },
         p
           ? {
               height: alturaPorTemperatura(p.TMAX),
               color: colorPorCondicion(p.CONDICION),
+              // Techo de nube sobre los municipios con lluvia/tormenta:
+              // 0 = sin nube (despejado), 1 = tormenta.
+              nube: fx.lluvia,
+              tormenta: fx.rayos ? 1 : 0,
             }
-          : { height: 0, color: COLOR_SIN_DATO }
+          : { height: 0, color: COLOR_SIN_DATO, nube: 0, tormenta: 0 }
       );
     }
     datosPorId.current = nuevo;
     if (selectedIdRef.current) setActivo(nuevo.get(selectedIdRef.current) || null);
-  }, [pronostico, mapReady]);
+    marcarSucio(2500);
+  }, [pronostico, baseListas, marcarSucio]);
 
   // --- Temperatura: capa raster estática (imagen), debajo del mapa ---
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !clima) return;
+    if (!baseListas || !clima) return undefined;
+    return conEstilo((map) => {
     const id = "capa-temp";
     if (capas.temp) {
       const img = generarCapaClima(clima, "temp", hora);
@@ -626,14 +827,15 @@ const BaseMap = forwardRef(function BaseMap(
       map.removeLayer(id);
       map.removeSource(id);
     }
-  }, [mapReady, clima, capas.temp, hora]);
+    marcarSucio(1200);
+    });
+  }, [baseListas, clima, capas.temp, hora, conEstilo, marcarSucio]);
 
   // --- Nubosidad y lluvia: capas ANIMADAS que se desplazan con el viento
   //     (canvas source, por encima del mapa). ---
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !clima || prefiereMenosMovimiento) return;
-
+    if (!baseListas || !clima || prefiereMenosMovimiento) return undefined;
+    return conEstilo((map) => {
     for (const capa of ["nubes", "lluvia"]) {
       const id = `capa-${capa}`;
       const activa = capas[capa];
@@ -675,7 +877,9 @@ const BaseMap = forwardRef(function BaseMap(
         if (map.getSource(id)) map.getSource(id).setCoordinates(inst.coordinates);
       }
     }
-  }, [mapReady, clima, capas.nubes, capas.lluvia]);
+    marcarSucio(1500);
+    });
+  }, [baseListas, clima, capas.nubes, capas.lluvia, conEstilo, marcarSucio]);
 
   useEffect(
     () => () => {
@@ -714,13 +918,152 @@ const BaseMap = forwardRef(function BaseMap(
     };
   }, [clima, mapReady]);
 
-  // Encender/apagar el viento sin recrear la capa.
+  // Encender/apagar el viento sin recrear la capa. En modo águila se apaga:
+  // la cámara con mucho pitch rotando hace que las partículas parezcan un
+  // vórtice/tornado sobre la provincia — no tiene sentido meteorológico.
   useEffect(() => {
     const wl = windLayerRef.current;
     if (!wl) return;
-    if (capas.viento) wl.start();
+    if (capas.viento && !sobrevuelo) wl.start();
     else wl.stop();
-  }, [capas.viento]);
+    marcarSucio(1500);
+  }, [capas.viento, sobrevuelo, marcarSucio]);
+
+  // --- Cielo según la hora: día, atardecer, noche estrellada ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !baseListas) return;
+    const c = cieloParaHora(horaReloj);
+    try {
+      map.setSky?.({
+        "sky-color": c.sky,
+        "sky-horizon-blend": 0.6,
+        "horizon-color": c.horiz,
+        "horizon-fog-blend": 0.55,
+        "fog-color": c.fog,
+        "fog-ground-blend": 0.35,
+      });
+      if (map.getLayer("background")) {
+        map.setPaintProperty("background", "background-color", c.bg);
+      }
+    } catch {
+      /* estilo aún no listo */
+    }
+    marcarSucio(1500);
+  }, [baseListas, horaReloj, marcarSucio]);
+
+  // En modo águila achatamos el relieve de los municipios: con la cámara
+  // rasante y girando, los altos tapan a los de atrás.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !baseListas || !map.getLayer("municipios-fill")) return;
+    const alto = ["coalesce", ["feature-state", "height"], 0];
+    try {
+      map.setPaintProperty(
+        "municipios-fill",
+        "fill-extrusion-height",
+        sobrevuelo ? ["*", alto, 0.18] : alto
+      );
+    } catch {
+      /* noop */
+    }
+    marcarSucio(1200);
+  }, [baseListas, sobrevuelo, marcarSucio]);
+
+  // Mientras haya una capa animada encendida (viento / nubes / lluvia) o
+  // el modo águila, mantenemos el bombeo de redraws vivo: los sources tipo
+  // `canvas` de MapLibre no se re-leen si el mapa no vuelve a pintar, y con
+  // globo v5 el loop se duerme solo.
+  const hayAnimacion =
+    capas.viento || capas.nubes || capas.lluvia || sobrevuelo;
+  useEffect(() => {
+    if (!mapReady || !hayAnimacion || prefiereMenosMovimiento) return;
+    const id = setInterval(() => marcarSucio(500), 250);
+    return () => clearInterval(id);
+  }, [mapReady, hayAnimacion, marcarSucio]);
+
+  // --- Modo águila: la cámara baja a ras de las nubes (pitch alto) y
+  //     sobrevuela en un orbital lento — toda la provincia (`aguila ===
+  //     "provincia"`) o un municipio puntual (`aguila === <id>`), mirando
+  //     siempre al centro. El mapa queda abajo, el cielo/nubes arriba, y
+  //     CinematicFX agrega la lluvia y los rayos del clima de abajo.
+  //     Un gesto del usuario lo corta; el botón lo cierra y endereza. ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !baseListas || aguila == null) return;
+
+    const muni = aguila !== "provincia" ? centroides.get(aguila) : null;
+    const [cx, cy] = muni ? muni.c : centroProvincia;
+    // Órbita chica y más cerca para un municipio; amplia para la provincia.
+    const RX = muni ? 0.07 : 0.62;
+    const RY = muni ? 0.055 : 0.46;
+    const PERIODO = muni ? 30000 : 64000;
+    const PITCH = 78;
+    const ZOOM = muni ? 10.8 : 8.15;
+
+    // FX dinámico: siempre el del municipio que está bajo la cámara (para
+    // un municipio puntual, ése; en la provincia, el que se sobrevuela).
+    fxRef.current = fxEnPunto(cx, cy);
+
+    let raf = 0;
+    let vivo = true;
+    let t0 = 0;
+
+    map.flyTo({
+      center: [cx + RX, cy],
+      zoom: ZOOM,
+      pitch: PITCH,
+      bearing: -90,
+      duration: 3000,
+      curve: 1.5,
+      essential: true,
+    });
+
+    const volar = (now) => {
+      if (!vivo) return;
+      if (!t0) t0 = now;
+      const a = ((now - t0) / PERIODO) * Math.PI * 2;
+      const lng = cx + RX * Math.cos(a);
+      const lat = cy + RY * Math.sin(a);
+      const bearing = (Math.atan2(cx - lng, cy - lat) * 180) / Math.PI;
+      map.jumpTo({ center: [lng, lat], bearing, pitch: PITCH, zoom: ZOOM });
+      fxRef.current = fxEnPunto(lng, lat); // sigue al municipio bajo la cámara
+      marcarSucio(300);
+      raf = requestAnimationFrame(volar);
+    };
+    const t = setTimeout(() => {
+      if (vivo) raf = requestAnimationFrame(volar);
+    }, 3100);
+
+    const salirPorGesto = () => {
+      motivoSalidaAguilaRef.current = "gesto";
+      setAguila(null);
+    };
+    map.on("dragstart", salirPorGesto);
+    map.on("wheel", salirPorGesto);
+
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+      if (raf) cancelAnimationFrame(raf);
+      map.off("dragstart", salirPorGesto);
+      map.off("wheel", salirPorGesto);
+      map.stop();
+      if (motivoSalidaAguilaRef.current !== "gesto") {
+        map.flyTo({
+          center: CENTRO_MISIONES,
+          zoom: ZOOM_INICIAL,
+          pitch: PITCH_INICIAL,
+          bearing: BEARING_INICIAL,
+          duration: 2400,
+          curve: 1.5,
+          essential: true,
+        });
+        marcarSucio(2800);
+      }
+      motivoSalidaAguilaRef.current = null;
+    };
+  }, [aguila, baseListas, centroides, centroProvincia, fxEnPunto, marcarSucio]);
 
   if (!webglOk) {
     return (
@@ -739,8 +1082,10 @@ const BaseMap = forwardRef(function BaseMap(
       <canvas
         ref={windCanvasRef}
         className="base-map__wind-canvas"
-        hidden={!capas.viento}
+        hidden={!capas.viento || sobrevuelo}
       />
+
+      <CinematicFX active={sobrevuelo} sampler={() => fxRef.current} />
 
       {titulo && (
         <div className="map-title">
@@ -761,11 +1106,25 @@ const BaseMap = forwardRef(function BaseMap(
           horas={clima.horas}
           hora={hora}
           horaAhora={horaAhora}
-          onHora={setHora}
+          onHora={onHora}
         />
       )}
 
       <Legend startOpen={typeof window !== "undefined" && window.innerWidth > 640} />
+
+      {interactive && (
+        <button
+          className={`eagle-btn ${sobrevuelo ? "eagle-btn--on" : ""}`}
+          onClick={() => setAguila((a) => (a == null ? "provincia" : null))}
+          aria-pressed={sobrevuelo}
+          title="Sobrevolar la provincia (doble click en un municipio para verlo de cerca)"
+        >
+          <span className="eagle-btn__icon" aria-hidden>
+            {sobrevuelo ? "■" : "🦅"}
+          </span>
+          {sobrevuelo ? "Salir del modo águila" : "Modo águila"}
+        </button>
+      )}
 
       {activo && (
         <div
@@ -815,19 +1174,11 @@ const BaseMap = forwardRef(function BaseMap(
 
           <button
             className="info-card__calle"
-            onClick={() => irANivelCalle(selectedIdRef.current)}
+            onClick={() => irAModoAguila(selectedIdRef.current)}
           >
-            Ver a nivel calle ↓
+            🦅 Ver en modo águila
           </button>
         </div>
-      )}
-
-      {streetView && (
-        <StreetViewPanel
-          nombre={streetView.nombre}
-          lngLat={streetView.lngLat}
-          onClose={() => setStreetView(null)}
-        />
       )}
     </div>
   );

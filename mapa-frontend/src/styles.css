@@ -732,6 +732,59 @@ input[type="file"] {
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* Efectos de primer plano del modo águila (lluvia + rayos) */
+.cinematic-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Modo águila — sobrevuelo de la provincia */
+.eagle-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--map-text);
+  background: var(--map-panel);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--map-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-pop);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.eagle-btn:hover {
+  border-color: var(--map-text-muted);
+}
+.eagle-btn--on {
+  color: #0e1a16;
+  background: #eef0e6;
+  border-color: #eef0e6;
+}
+.eagle-btn__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+@media (max-width: 640px) {
+  .eagle-btn {
+    bottom: 10px;
+    font-size: 12px;
+    padding: 8px 13px;
+  }
+}
 .layer-chip {
   display: inline-flex;
   align-items: center;
@@ -840,104 +893,6 @@ input[type="file"] {
 }
 .info-card__calle:hover {
   background: rgba(255, 255, 255, 0.12);
-}
-
-/* =========================================================================
-   Panel de vista a nivel calle
-   ========================================================================= */
-
-.sv-panel {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  background: var(--map-panel-solid);
-  animation: sv-in 0.35s ease;
-}
-@keyframes sv-in {
-  from {
-    opacity: 0;
-    transform: scale(1.03);
-  }
-}
-.sv-panel__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 14px 18px;
-  background: var(--map-panel-solid);
-  border-bottom: 1px solid var(--map-border);
-}
-.sv-panel__eyebrow {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--map-text-muted);
-}
-.sv-panel__head h3 {
-  margin: 2px 0 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--map-text);
-}
-.sv-panel__close {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  font-size: 14px;
-  color: var(--map-text);
-  background: rgba(255, 255, 255, 0.08);
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.sv-panel__view {
-  flex: 1;
-  position: relative;
-  background: #0a0f14;
-}
-.sv-panel__view iframe {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
-.sv-panel__nokey {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 32px;
-  text-align: center;
-  color: var(--map-text-muted);
-}
-.sv-panel__nokey code {
-  background: rgba(255, 255, 255, 0.08);
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-.sv-panel__mly {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.sv-panel__mly canvas {
-  outline: none;
-}
-.sv-panel__proveedores {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
 }
 
 @media (max-width: 640px) {

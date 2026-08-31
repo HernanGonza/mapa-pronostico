@@ -41,11 +41,10 @@ export function rampa(paradas, v) {
 
 const RAMPA_NUBES = [
   { v: 0, rgba: [255, 255, 255, 0] },
-  { v: 25, rgba: [244, 247, 250, 0] },
-  { v: 45, rgba: [240, 243, 247, 90] },
-  { v: 70, rgba: [225, 230, 238, 165] },
-  { v: 90, rgba: [200, 206, 216, 205] },
-  { v: 100, rgba: [180, 187, 199, 225] },
+  { v: 35, rgba: [214, 222, 232, 90] }, // borde: gris tenue
+  { v: 60, rgba: [236, 240, 246, 190] },
+  { v: 80, rgba: [248, 250, 253, 232] },
+  { v: 100, rgba: [255, 255, 255, 250] }, // panza iluminada
 ];
 
 const RAMPA_LLUVIA = [
