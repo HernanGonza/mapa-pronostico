@@ -312,3 +312,4 @@ router.get("/materiales/icono/:condicion", (req, res) => {
 });
 
 module.exports = router;
+module.exports.errorDeFilas = errorDeFilas;

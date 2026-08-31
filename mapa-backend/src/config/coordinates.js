@@ -30,6 +30,11 @@ const sep_cordy = [53, 294, 332, 520, 455, 697, 668, 704, 776, 794, 903, 1022, 1
 const img_cordx = [770, 1130, 768, 960, 665, 470, 870, 650, 590, 255, 450, 330, 515];
 const img_cordy = [0, 270, 317, 416, 395, 585, 550, 600, 770, 726, 832, 950, 935];
 
+// Puntos rojos reales impresos en basemap.png. El exportador moderno usa
+// éstos como anclas y ubica alrededor una tarjeta sin colisiones.
+const anchorX = [806, 1159, 787, 981, 735, 559, 842, 687, 604, 310, 528, 369, 599];
+const anchorY = [57, 328, 391, 484, 460, 660, 644, 684, 848, 807, 898, 1030, 1012];
+
 const coordinates = LOCALIDADES.map((LOCALIDAD, i) => ({
   LOCALIDAD,
   X_loc: X_loc[i],
@@ -43,6 +48,8 @@ const coordinates = LOCALIDADES.map((LOCALIDAD, i) => ({
   sep_cordy: sep_cordy[i],
   img_cordx: img_cordx[i],
   img_cordy: img_cordy[i],
+  anchorX: anchorX[i],
+  anchorY: anchorY[i],
 }));
 
 module.exports = coordinates;

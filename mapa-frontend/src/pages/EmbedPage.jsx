@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import BaseMap from "../components/BaseMap";
+import BaseMap from "../components/BabylonMap";
 import {
   getMapaActual,
   getMunicipiosGeojson,

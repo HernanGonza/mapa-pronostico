@@ -227,6 +227,9 @@ export class CapaClimaAnimada {
     this._raf = requestAnimationFrame((t) => this._frame(t));
     if (now - this._last < 1000 / FPS) return;
     this._last = now;
+    // Reproyectar la textura mientras el usuario arrastra compite con el
+    // render de MapLibre. Conservamos el último frame y retomamos al soltar.
+    if (this.map.isMoving()) return;
 
     const T = now - this.t0;
     const { s, u, v } = this._campos(this.horaGetter());
@@ -352,6 +355,12 @@ export class CapaClimaAnimada {
     this.running = false;
     if (this._raf) cancelAnimationFrame(this._raf);
     this.ctx.clearRect(0, 0, RES, RES);
+  }
+
+  /** Pausa CPU conservando el último frame visible en el source canvas. */
+  pause() {
+    this.running = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
   }
 
   destroy() {

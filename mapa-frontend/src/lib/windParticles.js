@@ -10,7 +10,7 @@
  * globo muy alejada (las partículas se salían del disco).
  */
 
-const N_PARTICLES = 2800;
+const MAX_PARTICLES = 1600;
 const FADE_ALPHA = 0.965;
 const MAX_AGE = 120;
 const STEP_MS = 33;
@@ -32,6 +32,13 @@ export class WindParticleLayer {
     this._resize();
     this._onResize = () => this._resize();
     map.on("resize", this._onResize);
+  }
+
+  _cantidadParticulas() {
+    const area = this.canvas.width * this.canvas.height;
+    const porArea = Math.round(area / 800);
+    const pocosNucleos = (navigator.hardwareConcurrency || 4) <= 4;
+    return Math.max(600, Math.min(pocosNucleos ? 1000 : MAX_PARTICLES, porArea));
   }
 
   _resize() {
@@ -85,11 +92,16 @@ export class WindParticleLayer {
     const j0 = Math.max(0, Math.min(n - 2, Math.floor(fj)));
     const ti = fi - i0;
     const tj = fj - j0;
-    const h = this.horaGetter();
+    const hf = this._horaActual ?? this.horaGetter();
+    const maxH = Math.max(0, (this.grid.horas?.length || 1) - 1);
+    const h = Math.max(0, Math.min(maxH, hf));
+    const h0 = Math.floor(h);
+    const h1 = Math.min(maxH, h0 + 1);
+    const ht = h - h0;
     const g = (i, j, comp) => {
       const p = this.grid.puntos[i * n + j];
       const s = comp === 0 ? p.windU : p.windV;
-      return s ? s[h] ?? 0 : 0;
+      return s ? (s[h0] ?? 0) * (1 - ht) + (s[h1] ?? 0) * ht : 0;
     };
     const bil = (comp) => {
       const a = g(i0, j0, comp) * (1 - tj) + g(i0, j0 + 1, comp) * tj;
@@ -102,7 +114,8 @@ export class WindParticleLayer {
   start() {
     if (this.running) return;
     this.running = true;
-    this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
+    const cantidad = this._cantidadParticulas();
+    this.particles = Array.from({ length: cantidad }, () => this._rnd());
     const ctx = this.ctx;
 
     const loop = (t) => {
@@ -113,6 +126,7 @@ export class WindParticleLayer {
 
       const w = this.canvas.width;
       const h = this.canvas.height;
+      this._horaActual = this.horaGetter();
 
       if (this.map.getZoom() < 3.6) {
         ctx.clearRect(0, 0, w, h);
@@ -120,10 +134,16 @@ export class WindParticleLayer {
       }
 
       const dibujar = !this.map.isMoving();
-      if (dibujar && this._wasMoving) {
-        this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
+      // No proyectamos miles de puntos durante drag/zoom. Éste era el mayor
+      // costo que competía con la interacción de MapLibre.
+      if (!dibujar) {
+        this._wasMoving = true;
+        return;
       }
-      this._wasMoving = !dibujar;
+      if (dibujar && this._wasMoving) {
+        this.particles = Array.from({ length: cantidad }, () => this._rnd());
+      }
+      this._wasMoving = false;
 
       ctx.globalCompositeOperation = "destination-in";
       ctx.fillStyle = `rgba(0,0,0,${dibujar ? FADE_ALPHA : 0.9})`;

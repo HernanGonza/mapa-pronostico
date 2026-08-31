@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import BaseMap from "../components/BaseMap";
+import BaseMap from "../components/BabylonMap";
 import BrandHeader from "../components/BrandHeader";
 import {
   parseDocx,

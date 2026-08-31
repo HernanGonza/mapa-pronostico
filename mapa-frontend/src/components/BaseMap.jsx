@@ -18,6 +18,9 @@ import WeatherIcon from "./WeatherIcon";
 import Legend from "./Legend";
 import LayerPanel from "./LayerPanel";
 import CinematicFX from "./CinematicFX";
+import { normalizeWeather } from "../weather/WeatherState";
+import { autoWeatherQuality } from "../weather/WeatherQuality";
+import WeatherDebugPanel from "./WeatherDebugPanel";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -36,8 +39,10 @@ const ORDEN_CAPAS = [
   "mundo-fill",
   "mundo-line",
   "provincias-line",
-  "capa-temp",
   "municipios-fill",
+  // La temperatura debe verse sobre el color categórico municipal.
+  "capa-temp",
+  "capa-temp-labels",
   // Nubes y lluvia van POR ENCIMA del relleno: se ven pasar sobre los
   // municipios, como en un mapa del tiempo de TV...
   "capa-nubes",
@@ -230,6 +235,8 @@ const BaseMap = forwardRef(function BaseMap(
   // Modo águila: null = apagado · "provincia" = sobrevuelo de toda Misiones
   // · <id de municipio> = sobrevuelo de ese municipio con su clima.
   const [aguila, setAguila] = useState(null);
+  const [weatherQuality, setWeatherQuality] = useState(autoWeatherQuality);
+  const [weatherDebug, setWeatherDebug] = useState(null);
   const sobrevuelo = aguila != null;
   const relativo = useMemo(() => tiempoRelativo(publicadoEn), [publicadoEn]);
 
@@ -307,22 +314,40 @@ const BaseMap = forwardRef(function BaseMap(
   // sobrevolando: se recalcula en cada frame del vuelo con el punto al que
   // mira la cámara, así la lluvia "entra" al acercarse a un municipio con
   // tormenta y se despeja sobre uno soleado.
-  const fxRef = useRef({ lluvia: 0, rayos: false, sol: false });
-  const fxEnPunto = useCallback((lng, lat) => {
+  const weatherRef = useRef(null);
+  const flightProgressRef = useRef(1);
+  const weatherEnPunto = useCallback((lng, lat, idForzado = null) => {
     let mejor = null;
     let min = Infinity;
-    for (const [id, info] of centroides) {
-      const d = (info.c[0] - lng) ** 2 + (info.c[1] - lat) ** 2;
-      if (d < min) {
-        min = d;
-        mejor = id;
+    if (idForzado) mejor = idForzado;
+    else {
+      for (const [id, info] of centroides) {
+        const d = (info.c[0] - lng) ** 2 + (info.c[1] - lat) ** 2;
+        if (d < min) { min = d; mejor = id; }
       }
     }
-    const cond = mejor
-      ? datosPorId.current.get(mejor)?.pronostico?.CONDICION
-      : null;
-    return fxDeCondicion(cond);
-  }, [centroides]);
+    const dato = mejor ? datosPorId.current.get(mejor) : null;
+    const presetDebug = weatherDebug?.preset !== "AUTO" ? weatherDebug?.preset : null;
+    const hayAjuste = weatherDebug && ["rain", "fog", "clouds", "wind", "lightning"].some((k) => weatherDebug[k] >= 0);
+    const override = (presetDebug || hayAjuste) ? {
+      preset: presetDebug || undefined,
+      condition: presetDebug || undefined,
+      precipitationRate: weatherDebug.rain >= 0 ? weatherDebug.rain * 8 : undefined,
+      cloudCoverage: weatherDebug.clouds >= 0 ? weatherDebug.clouds * 100 : undefined,
+      windSpeed: weatherDebug.wind >= 0 ? weatherDebug.wind * 20 : undefined,
+      lightningProbability: weatherDebug.lightning >= 0 ? weatherDebug.lightning : undefined,
+      fog: weatherDebug.fog >= 0 ? weatherDebug.fog : undefined,
+    } : null;
+    return normalizeWeather({
+      condicion: dato?.pronostico?.CONDICION,
+      pronostico: dato?.pronostico,
+      grilla: clima,
+      lngLat: [lng, lat],
+      hora: horaGetterRef.current(),
+      isDay: horaReloj >= 6.3 && horaReloj < 19.7,
+      override,
+    });
+  }, [centroides, clima, horaReloj, weatherDebug]);
 
   useImperativeHandle(ref, () => ({
     capturePng() {
@@ -800,6 +825,8 @@ const BaseMap = forwardRef(function BaseMap(
     if (!baseListas || !clima) return undefined;
     return conEstilo((map) => {
     const id = "capa-temp";
+    const labelsId = "capa-temp-labels";
+    const labelsSourceId = "capa-temp-puntos";
     if (capas.temp) {
       const img = generarCapaClima(clima, "temp", hora);
       if (map.getSource(id)) {
@@ -811,20 +838,71 @@ const BaseMap = forwardRef(function BaseMap(
           type: "raster",
           source: id,
           paint: {
-            "raster-opacity": 0.55,
+            "raster-opacity": 0.72,
             "raster-fade-duration": 250,
             "raster-resampling": "linear",
           },
         });
         ordenarCapas(map);
       }
+      const puntos = {
+        type: "FeatureCollection",
+        features: clima.puntos
+          .filter((_, i) => {
+            const fila = Math.floor(i / clima.grid);
+            const col = i % clima.grid;
+            return fila % 2 === 1 && col % 2 === 1;
+          })
+          .map((p) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+            properties: { valor: Math.round(p.temp?.[hora] ?? 0) },
+          })),
+      };
+      if (map.getSource(labelsSourceId)) {
+        map.getSource(labelsSourceId).setData(puntos);
+      } else {
+        map.addSource(labelsSourceId, { type: "geojson", data: puntos });
+        map.addLayer({
+          id: labelsId,
+          type: "symbol",
+          source: labelsSourceId,
+          layout: {
+            "text-field": ["concat", ["to-string", ["get", "valor"]], "°"],
+            "text-font": ["Metropolis Regular"],
+            "text-size": 13,
+            "text-allow-overlap": false,
+          },
+          paint: {
+            "text-color": "#ffffff",
+            "text-halo-color": "rgba(20,28,34,0.85)",
+            "text-halo-width": 1.5,
+          },
+        });
+        ordenarCapas(map);
+      }
     } else if (map.getLayer(id)) {
+      if (map.getLayer(labelsId)) map.removeLayer(labelsId);
+      if (map.getSource(labelsSourceId)) map.removeSource(labelsSourceId);
       map.removeLayer(id);
       map.removeSource(id);
     }
     marcarSucio(1200);
     });
   }, [baseListas, clima, capas.temp, hora, conEstilo, marcarSucio]);
+
+  // Al mostrar temperatura baja el color categórico de los municipios para
+  // que no tape el campo térmico. Los límites siguen nítidos arriba.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !baseListas || !map.getLayer("municipios-fill")) return;
+    map.setPaintProperty(
+      "municipios-fill",
+      "fill-extrusion-opacity",
+      capas.temp ? 0.3 : 0.92
+    );
+    marcarSucio();
+  }, [baseListas, capas.temp, marcarSucio]);
 
   // --- Nubosidad y lluvia: capas ANIMADAS que se desplazan con el viento
   //     (canvas source, por encima del mapa). ---
@@ -848,7 +926,9 @@ const BaseMap = forwardRef(function BaseMap(
             type: "canvas",
             canvas,
             coordinates: cca.coordinates,
-            animate: true,
+            // CapaClimaAnimada llama triggerRepaint sólo en sus frames (15
+            // FPS). `true` obliga a MapLibre a renderizar a 60 FPS siempre.
+            animate: false,
           });
           map.addLayer({
             id,
@@ -885,6 +965,15 @@ const BaseMap = forwardRef(function BaseMap(
     },
     []
   );
+
+  // Durante el vuelo el último frame de las capas queda visible, pero no
+  // seguimos recalculando dos rasteres detrás del overlay cinematográfico.
+  useEffect(() => {
+    for (const instancia of Object.values(capasAnimRef.current)) {
+      if (sobrevuelo) instancia?.pause();
+      else instancia?.start();
+    }
+  }, [sobrevuelo]);
 
   // --- Partículas de viento ---
   useEffect(() => {
@@ -981,14 +1070,15 @@ const BaseMap = forwardRef(function BaseMap(
 
     // FX dinámico: siempre el del municipio que está bajo la cámara (para
     // un municipio puntual, ése; en la provincia, el que se sobrevuela).
-    const fxMunicipio = muni
-      ? fxDeCondicion(datosPorId.current.get(aguila)?.pronostico?.CONDICION)
-      : null;
-    fxRef.current = fxMunicipio || fxEnPunto(cx, cy);
+    const weatherMunicipio = muni ? weatherEnPunto(cx, cy, aguila) : null;
+    weatherRef.current = weatherMunicipio || weatherEnPunto(cx, cy);
+    flightProgressRef.current = prefiereMenosMovimiento ? 1 : 0;
 
     let raf = 0;
     let vivo = true;
     let t0 = 0;
+    let ultimoFrame = 0;
+    const inicioEntrada = performance.now();
 
     map.flyTo({
       center: [cx, cy],
@@ -1002,7 +1092,11 @@ const BaseMap = forwardRef(function BaseMap(
 
     const volar = (now) => {
       if (!vivo) return;
+      raf = requestAnimationFrame(volar);
+      if (now - ultimoFrame < 1000 / 30) return;
+      ultimoFrame = now;
       if (!t0) t0 = now;
+      flightProgressRef.current = 1;
       const a = ((now - t0) / PERIODO) * Math.PI * 2;
       if (muni) {
         // MapLibre no expone una cámara orbital real. Mantener el municipio
@@ -1014,22 +1108,27 @@ const BaseMap = forwardRef(function BaseMap(
           pitch: PITCH,
           zoom: ZOOM,
         });
-        fxRef.current = fxMunicipio;
+        weatherRef.current = weatherMunicipio;
       } else {
         const lng = cx + RX * Math.cos(a);
         const lat = cy + RY * Math.sin(a);
         const bearing = (Math.atan2(cx - lng, cy - lat) * 180) / Math.PI;
         map.jumpTo({ center: [lng, lat], bearing, pitch: PITCH, zoom: ZOOM });
-        fxRef.current = fxEnPunto(lng, lat);
+        weatherRef.current = weatherEnPunto(lng, lat);
       }
-      marcarSucio(300);
-      raf = requestAnimationFrame(volar);
     };
     const t = prefiereMenosMovimiento
       ? null
       : setTimeout(() => {
           if (vivo) raf = requestAnimationFrame(volar);
         }, 3100);
+    let rafEntrada = 0;
+    const avanzarEntrada = (now) => {
+      if (!vivo || flightProgressRef.current >= 1) return;
+      flightProgressRef.current = Math.min(1, (now - inicioEntrada) / 3000);
+      rafEntrada = requestAnimationFrame(avanzarEntrada);
+    };
+    if (!prefiereMenosMovimiento) rafEntrada = requestAnimationFrame(avanzarEntrada);
 
     const salirPorGesto = () => {
       motivoSalidaAguilaRef.current = "gesto";
@@ -1042,6 +1141,7 @@ const BaseMap = forwardRef(function BaseMap(
       vivo = false;
       if (t) clearTimeout(t);
       if (raf) cancelAnimationFrame(raf);
+      if (rafEntrada) cancelAnimationFrame(rafEntrada);
       map.off("dragstart", salirPorGesto);
       map.off("wheel", salirPorGesto);
       map.stop();
@@ -1059,7 +1159,7 @@ const BaseMap = forwardRef(function BaseMap(
       }
       motivoSalidaAguilaRef.current = null;
     };
-  }, [aguila, baseListas, centroides, centroProvincia, fxEnPunto, marcarSucio]);
+  }, [aguila, baseListas, centroides, centroProvincia, weatherEnPunto, marcarSucio]);
 
   if (!webglOk) {
     return (
@@ -1081,7 +1181,23 @@ const BaseMap = forwardRef(function BaseMap(
         hidden={!capas.viento || sobrevuelo}
       />
 
-      <CinematicFX active={sobrevuelo} sampler={() => fxRef.current} />
+      <CinematicFX
+        active={sobrevuelo}
+        hora={horaReloj}
+        sampler={() => weatherRef.current}
+        flightProgress={() => flightProgressRef.current}
+        quality={weatherQuality}
+      />
+
+      {sobrevuelo && interactive && (
+        <label className="weather-quality">
+          Calidad clima
+          <select value={weatherQuality} onChange={(e) => setWeatherQuality(e.target.value)}>
+            <option value="LOW">Baja</option><option value="MEDIUM">Media</option><option value="HIGH">Alta</option>
+          </select>
+        </label>
+      )}
+      {import.meta.env.DEV && <WeatherDebugPanel onChange={setWeatherDebug} />}
 
       {titulo && (
         <div className="map-title">

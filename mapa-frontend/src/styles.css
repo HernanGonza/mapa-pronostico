@@ -895,6 +895,32 @@ input[type="file"] {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.weather-quality {
+  position: absolute;
+  right: 18px;
+  bottom: 76px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  color: var(--map-text-muted);
+  font: 600 11px var(--font);
+  background: rgba(8, 18, 27, .78);
+  border: 1px solid var(--map-border);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+.weather-quality select { color: var(--map-text); background: #172733; border: 1px solid var(--map-border); border-radius: 5px; padding: 3px; }
+.weather-debug { position:absolute; z-index:20; right:18px; top:70px; width:220px; padding:7px 9px; color:var(--map-text); background:rgba(8,18,27,.9); border:1px solid var(--map-border); border-radius:8px; font:11px var(--font); }
+.weather-debug summary { cursor:pointer; font-weight:700; }
+.weather-debug label { display:grid; grid-template-columns:52px 1fr 30px; align-items:center; gap:4px; margin-top:6px; }
+.weather-debug select { grid-column:2 / 4; color:var(--map-text); background:#172733; border:1px solid var(--map-border); min-width:0; }
+.weather-debug input { width:100%; min-width:0; accent-color:var(--rosa-400); }
+.weather-debug output { text-align:right; color:var(--map-text-muted); }
+.babylon-map__canvas { position:absolute; inset:0; width:100%; height:100%; display:block; outline:none; touch-action:none; }
+.babylon-map__loading { position:absolute; inset:0; z-index:30; display:grid; place-items:center; color:#eef5ef; background:#091722; font:600 14px var(--font); }
+
 @media (max-width: 640px) {
   .layer-panel {
     top: 8px;
