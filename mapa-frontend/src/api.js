@@ -62,12 +62,11 @@ export async function getGeo(nombre) {
 }
 
 /**
- * Campo de viento global (formato GFS-JSON) para la animación de
- * partículas sobre todo el globo. Es un snapshot servido como estático
- * desde el propio front, no del backend.
+ * Grilla de clima (nubosidad, lluvia, temperatura, viento) por hora, para
+ * las capas del mapa. Real, de Open-Meteo, cacheada 30 min en el back.
  */
-export async function getVientoGlobal() {
-  const res = await fetch("/wind-global.json");
+export async function getClimaGrilla() {
+  const res = await fetch(`${API_URL}/api/clima/grilla`);
   return handleJson(res);
 }
 

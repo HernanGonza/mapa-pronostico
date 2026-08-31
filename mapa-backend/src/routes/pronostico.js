@@ -13,6 +13,7 @@ const { resolveIconPath } = require("../lib/iconResolver");
 const { MATERIALES_DIR } = require("../lib/generateMap");
 const { loadMunicipios, armarMunicipiosConPronostico } = require("../lib/municipios");
 const { obtenerGrillaViento } = require("../lib/viento");
+const { obtenerGrillaClima } = require("../lib/clima");
 const coordinates = require("../config/coordinates");
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -209,6 +210,24 @@ router.get("/geo/:archivo", (req, res) => {
   res.sendFile(
     path.join(__dirname, "..", "..", "data", `${req.params.archivo}.geojson`)
   );
+});
+
+/**
+ * GET /api/clima/grilla
+ * Grilla de clima (nubosidad, lluvia, temperatura, viento) por hora, para
+ * las capas del mapa. Todo de Open-Meteo. Cacheado 30 min.
+ */
+router.get("/clima/grilla", async (req, res) => {
+  try {
+    // Mapa "en vivo": el cliente revalida seguido (el back ya cachea 30 min).
+    res.set("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
+    res.json(await obtenerGrillaClima());
+  } catch (err) {
+    console.error(err);
+    res
+      .status(502)
+      .json({ error: "No se pudo obtener el clima de Open-Meteo: " + err.message });
+  }
 });
 
 /**

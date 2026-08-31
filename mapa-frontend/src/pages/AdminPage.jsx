@@ -10,7 +10,7 @@ import {
   getMunicipiosGeojson,
   getMundoGeojson,
   getGeo,
-  getVientoGlobal,
+  getClimaGrilla,
 } from "../api";
 import {
   CONDICIONES_CANONICAS,
@@ -75,7 +75,7 @@ export default function AdminPage() {
   const [paisesLabels, setPaisesLabels] = useState(null);
   const [provincias, setProvincias] = useState(null);
   const [provinciasLabels, setProvinciasLabels] = useState(null);
-  const [viento, setViento] = useState(null);
+  const [clima, setClima] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const [mensajeOk, setMensajeOk] = useState(null);
@@ -88,7 +88,7 @@ export default function AdminPage() {
     getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
     getGeo("provincias").then(setProvincias).catch(() => {});
     getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
-    getVientoGlobal().then(setViento).catch(() => {});
+    getClimaGrilla().then(setClima).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -396,7 +396,7 @@ export default function AdminPage() {
             provincias={provincias}
             provinciasLabels={provinciasLabels}
             pronostico={municipiosPreview}
-            viento={viento}
+            clima={clima}
             titulo="Previsión del tiempo"
             publicadoEn={publicado?.publicadoEn}
             enableCapture

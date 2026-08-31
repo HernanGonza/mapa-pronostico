@@ -1,68 +1,35 @@
 /**
- * Partículas de viento sobre todo el globo (estilo earth.nullschool).
- * Campo global en formato GFS/GRIB-JSON (registros U y V sobre una grilla
- * lat/lng regular).
+ * Partículas de viento sobre el mapa (estilo earth.nullschool).
  *
- * Movimiento en pasos chicos y fijos (nada de dt): así las estelas salen
- * suaves y continuas, no "fuegos artificiales".
+ * Toma la grilla de clima de Open-Meteo (`grid.puntos[k].windU[hora]` /
+ * `windV[hora]`, en m/s) y una función `horaGetter()` que devuelve el
+ * índice de hora actual — así el viento sigue el slider de tiempo.
+ *
+ * Movimiento en pasos chicos y fijos → estelas suaves, sin "fuegos
+ * artificiales". No dibuja mientras la cámara se mueve ni en la vista de
+ * globo muy alejada (las partículas se salían del disco).
  */
 
-const N_PARTICLES = 3200;
-const FADE_ALPHA = 0.965; // estelas un poco más largas => más visibles
+const N_PARTICLES = 2800;
+const FADE_ALPHA = 0.965;
 const MAX_AGE = 120;
-const STEP_MS = 33; // ~30 fps
-const FACTOR = 0.0007; // grados por paso, por (m/s) — paso chico = movimiento fluido
+const STEP_MS = 33;
+const FACTOR = 0.00075; // grados por paso, por (m/s)
 const MAX_SALTO_PX = 10;
 
-const MISIONES = { latMin: -28.4, latMax: -25.3, lngMin: -56.3, lngMax: -53.5 };
-
-const toRad = (d) => (d * Math.PI) / 180;
-
-class WindField {
-  constructor(records) {
-    const h = records[0].header;
-    this.nx = h.nx;
-    this.ny = h.ny;
-    this.lo1 = h.lo1;
-    this.la1 = h.la1;
-    this.dx = h.dx;
-    this.dy = h.dy;
-    this.u = records[0].data;
-    this.v = records[1].data;
-  }
-
-  at(lng, lat) {
-    const lon = (((lng - this.lo1) % 360) + 360) % 360;
-    const fx = lon / this.dx;
-    const fy = (this.la1 - lat) / this.dy;
-    if (fy < 0 || fy > this.ny - 1) return null;
-    const x0 = Math.floor(fx);
-    const y0 = Math.floor(fy);
-    const x1 = (x0 + 1) % this.nx;
-    const y1 = Math.min(this.ny - 1, y0 + 1);
-    const tx = fx - x0;
-    const ty = fy - y0;
-    const g = (arr, x, y) => arr[y * this.nx + x];
-    const bl = (arr) => {
-      const a = g(arr, x0, y0) * (1 - tx) + g(arr, x1, y0) * tx;
-      const b = g(arr, x0, y1) * (1 - tx) + g(arr, x1, y1) * tx;
-      return a * (1 - ty) + b * ty;
-    };
-    return [bl(this.u), bl(this.v)];
-  }
-}
-
 export class WindParticleLayer {
-  constructor(map, canvas, records) {
+  constructor(map, canvas, grid, horaGetter) {
     this.map = map;
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.field = new WindField(records);
+    this.grid = grid;
+    this.n = grid.grid;
+    this.b = grid.bounds;
+    this.horaGetter = horaGetter || (() => 0);
     this.particles = [];
     this.running = false;
     this._last = 0;
     this._resize();
-    this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
     this._onResize = () => this._resize();
     map.on("resize", this._onResize);
   }
@@ -77,20 +44,18 @@ export class WindParticleLayer {
   }
 
   _rnd() {
-    // Cuando la cámara está cerca, las partículas nacen dentro (o cerca)
-    // de lo que se ve — así hay densidad sobre Misiones. En vista de globo
-    // se reparten por todo el planeta.
+    // Cerca: nacen dentro de lo que se ve (densidad sobre Misiones).
     const age = Math.random() * MAX_AGE;
-    if (this.map.getZoom() > 3.5) {
+    if (this.map.getZoom() > 3.6) {
       try {
-        const b = this.map.getBounds();
-        const w = b.getWest();
-        const e = b.getEast();
-        const s = b.getSouth();
-        const n = b.getNorth();
+        const bb = this.map.getBounds();
+        const w = bb.getWest();
+        const e = bb.getEast();
+        const s = bb.getSouth();
+        const n = bb.getNorth();
         if (e - w > 0 && e - w < 180 && n - s > 0) {
-          const mx = (e - w) * 0.2;
-          const my = (n - s) * 0.2;
+          const mx = (e - w) * 0.15;
+          const my = (n - s) * 0.15;
           return {
             lng: w - mx + Math.random() * (e - w + 2 * mx),
             lat: s - my + Math.random() * (n - s + 2 * my),
@@ -98,16 +63,45 @@ export class WindParticleLayer {
           };
         }
       } catch {
-        /* bounds no disponibles en globo — cae al reparto global */
+        /* sin bounds */
       }
     }
-    return { lng: -180 + Math.random() * 360, lat: -78 + Math.random() * 156, age };
+    const b = this.b;
+    return {
+      lng: b.lngMin + Math.random() * (b.lngMax - b.lngMin),
+      lat: b.latMin + Math.random() * (b.latMax - b.latMin),
+      age,
+    };
+  }
+
+  /** Interpola [u,v] (m/s) en lng/lat para la hora actual. */
+  _uv(lng, lat) {
+    const { latMin, latMax, lngMin, lngMax } = this.b;
+    if (lat < latMin || lat > latMax || lng < lngMin || lng > lngMax) return null;
+    const n = this.n;
+    const fi = ((lat - latMin) / (latMax - latMin)) * (n - 1);
+    const fj = ((lng - lngMin) / (lngMax - lngMin)) * (n - 1);
+    const i0 = Math.max(0, Math.min(n - 2, Math.floor(fi)));
+    const j0 = Math.max(0, Math.min(n - 2, Math.floor(fj)));
+    const ti = fi - i0;
+    const tj = fj - j0;
+    const h = this.horaGetter();
+    const g = (i, j, comp) => {
+      const p = this.grid.puntos[i * n + j];
+      const s = comp === 0 ? p.windU : p.windV;
+      return s ? s[h] ?? 0 : 0;
+    };
+    const bil = (comp) => {
+      const a = g(i0, j0, comp) * (1 - tj) + g(i0, j0 + 1, comp) * tj;
+      const b = g(i0 + 1, j0, comp) * (1 - tj) + g(i0 + 1, j0 + 1, comp) * tj;
+      return a * (1 - ti) + b * ti;
+    };
+    return [bil(0), bil(1)];
   }
 
   start() {
     if (this.running) return;
     this.running = true;
-    // Re-sembrar ahora que la cámara ya está donde va (después del intro).
     this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
     const ctx = this.ctx;
 
@@ -120,25 +114,16 @@ export class WindParticleLayer {
       const w = this.canvas.width;
       const h = this.canvas.height;
 
-      // Mientras la cámara se mueve, las proyecciones cambian entre el
-      // punto "antes" y el "después" y salen trazos largos ("fuegos
-      // artificiales"). En ese caso sólo avanzamos las partículas y
-      // dejamos que la estela se desvanezca, sin dibujar nada nuevo.
-      const dibujar = !this.map.isMoving();
-      // Al terminar un movimiento de cámara, re-sembramos para que las
-      // partículas se concentren en lo que ahora se ve.
-      if (dibujar && this._wasMoving) {
-        this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
-      }
-      this._wasMoving = !dibujar;
-
-      // Con la cámara muy alejada (vista de globo) no se dibuja viento:
-      // las partículas de la cara oculta se proyectan fuera del disco y
-      // ensucian toda la pantalla. El viento aparece al acercarse.
       if (this.map.getZoom() < 3.6) {
         ctx.clearRect(0, 0, w, h);
         return;
       }
+
+      const dibujar = !this.map.isMoving();
+      if (dibujar && this._wasMoving) {
+        this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
+      }
+      this._wasMoving = !dibujar;
 
       ctx.globalCompositeOperation = "destination-in";
       ctx.fillStyle = `rgba(0,0,0,${dibujar ? FADE_ALPHA : 0.9})`;
@@ -146,28 +131,25 @@ export class WindParticleLayer {
       ctx.globalCompositeOperation = "source-over";
       ctx.lineWidth = 1.15;
       ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(255,255,255,0.62)";
 
       for (const p of this.particles) {
-        const uv = this.field.at(p.lng, p.lat);
+        const uv = this._uv(p.lng, p.lat);
         if (!uv) {
           Object.assign(p, this._rnd());
           continue;
         }
-
         const antes = this.map.project([p.lng, p.lat]);
 
-        const cosLat = Math.max(0.35, Math.cos(toRad(p.lat)));
+        const cosLat = Math.max(0.4, Math.cos((p.lat * Math.PI) / 180));
         p.lng += (uv[0] * FACTOR) / cosLat;
         p.lat += uv[1] * FACTOR;
         p.age += 1;
 
-        if (p.age > MAX_AGE || p.lat > 82 || p.lat < -82) {
+        if (p.age > MAX_AGE) {
           Object.assign(p, this._rnd());
           continue;
         }
-        if (p.lng > 180) p.lng -= 360;
-        if (p.lng < -180) p.lng += 360;
-
         if (!dibujar) continue;
 
         const desp = this.map.project([p.lng, p.lat]);
@@ -177,15 +159,6 @@ export class WindParticleLayer {
         if (desp.x < -8 || desp.x > w + 8 || desp.y < -8 || desp.y > h + 8)
           continue;
 
-        const enMnes =
-          p.lat > MISIONES.latMin &&
-          p.lat < MISIONES.latMax &&
-          p.lng > MISIONES.lngMin &&
-          p.lng < MISIONES.lngMax;
-
-        ctx.strokeStyle = enMnes
-          ? "rgba(255,255,255,0.92)"
-          : "rgba(255,255,255,0.62)";
         ctx.beginPath();
         ctx.moveTo(antes.x, antes.y);
         ctx.lineTo(desp.x, desp.y);
@@ -198,6 +171,7 @@ export class WindParticleLayer {
   stop() {
     this.running = false;
     if (this._raf) cancelAnimationFrame(this._raf);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   destroy() {

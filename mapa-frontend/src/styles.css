@@ -703,3 +703,233 @@ input[type="file"] {
     display: none;
   }
 }
+
+/* =========================================================================
+   Capas de clima — panel + línea de tiempo
+   ========================================================================= */
+
+.layer-panel {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--map-panel);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--map-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  max-width: calc(100vw - 32px);
+}
+.layer-panel__toggles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.layer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--map-text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--map-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.layer-chip:hover {
+  color: var(--map-text);
+}
+.layer-chip--on {
+  color: #0e1a16;
+  background: #eef0e6;
+  border-color: #eef0e6;
+  font-weight: 600;
+}
+.layer-chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.layer-chip__dot--nubes {
+  background: linear-gradient(135deg, #e6ebf0, #aeb7c2);
+}
+.layer-chip__dot--lluvia {
+  background: linear-gradient(135deg, #6fc0ff, #46c86e 45%, #f5e042 70%, #eb3c3c);
+}
+.layer-chip__dot--viento {
+  background: repeating-linear-gradient(
+    -45deg,
+    #ffffff,
+    #ffffff 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  background-color: #5a6b78;
+}
+.layer-chip__dot--temp {
+  background: linear-gradient(135deg, #3b78d2, #86c88c 45%, #f0de6e 70%, #d63c37);
+}
+
+.layer-panel__tiempo {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.layer-panel__slider {
+  width: 100%;
+  accent-color: var(--rosa-600);
+  cursor: pointer;
+}
+.layer-panel__hora {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--map-text-muted);
+  text-transform: capitalize;
+}
+.layer-panel__ahora {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0e1a16;
+  background: var(--rosa-400);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.layer-panel__badge {
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rosa-300);
+  border: 1px solid var(--rosa-600);
+  border-radius: 999px;
+}
+
+/* ---------- Botón "ver a nivel calle" en la tarjeta ---------- */
+
+.info-card__calle {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--map-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--map-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.info-card__calle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* =========================================================================
+   Panel de vista a nivel calle
+   ========================================================================= */
+
+.sv-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--map-panel-solid);
+  animation: sv-in 0.35s ease;
+}
+@keyframes sv-in {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+.sv-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--map-panel-solid);
+  border-bottom: 1px solid var(--map-border);
+}
+.sv-panel__eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--map-text-muted);
+}
+.sv-panel__head h3 {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--map-text);
+}
+.sv-panel__close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: var(--map-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sv-panel__view {
+  flex: 1;
+  position: relative;
+  background: #0a0f14;
+}
+.sv-panel__view iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.sv-panel__nokey {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
+  color: var(--map-text-muted);
+}
+.sv-panel__nokey code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+@media (max-width: 640px) {
+  .layer-panel {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+  }
+}

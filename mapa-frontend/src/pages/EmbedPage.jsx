@@ -5,7 +5,7 @@ import {
   getMunicipiosGeojson,
   getMundoGeojson,
   getGeo,
-  getVientoGlobal,
+  getClimaGrilla,
 } from "../api";
 
 /**
@@ -19,7 +19,7 @@ export default function EmbedPage() {
   const [paisesLabels, setPaisesLabels] = useState(null);
   const [provincias, setProvincias] = useState(null);
   const [provinciasLabels, setProvinciasLabels] = useState(null);
-  const [viento, setViento] = useState(null);
+  const [clima, setClima] = useState(null);
   const [municipios, setMunicipios] = useState(null);
   const [publicadoEn, setPublicadoEn] = useState(null);
   const [error, setError] = useState(null);
@@ -32,7 +32,7 @@ export default function EmbedPage() {
     getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
     getGeo("provincias").then(setProvincias).catch(() => {});
     getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
-    getVientoGlobal().then(setViento).catch(() => {});
+    getClimaGrilla().then(setClima).catch(() => {});
   }, []);
 
   const cargarPronostico = useCallback(async () => {
@@ -78,7 +78,7 @@ export default function EmbedPage() {
       provincias={provincias}
       provinciasLabels={provinciasLabels}
       pronostico={municipios}
-      viento={viento}
+      clima={clima}
       titulo="Previsión del tiempo"
       publicadoEn={publicadoEn}
     />
