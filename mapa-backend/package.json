@@ -1,0 +1,24 @@
+{
+  "name": "mapa-pronostico-backend",
+  "version": "1.0.0",
+  "description": "Backend Node/Express que reemplaza el notebook de Colab para generar el mapa de pronóstico",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "fast-xml-parser": "^4.4.1",
+    "jszip": "^3.10.1",
+    "multer": "^1.4.5-lts.1"
+  },
+  "allowScripts": {
+    "canvas@2.11.2": true
+  }
+}

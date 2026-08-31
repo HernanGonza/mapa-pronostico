@@ -1,0 +1,155 @@
+/*
+ * Sistema de diseño — Ministerio de Ecología y RNR de Misiones.
+ * Paleta y tipografía tomadas del Brandbook 2024 (flor del Lapacho +
+ * escala de verdes/beige de la marca Misiones + rosa emblema).
+ *
+ * Dos ámbitos:
+ *   - superficies claras (crema/blanco) para el panel de operador
+ *   - superficies oscuras para el lienzo del mapa (contraste con el terreno)
+ */
+
+@font-face {
+  font-family: "Oak Sans";
+  src: url("/fonts/OakSans-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Oak Sans";
+  src: url("/fonts/OakSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Oak Sans";
+  src: url("/fonts/OakSans-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Oak Sans";
+  src: url("/fonts/OakSans-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Oak Sans";
+  src: url("/fonts/OakSans-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  /* --- Marca: verdes --- */
+  --verde-900: #1b3325;
+  --verde-800: #234131;
+  --verde-700: #2f5540;
+  --verde-600: #3e6c51; /* verde primario oficial del manual */
+  --verde-500: #4f7d61;
+  --oliva-600: #5e793e;
+  --oliva-400: #9ca867;
+  --sage-300: #b8c38a;
+  --sage-200: #cad4a0;
+
+  /* --- Marca: crema / beige --- */
+  --crema: #faf4eb;
+  --crema-200: #f1e9d8;
+  --crema-300: #e6dcc5;
+
+  /* --- Marca: rosa Lapacho (acento) --- */
+  --rosa-700: #a72858;
+  --rosa-600: #c9346c;
+  --rosa-400: #e87fa5;
+  --rosa-300: #f5a5bf;
+
+  /* --- Marca: cálidos / fríos (secundarios) --- */
+  --rojo-600: #d73324;
+  --tierra-600: #c64a2a;
+  --naranja-500: #e18a40;
+  --amarillo-400: #efd44e;
+  --navy-800: #10234b;
+  --azul-600: #3371c6;
+  --azul-400: #7fa9de;
+  --celeste-300: #a7c7e7;
+  --periwinkle-500: #7283c8;
+
+  /* --- Superficies claras (panel de operador) --- */
+  --bg: var(--crema);
+  --surface: #ffffff;
+  --surface-2: #f6f1e6;
+  --surface-3: #efe7d6;
+  --border: #e4dac6;
+  --border-strong: #d3c6ab;
+  --text: #21130d;
+  --text-muted: #6b6152;
+  --text-faint: #9a8f7d;
+  --accent: var(--rosa-600);
+  --accent-hover: var(--rosa-700);
+  --accent-soft: #f6e3ea;
+  --focus-ring: 0 0 0 3px rgba(201, 52, 108, 0.35);
+
+  --ok: #2f7d4f;
+  --ok-soft: #e3f0e6;
+  --danger: #b32d3a;
+  --danger-soft: #f6e1e2;
+  --warn: #9a6a12;
+  --warn-soft: #f6ecd7;
+
+  /* --- Superficies oscuras (lienzo del mapa) --- */
+  --map-bg: #0e1a16;
+  --map-panel: rgba(16, 28, 23, 0.9);
+  --map-panel-solid: #14211b;
+  --map-border: rgba(255, 255, 255, 0.14);
+  --map-text: #f3f1ea;
+  --map-text-muted: #a9b6ad;
+
+  /* --- Formas --- */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 5px;
+  --shadow-1: 0 1px 2px rgba(33, 19, 13, 0.09), 0 3px 10px rgba(33, 19, 13, 0.06);
+  --shadow-2: 0 10px 34px rgba(0, 0, 0, 0.18);
+  --shadow-pop: 0 6px 22px rgba(0, 0, 0, 0.28);
+
+  --font: "Oak Sans", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+
+  --header-h: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

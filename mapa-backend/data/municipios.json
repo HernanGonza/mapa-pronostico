@@ -1,0 +1,555 @@
+[
+  {
+    "id": "f77ba22c-7120-4063-9baf-dd8e7eb61b52",
+    "nombre": "25 DE MAYO",
+    "lat": -27.333,
+    "lng": -54.682,
+    "codigo": 73
+  },
+  {
+    "id": "9f84bfba-ff9e-47f3-8c55-037a05a3ef05",
+    "nombre": "9 DE JULIO",
+    "lat": -26.435,
+    "lng": -54.491,
+    "codigo": 54
+  },
+  {
+    "id": "db62f53b-e2aa-4791-b599-3408aa1645b1",
+    "nombre": "ALBA POSSE",
+    "lat": -27.481,
+    "lng": -54.799,
+    "codigo": 1
+  },
+  {
+    "id": "6bf7625d-d148-4342-b38c-58e457da126b",
+    "nombre": "ALMAFUERTE",
+    "lat": -27.526,
+    "lng": -55.389,
+    "codigo": 2
+  },
+  {
+    "id": "5d94ed23-7bec-4b64-a81c-d2a19c3eea2c",
+    "nombre": "APOSTOLES",
+    "lat": -27.902,
+    "lng": -55.721,
+    "codigo": 4
+  },
+  {
+    "id": "7bcdaf3f-155b-479d-8409-07f4580468fe",
+    "nombre": "ARISTOBULO DEL VALLE",
+    "lat": -27.148,
+    "lng": -54.829,
+    "codigo": 5
+  },
+  {
+    "id": "a7092afd-20e0-421d-bbad-cf9ea5f4c523",
+    "nombre": "ARROYO DEL MEDIO",
+    "lat": -27.729,
+    "lng": -55.398,
+    "codigo": 6
+  },
+  {
+    "id": "3f6fd7ee-7f0d-4400-95e9-ea3abd740b14",
+    "nombre": "AZARA",
+    "lat": -28.054,
+    "lng": -55.666,
+    "codigo": 7
+  },
+  {
+    "id": "d60b83ef-c0d2-4913-ad02-0deaee2f9ab0",
+    "nombre": "BERNARDO DE IRIGOYEN",
+    "lat": -26.155,
+    "lng": -53.979,
+    "codigo": 8
+  },
+  {
+    "id": "c2c812c0-f899-47e8-a4af-eca99e8736a9",
+    "nombre": "BONPLAND",
+    "lat": -27.478,
+    "lng": -55.472,
+    "codigo": 9
+  },
+  {
+    "id": "6085d533-d5ab-47b8-82d6-4fccef541f1f",
+    "nombre": "CAA YARI",
+    "lat": -27.517,
+    "lng": -55.307,
+    "codigo": 10
+  },
+  {
+    "id": "8dfc6be4-788e-433a-9359-4f34d92a669e",
+    "nombre": "CAMPO GRANDE",
+    "lat": -27.232,
+    "lng": -54.962,
+    "codigo": 11
+  },
+  {
+    "id": "bd58e1df-28c6-46c5-b849-c10074bfa7bc",
+    "nombre": "CAMPO RAMON",
+    "lat": -27.479,
+    "lng": -54.966,
+    "codigo": 12
+  },
+  {
+    "id": "5e99bb52-a302-4f5a-9d59-733e9891ad0d",
+    "nombre": "CAMPO VIERA",
+    "lat": -27.282,
+    "lng": -55.072,
+    "codigo": 13
+  },
+  {
+    "id": "2d00b64e-abbd-4f14-b311-f98193ebcb7b",
+    "nombre": "CANDELARIA",
+    "lat": -27.469,
+    "lng": -55.715,
+    "codigo": 14
+  },
+  {
+    "id": "90f27383-6ba6-4f94-b636-8288cbc88e14",
+    "nombre": "CAPIOVI",
+    "lat": -26.917,
+    "lng": -55.059,
+    "codigo": 15
+  },
+  {
+    "id": "5d65faa7-bc88-4a88-a22b-236cded83eeb",
+    "nombre": "CARAGUATAY",
+    "lat": -26.788,
+    "lng": -54.672,
+    "codigo": 16
+  },
+  {
+    "id": "969db26f-6477-4031-83ab-168ba2621214",
+    "nombre": "CERRO AZUL",
+    "lat": -27.649,
+    "lng": -55.513,
+    "codigo": 17
+  },
+  {
+    "id": "09e10c12-dc1c-47f1-a2e3-fd083a7d7365",
+    "nombre": "CERRO CORA",
+    "lat": -27.527,
+    "lng": -55.602,
+    "codigo": 18
+  },
+  {
+    "id": "fd4027cd-efbc-4502-b282-e2b1eef8f8e2",
+    "nombre": "COLONIA ALBERDI",
+    "lat": -27.357,
+    "lng": -55.201,
+    "codigo": 19
+  },
+  {
+    "id": "ebd32d72-7873-4e1a-a09a-9f108db52958",
+    "nombre": "COLONIA AURORA",
+    "lat": -27.358,
+    "lng": -54.448,
+    "codigo": 20
+  },
+  {
+    "id": "504d6bfd-d909-4240-8dd0-285ab1604566",
+    "nombre": "COLONIA DELICIA",
+    "lat": -26.206,
+    "lng": -54.397,
+    "codigo": 21
+  },
+  {
+    "id": "70f90882-4137-496d-9ea0-27222fad0c7c",
+    "nombre": "COLONIA POLANA",
+    "lat": -27.008,
+    "lng": -55.317,
+    "codigo": 22
+  },
+  {
+    "id": "306ea241-20b1-4f90-a822-6558c5d0d5b4",
+    "nombre": "COLONIA VICTORIA",
+    "lat": -26.308,
+    "lng": -54.496,
+    "codigo": 23
+  },
+  {
+    "id": "a442e539-e68e-42ab-a98c-455332650078",
+    "nombre": "COMANDANTE ANDRESITO",
+    "lat": -25.722,
+    "lng": -54.012,
+    "codigo": 75
+  },
+  {
+    "id": "de9dbbbf-b189-492d-af80-adf180f34595",
+    "nombre": "CONCEPCION DE LA SIERRA",
+    "lat": -27.997,
+    "lng": -55.516,
+    "codigo": 25
+  },
+  {
+    "id": "c67b9ac9-34c4-4456-8252-8c6777de2045",
+    "nombre": "CORPUS",
+    "lat": -27.147,
+    "lng": -55.506,
+    "codigo": 26
+  },
+  {
+    "id": "17fe6427-6dba-4979-9969-11b0abe276c5",
+    "nombre": "DOS ARROYOS",
+    "lat": -27.706,
+    "lng": -55.267,
+    "codigo": 27
+  },
+  {
+    "id": "884e0591-6866-4c64-b487-b8f2810479a6",
+    "nombre": "DOS DE MAYO",
+    "lat": -27.092,
+    "lng": -54.611,
+    "codigo": 28
+  },
+  {
+    "id": "61e4293f-70df-4f1b-b186-47a3c6226e82",
+    "nombre": "DOS HERMANAS",
+    "lat": -26.332,
+    "lng": -53.77,
+    "codigo": 79
+  },
+  {
+    "id": "bb640b0e-988f-4312-8bfb-976a5b37dc52",
+    "nombre": "EL ALCAZAR",
+    "lat": -26.844,
+    "lng": -54.777,
+    "codigo": 29
+  },
+  {
+    "id": "0c1f1dab-a130-4253-8622-bfca12091961",
+    "nombre": "EL SOBERBIO",
+    "lat": -27.133,
+    "lng": -54.142,
+    "codigo": 31
+  },
+  {
+    "id": "21d13b47-750e-4a75-9a8a-5d848f979bc8",
+    "nombre": "ELDORADO",
+    "lat": -26.422,
+    "lng": -54.616,
+    "codigo": 30
+  },
+  {
+    "id": "be96deec-d1f8-46fe-9c52-0af1d894f439",
+    "nombre": "FACHINAL",
+    "lat": -27.668,
+    "lng": -55.752,
+    "codigo": 33
+  },
+  {
+    "id": "4bab8dec-f933-4b73-b191-fb3af22c3eb3",
+    "nombre": "FLORENTINO AMEGUINO",
+    "lat": -27.695,
+    "lng": -55.062,
+    "codigo": 3
+  },
+  {
+    "id": "43d5ea16-e1a9-47c2-95b6-457ed06eccb4",
+    "nombre": "FRACRAN",
+    "lat": -26.807,
+    "lng": -54.261,
+    "codigo": 78
+  },
+  {
+    "id": "a1bcc3ab-0b19-4400-9e1b-d9772a1811a3",
+    "nombre": "GARUHAPE",
+    "lat": -26.887,
+    "lng": -54.907,
+    "codigo": 34
+  },
+  {
+    "id": "a08e7ee8-5354-4954-8af2-156e853b55ce",
+    "nombre": "GARUPA",
+    "lat": -27.544,
+    "lng": -55.865,
+    "codigo": 35
+  },
+  {
+    "id": "26f8d771-7c00-4b14-85f9-3aa84055909f",
+    "nombre": "GENERAL ALVEAR",
+    "lat": -27.419,
+    "lng": -55.18,
+    "codigo": 36
+  },
+  {
+    "id": "8660fc57-300b-4de0-85fa-30dca7a08491",
+    "nombre": "GENERAL URQUIZA",
+    "lat": -27.05,
+    "lng": -55.393,
+    "codigo": 38
+  },
+  {
+    "id": "a5323630-0df9-4ded-8c72-2f5d777ca0b6",
+    "nombre": "GOBERNADOR LOPEZ",
+    "lat": -27.639,
+    "lng": -55.212,
+    "codigo": 39
+  },
+  {
+    "id": "af05341e-9823-46d3-943e-ea3d75889d70",
+    "nombre": "GOBERNADOR ROCA",
+    "lat": -27.253,
+    "lng": -55.368,
+    "codigo": 40
+  },
+  {
+    "id": "b7ac64ef-8dea-43fe-bdd4-bd575270c62b",
+    "nombre": "GUARANI",
+    "lat": -27.561,
+    "lng": -55.177,
+    "codigo": 41
+  },
+  {
+    "id": "c2dece47-50b6-40e9-b2fb-57e89203c50c",
+    "nombre": "HIPOLITO IRIGOYEN",
+    "lat": -27.1,
+    "lng": -55.307,
+    "codigo": 42
+  },
+  {
+    "id": "2a6cafff-49d4-4d87-9e20-5818cb640af8",
+    "nombre": "ITACARUARE",
+    "lat": -27.836,
+    "lng": -55.279,
+    "codigo": 44
+  },
+  {
+    "id": "7a272734-568e-4a2b-af06-6827d8caa4bb",
+    "nombre": "JARDÍN AMERICA",
+    "lat": -27.087,
+    "lng": -55.195,
+    "codigo": 45
+  },
+  {
+    "id": "a610881a-e096-4069-9e7f-592eb02dd6b8",
+    "nombre": "LEANDRO N. ALEM",
+    "lat": -27.617,
+    "lng": -55.33,
+    "codigo": 46
+  },
+  {
+    "id": "5608c152-eb1d-451b-82e5-996896ce9650",
+    "nombre": "LORETO",
+    "lat": -27.357,
+    "lng": -55.513,
+    "codigo": 49
+  },
+  {
+    "id": "5920f227-1235-488e-94df-241f166e290c",
+    "nombre": "LOS HELECHOS",
+    "lat": -27.571,
+    "lng": -55.059,
+    "codigo": 50
+  },
+  {
+    "id": "9131b4d3-6a46-4945-a498-aab58efb4194",
+    "nombre": "MARTIRES",
+    "lat": -27.419,
+    "lng": -55.382,
+    "codigo": 51
+  },
+  {
+    "id": "4b70e2a8-cc3e-412f-8c20-9a2c285e9c18",
+    "nombre": "MOJON GRANDE",
+    "lat": -27.726,
+    "lng": -55.12,
+    "codigo": 52
+  },
+  {
+    "id": "d11c1ba6-4765-46c2-bf9a-f527208a6fa7",
+    "nombre": "MONTECARLO",
+    "lat": -26.64,
+    "lng": -54.564,
+    "codigo": 53
+  },
+  {
+    "id": "9599fc10-04e3-4f80-87c8-e8981bfd671d",
+    "nombre": "OBERA",
+    "lat": -27.452,
+    "lng": -55.118,
+    "codigo": 55
+  },
+  {
+    "id": "ba8b841a-1c4a-4a55-8378-a2ee6fc43f45",
+    "nombre": "OLEGARIO VICTOR ANDRADE",
+    "lat": -27.566,
+    "lng": -55.497,
+    "codigo": 56
+  },
+  {
+    "id": "5d49cb3d-c8b5-47a4-a5bf-05382ba245b0",
+    "nombre": "PANAMBI",
+    "lat": -27.677,
+    "lng": -54.97,
+    "codigo": 57
+  },
+  {
+    "id": "1d2336c6-5d8d-4e11-a643-730d872bd92a",
+    "nombre": "POSADAS",
+    "lat": -27.433,
+    "lng": -55.957,
+    "codigo": 59
+  },
+  {
+    "id": "5260f4ff-6b44-42a6-8aa0-5aba59de45f2",
+    "nombre": "POZO AZUL",
+    "lat": -26.354,
+    "lng": -54.061,
+    "codigo": 76
+  },
+  {
+    "id": "1ad3c0b9-8bde-4ca4-8567-dbaeba3d1fd0",
+    "nombre": "PROFUNDIDAD",
+    "lat": -27.56,
+    "lng": -55.718,
+    "codigo": 60
+  },
+  {
+    "id": "474b8d76-2997-4329-b101-344a73162edd",
+    "nombre": "PUERTO ESPERANZA",
+    "lat": -26.081,
+    "lng": -54.472,
+    "codigo": 32
+  },
+  {
+    "id": "fdb1e6d3-98a0-4837-a68a-4885011bc8d3",
+    "nombre": "PUERTO IGUAZU",
+    "lat": -25.673,
+    "lng": -54.375,
+    "codigo": 43
+  },
+  {
+    "id": "7cc124a5-eae1-4a08-a88e-82291a72723a",
+    "nombre": "PUERTO LEONI",
+    "lat": -26.996,
+    "lng": -55.138,
+    "codigo": 47
+  },
+  {
+    "id": "eb8d45cb-1c50-416c-951e-6be83262a25f",
+    "nombre": "PUERTO LIBERTAD",
+    "lat": -25.849,
+    "lng": -54.421,
+    "codigo": 48
+  },
+  {
+    "id": "e1501867-e45a-42a1-af18-4630d8c8f433",
+    "nombre": "PUERTO PIRAY",
+    "lat": -26.538,
+    "lng": -54.43,
+    "codigo": 58
+  },
+  {
+    "id": "46179fdf-3a50-4bc7-b5f2-82701a8da2cf",
+    "nombre": "PUERTO RICO",
+    "lat": -26.844,
+    "lng": -55.046,
+    "codigo": 61
+  },
+  {
+    "id": "b71c24b7-d343-461b-afc9-0221e3c86384",
+    "nombre": "RUIZ DE MONTOYA",
+    "lat": -27.014,
+    "lng": -55.042,
+    "codigo": 62
+  },
+  {
+    "id": "5a016f87-1f22-4a4a-a468-076935e12a99",
+    "nombre": "SALTO ENCANTADO",
+    "lat": -27.05,
+    "lng": -54.821,
+    "codigo": 77
+  },
+  {
+    "id": "b9e848e1-5de9-4385-98a6-ccae382a4ff1",
+    "nombre": "SAN ANTONIO",
+    "lat": -25.994,
+    "lng": -53.938,
+    "codigo": 37
+  },
+  {
+    "id": "afd3d63a-5c74-4ebb-9d6c-221c38537c76",
+    "nombre": "SAN IGNACIO",
+    "lat": -27.292,
+    "lng": -55.462,
+    "codigo": 64
+  },
+  {
+    "id": "cd139a9d-9b24-4966-9f40-c91e73800c30",
+    "nombre": "SAN JAVIER",
+    "lat": -27.809,
+    "lng": -55.154,
+    "codigo": 65
+  },
+  {
+    "id": "d09cf78e-f0c1-46c1-9a54-28487d845ed4",
+    "nombre": "SAN JOSE",
+    "lat": -27.775,
+    "lng": -55.668,
+    "codigo": 66
+  },
+  {
+    "id": "3c6cc858-7b36-47cb-b71e-eb6aa7ef706f",
+    "nombre": "SAN MARTIN",
+    "lat": -27.473,
+    "lng": -55.263,
+    "codigo": 67
+  },
+  {
+    "id": "07bf3996-a212-4622-a364-5757b0f00c76",
+    "nombre": "SAN PEDRO",
+    "lat": -26.711,
+    "lng": -53.943,
+    "codigo": 68
+  },
+  {
+    "id": "b4aac9fe-5fae-42e6-9dc5-5dd0ad984dd3",
+    "nombre": "SAN VICENTE",
+    "lat": -27.008,
+    "lng": -54.423,
+    "codigo": 74
+  },
+  {
+    "id": "391c6ff3-b7ac-48c3-b502-f2fc9275e02d",
+    "nombre": "SANTA ANA",
+    "lat": -27.409,
+    "lng": -55.598,
+    "codigo": 69
+  },
+  {
+    "id": "5cc0aff9-cf7b-4ca2-8b77-c4f7038632f1",
+    "nombre": "SANTA MARIA",
+    "lat": -27.874,
+    "lng": -55.425,
+    "codigo": 70
+  },
+  {
+    "id": "ef00c3d3-980b-42d9-b3a1-c0a7f066e448",
+    "nombre": "SANTIAGO DE LINIERS",
+    "lat": -26.406,
+    "lng": -54.358,
+    "codigo": 63
+  },
+  {
+    "id": "5ae97026-1298-4cc9-b9ff-389ee96b3ee8",
+    "nombre": "SANTO PIPO",
+    "lat": -27.206,
+    "lng": -55.28,
+    "codigo": 71
+  },
+  {
+    "id": "28ba5ae5-0cac-4b96-93ae-7f4c139d3729",
+    "nombre": "TRES CAPONES",
+    "lat": -27.992,
+    "lng": -55.614,
+    "codigo": 72
+  },
+  {
+    "id": "8010c05c-614f-4b41-991c-57a3d3ce1f38",
+    "nombre": "WANDA",
+    "lat": -25.981,
+    "lng": -54.31,
+    "codigo": 24
+  }
+]

@@ -1,0 +1,27 @@
+# Blueprint de Render para el backend.
+# En Render: New + → "Blueprint" → apuntar a este repo.
+# (o crear un "Web Service" a mano con estos mismos valores)
+services:
+  - type: web
+    name: mapa-pronostico-backend
+    runtime: node
+    rootDir: mapa-backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      # canvas@2.11 tiene binarios precompilados hasta Node 18 — con 20+
+      # intenta compilar y necesita Cairo en el sistema.
+      - key: NODE_VERSION
+        value: "18"
+      # Origen permitido para CORS. Poné acá la URL del front en Vercel
+      # una vez que exista (ej: https://mapa-pronostico.vercel.app).
+      - key: CORS_ORIGIN
+        sync: false
+    # El pronóstico publicado se guarda en disco. Sin este disco, Render
+    # borra el archivo en cada deploy/reinicio y hay que volver a publicar.
+    disk:
+      name: store
+      mountPath: /opt/render/project/src/mapa-backend/data/store
+      sizeGB: 1
