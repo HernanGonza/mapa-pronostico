@@ -49,7 +49,7 @@ const ORDEN_CAPAS = [
   "provincias-labels",
 ];
 
-const CAPAS_DEFAULT = { nubes: false, lluvia: false, viento: true, temp: false };
+const CAPAS_DEFAULT = { nubes: true, lluvia: false, viento: true, temp: false };
 
 const prefiereMenosMovimiento =
   typeof window !== "undefined" &&
