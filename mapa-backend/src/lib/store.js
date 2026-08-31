@@ -48,6 +48,15 @@ async function init() {
     )
     .then(() => {
       console.log("[store] Postgres listo (tabla pronosticos)");
+    })
+    .catch(async (err) => {
+      // Una caída breve de red durante el arranque no debe dejar el store
+      // bloqueado para siempre con la misma promesa rechazada.
+      const fallido = pool;
+      pool = null;
+      listo = null;
+      await fallido?.end().catch(() => {});
+      throw err;
     });
   return listo;
 }

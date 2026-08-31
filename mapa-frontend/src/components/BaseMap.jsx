@@ -69,17 +69,16 @@ function soportaWebGL() {
 }
 
 // Paletas de cielo por momento del día (hora local 0..24). Se interpola
-// entre las dos más cercanas. `estrellas` marca noche/atardecer para el
-// campo de estrellas.
+// entre las dos más cercanas.
 const CIELOS = [
-  { h: 0, bg: "#080d18", sky: "#0a1020", horiz: "#141d33", fog: "#0a0f1c", estrellas: 1 },
-  { h: 5.5, bg: "#1a1a33", sky: "#243050", horiz: "#8a5a6e", fog: "#3a2f42", estrellas: 0.5 },
-  { h: 7, bg: "#c9a27a", sky: "#7aa6d6", horiz: "#e6b98a", fog: "#d8c3ad", estrellas: 0 },
-  { h: 12, bg: "#a9c4dd", sky: "#5b9bd8", horiz: "#c9dcec", fog: "#d5e2ee", estrellas: 0 },
-  { h: 17.5, bg: "#b98d6a", sky: "#6f9fd0", horiz: "#e0a878", fog: "#d3bfa9", estrellas: 0 },
-  { h: 19.5, bg: "#5a3a4a", sky: "#3a3f64", horiz: "#c26a52", fog: "#4a3444", estrellas: 0.4 },
-  { h: 21, bg: "#12172a", sky: "#141d33", horiz: "#2a2140", fog: "#10131f", estrellas: 0.9 },
-  { h: 24, bg: "#080d18", sky: "#0a1020", horiz: "#141d33", fog: "#0a0f1c", estrellas: 1 },
+  { h: 0, bg: "#080d18", sky: "#0a1020", horiz: "#141d33", fog: "#0a0f1c" },
+  { h: 5.5, bg: "#1a1a33", sky: "#243050", horiz: "#8a5a6e", fog: "#3a2f42" },
+  { h: 7, bg: "#c9a27a", sky: "#7aa6d6", horiz: "#e6b98a", fog: "#d8c3ad" },
+  { h: 12, bg: "#a9c4dd", sky: "#5b9bd8", horiz: "#c9dcec", fog: "#d5e2ee" },
+  { h: 17.5, bg: "#b98d6a", sky: "#6f9fd0", horiz: "#e0a878", fog: "#d3bfa9" },
+  { h: 19.5, bg: "#5a3a4a", sky: "#3a3f64", horiz: "#c26a52", fog: "#4a3444" },
+  { h: 21, bg: "#12172a", sky: "#141d33", horiz: "#2a2140", fog: "#10131f" },
+  { h: 24, bg: "#080d18", sky: "#0a1020", horiz: "#141d33", fog: "#0a0f1c" },
 ];
 
 function mezclarHex(a, b, t) {
@@ -103,7 +102,6 @@ function cieloParaHora(hora) {
     sky: mezclarHex(a.sky, b.sky, t),
     horiz: mezclarHex(a.horiz, b.horiz, t),
     fog: mezclarHex(a.fog, b.fog, t),
-    estrellas: a.estrellas + (b.estrellas - a.estrellas) * t,
   };
 }
 
@@ -224,7 +222,6 @@ const BaseMap = forwardRef(function BaseMap(
     };
   }, []);
 
-  const [mapReady, setMapReady] = useState(false);
   const [baseListas, setBaseListas] = useState(false); // capas base agregadas
   const [webglOk] = useState(soportaWebGL);
   const [activo, setActivo] = useState(null);
@@ -365,8 +362,10 @@ const BaseMap = forwardRef(function BaseMap(
   // Entra al modo águila sobre un municipio concreto (doble click o botón
   // de la tarjeta).
   const irAModoAguila = useCallback((id) => {
-    if (id) setAguila(id);
-  }, []);
+    if (!id) return;
+    seleccionar(id);
+    setAguila(id);
+  }, [seleccionar]);
 
   const toggleCapa = useCallback((id) => {
     setCapas((c) => ({ ...c, [id]: !c[id] }));
@@ -508,7 +507,6 @@ const BaseMap = forwardRef(function BaseMap(
 
     const alEstarListo = () => {
       if (mapRef.current !== map) return;
-      setMapReady(true);
       map.resize();
       marcarSucio(8000);
 
@@ -975,26 +973,29 @@ const BaseMap = forwardRef(function BaseMap(
     const muni = aguila !== "provincia" ? centroides.get(aguila) : null;
     const [cx, cy] = muni ? muni.c : centroProvincia;
     // Órbita chica y más cerca para un municipio; amplia para la provincia.
-    const RX = muni ? 0.07 : 0.62;
-    const RY = muni ? 0.055 : 0.46;
+    const RX = 0.62;
+    const RY = 0.46;
     const PERIODO = muni ? 30000 : 64000;
     const PITCH = 78;
     const ZOOM = muni ? 10.8 : 8.15;
 
     // FX dinámico: siempre el del municipio que está bajo la cámara (para
     // un municipio puntual, ése; en la provincia, el que se sobrevuela).
-    fxRef.current = fxEnPunto(cx, cy);
+    const fxMunicipio = muni
+      ? fxDeCondicion(datosPorId.current.get(aguila)?.pronostico?.CONDICION)
+      : null;
+    fxRef.current = fxMunicipio || fxEnPunto(cx, cy);
 
     let raf = 0;
     let vivo = true;
     let t0 = 0;
 
     map.flyTo({
-      center: [cx + RX, cy],
+      center: [cx, cy],
       zoom: ZOOM,
       pitch: PITCH,
-      bearing: -90,
-      duration: 3000,
+      bearing: muni ? -28 : -90,
+      duration: prefiereMenosMovimiento ? 0 : 3000,
       curve: 1.5,
       essential: true,
     });
@@ -1003,17 +1004,32 @@ const BaseMap = forwardRef(function BaseMap(
       if (!vivo) return;
       if (!t0) t0 = now;
       const a = ((now - t0) / PERIODO) * Math.PI * 2;
-      const lng = cx + RX * Math.cos(a);
-      const lat = cy + RY * Math.sin(a);
-      const bearing = (Math.atan2(cx - lng, cy - lat) * 180) / Math.PI;
-      map.jumpTo({ center: [lng, lat], bearing, pitch: PITCH, zoom: ZOOM });
-      fxRef.current = fxEnPunto(lng, lat); // sigue al municipio bajo la cámara
+      if (muni) {
+        // MapLibre no expone una cámara orbital real. Mantener el municipio
+        // como `center` y rotar el bearing produce el sobrevuelo correcto:
+        // el objetivo no se escapa del encuadre ni toma el clima de un vecino.
+        map.jumpTo({
+          center: [cx, cy],
+          bearing: -28 + (a * 180) / Math.PI,
+          pitch: PITCH,
+          zoom: ZOOM,
+        });
+        fxRef.current = fxMunicipio;
+      } else {
+        const lng = cx + RX * Math.cos(a);
+        const lat = cy + RY * Math.sin(a);
+        const bearing = (Math.atan2(cx - lng, cy - lat) * 180) / Math.PI;
+        map.jumpTo({ center: [lng, lat], bearing, pitch: PITCH, zoom: ZOOM });
+        fxRef.current = fxEnPunto(lng, lat);
+      }
       marcarSucio(300);
       raf = requestAnimationFrame(volar);
     };
-    const t = setTimeout(() => {
-      if (vivo) raf = requestAnimationFrame(volar);
-    }, 3100);
+    const t = prefiereMenosMovimiento
+      ? null
+      : setTimeout(() => {
+          if (vivo) raf = requestAnimationFrame(volar);
+        }, 3100);
 
     const salirPorGesto = () => {
       motivoSalidaAguilaRef.current = "gesto";
@@ -1024,7 +1040,7 @@ const BaseMap = forwardRef(function BaseMap(
 
     return () => {
       vivo = false;
-      clearTimeout(t);
+      if (t) clearTimeout(t);
       if (raf) cancelAnimationFrame(raf);
       map.off("dragstart", salirPorGesto);
       map.off("wheel", salirPorGesto);

@@ -13,8 +13,15 @@ const DEFS = [
 
 function etiquetaHora(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
+  // Open-Meteo entrega una fecha local sin offset. La fijamos en -03:00
+  // para que un visitante fuera de Argentina no vea otra hora.
+  const tieneZona = /[zZ]|[+-]\d\d:\d\d$/.test(iso);
+  const localArgentina = tieneZona
+    ? iso
+    : `${iso}${iso.length === 16 ? ":00" : ""}-03:00`;
+  const d = new Date(localArgentina);
   return new Intl.DateTimeFormat("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",

@@ -169,14 +169,19 @@ export function horaActualFrac(grilla) {
     return Date.UTC(Y, M - 1, D, h, m) / 60000;
   };
   const ahora = (() => {
-    const n = new Date();
-    return Date.UTC(
-      n.getFullYear(),
-      n.getMonth(),
-      n.getDate(),
-      n.getHours(),
-      n.getMinutes()
-    ) / 60000;
+    // El pronóstico viene en hora argentina. No usamos la zona horaria del
+    // navegador: el iframe puede abrirse desde otra provincia o país.
+    const partes = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date());
+    const p = Object.fromEntries(partes.map(({ type, value }) => [type, value]));
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) / 60000;
   })();
   const t0 = aMin(horas[0]);
   const paso = aMin(horas[1]) - t0;

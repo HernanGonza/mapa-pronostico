@@ -119,6 +119,7 @@ export default function AdminPage() {
         (r) =>
           tempInvalida(r.TMIN) ||
           tempInvalida(r.TMAX) ||
+          Number(r.TMIN) > Number(r.TMAX) ||
           !esCondicionConocida(r.CONDICION)
       ),
     [filas]
@@ -250,8 +251,8 @@ export default function AdminPage() {
 
             {hayInvalidos && (
               <div className="alert alert--warn">
-                Hay temperaturas fuera de rango o condiciones sin reconocer.
-                Corregilas para poder publicar.
+                Hay temperaturas fuera de rango, mínimas mayores que máximas
+                o condiciones sin reconocer. Corregilas para poder publicar.
               </div>
             )}
 

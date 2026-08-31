@@ -19,6 +19,30 @@ const coordinates = require("../config/coordinates");
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 
+function errorDeFilas(filas) {
+  if (!Array.isArray(filas) || filas.length === 0) return "Falta el array `filas` en el body";
+  if (filas.length > 100) return "El pronóstico supera el máximo de 100 filas";
+  for (let i = 0; i < filas.length; i++) {
+    const f = filas[i] || {};
+    const tmin = Number(f.TMIN);
+    const tmax = Number(f.TMAX);
+    if (typeof f.LOCALIDAD !== "string" || !f.LOCALIDAD.trim()) {
+      return `Fila ${i + 1}: falta LOCALIDAD`;
+    }
+    if (!Number.isInteger(tmin) || tmin < -15 || tmin > 55) {
+      return `Fila ${i + 1}: TMIN inválida`;
+    }
+    if (!Number.isInteger(tmax) || tmax < -15 || tmax > 55) {
+      return `Fila ${i + 1}: TMAX inválida`;
+    }
+    if (tmin > tmax) return `Fila ${i + 1}: TMIN no puede superar TMAX`;
+    if (typeof f.CONDICION !== "string" || !f.CONDICION.trim() || f.CONDICION.length > 100) {
+      return `Fila ${i + 1}: CONDICION inválida`;
+    }
+  }
+  return null;
+}
+
 /**
  * POST /api/pronostico/parse
  * form-data: pronostico = archivo .docx
@@ -54,9 +78,8 @@ router.post("/pronostico/parse", upload.single("pronostico"), async (req, res) =
  */
 router.post("/pronostico/publicar", express.json(), async (req, res) => {
   const { filas } = req.body || {};
-  if (!Array.isArray(filas) || filas.length === 0) {
-    return res.status(400).json({ error: "Falta el array `filas` en el body" });
-  }
+  const errorFilas = errorDeFilas(filas);
+  if (errorFilas) return res.status(400).json({ error: errorFilas });
   try {
     const payload = await publicar(filas);
     res.json(payload);
@@ -118,6 +141,8 @@ router.post("/pronostico/render-png", express.json(), async (req, res) => {
       }
       filas = actual.filas;
     }
+    const errorFilas = errorDeFilas(filas);
+    if (errorFilas) return res.status(400).json({ error: errorFilas });
 
     const outputPath = path.join(os.tmpdir(), `mapa_prono_${Date.now()}.png`);
     await generateForecastMap({ forecastRows: filas, outputPath, date: nowInArgentina() });
@@ -271,9 +296,8 @@ router.get("/pronostico/mapa", async (req, res) => {
  */
 router.post("/pronostico/mapa-preview", express.json(), (req, res) => {
   const { filas } = req.body || {};
-  if (!Array.isArray(filas)) {
-    return res.status(400).json({ error: "Falta el array `filas` en el body" });
-  }
+  const errorFilas = errorDeFilas(filas);
+  if (errorFilas) return res.status(400).json({ error: errorFilas });
   const municipios = armarMunicipiosConPronostico(filas);
   res.json({ municipios });
 });

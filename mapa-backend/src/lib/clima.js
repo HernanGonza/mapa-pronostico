@@ -57,6 +57,10 @@ function construirGrilla() {
 let cache = null; // { at, data }
 let ultimoBueno = null; // última respuesta OK (o la semilla): fallback duro
 let refrescando = null; // promesa en vuelo, para no disparar 10 refrescos
+let proximoIntento = 0; // evita martillar Open-Meteo después de un 429/fallo
+
+const COOLDOWN_ERROR_MS = 15 * 60 * 1000;
+const COOLDOWN_429_MS = 60 * 60 * 1000;
 
 function cargarInicial() {
   // Preferimos el respaldo en disco si es más nuevo que la semilla.
@@ -88,7 +92,9 @@ async function pedirOpenMeteo(url) {
     try {
       const res = await fetch(url);
       if (res.ok) return res.json();
-      throw new Error(`Open-Meteo respondió ${res.status}`);
+      const err = new Error(`Open-Meteo respondió ${res.status}`);
+      err.status = res.status;
+      throw err;
     } catch (e) {
       if (i === 1 || /respondió \d/.test(e.message)) throw e;
       await new Promise((r) => setTimeout(r, 700));
@@ -134,15 +140,26 @@ async function traerDeOpenMeteo() {
 
   const data = { bounds: BOUNDS, grid: GRID, horas, puntos };
   cache = { at: Date.now(), data };
+  proximoIntento = 0;
   guardarRespaldo(data);
   return data;
 }
 
 /** Dispara un refresco en segundo plano (idempotente). */
 function refrescarEnFondo() {
+  if (Date.now() < proximoIntento) return Promise.resolve(null);
   if (refrescando) return refrescando;
   refrescando = traerDeOpenMeteo()
-    .catch((err) => console.warn("[clima] refresco falló:", err.message))
+    .catch((err) => {
+      proximoIntento =
+        Date.now() + (err.status === 429 ? COOLDOWN_429_MS : COOLDOWN_ERROR_MS);
+      console.warn(
+        `[clima] refresco falló: ${err.message}; próximo intento en ${
+          err.status === 429 ? "60" : "15"
+        } min`
+      );
+      return null;
+    })
     .finally(() => {
       refrescando = null;
     });
@@ -164,6 +181,10 @@ async function obtenerGrillaClima() {
     return cache.data;
   }
 
+  // Durante el cooldown no hacemos un intento sincrónico adicional. La
+  // semilla/respaldo sigue siendo una respuesta válida para el mapa.
+  if (ultimoBueno && Date.now() < proximoIntento) return ultimoBueno;
+
   // Sin caché servible: intentamos una vez de verdad...
   try {
     return await traerDeOpenMeteo();
@@ -171,7 +192,8 @@ async function obtenerGrillaClima() {
     // ...y si falla, semilla/respaldo. Refrescamos en fondo por si el
     // rate-limit se libera.
     if (ultimoBueno) {
-      refrescarEnFondo();
+      proximoIntento =
+        Date.now() + (err.status === 429 ? COOLDOWN_429_MS : COOLDOWN_ERROR_MS);
       return ultimoBueno;
     }
     throw err;
