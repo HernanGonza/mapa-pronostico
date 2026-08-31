@@ -18,13 +18,6 @@ const MISIONES = { latMin: -28.4, latMax: -25.3, lngMin: -56.3, lngMax: -53.5 };
 
 const toRad = (d) => (d * Math.PI) / 180;
 
-function distAngular(lng1, lat1, lng2, lat2) {
-  const a =
-    Math.sin(toRad(lat1)) * Math.sin(toRad(lat2)) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lng1 - lng2));
-  return (Math.acos(Math.max(-1, Math.min(1, a))) * 180) / Math.PI;
-}
-
 class WindField {
   constructor(records) {
     const h = records[0].header;
@@ -139,21 +132,20 @@ export class WindParticleLayer {
       }
       this._wasMoving = !dibujar;
 
+      // Con la cámara muy alejada (vista de globo) no se dibuja viento:
+      // las partículas de la cara oculta se proyectan fuera del disco y
+      // ensucian toda la pantalla. El viento aparece al acercarse.
+      if (this.map.getZoom() < 3.6) {
+        ctx.clearRect(0, 0, w, h);
+        return;
+      }
+
       ctx.globalCompositeOperation = "destination-in";
       ctx.fillStyle = `rgba(0,0,0,${dibujar ? FADE_ALPHA : 0.9})`;
       ctx.fillRect(0, 0, w, h);
       ctx.globalCompositeOperation = "source-over";
       ctx.lineWidth = 1.15;
       ctx.lineCap = "round";
-
-      const c = this.map.getCenter();
-      const zoom = this.map.getZoom();
-      const globalView = zoom < 4;
-      // Radio aproximado del globo en píxeles (para no dibujar viento
-      // fuera del disco de la Tierra en la vista alejada).
-      const globeR = (512 * Math.pow(2, zoom)) / (2 * Math.PI);
-      const cx = w / 2;
-      const cy = h / 2;
 
       for (const p of this.particles) {
         const uv = this.field.at(p.lng, p.lat);
@@ -177,14 +169,8 @@ export class WindParticleLayer {
         if (p.lng < -180) p.lng += 360;
 
         if (!dibujar) continue;
-        if (globalView && distAngular(p.lng, p.lat, c.lng, c.lat) > 68)
-          continue;
 
         const desp = this.map.project([p.lng, p.lat]);
-        if (globalView) {
-          const rr = (desp.x - cx) ** 2 + (desp.y - cy) ** 2;
-          if (rr > (globeR * 0.99) ** 2) continue; // fuera del disco
-        }
         const dx = desp.x - antes.x;
         const dy = desp.y - antes.y;
         if (dx * dx + dy * dy > MAX_SALTO_PX * MAX_SALTO_PX) continue;

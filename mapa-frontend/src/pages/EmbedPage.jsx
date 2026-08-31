@@ -1,25 +1,38 @@
 import { useCallback, useEffect, useState } from "react";
 import BaseMap from "../components/BaseMap";
-import { getMapaActual, getVientoGlobal } from "../api";
+import {
+  getMapaActual,
+  getMunicipiosGeojson,
+  getMundoGeojson,
+  getGeo,
+  getVientoGlobal,
+} from "../api";
 
 /**
  * Página pensada para ir en el <iframe> del sitio del ministerio.
- * Solo lectura. La geometría (municipios, países, provincias, rótulos) la
- * carga MapLibre directo por URL; acá solo pedimos el pronóstico y el
- * viento. El pronóstico se refresca cada 5 minutos.
+ * Solo lectura. La geometría (poco cambiante) se pide una vez; el
+ * pronóstico se refresca cada 5 minutos.
  */
 export default function EmbedPage() {
+  const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
+  const [mundo, setMundo] = useState(null);
+  const [paisesLabels, setPaisesLabels] = useState(null);
+  const [provincias, setProvincias] = useState(null);
+  const [provinciasLabels, setProvinciasLabels] = useState(null);
   const [viento, setViento] = useState(null);
   const [municipios, setMunicipios] = useState(null);
   const [publicadoEn, setPublicadoEn] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getVientoGlobal()
-      .then(setViento)
-      .catch(() => {
-        // el viento es un "nice to have"; el mapa funciona sin partículas
-      });
+    getMunicipiosGeojson()
+      .then(setMunicipiosGeojson)
+      .catch((err) => setError(err.message));
+    getMundoGeojson().then(setMundo).catch(() => {});
+    getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
+    getGeo("provincias").then(setProvincias).catch(() => {});
+    getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
+    getVientoGlobal().then(setViento).catch(() => {});
   }, []);
 
   const cargarPronostico = useCallback(async () => {
@@ -49,7 +62,7 @@ export default function EmbedPage() {
       </div>
     );
   }
-  if (!municipios) {
+  if (!municipiosGeojson || !municipios) {
     return (
       <div className="base-map base-map--fallback">
         <div>Cargando mapa…</div>
@@ -59,6 +72,11 @@ export default function EmbedPage() {
 
   return (
     <BaseMap
+      municipiosGeojson={municipiosGeojson}
+      mundoGeojson={mundo}
+      paisesLabels={paisesLabels}
+      provincias={provincias}
+      provinciasLabels={provinciasLabels}
       pronostico={municipios}
       viento={viento}
       titulo="Previsión del tiempo"

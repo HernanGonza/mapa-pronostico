@@ -7,6 +7,9 @@ import {
   renderPngEnBack,
   getActual,
   getMapaPreview,
+  getMunicipiosGeojson,
+  getMundoGeojson,
+  getGeo,
   getVientoGlobal,
 } from "../api";
 import {
@@ -67,6 +70,11 @@ export default function AdminPage() {
   const [filas, setFilas] = useState(null);
   const [publicado, setPublicado] = useState(null); // { publicadoEn, filas }
   const [municipiosPreview, setMunicipiosPreview] = useState(null);
+  const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
+  const [mundo, setMundo] = useState(null);
+  const [paisesLabels, setPaisesLabels] = useState(null);
+  const [provincias, setProvincias] = useState(null);
+  const [provinciasLabels, setProvinciasLabels] = useState(null);
   const [viento, setViento] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
@@ -75,6 +83,11 @@ export default function AdminPage() {
   const mapaRef = useRef(null);
 
   useEffect(() => {
+    getMunicipiosGeojson().then(setMunicipiosGeojson).catch(() => {});
+    getMundoGeojson().then(setMundo).catch(() => {});
+    getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
+    getGeo("provincias").then(setProvincias).catch(() => {});
+    getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
     getVientoGlobal().then(setViento).catch(() => {});
   }, []);
 
@@ -373,10 +386,15 @@ export default function AdminPage() {
       </div>
 
       <div className="admin-map-area">
-        {municipiosPreview ? (
+        {municipiosPreview && municipiosGeojson ? (
           <BaseMap
             ref={mapaRef}
             intro={false}
+            municipiosGeojson={municipiosGeojson}
+            mundoGeojson={mundo}
+            paisesLabels={paisesLabels}
+            provincias={provincias}
+            provinciasLabels={provinciasLabels}
             pronostico={municipiosPreview}
             viento={viento}
             titulo="Previsión del tiempo"

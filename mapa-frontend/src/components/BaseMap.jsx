@@ -57,24 +57,22 @@ function alturaPorTemperatura(tmax) {
   return Math.max(0, n) * 90;
 }
 
-// GeoJSON del mapa — MapLibre los carga y teselas en un worker (URL, no
-// objeto inline) para no trabar la animación de entrada.
-const SRC = {
-  mundo: `${API_URL}/api/mundo/geojson`,
-  municipios: `${API_URL}/api/municipios/geojson`,
-  paisesLabels: `${API_URL}/api/geo/paises-labels`,
-  provincias: `${API_URL}/api/geo/provincias`,
-  provinciasLabels: `${API_URL}/api/geo/provincias-labels`,
-};
-
 const BaseMap = forwardRef(function BaseMap(
   {
+    municipiosGeojson,
+    mundoGeojson,
+    paisesLabels,
+    provincias,
+    provinciasLabels,
     pronostico,
     viento,
     titulo,
     publicadoEn,
     interactive = true,
-    intro = true,
+    // El intro cinematográfico (globo → Misiones) quedó desactivado por
+    // defecto: era inestable con toda la data cargando a la vez. El mapa
+    // abre directo en Misiones; se puede alejar para ver el globo.
+    intro = false,
     enableCapture = false,
   },
   ref
@@ -144,25 +142,27 @@ const BaseMap = forwardRef(function BaseMap(
           {
             id: "background",
             type: "background",
-            paint: { "background-color": "#0b1a28" },
+            paint: { "background-color": "#0e2233" },
           },
         ],
         sky: {
           "sky-color": "#0a1622",
-          "sky-horizon-blend": 0.5,
-          "horizon-color": "#20303f",
-          "horizon-fog-blend": 0.5,
-          "fog-color": "#0a1016",
-          "fog-ground-blend": 0.2,
+          "sky-horizon-blend": 0.4,
+          "horizon-color": "#24384a",
+          "horizon-fog-blend": 0.4,
+          "fog-color": "#0c141c",
+          "fog-ground-blend": 0.1,
+          // Poco velo atmosférico sobre la superficie: si no, el globo se
+          // ve como una bola azul lisa sin continentes.
           "atmosphere-blend": [
             "interpolate",
             ["linear"],
             ["zoom"],
             0,
-            1,
-            6,
             0.4,
-            9,
+            4,
+            0.15,
+            7,
             0,
           ],
         },
@@ -200,25 +200,26 @@ const BaseMap = forwardRef(function BaseMap(
     }
 
     map.on("error", (e) => {
-      // Las teselas del DEM fuera de Misiones dan 404 — es esperable.
       const msg = e?.error?.message || "";
       if (!/40\d|Failed to fetch|AbortError/.test(msg)) {
         console.warn("[BaseMap] error de MapLibre:", msg);
       }
     });
 
-    // `load` puede no dispararse si alguna tesela del DEM falla; por eso
-    // gatillamos con el estilo listo, no con los tiles.
-    let introHecha = false;
+    // MapLibre v5 (globo) a veces no repinta al terminar de cargar una
+    // fuente GeoJSON y el mapa queda en blanco hasta que algo lo toca.
+    map.on("sourcedata", () => map.triggerRepaint());
+    map.on("styledata", () => map.triggerRepaint());
+
     const alEstarListo = () => {
-      if (mapRef.current !== map || introHecha) return;
-      introHecha = true;
-      // Sin `setTerrain`: el relieve real desplaza la proyección y
-      // descoloca los marcadores. El hillshade da textura suficiente y la
-      // extrusión de los municipios aporta el 3D que importa (temperatura).
+      if (mapRef.current !== map) return;
       setMapReady(true);
+      let n = 0;
+      const kick = setInterval(() => {
+        if (mapRef.current !== map || n++ > 24) return clearInterval(kick);
+        map.triggerRepaint();
+      }, 300);
       if (!arranqueDirecto) {
-        // Se mantiene un instante sobre el globo y después baja a Misiones.
         setTimeout(() => {
           if (mapRef.current !== map) return;
           map.flyTo({
@@ -233,16 +234,8 @@ const BaseMap = forwardRef(function BaseMap(
         }, 600);
       }
     };
-    // Esperamos a que el estilo esté REALMENTE cargado antes de marcar
-    // `mapReady` — si no, los `addSource` de las capas fallan con
-    // "Style is not done loading".
-    const cuandoListo = () => {
-      if (mapRef.current !== map) return;
-      if (map.isStyleLoaded()) alEstarListo();
-      else map.once("idle", cuandoListo);
-    };
-    if (map.loaded()) cuandoListo();
-    else map.once("load", cuandoListo);
+    if (map.isStyleLoaded()) alEstarListo();
+    else map.once("load", alEstarListo);
 
     // Con el globo alejado, los marcadores HTML (estaciones, rótulos) se
     // proyectan mal — se ocultan por debajo de cierto zoom.
@@ -265,28 +258,10 @@ const BaseMap = forwardRef(function BaseMap(
   }, []);
 
   // --- División política: países + provincias/estados + rótulos ---
-  // Se agrega DESPUÉS de que la cámara termina el intro (o enseguida si no
-  // hay intro), para que los ~1.2 MB de GeoJSON no traben la animación.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || map.getSource("mundo")) return;
+    if (!map || !mapReady || !mundoGeojson || map.getSource("mundo")) return;
 
-    let cancelado = false;
-    const agregar = () => {
-      if (cancelado || !mapRef.current || map.getSource("mundo")) return;
-      construir();
-    };
-    if (map.isMoving()) {
-      map.once("moveend", () => setTimeout(agregar, 200));
-      setTimeout(agregar, 7000); // por las dudas
-    } else {
-      setTimeout(agregar, 300);
-    }
-    return () => {
-      cancelado = true;
-    };
-
-    function construir() {
     const FUENTE = ["Metropolis Regular"];
     // Los países y provincias van DEBAJO de los municipios de Misiones.
     const bajoMunicipios = map.getLayer("municipios-fill")
@@ -294,13 +269,13 @@ const BaseMap = forwardRef(function BaseMap(
       : undefined;
 
     // Países: tierra firme + fronteras (todo el globo).
-    map.addSource("mundo", { type: "geojson", data: SRC.mundo });
+    map.addSource("mundo", { type: "geojson", data: mundoGeojson });
     map.addLayer(
       {
         id: "mundo-fill",
         type: "fill",
         source: "mundo",
-        paint: { "fill-color": "#22352b" },
+        paint: { "fill-color": "#3a5a45" },
       },
       bajoMunicipios
     );
@@ -329,7 +304,7 @@ const BaseMap = forwardRef(function BaseMap(
     );
 
     // Provincias / estados de los vecinos (influyen en el clima de Misiones).
-    map.addSource("provincias", { type: "geojson", data: SRC.provincias });
+    map.addSource("provincias", { type: "geojson", data: provincias });
     map.addLayer(
       {
         id: "provincias-line",
@@ -347,7 +322,7 @@ const BaseMap = forwardRef(function BaseMap(
     );
 
     // Rótulos de países.
-    map.addSource("paises-labels", { type: "geojson", data: SRC.paisesLabels });
+    map.addSource("paises-labels", { type: "geojson", data: paisesLabels });
     map.addLayer({
       id: "paises-labels",
       type: "symbol",
@@ -372,7 +347,7 @@ const BaseMap = forwardRef(function BaseMap(
     // Rótulos de provincias/estados.
     map.addSource("provincias-labels", {
       type: "geojson",
-      data: SRC.provinciasLabels,
+      data: provinciasLabels,
     });
     map.addLayer({
       id: "provincias-labels",
@@ -393,18 +368,18 @@ const BaseMap = forwardRef(function BaseMap(
         "text-opacity": ["interpolate", ["linear"], ["zoom"], 3.8, 0.6, 5.5, 1],
       },
     });
-    } // fin construir()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady]);
+  }, [mapReady, mundoGeojson, provincias, paisesLabels, provinciasLabels]);
 
   // --- Capa de municipios ---
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || map.getSource("municipios")) return;
+    if (!map || !mapReady || !municipiosGeojson || map.getSource("municipios"))
+      return;
 
     map.addSource("municipios", {
       type: "geojson",
-      data: SRC.municipios,
+      data: municipiosGeojson,
       promoteId: "id",
     });
 
@@ -469,7 +444,7 @@ const BaseMap = forwardRef(function BaseMap(
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, interactive]);
+  }, [mapReady, municipiosGeojson, interactive]);
 
   // --- Datos por municipio (altura/color) ---
   useEffect(() => {
