@@ -49,9 +49,15 @@ export async function getContextoGeojson() {
   return handleJson(res);
 }
 
-/** Tierra firme mundial simplificada — fondo plano del mapa. */
+/** Países del mundo (polígonos + fronteras). */
 export async function getMundoGeojson() {
   const res = await fetch(`${API_URL}/api/mundo/geojson`);
+  return handleJson(res);
+}
+
+/** GeoJSON de división política / rótulos: `paises-labels`, `provincias`, `provincias-labels`. */
+export async function getGeo(nombre) {
+  const res = await fetch(`${API_URL}/api/geo/${nombre}`);
   return handleJson(res);
 }
 

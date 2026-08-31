@@ -29,6 +29,9 @@ app.use("/materiales", estatico(path.join(__dirname, "..", "data", "materiales")
 // /terrain-tiles/{z}/{x}/{y}.png
 app.use("/terrain-tiles", estatico(path.join(__dirname, "..", "data", "terrain-tiles"), unAnio));
 
+// Glyphs (PBF) para los rótulos del mapa — /glyphs/{fontstack}/{range}.pbf
+app.use("/glyphs", estatico(path.join(__dirname, "..", "data", "glyphs"), unAnio));
+
 app.use("/api", pronosticoRouter);
 
 app.listen(PORT, () => {

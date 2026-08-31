@@ -24,9 +24,10 @@ Dos servicios separados. Primero el back (para tener su URL), después el front.
 > La primera carga después de eso tarda ~30 s. Para la demo, abrí el back
 > una vez antes de mostrarlo.
 
-> El pronóstico publicado se guarda en disco (`data/store/`). El
-> `render.yaml` monta un disco persistente para que no se borre en cada
-> deploy. Si creaste el servicio a mano, agregале un **Disk** de 1 GB en
+> El plan **free de Render no permite disco persistente**, así que el
+> pronóstico publicado (`data/store/`) se borra en cada deploy/reinicio —
+> hay que volver a publicar desde `/admin`. Para la demo alcanza. En
+> producción: subir de plan y agregar un Disk en
 > `/opt/render/project/src/mapa-backend/data/store`.
 
 ## 2. Frontend → Vercel

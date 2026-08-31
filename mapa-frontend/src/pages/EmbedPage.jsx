@@ -1,33 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import BaseMap from "../components/BaseMap";
-import {
-  getMapaActual,
-  getMunicipiosGeojson,
-  getMundoGeojson,
-  getVientoGlobal,
-} from "../api";
+import { getMapaActual, getVientoGlobal } from "../api";
 
 /**
  * Página pensada para ir en el <iframe> del sitio del ministerio.
- * Solo lectura. Geometría (poco cambiante) y viento se piden una vez;
- * el pronóstico se refresca cada 5 minutos por si se publicó de nuevo.
+ * Solo lectura. La geometría (municipios, países, provincias, rótulos) la
+ * carga MapLibre directo por URL; acá solo pedimos el pronóstico y el
+ * viento. El pronóstico se refresca cada 5 minutos.
  */
 export default function EmbedPage() {
-  const [geojson, setGeojson] = useState(null);
-  const [mundo, setMundo] = useState(null);
   const [viento, setViento] = useState(null);
   const [municipios, setMunicipios] = useState(null);
   const [publicadoEn, setPublicadoEn] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getMunicipiosGeojson().then(setGeojson).catch((err) => setError(err.message));
-    getMundoGeojson().then(setMundo).catch(() => {});
     getVientoGlobal()
       .then(setViento)
       .catch(() => {
-        // el viento es un "nice to have": si Open-Meteo falla el mapa
-        // sigue funcionando sin partículas
+        // el viento es un "nice to have"; el mapa funciona sin partículas
       });
   }, []);
 
@@ -58,7 +49,7 @@ export default function EmbedPage() {
       </div>
     );
   }
-  if (!geojson || !municipios) {
+  if (!municipios) {
     return (
       <div className="base-map base-map--fallback">
         <div>Cargando mapa…</div>
@@ -68,8 +59,6 @@ export default function EmbedPage() {
 
   return (
     <BaseMap
-      municipiosGeojson={geojson}
-      mundoGeojson={mundo}
       pronostico={municipios}
       viento={viento}
       titulo="Previsión del tiempo"

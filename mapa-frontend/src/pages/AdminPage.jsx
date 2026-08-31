@@ -7,8 +7,6 @@ import {
   renderPngEnBack,
   getActual,
   getMapaPreview,
-  getMunicipiosGeojson,
-  getMundoGeojson,
   getVientoGlobal,
 } from "../api";
 import {
@@ -69,8 +67,6 @@ export default function AdminPage() {
   const [filas, setFilas] = useState(null);
   const [publicado, setPublicado] = useState(null); // { publicadoEn, filas }
   const [municipiosPreview, setMunicipiosPreview] = useState(null);
-  const [geojson, setGeojson] = useState(null);
-  const [mundo, setMundo] = useState(null);
   const [viento, setViento] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
@@ -79,8 +75,6 @@ export default function AdminPage() {
   const mapaRef = useRef(null);
 
   useEffect(() => {
-    getMunicipiosGeojson().then(setGeojson).catch((err) => setError(err.message));
-    getMundoGeojson().then(setMundo).catch(() => {});
     getVientoGlobal().then(setViento).catch(() => {});
   }, []);
 
@@ -379,11 +373,9 @@ export default function AdminPage() {
       </div>
 
       <div className="admin-map-area">
-        {municipiosPreview && geojson ? (
+        {municipiosPreview ? (
           <BaseMap
             ref={mapaRef}
-            municipiosGeojson={geojson}
-            mundoGeojson={mundo}
             intro={false}
             pronostico={municipiosPreview}
             viento={viento}

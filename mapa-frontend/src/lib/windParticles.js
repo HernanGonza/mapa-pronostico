@@ -7,12 +7,12 @@
  * suaves y continuas, no "fuegos artificiales".
  */
 
-const N_PARTICLES = 2600;
-const FADE_ALPHA = 0.955;
-const MAX_AGE = 110;
+const N_PARTICLES = 3200;
+const FADE_ALPHA = 0.965; // estelas un poco más largas => más visibles
+const MAX_AGE = 120;
 const STEP_MS = 33; // ~30 fps
-const FACTOR = 0.0006; // grados por paso, por (m/s) — paso chico = movimiento fluido
-const MAX_SALTO_PX = 9; // si una partícula salta más que esto en pantalla, no se traza
+const FACTOR = 0.0007; // grados por paso, por (m/s) — paso chico = movimiento fluido
+const MAX_SALTO_PX = 10;
 
 const MISIONES = { latMin: -28.4, latMax: -25.3, lngMin: -56.3, lngMax: -53.5 };
 
@@ -127,11 +127,23 @@ export class WindParticleLayer {
       const w = this.canvas.width;
       const h = this.canvas.height;
 
+      // Mientras la cámara se mueve, las proyecciones cambian entre el
+      // punto "antes" y el "después" y salen trazos largos ("fuegos
+      // artificiales"). En ese caso sólo avanzamos las partículas y
+      // dejamos que la estela se desvanezca, sin dibujar nada nuevo.
+      const dibujar = !this.map.isMoving();
+      // Al terminar un movimiento de cámara, re-sembramos para que las
+      // partículas se concentren en lo que ahora se ve.
+      if (dibujar && this._wasMoving) {
+        this.particles = Array.from({ length: N_PARTICLES }, () => this._rnd());
+      }
+      this._wasMoving = !dibujar;
+
       ctx.globalCompositeOperation = "destination-in";
-      ctx.fillStyle = `rgba(0,0,0,${FADE_ALPHA})`;
+      ctx.fillStyle = `rgba(0,0,0,${dibujar ? FADE_ALPHA : 0.9})`;
       ctx.fillRect(0, 0, w, h);
       ctx.globalCompositeOperation = "source-over";
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.15;
       ctx.lineCap = "round";
 
       const c = this.map.getCenter();
@@ -164,6 +176,7 @@ export class WindParticleLayer {
         if (p.lng > 180) p.lng -= 360;
         if (p.lng < -180) p.lng += 360;
 
+        if (!dibujar) continue;
         if (globalView && distAngular(p.lng, p.lat, c.lng, c.lat) > 68)
           continue;
 
@@ -185,8 +198,8 @@ export class WindParticleLayer {
           p.lng < MISIONES.lngMax;
 
         ctx.strokeStyle = enMnes
-          ? "rgba(255,255,255,0.9)"
-          : "rgba(255,255,255,0.5)";
+          ? "rgba(255,255,255,0.92)"
+          : "rgba(255,255,255,0.62)";
         ctx.beginPath();
         ctx.moveTo(antes.x, antes.y);
         ctx.lineTo(desp.x, desp.y);

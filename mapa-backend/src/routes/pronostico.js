@@ -165,6 +165,27 @@ router.get("/mundo/geojson", (req, res) => {
 });
 
 /**
+ * GET /api/geo/:archivo
+ * GeoJSON estáticos del mapa: division política y rótulos.
+ *   paises-labels · provincias · provincias-labels
+ * (Natural Earth, dominio público.)
+ */
+router.get("/geo/:archivo", (req, res) => {
+  const permitidos = new Set([
+    "paises-labels",
+    "provincias",
+    "provincias-labels",
+  ]);
+  if (!permitidos.has(req.params.archivo)) {
+    return res.status(404).json({ error: "No existe ese GeoJSON" });
+  }
+  res.set("Cache-Control", "public, max-age=604800");
+  res.sendFile(
+    path.join(__dirname, "..", "..", "data", `${req.params.archivo}.geojson`)
+  );
+});
+
+/**
  * GET /api/viento/grilla
  * Velocidad + dirección de viento real (modelo numérico vía Open-Meteo)
  * en una grilla sobre la provincia. Cacheado 30 min en el servidor.

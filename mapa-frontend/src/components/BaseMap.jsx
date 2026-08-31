@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import maplibregl from "maplibre-gl";
+import { API_URL } from "../config";
 import { colorPorCondicion } from "../lib/condiciones";
 import { WindParticleLayer } from "../lib/windParticles";
 import { tiempoRelativo } from "../lib/tiempoRelativo";
@@ -19,8 +20,9 @@ const ZOOM_INICIAL = 7.4;
 const PITCH_INICIAL = 50;
 const BEARING_INICIAL = -8;
 
-// Vista inicial: el globo entero, con Sudamérica de frente.
-const VISTA_GLOBO = { center: [-58, -18], zoom: 1.5, pitch: 0, bearing: 0 };
+// Vista inicial del intro: Sudamérica desde arriba (se ve la curvatura
+// del globo) y de ahí baja a Misiones.
+const VISTA_GLOBO = { center: [-58, -22], zoom: 2.6, pitch: 0, bearing: 0 };
 
 const COLOR_SIN_DATO = "#c9d3a3";
 
@@ -55,18 +57,18 @@ function alturaPorTemperatura(tmax) {
   return Math.max(0, n) * 90;
 }
 
-// Puntos donde cae el rótulo de cada territorio vecino.
-const ROTULOS_REGION = [
-  { texto: "PARAGUAY", lngLat: [-56.0, -26.4] },
-  { texto: "BRASIL", lngLat: [-53.2, -26.0] },
-  { texto: "CORRIENTES", lngLat: [-56.4, -28.1] },
-  { texto: "BRASIL", lngLat: [-53.6, -27.6] },
-];
+// GeoJSON del mapa — MapLibre los carga y teselas en un worker (URL, no
+// objeto inline) para no trabar la animación de entrada.
+const SRC = {
+  mundo: `${API_URL}/api/mundo/geojson`,
+  municipios: `${API_URL}/api/municipios/geojson`,
+  paisesLabels: `${API_URL}/api/geo/paises-labels`,
+  provincias: `${API_URL}/api/geo/provincias`,
+  provinciasLabels: `${API_URL}/api/geo/provincias-labels`,
+};
 
 const BaseMap = forwardRef(function BaseMap(
   {
-    municipiosGeojson,
-    mundoGeojson,
     pronostico,
     viento,
     titulo,
@@ -136,6 +138,7 @@ const BaseMap = forwardRef(function BaseMap(
         // Proyección de globo (estilo earth.nullschool): al alejarse se ve
         // la Tierra como esfera, al acercarse se aplana sola.
         projection: { type: "globe" },
+        glyphs: `${API_URL}/glyphs/{fontstack}/{range}.pbf`,
         sources: {},
         layers: [
           {
@@ -223,16 +226,23 @@ const BaseMap = forwardRef(function BaseMap(
             zoom: ZOOM_INICIAL,
             pitch: PITCH_INICIAL,
             bearing: BEARING_INICIAL,
-            duration: 4200,
+            duration: 3400,
             curve: 1.5,
             essential: true,
           });
-        }, 700);
+        }, 600);
       }
     };
-    map.once("load", alEstarListo);
-    // Red de seguridad por si `load` no llega (teselas DEM con 404).
-    map.once("styledata", () => setTimeout(alEstarListo, 1200));
+    // Esperamos a que el estilo esté REALMENTE cargado antes de marcar
+    // `mapReady` — si no, los `addSource` de las capas fallan con
+    // "Style is not done loading".
+    const cuandoListo = () => {
+      if (mapRef.current !== map) return;
+      if (map.isStyleLoaded()) alEstarListo();
+      else map.once("idle", cuandoListo);
+    };
+    if (map.loaded()) cuandoListo();
+    else map.once("load", cuandoListo);
 
     // Con el globo alejado, los marcadores HTML (estaciones, rótulos) se
     // proyectan mal — se ocultan por debajo de cierto zoom.
@@ -254,58 +264,147 @@ const BaseMap = forwardRef(function BaseMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Mundo con división política (todos los países) + rótulos ---
+  // --- División política: países + provincias/estados + rótulos ---
+  // Se agrega DESPUÉS de que la cámara termina el intro (o enseguida si no
+  // hay intro), para que los ~1.2 MB de GeoJSON no traben la animación.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !mundoGeojson || map.getSource("mundo")) return;
+    if (!map || !mapReady || map.getSource("mundo")) return;
 
-    map.addSource("mundo", { type: "geojson", data: mundoGeojson });
+    let cancelado = false;
+    const agregar = () => {
+      if (cancelado || !mapRef.current || map.getSource("mundo")) return;
+      construir();
+    };
+    if (map.isMoving()) {
+      map.once("moveend", () => setTimeout(agregar, 200));
+      setTimeout(agregar, 7000); // por las dudas
+    } else {
+      setTimeout(agregar, 300);
+    }
+    return () => {
+      cancelado = true;
+    };
 
-    // Tierra firme (plana).
+    function construir() {
+    const FUENTE = ["Metropolis Regular"];
+    // Los países y provincias van DEBAJO de los municipios de Misiones.
+    const bajoMunicipios = map.getLayer("municipios-fill")
+      ? "municipios-fill"
+      : undefined;
+
+    // Países: tierra firme + fronteras (todo el globo).
+    map.addSource("mundo", { type: "geojson", data: SRC.mundo });
+    map.addLayer(
+      {
+        id: "mundo-fill",
+        type: "fill",
+        source: "mundo",
+        paint: { "fill-color": "#22352b" },
+      },
+      bajoMunicipios
+    );
+    map.addLayer(
+      {
+        id: "mundo-line",
+        type: "line",
+        source: "mundo",
+        paint: {
+          "line-color": "#b7cabd",
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            1,
+            0.9,
+            4,
+            1.6,
+            9,
+            2.4,
+          ],
+          "line-opacity": 0.95,
+        },
+      },
+      bajoMunicipios
+    );
+
+    // Provincias / estados de los vecinos (influyen en el clima de Misiones).
+    map.addSource("provincias", { type: "geojson", data: SRC.provincias });
+    map.addLayer(
+      {
+        id: "provincias-line",
+        type: "line",
+        source: "provincias",
+        minzoom: 3.5,
+        paint: {
+          "line-color": "#8aa294",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 9, 1.4],
+          "line-opacity": 0.7,
+          "line-dasharray": [2, 1.5],
+        },
+      },
+      bajoMunicipios
+    );
+
+    // Rótulos de países.
+    map.addSource("paises-labels", { type: "geojson", data: SRC.paisesLabels });
     map.addLayer({
-      id: "mundo-fill",
-      type: "fill",
-      source: "mundo",
-      paint: { "fill-color": "#22352b" },
-    });
-    // Límites políticos de todo el globo — bien marcados.
-    map.addLayer({
-      id: "mundo-line",
-      type: "line",
-      source: "mundo",
+      id: "paises-labels",
+      type: "symbol",
+      source: "paises-labels",
+      maxzoom: 6.5,
+      layout: {
+        "text-field": ["get", "nombre"],
+        "text-font": FUENTE,
+        "text-size": ["interpolate", ["linear"], ["zoom"], 1.5, 10, 5, 15],
+        "text-transform": "uppercase",
+        "text-letter-spacing": 0.12,
+        "text-max-width": 7,
+      },
       paint: {
-        "line-color": "#9fb6a6",
-        "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.8, 4, 1.3, 9, 2],
-        "line-opacity": 0.9,
+        "text-color": "#dbe6dd",
+        "text-halo-color": "#0e1a16",
+        "text-halo-width": 1.4,
+        "text-opacity": 0.85,
       },
     });
 
-    const rotulos = ROTULOS_REGION.map(({ texto, lngLat }) => {
-      const el = document.createElement("div");
-      el.className = "region-label";
-      el.textContent = texto;
-      return new maplibregl.Marker({ element: el })
-        .setLngLat(lngLat)
-        .addTo(map);
+    // Rótulos de provincias/estados.
+    map.addSource("provincias-labels", {
+      type: "geojson",
+      data: SRC.provinciasLabels,
     });
-
-    return () => rotulos.forEach((r) => r.remove());
-  }, [mapReady, mundoGeojson]);
+    map.addLayer({
+      id: "provincias-labels",
+      type: "symbol",
+      source: "provincias-labels",
+      minzoom: 3.8,
+      layout: {
+        "text-field": ["get", "nombre"],
+        "text-font": FUENTE,
+        "text-size": ["interpolate", ["linear"], ["zoom"], 4, 10, 8, 15],
+        "text-letter-spacing": 0.06,
+        "text-max-width": 8,
+      },
+      paint: {
+        "text-color": "#d6e2da",
+        "text-halo-color": "#0b1512",
+        "text-halo-width": 1.6,
+        "text-opacity": ["interpolate", ["linear"], ["zoom"], 3.8, 0.6, 5.5, 1],
+      },
+    });
+    } // fin construir()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady]);
 
   // --- Capa de municipios ---
   useEffect(() => {
     const map = mapRef.current;
-    if (
-      !map ||
-      !mapReady ||
-      !municipiosGeojson ||
-      map.getSource("municipios")
-    )
-      return;
+    if (!map || !mapReady || map.getSource("municipios")) return;
 
     map.addSource("municipios", {
       type: "geojson",
-      data: municipiosGeojson,
+      data: SRC.municipios,
       promoteId: "id",
     });
 
@@ -370,7 +469,7 @@ const BaseMap = forwardRef(function BaseMap(
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, municipiosGeojson, interactive]);
+  }, [mapReady, interactive]);
 
   // --- Datos por municipio (altura/color) ---
   useEffect(() => {
@@ -415,22 +514,11 @@ const BaseMap = forwardRef(function BaseMap(
       viento
     );
 
-    // Arranca cuando la cámara está quieta, para no competir con la
-    // animación de entrada (globo → Misiones).
-    let cancelado = false;
-    const arrancar = () => {
-      if (!cancelado) windLayerRef.current?.start();
-    };
-    if (map.isMoving()) {
-      map.once("moveend", arrancar);
-      setTimeout(arrancar, 8000); // por las dudas
-    } else {
-      arrancar();
-    }
+    // Arranca ya: el propio loop no dibuja mientras la cámara se mueve
+    // (evita los trazos largos durante el intro).
+    windLayerRef.current.start();
 
     return () => {
-      cancelado = true;
-      map.off("moveend", arrancar);
       windLayerRef.current?.destroy();
       windLayerRef.current = null;
     };
