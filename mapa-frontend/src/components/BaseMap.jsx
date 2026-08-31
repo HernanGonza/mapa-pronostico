@@ -177,46 +177,50 @@ const BaseMap = forwardRef(function BaseMap(
   // Getter de hora (fraccionaria) para las capas animadas: sigue el vivo
   // cuando el slider está en "ahora", o la hora elegida si se movió.
   const horaGetterRef = useRef(() => 0);
-  // MapLibre v5 + globo + fuentes GeoJSON: el loop de render se frena tras
-  // cargar el estilo y NO se despierta al agregar capas / hacer flyTo /
-  // cambiar feature-state — el mapa queda congelado en el primer frame
-  // hasta que el usuario toca algo (y en el <iframe> del ministerio no lo
-  // toca nadie). `marcarSucio(ms)` mantiene el bombeo de redraws vivo esa
-  // ventana; el intervalo del init lo atiende.
-  const dirtyUntilRef = useRef(0);
   const motivoSalidaAguilaRef = useRef(null); // "boton" | "gesto"
-  const marcarSucio = useCallback((ms = 1500) => {
-    dirtyUntilRef.current = Math.max(dirtyUntilRef.current, Date.now() + ms);
-    mapRef.current?.triggerRepaint();
+
+  // MapLibre v5 con fuentes solo-GeoJSON a veces deja un frame "colgado":
+  // se agregan capas / se cambia feature-state y no se repinta. Un redraw
+  // sincrónico puntual lo resuelve. Se llama en eventos discretos (capa
+  // nueva, dato nuevo, cambio de hora), NO en loop.
+  const marcarSucio = useCallback(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    try {
+      m._frameRequest = null;
+      m.redraw();
+    } catch {
+      /* el estilo todavía no está listo */
+    }
   }, []);
 
-  // Ejecuta `fn(map)` cuando el estilo está REALMENTE cargado. Con globo v5
-  // el estilo puede reportar "listo" y volver atrás, así que agregar
-  // sources/layers antes de tiempo tira "Style is not done loading" y —
-  // peor— corta la cadena de efectos de React. Este helper reintenta en
-  // cada `styledata` hasta que `isStyleLoaded()` es true de verdad.
+  // Ejecuta `fn(map)`; si el estilo todavía no está listo, `addSource` tira
+  // "Style is not done loading" — lo atrapamos y reintentamos hasta que
+  // funcione. `fn` debe ser idempotente (chequear getSource/getLayer).
   const conEstilo = useCallback((fn) => {
-    const map = mapRef.current;
-    if (!map) return undefined;
     let cancel = false;
+    let intentos = 0;
     const intentar = () => {
-      if (cancel || mapRef.current !== map) return;
-      if (!map.isStyleLoaded()) return;
-      map.off("styledata", intentar);
-      map.off("idle", intentar);
+      if (cancel) return;
+      const map = mapRef.current;
+      if (!map) {
+        setTimeout(intentar, 120);
+        return;
+      }
       try {
         fn(map);
       } catch (e) {
-        console.warn("[BaseMap] capa no agregada:", e.message);
+        intentos++;
+        if (intentos > 400) {
+          console.warn("[BaseMap] conEstilo se rindió:", e.message);
+          return;
+        }
+        setTimeout(intentar, 80); // reintenta hasta ~32 s
       }
     };
-    map.on("styledata", intentar);
-    map.on("idle", intentar);
     intentar();
     return () => {
       cancel = true;
-      map.off("styledata", intentar);
-      map.off("idle", intentar);
     };
   }, []);
 
@@ -378,10 +382,7 @@ const BaseMap = forwardRef(function BaseMap(
       container: mapContainerRef.current,
       style: {
         version: 8,
-        // Sin proyección de globo: MapLibre v5 + globo + fuentes solo
-        // GeoJSON (sin tiles raster) frena el loop de render tras cargar el
-        // estilo y el mapa queda congelado hasta que el usuario toca algo
-        // — inservible en el <iframe> del ministerio. Mercator es estable.
+        projection: { type: "globe" },
         glyphs: `${API_URL}/glyphs/{fontstack}/{range}.pbf`,
         sources: {},
         layers: [
@@ -438,49 +439,59 @@ const BaseMap = forwardRef(function BaseMap(
       }
     });
 
-    map.on("sourcedata", () => marcarSucio(400));
-    map.on("styledata", () => marcarSucio(400));
-    map.on("moveend", () => marcarSucio(600));
+    // MapLibre v5 con fuentes solo-GeoJSON a veces deja el loop de render
+    // "colgado" y el mapa no pinta hasta que el usuario arrastra. Un
+    // desplazamiento imperceptible de la cámara (lo mismo que hace un
+    // drag) lo destraba. Se hace un puñado de veces al arrancar — NADA de
+    // loop perpetuo (eso mataba la performance).
+    const destrabar = () => {
+      if (mapRef.current !== map) return;
+      try {
+        const c = map.getCenter();
+        map.jumpTo({ center: [c.lng + 1e-6, c.lat] });
+        map._frameRequest = null;
+        map.redraw();
+      } catch {
+        /* estilo no listo aún */
+      }
+    };
+    const despertar = () => {
+      destrabar();
+      iniciar();
+    };
+    // OJO: `styledata` dispara con cada addSource/addLayer del setup (~10
+    // veces) y después basta. NO escuchar `sourcedata` — los sources
+    // `canvas` animados lo emiten en CADA frame y nos metía en un
+    // jumpTo+redraw por frame (= "super lento").
+    let setupListo = false;
+    const onSetup = () => {
+      if (!setupListo && mapRef.current === map) despertar();
+    };
+    map.once("load", despertar);
+    map.on("styledata", onSetup);
+
+    const burst = [
+      0, 60, 130, 220, 330, 460, 620, 820, 1050, 1350, 1750, 2300, 3000, 4000,
+      5500, 8000, 12000,
+    ].map((ms) => setTimeout(despertar, ms));
+    // Después de 14 s el mapa ya pintó: cortamos toda la maquinaria de
+    // arranque para no gastar nada en régimen.
+    const finSetup = setTimeout(() => {
+      setupListo = true;
+      map.off("styledata", onSetup);
+    }, 14000);
 
     // El contenedor puede tener 0px al crear el mapa (layout/fuentes aún
-    // cargando); MapLibre entonces no pinta nada hasta un resize.
+    // cargando); MapLibre entonces no pinta hasta un resize.
     const ro = new ResizeObserver(() => {
       try {
         map.resize();
-        marcarSucio(1500);
       } catch {
         /* noop */
       }
+      destrabar();
     });
     ro.observe(mapContainerRef.current);
-
-    // Bombeo de redraws (ver `marcarSucio`). El intervalo vive hasta el
-    // unmount: así cualquier `marcarSucio()` posterior (capa nueva, dato
-    // nuevo cada 5 min, cambio de hora) se atiende aunque el usuario nunca
-    // haya tocado el mapa. `setInterval` (no rAF) para que siga con la
-    // pestaña oculta.
-    dirtyUntilRef.current = Date.now() + 30000;
-    let ticks = 0;
-    const bomba = setInterval(() => {
-      if (mapRef.current !== map) return clearInterval(bomba);
-      try {
-        ticks++;
-        if (ticks < 40) map.resize();
-        iniciar(); // no-op una vez que el estilo terminó de cargar
-        const forzar = map.isMoving() || Date.now() < dirtyUntilRef.current;
-        if (forzar) {
-          // Un cambio de transform "nulo" ensucia el mapa; y reseteamos el
-          // frame pendiente para que `redraw()` no sea no-op — MapLibre v5
-          // con fuentes solo-GeoJSON deja un frame "colgado" que nunca se
-          // dibuja, y el mapa queda congelado hasta que el usuario toca algo.
-          if (ticks < 90) map.jumpTo({ center: map.getCenter() });
-          map._frameRequest = null;
-          map.redraw();
-        }
-      } catch {
-        /* el estilo todavía no está: reintenta al próximo tick */
-      }
-    }, 33);
 
     const irAMisiones = (animado) => {
       if (mapRef.current !== map) return;
@@ -523,7 +534,6 @@ const BaseMap = forwardRef(function BaseMap(
       // de verdad antes de hacer addSource, así que acá no bloqueamos.
       alEstarListo();
     }
-    map.once("load", iniciar);
     // Red de seguridad: si `load` no dispara (stall del loop de render),
     // arrancamos igual a los 1.2 s.
     setTimeout(iniciar, 1200);
@@ -540,8 +550,10 @@ const BaseMap = forwardRef(function BaseMap(
     mapRef.current = map;
     if (import.meta.env?.DEV) window.__map = map;
     return () => {
-      clearInterval(bomba);
+      burst.forEach(clearTimeout);
+      clearTimeout(finSetup);
       ro.disconnect();
+      map.off("styledata", onSetup);
       map.remove();
       mapRef.current = null;
     };
@@ -550,7 +562,7 @@ const BaseMap = forwardRef(function BaseMap(
 
   // --- Países + rótulos (livianos, entran ya) ---
   useEffect(() => {
-    if (!mapReady || !mundoGeojson) return undefined;
+    if (!mundoGeojson) return undefined;
     return conEstilo((map) => {
     if (map.getSource("mundo")) return;
     const FUENTE = ["Metropolis Regular"];
@@ -599,12 +611,16 @@ const BaseMap = forwardRef(function BaseMap(
     ordenarCapas(map);
     marcarSucio(3000);
     });
-  }, [mapReady, mundoGeojson, paisesLabels, conEstilo, marcarSucio]);
+  }, [mundoGeojson, paisesLabels, conEstilo, marcarSucio]);
 
-  // --- Provincias/estados + sus rótulos (más pesado) ---
+  // --- Provincias/estados + sus rótulos ---
+  //     Difiere ~1.2 s: el geojson es grande (~1 MB) y teselarlo bloquea
+  //     el hilo — que primero pinten Misiones y los países.
   useEffect(() => {
-    if (!mapReady || !provincias) return undefined;
-    return conEstilo((map) => {
+    if (!provincias) return undefined;
+    let cancel;
+    const t = setTimeout(() => {
+      cancel = conEstilo((map) => {
       if (map.getSource("provincias")) return;
       const FUENTE = ["Metropolis Regular"];
       map.addSource("provincias", { type: "geojson", data: provincias });
@@ -647,13 +663,19 @@ const BaseMap = forwardRef(function BaseMap(
       }
       ordenarCapas(map);
       marcarSucio(3000);
-    });
-  }, [mapReady, provincias, provinciasLabels, conEstilo, marcarSucio]);
+      });
+    }, 1200);
+    return () => {
+      clearTimeout(t);
+      cancel?.();
+    };
+  }, [provincias, provinciasLabels, conEstilo, marcarSucio]);
 
   // --- Municipios de Misiones ---
   useEffect(() => {
-    if (!mapReady || !municipiosGeojson) return undefined;
+    if (!municipiosGeojson) return undefined;
     return conEstilo((map) => {
+    if (map.getLayer("municipios-outline")) return;
     if (map.getSource("municipios")) return;
 
     map.addSource("municipios", {
@@ -675,46 +697,6 @@ const BaseMap = forwardRef(function BaseMap(
           COLOR_SIN_DATO,
         ],
         "fill-extrusion-opacity": 0.92,
-        "fill-extrusion-vertical-gradient": true,
-      },
-    });
-
-    // Techo de nubes de lluvia flotando SOBRE los municipios que tienen
-    // lluvia/tormenta pronosticada — solo sobre esos. En el modo águila la
-    // cámara pasa por abajo y las ve encima.
-    map.addLayer({
-      id: "municipios-nubes",
-      type: "fill-extrusion",
-      source: "municipios",
-      paint: {
-        "fill-extrusion-base": [
-          "interpolate",
-          ["linear"],
-          ["coalesce", ["feature-state", "nube"], 0],
-          0, 0,
-          0.05, 3200,
-        ],
-        "fill-extrusion-height": [
-          "interpolate",
-          ["linear"],
-          ["coalesce", ["feature-state", "nube"], 0],
-          0, 0,
-          0.05, 4200,
-          1, 5400,
-        ],
-        "fill-extrusion-color": [
-          "case",
-          ["==", ["coalesce", ["feature-state", "tormenta"], 0], 1],
-          "rgba(52,55,64,0.7)",
-          [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["feature-state", "nube"], 0],
-            0, "rgba(120,128,138,0)",
-            0.3, "rgba(122,130,140,0.34)",
-            1, "rgba(86,92,102,0.55)",
-          ],
-        ],
         "fill-extrusion-vertical-gradient": true,
       },
     });
@@ -769,36 +751,51 @@ const BaseMap = forwardRef(function BaseMap(
     marcarSucio(3000);
     setBaseListas(true);
     });
-  }, [mapReady, municipiosGeojson, interactive, seleccionar, irAModoAguila, conEstilo, marcarSucio]);
+  }, [municipiosGeojson, interactive, seleccionar, irAModoAguila, conEstilo, marcarSucio]);
 
   // --- Datos por municipio (altura/color/nube) ---
+  //     Se auto-reintenta hasta que la fuente `municipios` está — así el
+  //     color NO depende del timing de las otras capas.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !baseListas || !pronostico || !map.getSource("municipios"))
-      return;
+    if (!pronostico) return undefined;
+    let cancel = false;
+
     const nuevo = new Map();
-    for (const m of pronostico) {
-      nuevo.set(m.id, m);
-      const p = m.pronostico;
-      const fx = p ? fxDeCondicion(p.CONDICION) : null;
-      map.setFeatureState(
-        { source: "municipios", id: m.id },
-        p
-          ? {
-              height: alturaPorTemperatura(p.TMAX),
-              color: colorPorCondicion(p.CONDICION),
-              // Techo de nube sobre los municipios con lluvia/tormenta:
-              // 0 = sin nube (despejado), 1 = tormenta.
-              nube: fx.lluvia,
-              tormenta: fx.rayos ? 1 : 0,
-            }
-          : { height: 0, color: COLOR_SIN_DATO, nube: 0, tormenta: 0 }
-      );
-    }
+    for (const m of pronostico) nuevo.set(m.id, m);
     datosPorId.current = nuevo;
-    if (selectedIdRef.current) setActivo(nuevo.get(selectedIdRef.current) || null);
-    marcarSucio(2500);
-  }, [pronostico, baseListas, marcarSucio]);
+
+    const aplicar = () => {
+      const map = mapRef.current;
+      if (cancel || !map) return;
+      if (!map.getSource("municipios") || !map.getLayer("municipios-fill")) {
+        setTimeout(aplicar, 150);
+        return;
+      }
+      for (const m of pronostico) {
+        const p = m.pronostico;
+        const fx = p ? fxDeCondicion(p.CONDICION) : null;
+        map.setFeatureState(
+          { source: "municipios", id: m.id },
+          p
+            ? {
+                height: alturaPorTemperatura(p.TMAX),
+                color: colorPorCondicion(p.CONDICION),
+                nube: fx.lluvia,
+                tormenta: fx.rayos ? 1 : 0,
+              }
+            : { height: 0, color: COLOR_SIN_DATO, nube: 0, tormenta: 0 }
+        );
+      }
+      if (selectedIdRef.current)
+        setActivo(nuevo.get(selectedIdRef.current) || null);
+      marcarSucio();
+    };
+    aplicar();
+
+    return () => {
+      cancel = true;
+    };
+  }, [pronostico, marcarSucio]);
 
   // --- Temperatura: capa raster estática (imagen), debajo del mapa ---
   useEffect(() => {
@@ -894,13 +891,7 @@ const BaseMap = forwardRef(function BaseMap(
   // --- Partículas de viento ---
   useEffect(() => {
     const map = mapRef.current;
-    if (
-      !map ||
-      !mapReady ||
-      !clima ||
-      !windCanvasRef.current ||
-      prefiereMenosMovimiento
-    )
+    if (!map || !baseListas || !clima || !windCanvasRef.current || prefiereMenosMovimiento)
       return;
 
     windLayerRef.current?.destroy();
@@ -910,13 +901,13 @@ const BaseMap = forwardRef(function BaseMap(
       clima,
       () => horaRef.current
     );
-    if (capas.viento) windLayerRef.current.start();
+    if (capas.viento && !sobrevuelo) windLayerRef.current.start();
 
     return () => {
       windLayerRef.current?.destroy();
       windLayerRef.current = null;
     };
-  }, [clima, mapReady]);
+  }, [clima, baseListas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Encender/apagar el viento sin recrear la capa. En modo águila se apaga:
   // la cámara con mucho pitch rotando hace que las partículas parezcan un
@@ -970,17 +961,6 @@ const BaseMap = forwardRef(function BaseMap(
     marcarSucio(1200);
   }, [baseListas, sobrevuelo, marcarSucio]);
 
-  // Mientras haya una capa animada encendida (viento / nubes / lluvia) o
-  // el modo águila, mantenemos el bombeo de redraws vivo: los sources tipo
-  // `canvas` de MapLibre no se re-leen si el mapa no vuelve a pintar, y con
-  // globo v5 el loop se duerme solo.
-  const hayAnimacion =
-    capas.viento || capas.nubes || capas.lluvia || sobrevuelo;
-  useEffect(() => {
-    if (!mapReady || !hayAnimacion || prefiereMenosMovimiento) return;
-    const id = setInterval(() => marcarSucio(500), 250);
-    return () => clearInterval(id);
-  }, [mapReady, hayAnimacion, marcarSucio]);
 
   // --- Modo águila: la cámara baja a ras de las nubes (pitch alto) y
   //     sobrevuela en un orbital lento — toda la provincia (`aguila ===

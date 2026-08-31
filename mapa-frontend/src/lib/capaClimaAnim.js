@@ -13,10 +13,10 @@
 
 import { rampa, RAMPAS, clamp } from "./campoClima";
 
-const RES = 200;
-const FPS = 24;
-const DERIVA_PX_POR_MS = 0.0016; // px de deriva de la textura por ms y por (m/s)
-const ESCALA_RUIDO = 2.1; // "zoom" de la textura: bajo = nubes más grandes y definidas
+const RES = 128; // resolución del canvas de la capa (se suaviza al escalar)
+const FPS = 15; // las nubes/lluvia derivan lento; 15 fps alcanza y sobra
+const DERIVA_PX_POR_MS = 0.0016; // deriva de la textura por ms y por (m/s)
+const ESCALA_RUIDO = 2.1; // "zoom" de la textura: bajo = nubes más grandes
 const MARGEN = 0.13;
 
 const CAMPO = { nubes: "cloud", lluvia: "precip" };
@@ -26,48 +26,61 @@ function suavizar(t) {
   return t * t * (3 - 2 * t);
 }
 
-/* --- Ruido de valor 2D, dominio infinito, 3 octavas ---
- * OJO: la multiplicación tiene que ser `Math.imul` (32 bits reales). Con `*`
- * el producto se va de los 53 bits seguros de JS, se pierden los bits bajos
- * y el hash queda sesgado hacia abajo (media ~0.25 en vez de ~0.5) — eso
- * hacía que la capa de lluvia, que tiene un umbral duro sobre el ruido,
- * nunca se dibujara. */
-function hash(x, y) {
+/* --- Campo de ruido fractal PRECALCULADO y tileable ---
+ * Antes se calculaba `fractal()` (3 octavas × 4 hashes) por pixel y por
+ * frame = ~2 M ops/frame → el mapa iba a 19 fps. Ahora se genera UNA vez un
+ * tile de ruido y en cada frame se hace un lookup bilineal (barato). El
+ * tile es seamless (período entero) para poder repetirlo con la deriva. */
+const RUIDO_N = 256; // resolución del tile
+const RUIDO_P = 4; // celdas de ruido por tile (período)
+
+function hash2(x, y) {
   let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }
-function ruidoValor(x, y) {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const xf = x - xi;
-  const yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf);
-  const v = yf * yf * (3 - 2 * yf);
-  const a = hash(xi, yi);
-  const b = hash(xi + 1, yi);
-  const c = hash(xi, yi + 1);
-  const d = hash(xi + 1, yi + 1);
-  return (
-    a * (1 - u) * (1 - v) +
-    b * u * (1 - v) +
-    c * (1 - u) * v +
-    d * u * v
-  );
-}
-function fractal(x, y) {
-  let amp = 0.55;
-  let freq = 1;
-  let sum = 0;
-  let norm = 0;
-  for (let o = 0; o < 3; o++) {
-    sum += amp * ruidoValor(x * freq, y * freq);
-    norm += amp;
-    amp *= 0.5;
-    freq *= 2.1;
+
+let RUIDO = null;
+function campoRuido() {
+  if (RUIDO) return RUIDO;
+  const buf = new Float32Array(RUIDO_N * RUIDO_N);
+  const P = RUIDO_P;
+  const wrap = (v) => ((v % P) + P) % P;
+  const hP = (x, y) => hash2(wrap(x), wrap(y));
+  const rv = (x, y) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const xf = x - xi;
+    const yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf);
+    const w = yf * yf * (3 - 2 * yf);
+    const a = hP(xi, yi);
+    const b = hP(xi + 1, yi);
+    const c = hP(xi, yi + 1);
+    const d = hP(xi + 1, yi + 1);
+    return a * (1 - u) * (1 - w) + b * u * (1 - w) + c * (1 - u) * w + d * u * w;
+  };
+  const fr = (x, y) => {
+    let amp = 0.55;
+    let freq = 1;
+    let sum = 0;
+    let norm = 0;
+    for (let o = 0; o < 3; o++) {
+      sum += amp * rv((x * freq) % P, (y * freq) % P);
+      norm += amp;
+      amp *= 0.5;
+      freq *= 2;
+    }
+    return sum / norm;
+  };
+  for (let y = 0; y < RUIDO_N; y++) {
+    for (let x = 0; x < RUIDO_N; x++) {
+      buf[y * RUIDO_N + x] = fr((x / RUIDO_N) * P, (y / RUIDO_N) * P);
+    }
   }
-  return sum / norm;
+  RUIDO = buf;
+  return buf;
 }
 
 export class CapaClimaAnimada {
@@ -90,6 +103,18 @@ export class CapaClimaAnimada {
     this.horaGetter = horaGetter || (() => 0);
     this.img = this.ctx.createImageData(RES, RES);
     this._feather = this._calcFeather();
+    this._ruido = campoRuido();
+    // LUT de la rampa de color (128 pasos) para no llamar `rampa()` por
+    // pixel y por frame.
+    this._rampaMax = capa === "lluvia" ? 45 : 100;
+    this._lut = new Float32Array(128 * 4);
+    for (let i = 0; i < 128; i++) {
+      const c = rampa(this.paradas, (i / 127) * this._rampaMax);
+      this._lut[i * 4] = c[0];
+      this._lut[i * 4 + 1] = c[1];
+      this._lut[i * 4 + 2] = c[2];
+      this._lut[i * 4 + 3] = c[3];
+    }
     this.actualizarGrilla(grilla);
     this.t0 = performance.now();
     this._last = 0;
@@ -123,6 +148,8 @@ export class CapaClimaAnimada {
     this.n = grilla.grid;
     this.b = grilla.bounds;
     this._cache = new Map();
+    this._camposCache = null;
+    this._camposHf = -999;
   }
 
   /** Campo (cobertura + viento) upsampleado a RES para una hora entera. */
@@ -163,25 +190,36 @@ export class CapaClimaAnimada {
     return campo;
   }
 
-  /** Campos interpolados para una hora fraccionaria. */
+  /** Campos interpolados para una hora fraccionaria. Cacheado: la hora
+   *  cambia lentísimo, no hace falta rearmar 3 arrays de 25k cada frame. */
   _campos(hf) {
+    if (this._camposCache && Math.abs(hf - this._camposHf) < 0.04) {
+      return this._camposCache;
+    }
     const maxH = this.grilla.horas.length - 1;
     const h = clamp(hf, 0, maxH);
     const h0 = Math.floor(h);
     const h1 = Math.min(maxH, h0 + 1);
     const w = h - h0;
-    if (w < 0.02 || h0 === h1) return this._campoHora(h0);
-    const a = this._campoHora(h0);
-    const b = this._campoHora(h1);
-    const s = new Float32Array(RES * RES);
-    const u = new Float32Array(RES * RES);
-    const v = new Float32Array(RES * RES);
-    for (let k = 0; k < s.length; k++) {
-      s[k] = a.s[k] * (1 - w) + b.s[k] * w;
-      u[k] = a.u[k] * (1 - w) + b.u[k] * w;
-      v[k] = a.v[k] * (1 - w) + b.v[k] * w;
+    let res;
+    if (w < 0.02 || h0 === h1) {
+      res = this._campoHora(h0);
+    } else {
+      const a = this._campoHora(h0);
+      const b = this._campoHora(h1);
+      const s = new Float32Array(RES * RES);
+      const u = new Float32Array(RES * RES);
+      const v = new Float32Array(RES * RES);
+      for (let k = 0; k < s.length; k++) {
+        s[k] = a.s[k] * (1 - w) + b.s[k] * w;
+        u[k] = a.u[k] * (1 - w) + b.u[k] * w;
+        v[k] = a.v[k] * (1 - w) + b.v[k] * w;
+      }
+      res = { s, u, v };
     }
-    return { s, u, v };
+    this._camposCache = res;
+    this._camposHf = hf;
+    return res;
   }
 
   _frame(now) {
@@ -194,24 +232,48 @@ export class CapaClimaAnimada {
     const { s, u, v } = this._campos(this.horaGetter());
     const feather = this._feather;
     const d = this.img.data;
-    const paradas = this.paradas;
+    const lut = this._lut;
+    const rampaMax = this._rampaMax;
+    const ruido = this._ruido;
+    const N = RUIDO_N;
     const esLluvia = this.capa === "lluvia";
     // Escala de textura: la lluvia más "granulada" que las nubes.
     const escala = esLluvia ? ESCALA_RUIDO * 1.5 : ESCALA_RUIDO;
+    const deriva = T * DERIVA_PX_POR_MS;
+    // Cuántos "tiles" de ruido entran en el ancho del canvas.
+    const tilesPorRes = escala / RUIDO_P;
 
     for (let py = 0; py < RES; py++) {
-      const ny = (py / RES) * escala;
+      // Coord de ruido (en pixeles del tile) para esta fila.
+      const gyBase = (py / RES) * tilesPorRes * N;
       for (let px = 0; px < RES; px++) {
-        const o = py * RES + px;
+        const o = px + py * RES;
         const cobertura = s[o];
 
-        // Deriva de la textura según el viento local (px, acumulada en T).
-        const deriva = T * DERIVA_PX_POR_MS;
-        const dx = (u[o] * deriva) / RES * escala;
-        const dy = (-v[o] * deriva) / RES * escala;
-        const nx = (px / RES) * escala;
+        // Deriva de la textura según el viento local, acumulada en T.
+        const gx =
+          (px / RES) * tilesPorRes * N -
+          ((u[o] * deriva) / RES) * tilesPorRes * N;
+        const gy = gyBase + ((v[o] * deriva) / RES) * tilesPorRes * N;
 
-        const textura = fractal(nx - dx, ny - dy);
+        // Lookup bilineal en el tile de ruido (con wrap).
+        let ax = gx % N;
+        if (ax < 0) ax += N;
+        let ay = gy % N;
+        if (ay < 0) ay += N;
+        const x0 = ax | 0;
+        const y0 = ay | 0;
+        const x1 = x0 + 1 === N ? 0 : x0 + 1;
+        const y1 = y0 + 1 === N ? 0 : y0 + 1;
+        const tx = ax - x0;
+        const ty = ay - y0;
+        const r00 = ruido[x0 + y0 * N];
+        const r10 = ruido[x1 + y0 * N];
+        const r01 = ruido[x0 + y1 * N];
+        const r11 = ruido[x1 + y1 * N];
+        const textura =
+          (r00 * (1 - tx) + r10 * tx) * (1 - ty) +
+          (r01 * (1 - tx) + r11 * tx) * ty;
 
         let valorRampa;
         let alphaMul; // 0..1 extra sobre el alpha de la rampa
@@ -257,12 +319,15 @@ export class CapaClimaAnimada {
           d[o * 4 + 3] = 0;
           continue;
         }
-        const col = rampa(paradas, valorRampa);
+        let li = ((valorRampa / rampaMax) * 127) | 0;
+        li = li < 0 ? 0 : li > 127 ? 127 : li;
+        const l = li * 4;
         const q = o * 4;
-        d[q] = col[0];
-        d[q + 1] = col[1];
-        d[q + 2] = col[2];
-        d[q + 3] = clamp(col[3] * alphaMul * feather[o], 0, 255);
+        d[q] = lut[l];
+        d[q + 1] = lut[l + 1];
+        d[q + 2] = lut[l + 2];
+        let a = lut[l + 3] * alphaMul * feather[o];
+        d[q + 3] = a > 255 ? 255 : a < 0 ? 0 : a;
       }
     }
     this.ctx.putImageData(this.img, 0, 0);
