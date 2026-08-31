@@ -8,7 +8,7 @@ const { extractDocxTables } = require("../lib/docxTables");
 const { buildForecastRows } = require("../lib/parseForecast");
 const { generateForecastMap } = require("../lib/generateMap");
 const { nowInArgentina } = require("../lib/dateUtils");
-const { publicar, obtenerActual } = require("../lib/store");
+const { publicar, obtenerActual, obtenerHistorial } = require("../lib/store");
 const { resolveIconPath } = require("../lib/iconResolver");
 const { MATERIALES_DIR } = require("../lib/generateMap");
 const { loadMunicipios, armarMunicipiosConPronostico } = require("../lib/municipios");
@@ -51,25 +51,51 @@ router.post("/pronostico/parse", upload.single("pronostico"), async (req, res) =
  * Guarda el dataset como "el pronóstico actual" — esto es lo que lee
  * el iframe público (/embed en el front).
  */
-router.post("/pronostico/publicar", express.json(), (req, res) => {
+router.post("/pronostico/publicar", express.json(), async (req, res) => {
   const { filas } = req.body || {};
   if (!Array.isArray(filas) || filas.length === 0) {
     return res.status(400).json({ error: "Falta el array `filas` en el body" });
   }
-  const payload = publicar(filas);
-  res.json(payload);
+  try {
+    const payload = await publicar(filas);
+    res.json(payload);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo guardar: " + err.message });
+  }
 });
 
 /**
  * GET /api/pronostico/actual
  * Devuelve el último pronóstico publicado (o 404 si todavía no se publicó nada).
  */
-router.get("/pronostico/actual", (req, res) => {
-  const actual = obtenerActual();
-  if (!actual) {
-    return res.status(404).json({ error: "Todavía no se publicó ningún pronóstico" });
+router.get("/pronostico/actual", async (req, res) => {
+  try {
+    const actual = await obtenerActual();
+    if (!actual) {
+      return res
+        .status(404)
+        .json({ error: "Todavía no se publicó ningún pronóstico" });
+    }
+    res.json(actual);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
-  res.json(actual);
+});
+
+/**
+ * GET /api/pronostico/historial
+ * Lista de lo publicado (id + fecha), lo más reciente primero. Vacío si
+ * no hay base (persistencia en disco).
+ */
+router.get("/pronostico/historial", async (req, res) => {
+  try {
+    res.json({ historial: await obtenerHistorial() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
@@ -83,7 +109,7 @@ router.post("/pronostico/render-png", express.json(), async (req, res) => {
   try {
     let filas = req.body && req.body.filas;
     if (!filas) {
-      const actual = obtenerActual();
+      const actual = await obtenerActual();
       if (!actual) {
         return res.status(400).json({
           error: "No se mandaron `filas` y todavía no hay un pronóstico publicado",
@@ -207,10 +233,15 @@ router.get("/viento/grilla", async (req, res) => {
  * estación (de las 13 que reporta Alerta Temprana) más cercana —
  * marcando `esOficial` cuando el municipio ES una de esas 13.
  */
-router.get("/pronostico/mapa", (req, res) => {
-  const actual = obtenerActual();
-  const municipios = armarMunicipiosConPronostico(actual ? actual.filas : null);
-  res.json({ publicadoEn: actual ? actual.publicadoEn : null, municipios });
+router.get("/pronostico/mapa", async (req, res) => {
+  try {
+    const actual = await obtenerActual();
+    const municipios = armarMunicipiosConPronostico(actual ? actual.filas : null);
+    res.json({ publicadoEn: actual ? actual.publicadoEn : null, municipios });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**

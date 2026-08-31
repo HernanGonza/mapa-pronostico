@@ -99,7 +99,9 @@ front a Vercel (root `mapa-frontend`, var `VITE_API_URL`), back a Render
 - **Primer render**: con muchísima geometría (mundo + provincias) el
   primer pintado puede tardar unos segundos en máquinas con GPU floja.
 - **Auth en `/admin`**: hoy no tiene login.
-- **Historial**: el store solo guarda el último publicado.
+- **Base de datos**: el pronóstico + historial se guardan en Postgres
+  (Neon) cuando hay `DATABASE_URL`; si no, en un archivo en disco. Hay un
+  proyecto Neon temporal creado — **hay que reclamarlo** (ver `DEPLOY.md`).
 - **Fuentes FiraSans** para que el PNG de redes sea idéntico al original
   (falta el `.ttf`).
 - `mapa-backend/data/terrain-tiles/` (~26 MB) quedó sin uso — se sacó el

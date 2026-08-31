@@ -1,9 +1,14 @@
+// Carga .env / .env.local en desarrollo. En producción (Render) las
+// variables se inyectan directo y estos archivos no existen.
+require("dotenv").config({ path: [".env.local", ".env"], quiet: true });
+
 const express = require("express");
 const cors = require("cors");
 const compression = require("compression");
 const path = require("path");
 
 const pronosticoRouter = require("./routes/pronostico");
+const store = require("./lib/store");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,6 +43,17 @@ app.use("/glyphs", estatico(path.join(__dirname, "..", "data", "glyphs"), unAnio
 
 app.use("/api", pronosticoRouter);
 
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
-});
+// Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.
+store
+  .init()
+  .catch((err) => console.error("[store] no se pudo inicializar:", err.message))
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`Servidor escuchando en http://localhost:${PORT}`);
+      console.log(
+        process.env.DATABASE_URL
+          ? "[store] persistencia: Postgres"
+          : "[store] persistencia: archivo en disco (sin DATABASE_URL)"
+      );
+    });
+  });

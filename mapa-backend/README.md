@@ -50,6 +50,21 @@ dato de la **estación oficial más cercana** (haversine — ver
 (nombres completos). Si cambia el formato del `.docx` o las estaciones, es
 ahí donde hay que tocar.
 
+## Persistencia del pronóstico
+
+`src/lib/store.js`:
+
+- Con **`DATABASE_URL`** (Postgres / Neon): cada "Publicar" inserta una
+  fila en la tabla `pronosticos` (`id`, `publicado_en`, `filas jsonb`). El
+  mapa usa la última; queda el **historial** completo
+  (`GET /api/pronostico/historial`).
+- Sin `DATABASE_URL`: cae a `data/store/pronostico-actual.json` (disco,
+  sin historial) — sirve para desarrollo local.
+
+La tabla se crea sola al arrancar (`CREATE TABLE IF NOT EXISTS`).
+`DATABASE_URL` se carga de `.env` / `.env.local` (dotenv); en Render se
+inyecta como variable de entorno.
+
 ## Carga de datos: solo por .docx
 
 Por decisión explícita, no hay formulario de carga manual por localidad.
@@ -79,6 +94,7 @@ texto plano.
 | POST | `/api/pronostico/parse` | Sube un `.docx`, devuelve `{ filas: [...] }` (13 estaciones), sin publicar. |
 | POST | `/api/pronostico/publicar` | Body `{ filas }` → guarda el dataset "actual". |
 | GET  | `/api/pronostico/actual` | Último publicado: `{ publicadoEn, filas }` (lo usa el panel). |
+| GET  | `/api/pronostico/historial` | `{ historial: [{ id, publicadoEn }] }` — vacío si no hay base. |
 | GET  | `/api/pronostico/mapa` | Los 79 municipios con lat/lng + pronóstico (propio o de la estación más cercana). |
 | POST | `/api/pronostico/mapa-preview` | Igual, pero a partir de datos sin publicar (vista previa del panel). |
 | POST | `/api/pronostico/render-png` | Genera el PNG cuadrado (1280×1280) para redes. Sirve para cron. |

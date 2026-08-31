@@ -19,7 +19,8 @@ services:
       # una vez que exista (ej: https://mapa-pronostico.vercel.app).
       - key: CORS_ORIGIN
         sync: false
-    # OJO: el plan free NO permite disco persistente. El pronóstico
-    # publicado (data/store/) se borra en cada deploy/reinicio — hay que
-    # volver a publicar desde /admin. Para producción, subir de plan y
-    # agregar un disk en /opt/render/project/src/mapa-backend/data/store.
+      # Postgres (Neon) donde se guarda el pronóstico publicado + historial.
+      # El plan free de Render no tiene disco persistente, así que esto es
+      # necesario para que el pronóstico sobreviva a los deploys.
+      - key: DATABASE_URL
+        sync: false

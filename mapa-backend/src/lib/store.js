@@ -1,27 +1,110 @@
 const fs = require("fs");
 const path = require("path");
 
-const STORE_PATH = path.join(__dirname, "..", "..", "data", "store", "pronostico-actual.json");
-
 /**
- * Guarda el pronóstico "publicado" (lo que va a mostrar el iframe público).
- * Persistencia simple en disco: alcanza para este caso de uso (se
- * actualiza unas pocas veces al día). Si más adelante hace falta
- * historial/auditoría, esto es lo primero a migrar a una base real.
+ * Persistencia del pronóstico publicado.
+ *
+ * - Con `DATABASE_URL` (Postgres / Neon): guarda una fila por cada
+ *   "Publicar" → queda el historial completo. El mapa usa la última.
+ * - Sin `DATABASE_URL` (desarrollo local sin base): cae a un archivo
+ *   JSON en disco, sin historial.
+ *
+ * Todas las funciones son async.
  */
-function publicar(dataset) {
-  const payload = {
-    publicadoEn: new Date().toISOString(),
-    filas: dataset,
-  };
+
+const STORE_PATH = path.join(
+  __dirname,
+  "..",
+  "..",
+  "data",
+  "store",
+  "pronostico-actual.json"
+);
+
+let pool = null;
+let listo = null;
+
+function usaPostgres() {
+  return !!process.env.DATABASE_URL;
+}
+
+/** Crea el pool y la tabla la primera vez. */
+async function init() {
+  if (!usaPostgres()) return;
+  if (listo) return listo;
+  const { Pool } = require("pg");
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 3,
+  });
+  listo = pool
+    .query(
+      `CREATE TABLE IF NOT EXISTS pronosticos (
+         id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+         publicado_en timestamptz NOT NULL DEFAULT now(),
+         filas        jsonb NOT NULL
+       )`
+    )
+    .then(() => {
+      console.log("[store] Postgres listo (tabla pronosticos)");
+    });
+  return listo;
+}
+
+async function publicar(filas) {
+  if (usaPostgres()) {
+    await init();
+    const { rows } = await pool.query(
+      `INSERT INTO pronosticos (filas)
+       VALUES ($1::jsonb)
+       RETURNING publicado_en, filas`,
+      [JSON.stringify(filas)]
+    );
+    return { publicadoEn: rows[0].publicado_en.toISOString(), filas: rows[0].filas };
+  }
+
+  const payload = { publicadoEn: new Date().toISOString(), filas };
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, JSON.stringify(payload, null, 2));
   return payload;
 }
 
-function obtenerActual() {
+async function obtenerActual() {
+  if (usaPostgres()) {
+    await init();
+    const { rows } = await pool.query(
+      `SELECT publicado_en, filas
+         FROM pronosticos
+         ORDER BY id DESC
+         LIMIT 1`
+    );
+    if (!rows.length) return null;
+    return {
+      publicadoEn: rows[0].publicado_en.toISOString(),
+      filas: rows[0].filas,
+    };
+  }
+
   if (!fs.existsSync(STORE_PATH)) return null;
   return JSON.parse(fs.readFileSync(STORE_PATH, "utf-8"));
 }
 
-module.exports = { publicar, obtenerActual };
+/** Lista liviana del historial (sin `filas`), lo más reciente primero. */
+async function obtenerHistorial(limite = 60) {
+  if (!usaPostgres()) return [];
+  await init();
+  const { rows } = await pool.query(
+    `SELECT id, publicado_en
+       FROM pronosticos
+       ORDER BY id DESC
+       LIMIT $1`,
+    [limite]
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    publicadoEn: r.publicado_en.toISOString(),
+  }));
+}
+
+module.exports = { publicar, obtenerActual, obtenerHistorial, init };
