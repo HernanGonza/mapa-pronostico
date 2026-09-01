@@ -9,6 +9,7 @@ export const WEATHER_PRESETS = {
   RAIN: { clouds: 0.88, fog: 0.27, haze: 0.34, rain: 0.6, distantRain: 0.68, hail: 0, wind: 0.36, wetness: 0.72, lightning: 0, darkness: 0.42, heatHaze: 0 },
   HEAVY_RAIN: { clouds: 1, fog: 0.42, haze: 0.46, rain: 1, distantRain: 1, hail: 0, wind: 0.58, wetness: 1, lightning: 0.03, darkness: 0.58, heatHaze: 0 },
   THUNDERSTORM: { clouds: 1, fog: 0.36, haze: 0.42, rain: 0.88, distantRain: 1, hail: 0, wind: 0.66, wetness: 1, lightning: 0.55, darkness: 0.72, heatHaze: 0 },
+  NIGHT_THUNDERSTORM: { clouds: 1, fog: 0.46, haze: 0.5, rain: 0.92, distantRain: 1, hail: 0, wind: 0.7, wetness: 1, lightning: 0.78, darkness: 0.94, heatHaze: 0 },
   SEVERE_THUNDERSTORM: { clouds: 1, fog: 0.5, haze: 0.54, rain: 1, distantRain: 1, hail: 0.15, wind: 0.86, wetness: 1, lightning: 0.82, darkness: 0.86, heatHaze: 0 },
   HAIL: { clouds: 1, fog: 0.35, haze: 0.4, rain: 0.68, distantRain: 0.8, hail: 0.85, wind: 0.72, wetness: 0.9, lightning: 0.18, darkness: 0.65, heatHaze: 0 },
   HIGH_WIND: { clouds: 0.45, fog: 0.06, haze: 0.25, rain: 0, distantRain: 0, hail: 0, wind: 1, wetness: 0, lightning: 0, darkness: 0.12, heatHaze: 0 },

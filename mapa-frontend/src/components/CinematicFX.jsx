@@ -52,7 +52,9 @@ export default function CinematicFX({ active, hora, sampler, flightProgress, qua
         const q = profile();
         for (let i = 0; i < Math.min(q.clouds, bancos.length); i++) { const b = bancos[i]; const x = (((b.x + now * b.v * (1 + s.wind * 2)) % 1.25) - .12) * w; const y = b.y * h; const rx = b.r * w; const g = ctx.createRadialGradient(x, y, 0, x, y, rx); const a = cubierta * b.a * .22; g.addColorStop(0, `rgba(215,222,226,${a})`); g.addColorStop(.48, `rgba(128,140,150,${a * .75})`); g.addColorStop(1, "rgba(90,100,110,0)"); ctx.save(); ctx.translate(x, y); ctx.scale(1, .22); ctx.translate(-x, -y); ctx.fillStyle = g; ctx.fillRect(x-rx, y-rx, rx*2, rx*2); ctx.restore(); }
       }
-      const bruma = clamp(Math.max(s.fog, s.haze * .55));
+      // El haze atmosférico no debe lavar todo el mapa con clima despejado.
+      // Sólo se dibuja cuando hay niebla real o una cobertura relevante.
+      const bruma = s.fog > .12 || s.clouds > .72 ? clamp(Math.max(s.fog, s.haze * .55)) : 0;
       if (bruma > .01) { const g = ctx.createLinearGradient(0, h * .2, 0, h * .82); g.addColorStop(0, "rgba(205,214,216,0)"); g.addColorStop(.62, `rgba(190,202,205,${bruma * .55})`); g.addColorStop(1, `rgba(184,196,199,${s.fog * .2})`); ctx.fillStyle = g; ctx.fillRect(0, h * .15, w, h * .7); }
       if (s.distantPrecipitation > .02) { ctx.strokeStyle = `rgba(150,175,194,${.1 + s.distantPrecipitation * .16})`; ctx.lineWidth = Math.max(5, w * .015); for (let i=0;i<7;i++){ const x=w*(.08+i*.15)+Math.sin(i*4.1)*w*.03; ctx.beginPath(); ctx.moveTo(x,h*.28); ctx.lineTo(x+s.wind*w*.03,h*.68); ctx.stroke(); } }
     }
@@ -61,7 +63,7 @@ export default function CinematicFX({ active, hora, sampler, flightProgress, qua
       if (!vivo) return; raf = requestAnimationFrame(frame);
       const q = profile(); if (now - ultimoDibujo < 1000 / q.fps) return;
       const dt = Math.min(45, now - ultimo); ultimo = now; ultimoDibujo = now;
-      director.transitionTo(inputRef.current.sampler?.(), { duration: 2600 });
+      director.transitionTo(inputRef.current.sampler?.() || { preset: "CLEAR" }, { duration: 2600 });
       const progress = inputRef.current.flightProgress?.() ?? clamp((now - entradaDesde) / 3000);
       const s = director.update(now, progress); const w = canvas.width; const h = canvas.height; ctx.clearRect(0, 0, w, h); horizonte(w, h, now, s);
       const objetivo = Math.round(s.nearPrecipitation ** 2 * q.rain); while (gotas.length < objetivo) gotas.push(nuevaGota(w,h)); if (gotas.length > objetivo) gotas.length = objetivo;

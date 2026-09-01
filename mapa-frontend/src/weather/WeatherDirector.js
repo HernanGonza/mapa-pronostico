@@ -23,7 +23,9 @@ export class WeatherDirector {
     this.key = key;
     this.weather = weather;
     Object.assign(this.from, this.current);
-    Object.assign(this.target, presetVisual(weather?.preset));
+    // Mientras React/MapLibre termina de resolver el punto bajo la cámara no
+    // hay que inventar nubosidad: el estado transitorio es despejado.
+    Object.assign(this.target, presetVisual(weather?.preset || "CLEAR"));
     // Los valores medidos refinan el preset, sin inventar campos ausentes.
     if (weather?.cloudCoverage != null) this.target.clouds = clamp01(weather.cloudCoverage / 100);
     if (weather?.windSpeed != null) this.target.wind = Math.max(this.target.wind, clamp01(weather.windSpeed / 20));

@@ -17,10 +17,10 @@ import { tiempoRelativo } from "../lib/tiempoRelativo";
 import WeatherIcon from "./WeatherIcon";
 import Legend from "./Legend";
 import LayerPanel from "./LayerPanel";
-import CinematicFX from "./CinematicFX";
 import { normalizeWeather } from "../weather/WeatherState";
 import { autoWeatherQuality } from "../weather/WeatherQuality";
 import WeatherDebugPanel from "./WeatherDebugPanel";
+import BabylonWeatherFX from "./BabylonWeatherFX";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -169,6 +169,7 @@ const BaseMap = forwardRef(function BaseMap(
   const mapRef = useRef(null);
   const windCanvasRef = useRef(null);
   const windLayerRef = useRef(null);
+  const babylonFxRef = useRef(null);
   const capasAnimRef = useRef({}); // { nubes: CapaClimaAnimada, lluvia: ... }
   const datosPorId = useRef(new Map());
   // El slider de hora solo "manda" una vez que el operador lo movió; hasta
@@ -287,7 +288,7 @@ const BaseMap = forwardRef(function BaseMap(
     const m = new Map();
     for (const f of municipiosGeojson?.features || []) {
       const c = centroide(f);
-      if (c) m.set(f.properties.id, { c, nombre: f.properties.nombre });
+      if (c) m.set(String(f.properties.id), { c, nombre: f.properties.nombre });
     }
     return m;
   }, [municipiosGeojson]);
@@ -319,14 +320,14 @@ const BaseMap = forwardRef(function BaseMap(
   const weatherEnPunto = useCallback((lng, lat, idForzado = null) => {
     let mejor = null;
     let min = Infinity;
-    if (idForzado) mejor = idForzado;
+    if (idForzado) mejor = String(idForzado);
     else {
       for (const [id, info] of centroides) {
         const d = (info.c[0] - lng) ** 2 + (info.c[1] - lat) ** 2;
         if (d < min) { min = d; mejor = id; }
       }
     }
-    const dato = mejor ? datosPorId.current.get(mejor) : null;
+    const dato = mejor ? datosPorId.current.get(String(mejor)) : null;
     const presetDebug = weatherDebug?.preset !== "AUTO" ? weatherDebug?.preset : null;
     const hayAjuste = weatherDebug && ["rain", "fog", "clouds", "wind", "lightning"].some((k) => weatherDebug[k] >= 0);
     const override = (presetDebug || hayAjuste) ? {
@@ -344,7 +345,7 @@ const BaseMap = forwardRef(function BaseMap(
       grilla: clima,
       lngLat: [lng, lat],
       hora: horaGetterRef.current(),
-      isDay: horaReloj >= 6.3 && horaReloj < 19.7,
+      isDay: presetDebug === "NIGHT_THUNDERSTORM" ? false : horaReloj >= 6.3 && horaReloj < 19.7,
       override,
     });
   }, [centroides, clima, horaReloj, weatherDebug]);
@@ -363,6 +364,10 @@ const BaseMap = forwardRef(function BaseMap(
       if (windCanvasRef.current && capas.viento) {
         ctx.drawImage(windCanvasRef.current, 0, 0, out.width, out.height);
       }
+      const babylonCanvas = babylonFxRef.current?.canvas?.();
+      if (babylonCanvas && sobrevuelo) {
+        ctx.drawImage(babylonCanvas, 0, 0, out.width, out.height);
+      }
       return out.toDataURL("image/png");
     },
   }));
@@ -378,7 +383,7 @@ const BaseMap = forwardRef(function BaseMap(
     selectedIdRef.current = id;
     if (id && map?.getSource("municipios")) {
       map.setFeatureState({ source: "municipios", id }, { selected: true });
-      setActivo(datosPorId.current.get(id) || null);
+      setActivo(datosPorId.current.get(String(id)) || null);
     } else {
       setActivo(null);
     }
@@ -784,7 +789,7 @@ const BaseMap = forwardRef(function BaseMap(
     let cancel = false;
 
     const nuevo = new Map();
-    for (const m of pronostico) nuevo.set(m.id, m);
+    for (const m of pronostico) nuevo.set(String(m.id), m);
     datosPorId.current = nuevo;
 
     const aplicar = () => {
@@ -810,7 +815,7 @@ const BaseMap = forwardRef(function BaseMap(
         );
       }
       if (selectedIdRef.current)
-        setActivo(nuevo.get(selectedIdRef.current) || null);
+        setActivo(nuevo.get(String(selectedIdRef.current)) || null);
       marcarSucio();
     };
     aplicar();
@@ -1015,11 +1020,11 @@ const BaseMap = forwardRef(function BaseMap(
     try {
       map.setSky?.({
         "sky-color": c.sky,
-        "sky-horizon-blend": 0.6,
+        "sky-horizon-blend": sobrevuelo ? 0 : 0.6,
         "horizon-color": c.horiz,
-        "horizon-fog-blend": 0.55,
+        "horizon-fog-blend": sobrevuelo ? 0 : 0.55,
         "fog-color": c.fog,
-        "fog-ground-blend": 0.35,
+        "fog-ground-blend": sobrevuelo ? 0 : 0.35,
       });
       if (map.getLayer("background")) {
         map.setPaintProperty("background", "background-color", c.bg);
@@ -1028,7 +1033,7 @@ const BaseMap = forwardRef(function BaseMap(
       /* estilo aún no listo */
     }
     marcarSucio(1500);
-  }, [baseListas, horaReloj, marcarSucio]);
+  }, [baseListas, horaReloj, sobrevuelo, marcarSucio]);
 
   // En modo águila achatamos el relieve de los municipios: con la cámara
   // rasante y girando, los altos tapan a los de atrás.
@@ -1181,9 +1186,9 @@ const BaseMap = forwardRef(function BaseMap(
         hidden={!capas.viento || sobrevuelo}
       />
 
-      <CinematicFX
+      <BabylonWeatherFX
+        ref={babylonFxRef}
         active={sobrevuelo}
-        hora={horaReloj}
         sampler={() => weatherRef.current}
         flightProgress={() => flightProgressRef.current}
         quality={weatherQuality}

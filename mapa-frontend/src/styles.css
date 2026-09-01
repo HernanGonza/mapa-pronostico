@@ -912,7 +912,7 @@ input[type="file"] {
   backdrop-filter: blur(8px);
 }
 .weather-quality select { color: var(--map-text); background: #172733; border: 1px solid var(--map-border); border-radius: 5px; padding: 3px; }
-.weather-debug { position:absolute; z-index:20; right:18px; top:70px; width:220px; padding:7px 9px; color:var(--map-text); background:rgba(8,18,27,.9); border:1px solid var(--map-border); border-radius:8px; font:11px var(--font); }
+.weather-debug { position:absolute; z-index:20; right:18px; bottom:76px; width:220px; padding:7px 9px; color:var(--map-text); background:rgba(8,18,27,.9); border:1px solid var(--map-border); border-radius:8px; font:11px var(--font); }
 .weather-debug summary { cursor:pointer; font-weight:700; }
 .weather-debug label { display:grid; grid-template-columns:52px 1fr 30px; align-items:center; gap:4px; margin-top:6px; }
 .weather-debug select { grid-column:2 / 4; color:var(--map-text); background:#172733; border:1px solid var(--map-border); min-width:0; }
@@ -920,6 +920,72 @@ input[type="file"] {
 .weather-debug output { text-align:right; color:var(--map-text-muted); }
 .babylon-map__canvas { position:absolute; inset:0; width:100%; height:100%; display:block; outline:none; touch-action:none; }
 .babylon-map__loading { position:absolute; inset:0; z-index:30; display:grid; place-items:center; color:#eef5ef; background:#091722; font:600 14px var(--font); }
+.babylon-weather-fx { position:absolute; inset:0; z-index:4; width:100%; height:100%; display:block; pointer-events:none; }
+
+/* ---------- Spike de mundo real con 3D Tiles ---------- */
+.tiles-world { position:relative; width:100%; height:100%; overflow:hidden; color:var(--map-text); background:#07121a; font-family:var(--font); }
+.tiles-world__canvas { position:absolute; z-index:1; inset:0; width:100%; height:100%; display:block; outline:none; touch-action:none; }
+.tiles-world__storm-video { position:absolute; z-index:0; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; opacity:0; transition:opacity .8s ease; mix-blend-mode:screen; filter:saturate(.7) contrast(1.15) brightness(.65); }
+.tiles-world__storm-video.is-visible { opacity:.72; }
+.tiles-world__storm-select { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; color:var(--map-text-muted); font-size:12px; }
+.tiles-world__storm-select select { min-width:135px; padding:7px 9px; color:var(--map-text); background:#172733; border:1px solid var(--map-border); border-radius:7px; font:600 12px var(--font); }
+.tiles-world__panel { position:absolute; z-index:2; top:18px; left:18px; width:min(370px,calc(100% - 36px)); padding:16px; background:rgba(8,18,27,.88); border:1px solid var(--map-border); border-radius:var(--radius); box-shadow:var(--shadow-pop); backdrop-filter:blur(12px); }
+.tiles-world__eyebrow { color:var(--rosa-300); font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+.tiles-world h1 { margin:4px 0 13px; font-size:22px; }
+.tiles-world__actions { display:flex; gap:8px; }
+.tiles-world__actions button { flex:1; padding:9px 12px; color:var(--map-text); background:#172733; border:1px solid var(--map-border); border-radius:8px; cursor:pointer; font:600 13px var(--font); }
+.tiles-world__actions button.is-active { color:#fff; background:var(--verde-600); border-color:#78a889; }
+.tiles-world__center { width:100%; margin-top:9px; padding:9px 12px; color:var(--map-text); background:#172733; border:1px solid var(--map-border); border-radius:8px; cursor:pointer; font:600 13px var(--font); }
+.tiles-world__eagle { width:100%; margin-top:9px; padding:9px 12px; color:#fff; background:rgba(139,55,88,.82); border:1px solid var(--rosa-300); border-radius:8px; cursor:pointer; font:600 13px var(--font); }
+.tiles-world__eagle.is-active { background:var(--verde-600); border-color:#78a889; }
+.tiles-world__weather { width:100%; margin-top:9px; padding:9px 12px; color:#fff; background:#27394b; border:1px solid #66819b; border-radius:8px; cursor:pointer; font:600 13px var(--font); }
+.tiles-world__weather.is-active { background:#6d365e; border-color:#db83b7; }
+.tiles-world__status { display:flex; align-items:center; gap:7px; margin:13px 0 8px; color:var(--map-text-muted); font-size:12px; }
+.tiles-world__status span { width:8px; height:8px; border-radius:50%; background:var(--naranja-500); }
+.tiles-world__status span.is-online { background:#65d38b; box-shadow:0 0 8px #65d38b; }
+.tiles-world__setup { margin:10px 0; padding:10px; color:#f0dfbd; background:rgba(154,106,18,.2); border:1px solid rgba(239,212,78,.28); border-radius:8px; font-size:12px; line-height:1.45; }
+.tiles-world__setup code { color:#fff; }
+.tiles-world__political-status { margin:0 0 8px; color:#c7d7ce; font-size:11px; }
+.tiles-world__panel small { color:var(--map-text-muted); }
+.tiles-world__credits { position:absolute; z-index:2; right:10px; bottom:8px; max-width:70%; padding:4px 7px; color:#d8e0dc; background:rgba(0,0,0,.65); border-radius:4px; font:10px/1.3 Arial,sans-serif; text-align:right; }
+.tiles-world__altimeter { position:absolute; z-index:2; right:14px; top:14px; display:grid; grid-template-columns:auto auto; gap:3px 12px; min-width:190px; padding:10px 12px; color:#c7d7ce; background:rgba(8,18,27,.86); border:1px solid var(--map-border); border-radius:8px; backdrop-filter:blur(8px); font:11px var(--font); }
+.tiles-world__altimeter strong { color:#fff; text-align:right; font-variant-numeric:tabular-nums; }
+.tiles-world__altitude-controls { grid-column:1 / 3; display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:5px; }
+.tiles-world__altitude-controls button { padding:5px; color:#fff; background:#172733; border:1px solid #52695d; border-radius:5px; cursor:pointer; font-size:11px; line-height:1; }
+.tiles-world__altitude-controls button:hover { background:var(--verde-600); border-color:#78a889; }
+.tiles-world__instruments { position:absolute; z-index:2; right:14px; top:122px; display:flex; align-items:center; gap:12px; padding:10px 12px; color:#c7d7ce; background:rgba(8,18,27,.86); border:1px solid var(--map-border); border-radius:8px; backdrop-filter:blur(8px); font:11px var(--font); }
+.tiles-world__compass { position:relative; width:74px; height:74px; flex:0 0 74px; border:1px solid #72897c; border-radius:50%; background:radial-gradient(circle,rgba(70,105,86,.18),rgba(5,12,18,.72)); }
+.tiles-world__compass span { position:absolute; color:#dce8df; font-size:9px; font-weight:700; }
+.tiles-world__north { top:3px; left:50%; transform:translateX(-50%); color:#ff9aae!important; }
+.tiles-world__east { right:5px; top:50%; transform:translateY(-50%); }
+.tiles-world__south { bottom:3px; left:50%; transform:translateX(-50%); }
+.tiles-world__west { left:5px; top:50%; transform:translateY(-50%); }
+.tiles-world__compass i { position:absolute; z-index:1; left:50%; top:10px; width:2px; height:27px; background:linear-gradient(#ff6f8f 0 55%,#dce8df 55%); transform-origin:50% 27px; box-shadow:0 0 5px rgba(255,111,143,.6); }
+.tiles-world__instrument-values { display:grid; grid-template-columns:auto auto; gap:3px 10px; min-width:145px; }
+.tiles-world__instrument-values strong { color:#fff; text-align:right; font-variant-numeric:tabular-nums; }
+.tiles-world__instrument-values small { grid-column:1 / 3; color:#8fa49a; }
+.tiles-world__level { position:relative; grid-column:1 / 3; height:5px; margin:4px 2px; background:linear-gradient(90deg,#69bf88,#e0c451,#d66b70); border-radius:4px; }
+.tiles-world__level i { position:absolute; top:50%; width:9px; height:13px; border:2px solid #fff; border-radius:3px; transform:translate(-50%,-50%); box-shadow:0 1px 4px #000; }
+
+/* En Admin el mapa comparte ancho con el formulario. Reservamos una fila
+   propia para las capas para que nunca se monten sobre el título. */
+.admin-map-area .layer-panel {
+  top: 82px;
+  max-width: calc(100% - 32px);
+}
+
+@media (max-width: 1100px) {
+  .admin-map-area .layer-panel {
+    left: 16px;
+    right: 16px;
+    transform: none;
+  }
+  .admin-map-area .eagle-btn {
+    left: auto;
+    right: 16px;
+    transform: none;
+  }
+}
 
 @media (max-width: 640px) {
   .layer-panel {
@@ -927,5 +993,10 @@ input[type="file"] {
     left: 8px;
     right: 8px;
     transform: none;
+  }
+  .admin-map-area .layer-panel {
+    top: 72px;
+    left: 8px;
+    right: 8px;
   }
 }
