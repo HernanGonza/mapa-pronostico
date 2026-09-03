@@ -81,7 +81,6 @@ El flujo es "subir .docx → revisar/corregir en la tabla → publicar".
 | `paises-labels.geojson` | Puntos de rótulo de países | Natural Earth 1:50m |
 | `provincias-labels.geojson` | Puntos de rótulo de provincias | Natural Earth 1:10m |
 | `glyphs/Metropolis Regular/*.pbf` | Glyphs para los rótulos del mapa | openmaptiles/fonts |
-| `terrain-tiles/` | **Sin uso** (se sacó el terreno 3D) — ~26 MB, se puede borrar | DEM Ordenamiento Territorial |
 | `materiales/` | `basemap.png` + íconos del PNG de redes | armados a mano |
 
 Los GeoJSON se sirven con `gzip` (middleware `compression`) — pesan MB en
@@ -101,11 +100,9 @@ texto plano.
 | GET  | `/api/municipios/geojson` | 79 polígonos de Misiones. |
 | GET  | `/api/mundo/geojson` | Países del mundo. |
 | GET  | `/api/geo/:archivo` | `provincias`, `paises-labels`, `provincias-labels`. |
-| GET  | `/api/viento/grilla` | Viento real (Open-Meteo) sobre la región, cacheado 30 min. *(el front hoy usa el snapshot global del propio front, no este endpoint)* |
 | GET  | `/api/materiales/icono/:condicion` | Ícono por condición (ignora tildes) — para el PNG de redes. |
 | GET  | `/glyphs/{fontstack}/{range}.pbf` | Glyphs de los rótulos. |
 | GET  | `/materiales/basemap.png` | Imagen base del PNG de redes. |
-| GET  | `/terrain-tiles/{z}/{x}/{y}.png` | Tiles de terreno (sin uso hoy). |
 
 `CORS_ORIGIN` (env, coma-separado) restringe orígenes en producción; sin
 la variable se permite cualquiera.
@@ -123,7 +120,6 @@ src/
   lib/iconResolver.js          # condición -> archivo de ícono
   lib/municipios.js            # 79 municipios + estación más cercana (haversine)
   lib/generateMap.js           # dibuja el PNG de redes (canvas)
-  lib/viento.js                # grilla de viento regional (Open-Meteo)
   lib/store.js                 # persistencia del pronóstico publicado
   routes/pronostico.js         # todos los endpoints
   server.js                    # entrypoint + CORS + gzip + estáticos

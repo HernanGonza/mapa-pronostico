@@ -1,5 +1,10 @@
 import { API_URL } from "./config";
 
+// El back setea el cookie de sesión como httpOnly — hace falta pedirle al
+// fetch que lo mande (y lo reciba) aunque front y back vivan en orígenes
+// distintos (Vercel/Render en vez de estar detrás del mismo Caddy).
+const CON_SESION = { credentials: "include" };
+
 async function handleJson(res) {
   if (!res.ok) {
     let msg = `Error ${res.status}`;
@@ -20,6 +25,7 @@ export async function parseDocx(file) {
   const res = await fetch(`${API_URL}/api/pronostico/parse`, {
     method: "POST",
     body: form,
+    ...CON_SESION,
   });
   const data = await handleJson(res);
   return data.filas;
@@ -39,16 +45,6 @@ export async function getMunicipiosGeojson() {
   return handleJson(res);
 }
 
-/**
- * Territorios que rodean Misiones (Paraguay, Brasil, Argentina/Corrientes,
- * Uruguay, Bolivia), recortados a un recuadro alrededor de la provincia.
- * Solo para contexto visual — se dibuja plano.
- */
-export async function getContextoGeojson() {
-  const res = await fetch(`${API_URL}/api/contexto/geojson`);
-  return handleJson(res);
-}
-
 /** Países del mundo (polígonos + fronteras). */
 export async function getMundoGeojson() {
   const res = await fetch(`${API_URL}/api/mundo/geojson`);
@@ -58,25 +54,6 @@ export async function getMundoGeojson() {
 /** GeoJSON de división política / rótulos: `paises-labels`, `provincias`, `provincias-labels`. */
 export async function getGeo(nombre) {
   const res = await fetch(`${API_URL}/api/geo/${nombre}`);
-  return handleJson(res);
-}
-
-/**
- * Grilla de clima (nubosidad, lluvia, temperatura, viento) por hora, para
- * las capas del mapa. Real, de Open-Meteo, cacheada 30 min en el back.
- */
-export async function getClimaGrilla() {
-  const res = await fetch(`${API_URL}/api/clima/grilla`);
-  return handleJson(res);
-}
-
-/**
- * Grilla de viento real (velocidad + dirección, modelo numérico vía
- * Open-Meteo) para animar las partículas. Devuelve { puntos, gridSize,
- * bounds } — gridSize/bounds los define el back, no hay que duplicarlos.
- */
-export async function getVientoGrilla() {
-  const res = await fetch(`${API_URL}/api/viento/grilla`);
   return handleJson(res);
 }
 
@@ -98,6 +75,7 @@ export async function getMapaPreview(filas) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filas }),
+    ...CON_SESION,
   });
   const data = await handleJson(res);
   return data.municipios;
@@ -118,6 +96,7 @@ export async function publicar(filas) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filas }),
+    ...CON_SESION,
   });
   return handleJson(res);
 }
@@ -131,6 +110,7 @@ export async function renderPngEnBack(filas) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(filas ? { filas } : {}),
+    ...CON_SESION,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -143,4 +123,50 @@ export function iconUrl(condicion) {
   // Resuelto en el back (ignora tildes/mayúsculas) en vez de armar el
   // nombre de archivo a mano acá.
   return `${API_URL}/api/materiales/icono/${encodeURIComponent(condicion)}`;
+}
+
+// --- Sesión ---------------------------------------------------------------
+
+export async function iniciarSesion(email, password) {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+    ...CON_SESION,
+  });
+  return handleJson(res);
+}
+
+export async function cerrarSesion() {
+  const res = await fetch(`${API_URL}/api/auth/logout`, {
+    method: "POST",
+    ...CON_SESION,
+  });
+  return handleJson(res);
+}
+
+/** `null` si no hay sesión activa (en vez de tirar error — es el chequeo
+ * normal al cargar la app). */
+export async function getSesion() {
+  const res = await fetch(`${API_URL}/api/auth/me`, CON_SESION);
+  if (res.status === 401) return null;
+  return handleJson(res);
+}
+
+// --- Alertas de incendio (NASA FIRMS, vía nuestro sistema de alertas) -----
+
+/** Le pide al back que traiga la última tanda de alertas y la guarde. */
+export async function recuperarAlertasIncendio() {
+  const res = await fetch(`${API_URL}/api/incendios/recuperar`, {
+    method: "POST",
+    ...CON_SESION,
+  });
+  return handleJson(res);
+}
+
+/** Última tanda guardada (`null` si todavía no se recuperó ninguna). */
+export async function getAlertasIncendioActual() {
+  const res = await fetch(`${API_URL}/api/incendios/actual`, CON_SESION);
+  if (res.status === 404) return null;
+  return handleJson(res);
 }

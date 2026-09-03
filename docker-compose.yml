@@ -1,0 +1,66 @@
+# Stack completo: Postgres + backend + front (Caddy sirve el SPA y
+# proxea /api, /glyphs, /materiales al backend — un solo origen público,
+# sin CORS). Copiá `.env.example` a `.env` y ajustá antes de levantar.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mapa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-mapa_pronostico}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mapa} -d ${POSTGRES_DB:-mapa_pronostico}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./mapa-backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-mapa}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mapa_pronostico}
+      # El Postgres del compose no tiene TLS — ver store.js.
+      DATABASE_SSL: "false"
+      # Todo entra por el mismo origen (Caddy), así que no hace falta
+      # restringir CORS acá; si igual querés pegarle directo al backend
+      # desde otro origen, poné la URL en CORS_ORIGIN.
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      # Token fijo que manda el sistema de alertas en X-Api-Key al pegarle
+      # al webhook de incendios — ver .env.example.
+      ALERTAS_INCENDIOS_TOKEN: ${ALERTAS_INCENDIOS_TOKEN:-}
+      ALERTAS_INCENDIOS_URL: ${ALERTAS_INCENDIOS_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./mapa-frontend
+      args:
+        # Vacío = pedir todo relativo al mismo origen (ver Caddyfile).
+        VITE_API_URL: ${VITE_API_URL:-}
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    depends_on:
+      - backend
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

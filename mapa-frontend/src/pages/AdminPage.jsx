@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import BaseMap from "../components/BaseMap";
 import BrandHeader from "../components/BrandHeader";
 import {
@@ -10,7 +11,6 @@ import {
   getMunicipiosGeojson,
   getMundoGeojson,
   getGeo,
-  getClimaGrilla,
 } from "../api";
 import {
   CONDICIONES_CANONICAS,
@@ -75,7 +75,6 @@ export default function AdminPage() {
   const [paisesLabels, setPaisesLabels] = useState(null);
   const [provincias, setProvincias] = useState(null);
   const [provinciasLabels, setProvinciasLabels] = useState(null);
-  const [clima, setClima] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const [mensajeOk, setMensajeOk] = useState(null);
@@ -88,7 +87,6 @@ export default function AdminPage() {
     getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
     getGeo("provincias").then(setProvincias).catch(() => {});
     getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
-    getClimaGrilla().then(setClima).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -218,6 +216,9 @@ export default function AdminPage() {
         ) : (
           <span>Todavía no se publicó ningún pronóstico</span>
         )}
+        <Link to="/panel" className="btn-link">
+          ← Volver a la botonera
+        </Link>
       </BrandHeader>
 
       <div className="admin-panel">
@@ -390,14 +391,12 @@ export default function AdminPage() {
         {municipiosPreview && municipiosGeojson ? (
           <BaseMap
             ref={mapaRef}
-            intro={false}
             municipiosGeojson={municipiosGeojson}
             mundoGeojson={mundo}
             paisesLabels={paisesLabels}
             provincias={provincias}
             provinciasLabels={provinciasLabels}
             pronostico={municipiosPreview}
-            clima={clima}
             titulo="Previsión del tiempo"
             publicadoEn={publicado?.publicadoEn}
             enableCapture

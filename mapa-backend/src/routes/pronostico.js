@@ -12,9 +12,8 @@ const { publicar, obtenerActual, obtenerHistorial } = require("../lib/store");
 const { resolveIconPath } = require("../lib/iconResolver");
 const { MATERIALES_DIR } = require("../lib/generateMap");
 const { loadMunicipios, armarMunicipiosConPronostico } = require("../lib/municipios");
-const { obtenerGrillaViento } = require("../lib/viento");
-const { obtenerGrillaClima } = require("../lib/clima");
 const coordinates = require("../config/coordinates");
+const requireAuth = require("../middleware/requireAuth");
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -49,7 +48,7 @@ function errorDeFilas(filas) {
  * Solo parsea y devuelve el JSON — NO publica. El operador lo revisa/edita
  * en el front antes de mandarlo a /publicar.
  */
-router.post("/pronostico/parse", upload.single("pronostico"), async (req, res) => {
+router.post("/pronostico/parse", requireAuth, upload.single("pronostico"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -76,7 +75,7 @@ router.post("/pronostico/parse", upload.single("pronostico"), async (req, res) =
  * Guarda el dataset como "el pronóstico actual" — esto es lo que lee
  * el iframe público (/embed en el front).
  */
-router.post("/pronostico/publicar", express.json(), async (req, res) => {
+router.post("/pronostico/publicar", requireAuth, express.json(), async (req, res) => {
   const { filas } = req.body || {};
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });
@@ -113,7 +112,7 @@ router.get("/pronostico/actual", async (req, res) => {
  * Lista de lo publicado (id + fecha), lo más reciente primero. Vacío si
  * no hay base (persistencia en disco).
  */
-router.get("/pronostico/historial", async (req, res) => {
+router.get("/pronostico/historial", requireAuth, async (req, res) => {
   try {
     res.json({ historial: await obtenerHistorial() });
   } catch (err) {
@@ -129,7 +128,7 @@ router.get("/pronostico/historial", async (req, res) => {
  * Sirve tanto para el botón "generar imagen" manual como para un cron
  * que la publique sola sin operador.
  */
-router.post("/pronostico/render-png", express.json(), async (req, res) => {
+router.post("/pronostico/render-png", requireAuth, express.json(), async (req, res) => {
   try {
     let filas = req.body && req.body.filas;
     if (!filas) {
@@ -194,18 +193,6 @@ router.get("/municipios/geojson", (req, res) => {
 });
 
 /**
- * GET /api/contexto/geojson
- * Países/territorios que rodean Misiones (Paraguay, Brasil, Corrientes/
- * Argentina, Uruguay, Bolivia), recortados a un recuadro alrededor de la
- * provincia. Natural Earth 1:50m (dominio público). Se dibuja plano,
- * solo para que Misiones no quede "flotando en el espacio".
- */
-router.get("/contexto/geojson", (req, res) => {
-  res.set("Cache-Control", "public, max-age=86400");
-  res.sendFile(path.join(__dirname, "..", "..", "data", "contexto.geojson"));
-});
-
-/**
  * GET /api/mundo/geojson
  * Tierra firme de todo el mundo (Natural Earth 1:50m, dominio público),
  * simplificada. Solo como fondo plano para que el mapa no se vea
@@ -238,39 +225,6 @@ router.get("/geo/:archivo", (req, res) => {
 });
 
 /**
- * GET /api/clima/grilla
- * Grilla de clima (nubosidad, lluvia, temperatura, viento) por hora, para
- * las capas del mapa. Todo de Open-Meteo. Cacheado 30 min.
- */
-router.get("/clima/grilla", async (req, res) => {
-  try {
-    // Mapa "en vivo": el cliente revalida seguido (el back ya cachea 30 min).
-    res.set("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
-    res.json(await obtenerGrillaClima());
-  } catch (err) {
-    console.error(err);
-    res
-      .status(502)
-      .json({ error: "No se pudo obtener el clima de Open-Meteo: " + err.message });
-  }
-});
-
-/**
- * GET /api/viento/grilla
- * Velocidad + dirección de viento real (modelo numérico vía Open-Meteo)
- * en una grilla sobre la provincia. Cacheado 30 min en el servidor.
- */
-router.get("/viento/grilla", async (req, res) => {
-  try {
-    const { puntos, gridSize, bounds } = await obtenerGrillaViento();
-    res.json({ puntos, gridSize, bounds });
-  } catch (err) {
-    console.error(err);
-    res.status(502).json({ error: "No se pudo obtener el viento de Open-Meteo: " + err.message });
-  }
-});
-
-/**
  * GET /api/pronostico/mapa
  * Endpoint principal del mapa interactivo: los 79 municipios, cada uno
  * con lat/lng real y, si hay un pronóstico publicado, el dato de la
@@ -294,7 +248,7 @@ router.get("/pronostico/mapa", async (req, res) => {
  * todavía NO se publicó (lo que el operador está editando en el panel).
  * No toca el store.
  */
-router.post("/pronostico/mapa-preview", express.json(), (req, res) => {
+router.post("/pronostico/mapa-preview", requireAuth, express.json(), (req, res) => {
   const { filas } = req.body || {};
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });

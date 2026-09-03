@@ -19,19 +19,6 @@
   inset: 0;
 }
 
-/* Globo alejado: los marcadores HTML no se proyectan bien, se ocultan. */
-.base-map--lejos .maplibregl-marker {
-  display: none !important;
-}
-
-.base-map__wind-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
 .base-map--fallback {
   display: grid;
   place-items: center;
@@ -74,195 +61,142 @@
   margin-top: 1px;
 }
 
-/* ---------- Toggle de estaciones ---------- */
+/* ---------- Popover del municipio seleccionado (tippy.js) ----------
+   Reemplaza la vieja tarjeta fija arriba a la derecha (pisaba los
+   controles de zoom) por un popover anclado al municipio tocado. El
+   "cofre" visual (fondo, borde, sombra) va en el tema de tippy; acá
+   sólo el layout interno del contenido. */
 
-.stations-toggle {
-  position: absolute;
-  top: 16px;
-  right: 56px;
-  z-index: 5;
-  padding: 7px 12px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--map-text);
+.tippy-box[data-theme~="municipio"] {
   background: var(--map-panel);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--map-border);
-  border-radius: 999px;
-  cursor: pointer;
-}
-.stations-toggle:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-/* ---------- Carteles de estaciones (marcadores) ---------- */
-
-.station-chip {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding: 4px 9px;
-  font-family: var(--font);
-  font-size: 11px;
-  line-height: 1.25;
-  color: var(--map-text);
-  background: var(--map-panel-solid);
-  border: 1px solid var(--map-border);
-  border-radius: 7px;
-  box-shadow: var(--shadow-pop);
-  cursor: pointer;
-  white-space: nowrap;
-  transform: translateY(-6px);
-}
-.station-chip::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 8px;
-  height: 8px;
-  background: var(--map-panel-solid);
-  border-right: 1px solid var(--map-border);
-  border-bottom: 1px solid var(--map-border);
-  transform: translateX(-50%) rotate(45deg);
-}
-.station-chip__dot {
-  display: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--chip-dot, var(--map-text));
-  box-shadow: 0 0 0 2px var(--map-panel-solid);
-}
-.station-chip__nombre {
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-.station-chip__temp {
-  color: var(--map-text-muted);
-}
-.station-chip__temp b {
-  color: var(--map-text);
-}
-.station-chip--alerta {
-  border-color: var(--rosa-400);
-  box-shadow: 0 0 0 1px var(--rosa-600), var(--shadow-pop);
-}
-
-/* Colapsado (zoom bajo): solo un punto del color de la condición.
-   El nombre y la temperatura aparecen al pasar el mouse. */
-.station-chip--compact {
-  padding: 0;
-  gap: 0;
-  border-radius: 50%;
-  border-width: 2px;
-}
-.station-chip--compact::after {
-  display: none;
-}
-.station-chip--compact .station-chip__dot {
-  display: block;
-}
-.station-chip--compact .station-chip__nombre,
-.station-chip--compact .station-chip__temp {
-  display: none;
-}
-.station-chip--compact:hover {
-  padding: 4px 9px;
-  border-radius: 7px;
-  border-width: 1px;
-}
-.station-chip--compact:hover .station-chip__dot {
-  display: none;
-}
-.station-chip--compact:hover .station-chip__nombre,
-.station-chip--compact:hover .station-chip__temp {
-  display: block;
-}
-
-/* Rótulos de los territorios vecinos (Paraguay, Brasil, Corrientes...) */
-.region-label {
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  color: rgba(220, 228, 220, 0.34);
-  text-transform: uppercase;
-  pointer-events: none;
-  user-select: none;
-  white-space: nowrap;
-}
-
-/* ---------- Leyenda ---------- */
-
-.legend {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  z-index: 5;
-  width: 232px;
-  max-width: calc(100vw - 32px);
-  background: var(--map-panel);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--map-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-pop);
-  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  color: var(--map-text);
+  font-family: var(--font);
 }
-.legend__toggle {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
+.tippy-box[data-theme~="municipio"] > .tippy-content {
+  padding: 16px;
+}
+.tippy-box[data-theme~="municipio"][data-placement^="top"] > .tippy-arrow::before {
+  border-top-color: var(--map-panel);
+}
+.tippy-box[data-theme~="municipio"][data-placement^="bottom"] > .tippy-arrow::before {
+  border-bottom-color: var(--map-panel);
+}
+.tippy-box[data-theme~="municipio"][data-placement^="left"] > .tippy-arrow::before {
+  border-left-color: var(--map-panel);
+}
+.tippy-box[data-theme~="municipio"][data-placement^="right"] > .tippy-arrow::before {
+  border-right-color: var(--map-panel);
+}
+
+.municipio-popover {
+  position: relative;
+  width: 260px;
+  max-width: calc(100vw - 32px);
+}
+.municipio-popover__close {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
   background: transparent;
   border: 0;
-  color: var(--map-text);
-  font-weight: 600;
-  font-size: 13px;
+  border-radius: 6px;
+  color: var(--map-text-muted);
+  font-size: 12px;
   cursor: pointer;
 }
-.legend__chevron {
-  color: var(--map-text-muted);
-}
-.legend__body {
-  padding: 2px 14px 12px;
-}
-.legend__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-.legend__list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
+.municipio-popover__close:hover {
+  background: rgba(255, 255, 255, 0.08);
   color: var(--map-text);
 }
-.legend__swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  flex: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+.municipio-popover__nombre {
+  margin: 0 24px 6px 0;
+  font-size: 17px;
+  font-weight: 600;
 }
-.legend__swatch--plain {
-  border-radius: 3px;
-  opacity: 0.85;
-}
-.legend__note {
-  margin: 10px 0 0;
-  font-size: 11.5px;
+.municipio-popover__ref {
+  margin: 0 0 10px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--map-text-muted);
 }
+.municipio-popover__ref--oficial {
+  color: var(--sage-300);
+}
+.municipio-popover__prono {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.municipio-popover__temps {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.municipio-popover__tmin {
+  font-size: 18px;
+  color: var(--celeste-300);
+}
+.municipio-popover__tmax {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--rosa-300);
+}
+.municipio-popover__cond {
+  font-size: 13px;
+  color: var(--map-text);
+  text-transform: capitalize;
+  margin-top: 2px;
+}
 
-/* ---------- Tarjeta de info (municipio seleccionado) ---------- */
+/* Extendido: todavía no hay fuente de datos, queda en blanco a propósito
+   — la estructura de 3 días ya está lista para cuando la haya. */
+.municipio-popover__extendido {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--map-border);
+}
+.municipio-popover__extendido-titulo {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--map-text-muted);
+  margin-bottom: 6px;
+}
+.municipio-popover__extendido-dias {
+  display: flex;
+  gap: 8px;
+}
+.municipio-popover__dia {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  color: var(--map-text-muted);
+}
+.municipio-popover__dia-nombre {
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--map-text);
+}
+.municipio-popover__dia-temp {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tarjeta de info (foco de calor — PointsMap) ---------- */
 
 .info-card {
   position: absolute;
@@ -360,18 +294,10 @@
     bottom: 8px;
     width: auto;
   }
-  .legend {
-    left: 8px;
-    bottom: 8px;
-  }
   .map-title {
     top: 8px;
     left: 8px;
     right: 56px;
-  }
-  .stations-toggle {
-    top: 8px;
-    right: 8px;
   }
 }
 
@@ -543,6 +469,8 @@
 
 input[type="text"],
 input[type="number"],
+input[type="email"],
+input[type="password"],
 select {
   width: 100%;
   padding: 8px 10px;
@@ -705,298 +633,108 @@ input[type="file"] {
 }
 
 /* =========================================================================
-   Capas de clima — panel + línea de tiempo
+   Login (/login)
    ========================================================================= */
 
-.layer-panel {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
+.login-layout {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--map-panel);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--map-border);
+  background: var(--bg);
+}
+.login-form {
+  width: 100%;
+  max-width: 340px;
+  margin: 64px auto 0;
+  padding: 28px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-pop);
-  max-width: calc(100vw - 32px);
 }
-.layer-panel__toggles {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-/* Efectos de primer plano del modo águila (lluvia + rayos) */
-.cinematic-fx {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 5;
-  pointer-events: none;
-}
-
-/* Modo águila — sobrevuelo de la provincia */
-.eagle-btn {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 15px;
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--map-text);
-  background: var(--map-panel);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--map-border);
-  border-radius: 999px;
-  box-shadow: var(--shadow-pop);
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.eagle-btn:hover {
-  border-color: var(--map-text-muted);
-}
-.eagle-btn--on {
-  color: #0e1a16;
-  background: #eef0e6;
-  border-color: #eef0e6;
-}
-.eagle-btn__icon {
-  font-size: 14px;
-  line-height: 1;
-}
-@media (max-width: 640px) {
-  .eagle-btn {
-    bottom: 10px;
-    font-size: 12px;
-    padding: 8px 13px;
-  }
-}
-.layer-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 11px;
-  font-family: var(--font);
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--map-text-muted);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--map-border);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: color 0.12s, background 0.12s, border-color 0.12s;
-}
-.layer-chip:hover {
-  color: var(--map-text);
-}
-.layer-chip--on {
-  color: #0e1a16;
-  background: #eef0e6;
-  border-color: #eef0e6;
-  font-weight: 600;
-}
-.layer-chip__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  flex: none;
-}
-.layer-chip__dot--nubes {
-  background: linear-gradient(135deg, #e6ebf0, #aeb7c2);
-}
-.layer-chip__dot--lluvia {
-  background: linear-gradient(135deg, #6fc0ff, #46c86e 45%, #f5e042 70%, #eb3c3c);
-}
-.layer-chip__dot--viento {
-  background: repeating-linear-gradient(
-    -45deg,
-    #ffffff,
-    #ffffff 2px,
-    transparent 2px,
-    transparent 4px
-  );
-  background-color: #5a6b78;
-}
-.layer-chip__dot--temp {
-  background: linear-gradient(135deg, #3b78d2, #86c88c 45%, #f0de6e 70%, #d63c37);
-}
-
-.layer-panel__tiempo {
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.layer-panel__slider {
-  width: 100%;
-  accent-color: var(--rosa-600);
-  cursor: pointer;
-}
-.layer-panel__hora {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--map-text-muted);
-  text-transform: capitalize;
-}
-.layer-panel__ahora {
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #0e1a16;
-  background: var(--rosa-400);
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.layer-panel__badge {
-  padding: 2px 8px;
-  font-size: 10.5px;
+.login-form h1 {
+  margin: 0 0 18px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--rosa-300);
-  border: 1px solid var(--rosa-600);
-  border-radius: 999px;
 }
 
-/* ---------- Botón "ver a nivel calle" en la tarjeta ---------- */
-
-.info-card__calle {
-  margin-top: 12px;
-  width: 100%;
-  padding: 8px;
+.btn-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin-left: 8px;
+  color: var(--accent);
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--map-text);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--map-border);
-  border-radius: var(--radius-sm);
+  text-decoration: none;
   cursor: pointer;
 }
-.info-card__calle:hover {
-  background: rgba(255, 255, 255, 0.12);
+.btn-link:hover {
+  text-decoration: underline;
 }
 
-.weather-quality {
-  position: absolute;
-  right: 18px;
-  bottom: 76px;
-  z-index: 12;
+/* =========================================================================
+   Botonera (/panel)
+   ========================================================================= */
+
+.panel-layout {
+  min-height: 100vh;
+  background: var(--bg);
+}
+.panel-sesion {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 9px;
+}
+.panel-botonera {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 48px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+.panel-boton {
+  display: block;
+  padding: 22px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.12s, transform 0.12s;
+}
+.panel-boton:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.panel-boton h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--verde-600);
+}
+.panel-boton p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ---------- Popup genérico de puntos (PointsMap) ---------- */
+
+.info-card__props {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--map-text);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.info-card__props b {
   color: var(--map-text-muted);
-  font: 600 11px var(--font);
-  background: rgba(8, 18, 27, .78);
-  border: 1px solid var(--map-border);
-  border-radius: 8px;
-  backdrop-filter: blur(8px);
-}
-.weather-quality select { color: var(--map-text); background: #172733; border: 1px solid var(--map-border); border-radius: 5px; padding: 3px; }
-.weather-debug { position:absolute; z-index:20; right:18px; bottom:76px; width:220px; padding:7px 9px; color:var(--map-text); background:rgba(8,18,27,.9); border:1px solid var(--map-border); border-radius:8px; font:11px var(--font); }
-.weather-debug summary { cursor:pointer; font-weight:700; }
-.weather-debug label { display:grid; grid-template-columns:52px 1fr 30px; align-items:center; gap:4px; margin-top:6px; }
-.weather-debug select { grid-column:2 / 4; color:var(--map-text); background:#172733; border:1px solid var(--map-border); min-width:0; }
-.weather-debug input { width:100%; min-width:0; accent-color:var(--rosa-400); }
-.weather-debug output { text-align:right; color:var(--map-text-muted); }
-.babylon-map__canvas { position:absolute; inset:0; width:100%; height:100%; display:block; outline:none; touch-action:none; }
-.babylon-map__loading { position:absolute; inset:0; z-index:30; display:grid; place-items:center; color:#eef5ef; background:#091722; font:600 14px var(--font); }
-.babylon-weather-fx { position:absolute; inset:0; z-index:4; width:100%; height:100%; display:block; pointer-events:none; }
-
-/* ---------- Spike de mundo real con 3D Tiles ---------- */
-.tiles-world { position:relative; width:100%; height:100%; overflow:hidden; color:var(--map-text); background:#07121a; font-family:var(--font); }
-.tiles-world__canvas { position:absolute; z-index:1; inset:0; width:100%; height:100%; display:block; outline:none; touch-action:none; }
-.tiles-world__storm-video { position:absolute; z-index:0; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; opacity:0; transition:opacity .8s ease; mix-blend-mode:screen; filter:saturate(.7) contrast(1.15) brightness(.65); }
-.tiles-world__storm-video.is-visible { opacity:.72; }
-.tiles-world__storm-select { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; color:var(--map-text-muted); font-size:12px; }
-.tiles-world__storm-select select { min-width:135px; padding:7px 9px; color:var(--map-text); background:#172733; border:1px solid var(--map-border); border-radius:7px; font:600 12px var(--font); }
-.tiles-world__panel { position:absolute; z-index:2; top:18px; left:18px; width:min(370px,calc(100% - 36px)); padding:16px; background:rgba(8,18,27,.88); border:1px solid var(--map-border); border-radius:var(--radius); box-shadow:var(--shadow-pop); backdrop-filter:blur(12px); }
-.tiles-world__eyebrow { color:var(--rosa-300); font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
-.tiles-world h1 { margin:4px 0 13px; font-size:22px; }
-.tiles-world__actions { display:flex; gap:8px; }
-.tiles-world__actions button { flex:1; padding:9px 12px; color:var(--map-text); background:#172733; border:1px solid var(--map-border); border-radius:8px; cursor:pointer; font:600 13px var(--font); }
-.tiles-world__actions button.is-active { color:#fff; background:var(--verde-600); border-color:#78a889; }
-.tiles-world__center { width:100%; margin-top:9px; padding:9px 12px; color:var(--map-text); background:#172733; border:1px solid var(--map-border); border-radius:8px; cursor:pointer; font:600 13px var(--font); }
-.tiles-world__eagle { width:100%; margin-top:9px; padding:9px 12px; color:#fff; background:rgba(139,55,88,.82); border:1px solid var(--rosa-300); border-radius:8px; cursor:pointer; font:600 13px var(--font); }
-.tiles-world__eagle.is-active { background:var(--verde-600); border-color:#78a889; }
-.tiles-world__weather { width:100%; margin-top:9px; padding:9px 12px; color:#fff; background:#27394b; border:1px solid #66819b; border-radius:8px; cursor:pointer; font:600 13px var(--font); }
-.tiles-world__weather.is-active { background:#6d365e; border-color:#db83b7; }
-.tiles-world__status { display:flex; align-items:center; gap:7px; margin:13px 0 8px; color:var(--map-text-muted); font-size:12px; }
-.tiles-world__status span { width:8px; height:8px; border-radius:50%; background:var(--naranja-500); }
-.tiles-world__status span.is-online { background:#65d38b; box-shadow:0 0 8px #65d38b; }
-.tiles-world__setup { margin:10px 0; padding:10px; color:#f0dfbd; background:rgba(154,106,18,.2); border:1px solid rgba(239,212,78,.28); border-radius:8px; font-size:12px; line-height:1.45; }
-.tiles-world__setup code { color:#fff; }
-.tiles-world__political-status { margin:0 0 8px; color:#c7d7ce; font-size:11px; }
-.tiles-world__panel small { color:var(--map-text-muted); }
-.tiles-world__credits { position:absolute; z-index:2; right:10px; bottom:8px; max-width:70%; padding:4px 7px; color:#d8e0dc; background:rgba(0,0,0,.65); border-radius:4px; font:10px/1.3 Arial,sans-serif; text-align:right; }
-.tiles-world__altimeter { position:absolute; z-index:2; right:14px; top:14px; display:grid; grid-template-columns:auto auto; gap:3px 12px; min-width:190px; padding:10px 12px; color:#c7d7ce; background:rgba(8,18,27,.86); border:1px solid var(--map-border); border-radius:8px; backdrop-filter:blur(8px); font:11px var(--font); }
-.tiles-world__altimeter strong { color:#fff; text-align:right; font-variant-numeric:tabular-nums; }
-.tiles-world__altitude-controls { grid-column:1 / 3; display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:5px; }
-.tiles-world__altitude-controls button { padding:5px; color:#fff; background:#172733; border:1px solid #52695d; border-radius:5px; cursor:pointer; font-size:11px; line-height:1; }
-.tiles-world__altitude-controls button:hover { background:var(--verde-600); border-color:#78a889; }
-.tiles-world__instruments { position:absolute; z-index:2; right:14px; top:122px; display:flex; align-items:center; gap:12px; padding:10px 12px; color:#c7d7ce; background:rgba(8,18,27,.86); border:1px solid var(--map-border); border-radius:8px; backdrop-filter:blur(8px); font:11px var(--font); }
-.tiles-world__compass { position:relative; width:74px; height:74px; flex:0 0 74px; border:1px solid #72897c; border-radius:50%; background:radial-gradient(circle,rgba(70,105,86,.18),rgba(5,12,18,.72)); }
-.tiles-world__compass span { position:absolute; color:#dce8df; font-size:9px; font-weight:700; }
-.tiles-world__north { top:3px; left:50%; transform:translateX(-50%); color:#ff9aae!important; }
-.tiles-world__east { right:5px; top:50%; transform:translateY(-50%); }
-.tiles-world__south { bottom:3px; left:50%; transform:translateX(-50%); }
-.tiles-world__west { left:5px; top:50%; transform:translateY(-50%); }
-.tiles-world__compass i { position:absolute; z-index:1; left:50%; top:10px; width:2px; height:27px; background:linear-gradient(#ff6f8f 0 55%,#dce8df 55%); transform-origin:50% 27px; box-shadow:0 0 5px rgba(255,111,143,.6); }
-.tiles-world__instrument-values { display:grid; grid-template-columns:auto auto; gap:3px 10px; min-width:145px; }
-.tiles-world__instrument-values strong { color:#fff; text-align:right; font-variant-numeric:tabular-nums; }
-.tiles-world__instrument-values small { grid-column:1 / 3; color:#8fa49a; }
-.tiles-world__level { position:relative; grid-column:1 / 3; height:5px; margin:4px 2px; background:linear-gradient(90deg,#69bf88,#e0c451,#d66b70); border-radius:4px; }
-.tiles-world__level i { position:absolute; top:50%; width:9px; height:13px; border:2px solid #fff; border-radius:3px; transform:translate(-50%,-50%); box-shadow:0 1px 4px #000; }
-
-/* En Admin el mapa comparte ancho con el formulario. Reservamos una fila
-   propia para las capas para que nunca se monten sobre el título. */
-.admin-map-area .layer-panel {
-  top: 82px;
-  max-width: calc(100% - 32px);
 }
 
-@media (max-width: 1100px) {
-  .admin-map-area .layer-panel {
-    left: 16px;
-    right: 16px;
-    transform: none;
-  }
-  .admin-map-area .eagle-btn {
-    left: auto;
-    right: 16px;
-    transform: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .layer-panel {
-    top: 8px;
-    left: 8px;
-    right: 8px;
-    transform: none;
-  }
-  .admin-map-area .layer-panel {
-    top: 72px;
-    left: 8px;
-    right: 8px;
-  }
-}

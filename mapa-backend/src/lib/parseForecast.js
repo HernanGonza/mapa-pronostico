@@ -1,4 +1,13 @@
 /**
+ * El .docx de Alerta Temprana trae la temperatura con el símbolo de grado
+ * pegado ("24°", a veces "24º") — lo sacamos así queda un número limpio
+ * (generateMap.js es quien le vuelve a poner el ° al dibujar el mapa).
+ */
+function limpiarTemperatura(s) {
+  return (s || "").replace(/[°º]/g, "").trim();
+}
+
+/**
  * Convierte una tabla cruda (array de filas -> array de celdas) en filas
  * de pronóstico. Asume: columna 0 = LOCALIDAD, 1 = TMIN, 2 = TMAX,
  * 3 = CONDICIÓN (mismo orden posicional que usaba result_table.iloc en
@@ -7,8 +16,8 @@
 function tableToRows(table) {
   return table.slice(1).map((cells) => ({
     LOCALIDAD: (cells[0] || "").trim(),
-    TMIN: (cells[1] || "").trim(),
-    TMAX: (cells[2] || "").trim(),
+    TMIN: limpiarTemperatura(cells[1]),
+    TMAX: limpiarTemperatura(cells[2]),
     CONDICION: (cells[3] || "").trim(),
   }));
 }

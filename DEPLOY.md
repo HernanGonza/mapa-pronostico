@@ -67,9 +67,5 @@ disco (y en Render free eso se borra en cada deploy).
 
 ## Notas
 
-- El campo de viento global (`mapa-frontend/public/wind-global.json`) es
-  un **snapshot** (no está en vivo todavía). Alcanza para la demo; para
-  producción hay que enganchar una fuente GFS que se actualice.
-- Los tiles de terreno (~26 MB) y los GeoJSON viajan en el repo dentro de
-  `mapa-backend/data/` — se deployan con el back, no hay que subirlos
-  aparte.
+- Los GeoJSON viajan en el repo dentro de `mapa-backend/data/` — se
+  deployan con el back, no hay que subirlos aparte.

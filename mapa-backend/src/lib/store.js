@@ -33,9 +33,13 @@ async function init() {
   if (!usaPostgres()) return;
   if (listo) return listo;
   const { Pool } = require("pg");
+  // Neon (y la mayoría de los Postgres gestionados) exigen TLS. El Postgres
+  // que corre en el mismo docker-compose no tiene TLS habilitado — ahí el
+  // compose setea DATABASE_SSL=false.
+  const sslDeshabilitado = /^(false|0|disable)$/i.test(process.env.DATABASE_SSL || "");
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: sslDeshabilitado ? false : { rejectUnauthorized: false },
     max: 3,
   });
   listo = pool
@@ -116,4 +120,11 @@ async function obtenerHistorial(limite = 60) {
   }));
 }
 
-module.exports = { publicar, obtenerActual, obtenerHistorial, init };
+/** El pool de Postgres, para que otros módulos (auth, incendios) lo
+ * reutilicen en vez de abrir cada uno el suyo. `null` si no hay
+ * `DATABASE_URL` o todavía no se llamó a `init()`. */
+function getPool() {
+  return pool;
+}
+
+module.exports = { publicar, obtenerActual, obtenerHistorial, init, getPool, usaPostgres };

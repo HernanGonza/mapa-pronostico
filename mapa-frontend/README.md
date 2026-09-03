@@ -18,30 +18,30 @@ npm run dev            # http://localhost:5173
 
 ## El mapa — `src/components/BaseMap.jsx`
 
-MapLibre GL **v5**, proyección de **globo** (`projection: {type:"globe"}`).
+MapLibre GL **v5**, **plano en 2D** (mercator, sin inclinación ni rotación
+— el proyecto no tiene nada en 3D).
 
-- **Municipios** (`municipiosGeojson`): capa `fill-extrusion`, altura =
-  `TMAX × 90` (escala de visualización, no metros), color por condición
-  vía `feature-state`. Contorno (`municipios-outline`) marcado.
+- **Municipios** (`municipiosGeojson`): capa `fill` plana, color por
+  condición vía `feature-state`. Contorno (`municipios-outline`) marcado y
+  nombre rotulado (`municipios-label`). Click → selecciona y muestra la
+  tarjeta con el pronóstico. Es la **única interacción del mapa** — no hay
+  capas de clima superpuestas, es deliberado: se ve el municipio, se
+  clickea, se lee el dato.
 - **Mundo + provincias** (`mundoGeojson`, `provincias`,
-  `paisesLabels`, `provinciasLabels`): países de todo el globo +
-  provincias/estados de los 5 vecinos, con rótulos (`symbol` layers, fuente
+  `paisesLabels`, `provinciasLabels`): países vecinos + provincias/estados
+  de los 5 vecinos, con rótulos (`symbol` layers, fuente
   `Metropolis Regular` — los glyphs los sirve el backend en
   `/glyphs/{fontstack}/{range}.pbf`). Van **debajo** de los municipios.
-- **Viento** (`viento`, formato GFS-JSON): `src/lib/windParticles.js`,
-  canvas 2D superpuesto. Snapshot global, no en vivo. No se dibuja con
-  zoom < 3.6 (vista de globo).
 - **Íconos de condición**: Meteocons animados (MIT), en `public/iconos/`,
   mapeo en `src/lib/iconoCondicion.js`.
 
-Props: `intro` (animación globo → Misiones, **false** por defecto),
-`interactive`, `enableCapture` (para la captura PNG del lado del cliente).
+Props: `interactive`, `enableCapture` (para la captura PNG del lado del
+cliente).
 
 ### GeoJSON
 
-Se piden por HTTP al backend y se pasan como objetos (props). Se probó
-cargarlos por URL directo en MapLibre pero con la proyección de globo v5
-el repintado quedaba a medias.
+Se piden por HTTP al backend y se pasan como objetos (props), no por URL
+directa en MapLibre.
 
 ## Generar la imagen para redes
 
@@ -50,8 +50,8 @@ el repintado quedaba a medias.
    se automatiza.
 2. **"Capturar el mapa como se ve acá"** — usa
    `map.getCanvas().toDataURL()` (con `preserveDrawingBuffer: true`) +
-   composición manual con el canvas del viento. Captura fiel del 3D, pero
-   sin el título/leyenda en HTML.
+   composición manual con el canvas del viento. Sin el título/leyenda en
+   HTML.
 
 ## Embeber
 
@@ -70,10 +70,9 @@ src/
   config.js                    # VITE_API_URL
   lib/condiciones.js           # catálogo de condiciones + paleta + leyenda
   lib/iconoCondicion.js        # condición -> ícono Meteocons
-  lib/windParticles.js         # animación de viento global (canvas)
   lib/tiempoRelativo.js        # "hace X" + fecha larga en español
   lib/normalizeText.js         # comparación sin tildes (compartido con el back)
-  components/BaseMap.jsx       # el mapa (globo, municipios, división política, viento)
+  components/BaseMap.jsx       # el mapa (plano 2D: municipios + división política)
   components/BrandHeader.jsx   # cabecera institucional del panel
   components/Legend.jsx        # leyenda del mapa
   components/WeatherIcon.jsx   # ícono animado de condición
@@ -83,5 +82,4 @@ public/
   fonts/OakSans-*.ttf          # tipografía institucional
   iconos/*.svg                 # Meteocons animados (MIT)
   brand/                       # flor del Lapacho, logo Ordenamiento Territorial
-  wind-global.json             # snapshot de viento global (GFS-JSON)
 ```

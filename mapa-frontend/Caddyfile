@@ -1,0 +1,20 @@
+# DOMAIN: dominio real (Caddy pide el certificado TLS solo automáticamente)
+# o "localhost"/una IP para levantar en HTTP plano sin intentar ACME.
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# Todo lo que sirve el backend, proxeado bajo el mismo origen: así el
+	# front nunca necesita CORS, aunque en dev (dos puertos) siga hacen falta.
+	@backend path /api/* /glyphs/* /materiales/* /health
+	handle @backend {
+		reverse_proxy backend:3000
+	}
+
+	# El resto: el SPA. Fallback a index.html para las rutas de React Router
+	# (/admin, /embed) — si no, un F5 en /embed tira 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

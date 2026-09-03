@@ -27,30 +27,27 @@ mapa-frontend/    Panel de operador (/admin) + mapa público embebible (/embed)
 
 ## El mapa público (`/embed`)
 
-Mapa **MapLibre GL v5** con **proyección de globo** (estilo
-earth.nullschool):
+Mapa **plano en 2D** (MapLibre GL v5, proyección mercator, sin inclinación
+ni rotación — se sacó todo lo 3D del proyecto):
 
-- Abre centrado en Misiones. Se puede **alejar hasta ver la Tierra como
-  esfera** y **rotar/inclinar en todos los ejes**.
-- **79 municipios** de Misiones extruidos por temperatura máxima y
-  coloreados por condición (paleta del brandbook — ver
-  `src/lib/condiciones.js`). Contorno blanco marcado para distinguir
-  municipios vecinos del mismo color.
-- **División política de todo el globo**: países (Natural Earth 1:50m) +
+- Abre centrado en Misiones, panorámica y zoom libres.
+- **79 municipios** de Misiones coloreados por condición (paleta del
+  brandbook — ver `src/lib/condiciones.js`), con su nombre rotulado y
+  contorno blanco marcado para distinguir municipios vecinos del mismo
+  color.
+- **División política de contexto**: países (Natural Earth 1:50m) +
   **provincias/estados de Argentina, Brasil, Paraguay, Uruguay y Bolivia**
   (Natural Earth 1:10m), con sus **rótulos** (fuente Metropolis, glyphs
-  self-hosteados). Los vecinos influyen en el clima local, por eso están.
-- **Viento global animado** (partículas estilo nullschool). Es un
-  *snapshot* GFS (`mapa-frontend/public/wind-global.json`), todavía **no
-  está en vivo**. Se ve más marcado sobre Misiones.
-- Al clickear un municipio: tarjeta con temperaturas, condición e ícono
-  **animado** (Meteocons, MIT). Los 66 municipios que no son estación
-  oficial muestran "dato de la estación más cercana: X (Y km)".
-- Sin marcadores de estación en el mapa (se sacaron); el dato aparece al
-  clickear.
+  self-hosteados). Los vecinos dan contexto geográfico, por eso están.
+- La única interacción es clickear un municipio: tarjeta con temperaturas,
+  condición e ícono **animado** (Meteocons, MIT). Los 66 municipios que no
+  son estación oficial muestran "dato de la estación más cercana: X (Y km)".
+  No hay capas de clima superpuestas (nubosidad/lluvia/viento/temperatura)
+  ni pronóstico extendido — el `.docx` de Alerta Temprana hoy solo trae un
+  día (TMIN/TMAX/CONDICION) por estación.
 
-Los datos geográficos y de terreno son propios/dominio público — **cero
-proveedores de tiles de terceros**.
+Los datos geográficos son propios/dominio público — **cero proveedores de
+tiles de terceros**.
 
 ## El PNG para redes
 
@@ -88,14 +85,6 @@ front a Vercel (root `mapa-frontend`, var `VITE_API_URL`), back a Render
 
 ## Pendientes / notas
 
-- **Viento en vivo**: hoy es un snapshot. Falta enganchar una fuente GFS
-  que se actualice.
-- **Viento en la vista de globo**: al alejarse mucho (zoom < 3.6) las
-  partículas se ocultan (se proyectan fuera del disco de la Tierra). Falta
-  recortar el canvas al círculo del globo.
-- **Animación de entrada** (globo → Misiones): está en el código pero
-  desactivada por defecto (`intro={false}` en `BaseMap`) — era inestable
-  con toda la data cargando junta.
 - **Primer render**: con muchísima geometría (mundo + provincias) el
   primer pintado puede tardar unos segundos en máquinas con GPU floja.
 - **Auth en `/admin`**: hoy no tiene login.
@@ -104,7 +93,5 @@ front a Vercel (root `mapa-frontend`, var `VITE_API_URL`), back a Render
   proyecto Neon temporal creado — **hay que reclamarlo** (ver `DEPLOY.md`).
 - **Fuentes FiraSans** para que el PNG de redes sea idéntico al original
   (falta el `.ttf`).
-- `mapa-backend/data/terrain-tiles/` (~26 MB) quedó sin uso — se sacó el
-  terreno 3D porque descolocaba los marcadores. Se puede borrar.
 - Origen del `.docx`: hoy se sube a mano; se podría integrar con Google
   Drive.
