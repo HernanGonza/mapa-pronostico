@@ -1,615 +1,164 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { createRoot } from "react-dom/client";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import tippy from "tippy.js";
-import "tippy.js/dist/tippy.css";
-import "tippy.js/animations/scale-extreme.css";
-import { API_URL } from "../config";
-import { colorPorCondicion } from "../lib/condiciones";
-import { tiempoRelativo } from "../lib/tiempoRelativo";
+import { toPng } from "html-to-image";
 import { soportaWebGL } from "../lib/soportaWebGL";
-import MunicipioInfo from "./MunicipioInfo";
+import { prepararEstilo } from "../lib/mapStyle";
+import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
-const CENTRO_MISIONES = [-54.8, -27.0];
-const ZOOM_INICIAL = 7.4;
-
-const COLOR_SIN_DATO = "#c9d3a3";
-
-// Orden canónico de capas (de abajo hacia arriba). Se reaplica cada vez
-// que se agrega una capa, así el z-order siempre queda bien.
-const ORDEN_CAPAS = [
-  "background",
-  "mundo-fill",
-  "mundo-line",
-  "provincias-line",
-  "municipios-fill",
-  // El contorno y el nombre de los municipios quedan SIEMPRE arriba.
-  "municipios-outline",
-  "municipios-label",
-  "paises-labels",
-  "provincias-labels",
-];
-
-function ordenarCapas(map) {
-  for (let i = ORDEN_CAPAS.length - 1; i >= 0; i--) {
-    const id = ORDEN_CAPAS[i];
-    if (!map.getLayer(id)) continue;
-    const despues = ORDEN_CAPAS.slice(i + 1).find((x) => map.getLayer(x));
-    try {
-      map.moveLayer(id, despues);
-    } catch {
-      /* noop */
-    }
-  }
+export const BASEMAP_STYLES = {
+  positron: "https://tiles.openfreemap.org/styles/positron",
+  liberty: "https://tiles.openfreemap.org/styles/liberty",
+};
+const STORAGE_KEY = "mapa:estiloBase";
+const SIN_DATO = "#d5dbd5";
+function estiloInicial() {
+  try { return BASEMAP_STYLES[localStorage.getItem(STORAGE_KEY)] ? localStorage.getItem(STORAGE_KEY) : "positron"; }
+  catch { return "positron"; }
 }
 
-const BaseMap = forwardRef(function BaseMap(
-  {
-    municipiosGeojson,
-    mundoGeojson,
-    paisesLabels,
-    provincias,
-    provinciasLabels,
-    pronostico,
-    titulo,
-    publicadoEn,
-    interactive = true,
-    enableCapture = false,
-  },
-  ref
-) {
-  const mapContainerRef = useRef(null);
+const BaseMap = forwardRef(function BaseMap({
+  poligonos, datos = [], colorDe, renderInfo, campoEtiqueta = "nombre",
+  leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false,
+  mostrarSelectorEstilo = true,
+}, ref) {
+  const containerRef = useRef(null);
+  const rootRef = useRef(null);
   const mapRef = useRef(null);
-  const datosPorId = useRef(new Map());
-  const selectedIdRef = useRef(null);
-  const tippyRef = useRef(null);
-  const tippyRootRef = useRef(null);
-  const puntoLngLatRef = useRef(null);
-
-  // MapLibre v5 con fuentes solo-GeoJSON a veces deja un frame "colgado":
-  // se agregan capas / se cambia feature-state y no se repinta. Un redraw
-  // sincrónico puntual lo resuelve. Se llama en eventos discretos (capa
-  // nueva, dato nuevo), NO en loop.
-  const marcarSucio = useCallback(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    try {
-      m._frameRequest = null;
-      m.redraw();
-    } catch {
-      /* el estilo todavía no está listo */
-    }
-  }, []);
-
-  // Ejecuta `fn(map)`; si el estilo todavía no está listo, `addSource` tira
-  // "Style is not done loading" — lo atrapamos y reintentamos hasta que
-  // funcione. `fn` debe ser idempotente (chequear getSource/getLayer).
-  const conEstilo = useCallback((fn) => {
-    let cancel = false;
-    let intentos = 0;
-    const intentar = () => {
-      if (cancel) return;
-      const map = mapRef.current;
-      if (!map) {
-        setTimeout(intentar, 120);
-        return;
-      }
-      try {
-        fn(map);
-      } catch (e) {
-        intentos++;
-        if (intentos > 400) {
-          console.warn("[BaseMap] conEstilo se rindió:", e.message);
-          return;
-        }
-        setTimeout(intentar, 80); // reintenta hasta ~32 s
-      }
-    };
-    intentar();
-    return () => {
-      cancel = true;
-    };
-  }, []);
-
+  const syncRef = useRef(null);
+  const fittedRef = useRef(false);
+  const fitRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
-  const [activo, setActivo] = useState(null);
-  const relativo = useMemo(() => tiempoRelativo(publicadoEn), [publicadoEn]);
+  const [estilo, setEstilo] = useState(estiloInicial);
+  const [selected, setSelected] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  const actual = useRef({});
+  actual.current = { poligonos, datos, colorDe, campoEtiqueta, selected };
+  const activo = datos.find(d => String(d.id) === selected);
 
-  useImperativeHandle(ref, () => ({
-    capturePng() {
-      const map = mapRef.current;
-      if (!map) return null;
-      map.redraw(); // fuerza un render sincrónico antes de leer el buffer
-      const mapCanvas = map.getCanvas();
-      const out = document.createElement("canvas");
-      out.width = mapCanvas.width;
-      out.height = mapCanvas.height;
-      const ctx = out.getContext("2d");
-      ctx.drawImage(mapCanvas, 0, 0);
-      return out.toDataURL("image/png");
-    },
-  }));
-
-  const seleccionar = useCallback((id) => {
-    const map = mapRef.current;
-    if (selectedIdRef.current && map?.getSource("municipios")) {
-      map.setFeatureState(
-        { source: "municipios", id: selectedIdRef.current },
-        { selected: false }
-      );
-    }
-    selectedIdRef.current = id;
-    if (id && map?.getSource("municipios")) {
-      map.setFeatureState({ source: "municipios", id }, { selected: true });
-      setActivo(datosPorId.current.get(String(id)) || null);
-    } else {
-      setActivo(null);
-    }
-  }, []);
-
-  // --- Inicialización del mapa (una vez) ---
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current || !webglOk) return;
-
+    if (!webglOk || !containerRef.current) return;
     const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: {
-        version: 8,
-        glyphs: `${API_URL}/glyphs/{fontstack}/{range}.pbf`,
-        sources: {},
-        layers: [
-          {
-            id: "background",
-            type: "background",
-            paint: { "background-color": "#0e2233" },
-          },
-        ],
-      },
-      center: CENTRO_MISIONES,
-      zoom: ZOOM_INICIAL,
-      pitch: 0,
-      bearing: 0,
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-      touchZoomRotate: interactive,
-      scrollZoom: interactive,
-      dragPan: interactive,
-      keyboard: interactive,
+      container: containerRef.current, style: null,
+      center: [-54.8, -27], zoom: 7.4, interactive,
+      dragRotate: false, pitchWithRotate: false, touchPitch: false,
+      canvasContextAttributes: { preserveDrawingBuffer: enableCapture },
       attributionControl: false,
-      preserveDrawingBuffer: enableCapture,
     });
-    map.touchZoomRotate?.disableRotation();
-
-    map.addControl(
-      new maplibregl.AttributionControl({
-        compact: true,
-        customAttribution:
-          "Datos: Dirección General de Alerta Temprana (Ministerio de Ecología y RNR, Misiones) · Límites: Natural Earth / Ordenamiento Territorial (Misiones)",
-      }),
-      "bottom-right"
-    );
-    if (interactive) {
-      map.addControl(
-        new maplibregl.NavigationControl({ showCompass: false }),
-        "top-right"
-      );
-    }
-
-    map.on("error", (e) => {
-      const msg = e?.error?.message || "";
-      if (!/40\d|Failed to fetch|AbortError/.test(msg)) {
-        console.warn("[BaseMap] error de MapLibre:", msg);
-      }
-    });
-
-    // Popover del municipio seleccionado: un solo tippy con posición
-    // "virtual" (sin DOM real de referencia) que vamos reubicando a mano
-    // sobre las coordenadas del municipio tocado — así no choca más con
-    // los controles de zoom (antes era un <div> con position:absolute
-    // fijo arriba a la derecha, pisando el NavigationControl).
-    const contenidoEl = document.createElement("div");
-    const root = createRoot(contenidoEl);
-    tippyRootRef.current = root;
-    const tip = tippy(mapContainerRef.current, {
-      trigger: "manual", // el show/hide lo maneja seleccionar(), no clicks genéricos sobre el mapa
-      interactive: true,
-      appendTo: document.body,
-      theme: "municipio",
-      arrow: true,
-      animation: "scale-extreme",
-      duration: [180, 150],
-      placement: "right",
-      offset: [0, 14],
-      maxWidth: 300,
-      content: contenidoEl,
-      getReferenceClientRect: () => new DOMRect(0, 0, 0, 0),
-      onHidden: () => seleccionar(null),
-    });
-    tippyRef.current = tip;
-
-    const reposicionarPopover = () => {
-      const lngLat = puntoLngLatRef.current;
-      if (!lngLat || !tippyRef.current) return;
-      const p = map.project(lngLat);
-      const rect = mapContainerRef.current.getBoundingClientRect();
-      const x = rect.left + p.x;
-      const y = rect.top + p.y;
-      tippyRef.current.setProps({
-        getReferenceClientRect: () => new DOMRect(x, y, 0, 0),
-      });
-    };
-    map.on("move", reposicionarPopover);
-
-    // MapLibre v5 con fuentes solo-GeoJSON a veces deja el loop de render
-    // "colgado" y el mapa no pinta hasta que el usuario arrastra. Un
-    // desplazamiento imperceptible de la cámara (lo mismo que hace un
-    // drag) lo destraba. Se hace un puñado de veces al arrancar — NADA de
-    // loop perpetuo (eso mataba la performance).
-    const destrabar = () => {
-      if (mapRef.current !== map) return;
-      try {
-        const c = map.getCenter();
-        map.jumpTo({ center: [c.lng + 1e-6, c.lat] });
-        map._frameRequest = null;
-        map.redraw();
-      } catch {
-        /* estilo no listo aún */
-      }
-    };
-    // OJO: `styledata` dispara con cada addSource/addLayer del setup (~10
-    // veces) y después basta.
-    let setupListo = false;
-    const onSetup = () => {
-      if (!setupListo && mapRef.current === map) destrabar();
-    };
-    map.once("load", destrabar);
-    map.on("styledata", onSetup);
-
-    const burst = [
-      0, 60, 130, 220, 330, 460, 620, 820, 1050, 1350, 1750, 2300, 3000, 4000,
-      5500, 8000, 12000,
-    ].map((ms) => setTimeout(destrabar, ms));
-    // Después de 14 s el mapa ya pintó: cortamos toda la maquinaria de
-    // arranque para no gastar nada en régimen.
-    const finSetup = setTimeout(() => {
-      setupListo = true;
-      map.off("styledata", onSetup);
-    }, 14000);
-
-    // El contenedor puede tener 0px al crear el mapa (layout/fuentes aún
-    // cargando); MapLibre entonces no pinta hasta un resize.
-    const ro = new ResizeObserver(() => {
-      try {
-        map.resize();
-      } catch {
-        /* noop */
-      }
-      destrabar();
-    });
-    ro.observe(mapContainerRef.current);
-
     mapRef.current = map;
-    if (import.meta.env?.DEV) window.__map = map;
-    return () => {
-      burst.forEach(clearTimeout);
-      clearTimeout(finSetup);
-      ro.disconnect();
-      map.off("styledata", onSetup);
-      map.off("move", reposicionarPopover);
-      tip.destroy();
-      root.unmount();
-      tippyRef.current = null;
-      tippyRootRef.current = null;
-      map.remove();
-      mapRef.current = null;
+    map.touchZoomRotate.disableRotation();
+    map.addControl(new maplibregl.AttributionControl({ compact: false,
+      customAttribution: "Datos: Ministerio de Ecología y RNR · Misiones",
+    }), "bottom-right");
+    if (interactive) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    const sync = () => {
+      if (!map.isStyleLoaded()) return;
+      const { poligonos: geo, datos: rows, colorDe: color, campoEtiqueta: label, selected: id } = actual.current;
+      if (!geo) return;
+      // Color via propiedades: setData conserva los valores al cambiar de estilo.
+      const byId = new Map(rows.map(d => [String(d.id), d]));
+      const painted = { ...geo, features: geo.features.map(f => ({ ...f,
+        properties: { ...f.properties, color: color?.(byId.get(String(f.properties.id))) || SIN_DATO,
+          selected: String(f.properties.id) === id },
+      })) };
+      if (map.getSource("zonas")) map.getSource("zonas").setData(painted);
+      else map.addSource("zonas", { type: "geojson", data: painted });
+      if (!map.getLayer("zonas-fill")) {
+        // Sobre el terreno, debajo de los nombres del fondo.
+        const before = map.getStyle().layers.find(l => l.type === "symbol")?.id;
+        map.addLayer({ id: "zonas-fill", type: "fill", source: "zonas",
+          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.78 } }, before);
+        map.addLayer({ id: "zonas-outline", type: "line", source: "zonas",
+          paint: { "line-color": "#345345", "line-width": 1, "line-opacity": 0.7 } }, before);
+        map.addLayer({ id: "zonas-selected", type: "line", source: "zonas",
+          filter: ["==", ["get", "selected"], true],
+          paint: { "line-color": "#162f25", "line-width": 3 } });
+        map.addLayer({ id: "zonas-label", type: "symbol", source: "zonas", minzoom: 6.5,
+          layout: { "text-field": ["get", label], "text-font": ["Noto Sans Regular"],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 6.5, 10, 11, 14], "text-max-width": 9 },
+          paint: { "text-color": "#162f25", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } });
+      }
+      fitRef.current = () => {
+        const bounds = new maplibregl.LngLatBounds();
+        const walk = a => typeof a[0] === "number" ? bounds.extend(a) : a.forEach(walk);
+        geo.features.forEach(f => walk(f.geometry.coordinates));
+        if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: { top: 100, bottom: 155, left: 45, right: 45 }, duration: 0, maxZoom: 8 });
+      };
+      if (!fittedRef.current) { fitRef.current(); fittedRef.current = true; }
+      map.triggerRepaint();
     };
+    syncRef.current = sync;
+    const loaded = () => { setError(""); sync(); };
+    const idle = () => { setReady(!!map.getLayer("zonas-fill")); };
+    const failed = () => { setError("No se pudo cargar parte del mapa. Revisá la conexión o probá el otro estilo."); };
+    map.on("style.load", loaded);
+    map.on("idle", idle);
+    map.on("error", failed);
+    map.on("click", e => {
+      if (!interactive || !map.getLayer("zonas-fill")) return;
+      const hit = map.queryRenderedFeatures(e.point, { layers: ["zonas-fill"] })[0];
+      setSelected(hit ? String(hit.properties.id) : null);
+    });
+    map.on("mouseenter", "zonas-fill", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "zonas-fill", () => { map.getCanvas().style.cursor = ""; });
+    const ro = new ResizeObserver(() => { map.resize(); fitRef.current?.(); });
+    ro.observe(containerRef.current);
+    map.setStyle(BASEMAP_STYLES[estilo], { transformStyle: prepararEstilo });
+    if (import.meta.env.DEV) window.__map = map;
+    return () => { ro.disconnect(); syncRef.current = null; mapRef.current = null; fittedRef.current = false; fitRef.current = null; map.remove(); };
+    // El mapa vive durante el montaje; datos y estilo se sincronizan por separado.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Países + rótulos (livianos, entran ya) ---
   useEffect(() => {
-    if (!mundoGeojson) return undefined;
-    return conEstilo((map) => {
-    if (map.getSource("mundo")) return;
-    const FUENTE = ["Metropolis Regular"];
-
-    map.addSource("mundo", { type: "geojson", data: mundoGeojson });
-    map.addLayer({
-      id: "mundo-fill",
-      type: "fill",
-      source: "mundo",
-      paint: { "fill-color": "#31513d" },
-    });
-    map.addLayer({
-      id: "mundo-line",
-      type: "line",
-      source: "mundo",
-      paint: {
-        "line-color": "#b7cabd",
-        "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.8, 4, 1.5, 9, 2.2],
-        "line-opacity": 0.9,
-      },
-    });
-
-    if (paisesLabels) {
-      map.addSource("paises-labels", { type: "geojson", data: paisesLabels });
-      map.addLayer({
-        id: "paises-labels",
-        type: "symbol",
-        source: "paises-labels",
-        maxzoom: 6.5,
-        layout: {
-          "text-field": ["get", "nombre"],
-          "text-font": FUENTE,
-          "text-size": ["interpolate", ["linear"], ["zoom"], 1.5, 10, 5, 15],
-          "text-transform": "uppercase",
-          "text-letter-spacing": 0.12,
-          "text-max-width": 7,
-        },
-        paint: {
-          "text-color": "#dbe6dd",
-          "text-halo-color": "#0e1a16",
-          "text-halo-width": 1.4,
-          "text-opacity": 0.85,
-        },
-      });
-    }
-    ordenarCapas(map);
-    marcarSucio();
-    });
-  }, [mundoGeojson, paisesLabels, conEstilo, marcarSucio]);
-
-  // --- Provincias/estados + sus rótulos ---
-  //     Difiere ~1.2 s: el geojson es grande (~1 MB) y teselarlo bloquea
-  //     el hilo — que primero pinten Misiones y los países.
-  useEffect(() => {
-    if (!provincias) return undefined;
-    let cancel;
-    const t = setTimeout(() => {
-      cancel = conEstilo((map) => {
-      if (map.getSource("provincias")) return;
-      const FUENTE = ["Metropolis Regular"];
-      map.addSource("provincias", { type: "geojson", data: provincias });
-      map.addLayer({
-        id: "provincias-line",
-        type: "line",
-        source: "provincias",
-        minzoom: 3.5,
-        paint: {
-          "line-color": "#8aa294",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 9, 1.4],
-          "line-opacity": 0.65,
-          "line-dasharray": [2, 1.6],
-        },
-      });
-      if (provinciasLabels) {
-        map.addSource("provincias-labels", {
-          type: "geojson",
-          data: provinciasLabels,
-        });
-        map.addLayer({
-          id: "provincias-labels",
-          type: "symbol",
-          source: "provincias-labels",
-          minzoom: 3.8,
-          layout: {
-            "text-field": ["get", "nombre"],
-            "text-font": FUENTE,
-            "text-size": ["interpolate", ["linear"], ["zoom"], 4, 10, 8, 15],
-            "text-letter-spacing": 0.05,
-            "text-max-width": 8,
-          },
-          paint: {
-            "text-color": "#d6e2da",
-            "text-halo-color": "#0b1512",
-            "text-halo-width": 1.6,
-            "text-opacity": ["interpolate", ["linear"], ["zoom"], 3.8, 0.6, 5.5, 1],
-          },
-        });
-      }
-      ordenarCapas(map);
-      marcarSucio();
-      });
-    }, 1200);
-    return () => {
-      clearTimeout(t);
-      cancel?.();
-    };
-  }, [provincias, provinciasLabels, conEstilo, marcarSucio]);
-
-  // --- Municipios de Misiones (plano: relleno por condición + contorno +
-  //     nombre) ---
-  useEffect(() => {
-    if (!municipiosGeojson) return undefined;
-    return conEstilo((map) => {
-    if (map.getLayer("municipios-outline")) return;
-    if (map.getSource("municipios")) return;
-
-    map.addSource("municipios", {
-      type: "geojson",
-      data: municipiosGeojson,
-      promoteId: "id",
-    });
-
-    map.addLayer({
-      id: "municipios-fill",
-      type: "fill",
-      source: "municipios",
-      paint: {
-        "fill-color": ["coalesce", ["feature-state", "color"], COLOR_SIN_DATO],
-        "fill-opacity": 0.82,
-      },
-    });
-
-    // Contorno de municipios: SIEMPRE visible.
-    map.addLayer({
-      id: "municipios-outline",
-      type: "line",
-      source: "municipios",
-      paint: {
-        "line-color": [
-          "case",
-          ["boolean", ["feature-state", "selected"], false],
-          "#ffffff",
-          "#eef0e6",
-        ],
-        "line-width": [
-          "case",
-          ["boolean", ["feature-state", "selected"], false],
-          3,
-          1.2,
-        ],
-        "line-opacity": [
-          "case",
-          ["boolean", ["feature-state", "selected"], false],
-          1,
-          0.8,
-        ],
-      },
-    });
-
-    // Nombre del municipio, siempre legible sobre el relleno.
-    map.addLayer({
-      id: "municipios-label",
-      type: "symbol",
-      source: "municipios",
-      minzoom: 6.6,
-      layout: {
-        "text-field": ["get", "nombre"],
-        "text-font": ["Metropolis Regular"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 6.6, 9, 11, 14],
-        "text-max-width": 7,
-      },
-      paint: {
-        "text-color": "#12241c",
-        "text-halo-color": "rgba(255,255,255,0.82)",
-        "text-halo-width": 1.2,
-      },
-    });
-
-    if (interactive) {
-      map.on("mouseenter", "municipios-fill", () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "municipios-fill", () => {
-        map.getCanvas().style.cursor = "";
-      });
-      map.on("click", (e) => {
-        const hit = map.queryRenderedFeatures(e.point, {
-          layers: ["municipios-fill"],
-        });
-        if (hit.length) {
-          puntoLngLatRef.current = e.lngLat;
-          seleccionar(hit[0].properties.id);
-        } else {
-          seleccionar(null);
-        }
-      });
-    }
-    ordenarCapas(map);
-    marcarSucio();
-    });
-  }, [municipiosGeojson, interactive, seleccionar, conEstilo, marcarSucio]);
-
-  // --- Datos por municipio (color por condición) ---
-  //     Se auto-reintenta hasta que la fuente `municipios` está — así el
-  //     color NO depende del timing de las otras capas.
-  useEffect(() => {
-    if (!pronostico) return undefined;
-    let cancel = false;
-
-    const nuevo = new Map();
-    for (const m of pronostico) nuevo.set(String(m.id), m);
-    datosPorId.current = nuevo;
-
-    const aplicar = () => {
-      const map = mapRef.current;
-      if (cancel || !map) return;
-      if (!map.getSource("municipios") || !map.getLayer("municipios-fill")) {
-        setTimeout(aplicar, 150);
-        return;
-      }
-      for (const m of pronostico) {
-        const p = m.pronostico;
-        map.setFeatureState(
-          { source: "municipios", id: m.id },
-          { color: p ? colorPorCondicion(p.CONDICION) : COLOR_SIN_DATO }
-        );
-      }
-      if (selectedIdRef.current)
-        setActivo(nuevo.get(String(selectedIdRef.current)) || null);
-      marcarSucio();
-    };
-    aplicar();
-
-    return () => {
-      cancel = true;
-    };
-  }, [pronostico, marcarSucio]);
-
-  // --- Mostrar/ocultar el popover del municipio seleccionado ---
-  useEffect(() => {
-    const tip = tippyRef.current;
-    const root = tippyRootRef.current;
     const map = mapRef.current;
-    if (!tip || !root) return;
+    const sync = () => syncRef.current?.();
+    if (map?.isStyleLoaded()) sync();
+    else map?.once("idle", sync);
+    return () => { map?.off("idle", sync); };
+  }, [poligonos, datos, colorDe, campoEtiqueta, selected]);
 
-    if (activo) {
-      root.render(
-        <MunicipioInfo municipio={activo} onCerrar={() => seleccionar(null)} />
-      );
-      const lngLat = puntoLngLatRef.current;
-      if (lngLat && map) {
-        const p = map.project(lngLat);
-        const rect = mapContainerRef.current.getBoundingClientRect();
-        tip.setProps({
-          getReferenceClientRect: () =>
-            new DOMRect(rect.left + p.x, rect.top + p.y, 0, 0),
-        });
-      }
-      tip.show();
-    } else {
-      tip.hide();
-    }
-  }, [activo, seleccionar]);
-
-  if (!webglOk) {
-    return (
-      <div className="base-map base-map--fallback">
-        <div>
-          <strong>Tu navegador no puede mostrar el mapa.</strong>
-          <p>Necesitás un navegador con WebGL activo (Chrome, Firefox o Edge).</p>
-        </div>
-      </div>
-    );
+  function cambiarEstilo(value) {
+    setEstilo(value); setReady(false); setError("");
+    try { localStorage.setItem(STORAGE_KEY, value); } catch { /* iframe sin storage */ }
+    mapRef.current?.setStyle(BASEMAP_STYLES[value], { diff: false, transformStyle: prepararEstilo });
   }
 
-  return (
-    <div className="base-map">
-      <div ref={mapContainerRef} className="base-map__canvas-container" />
+  async function esperarMapa() {
+    const map = mapRef.current;
+    if (!map || !enableCapture) throw new Error("El mapa no está disponible para capturar.");
+    if (!map.loaded() || !map.areTilesLoaded()) {
+      await new Promise((resolve, reject) => {
+        const done = () => { clearTimeout(timer); map.off("idle", done); resolve(); };
+        const timer = setTimeout(() => { map.off("idle", done); reject(new Error("El mapa sigue cargando. Esperá unos segundos y reintentá.")); }, 15000);
+        map.on("idle", done);
+        map.triggerRepaint();
+      });
+    }
+    if (!map.getLayer("zonas-fill")) throw new Error("Todavía no hay zonas en el mapa.");
+    await new Promise(resolve => { map.once("render", resolve); map.triggerRepaint(); });
+    return map;
+  }
+  useImperativeHandle(ref, () => ({
+    async capturePng() { const map = await esperarMapa(); return map.getCanvas().toDataURL("image/png"); },
+    async capturarConOverlay() {
+      await esperarMapa();
+      await document.fonts.ready;
+      return toPng(rootRef.current, { pixelRatio: 2, filter: node => !node.hasAttribute?.("data-capture-ignore") && !node.classList?.contains("maplibregl-ctrl-group") });
+    },
+  }));
 
-      {titulo && (
-        <div className="map-title">
-          <img src="/brand/ecologia-flor.png" alt="" width={30} height={30} />
-          <div>
-            <strong>{titulo}</strong>
-            {relativo && (
-              <span className="map-title__meta">actualizado {relativo}</span>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  if (!webglOk) return <div className="base-map base-map--fallback">Tu navegador necesita WebGL activo para mostrar el mapa.</div>;
+  return <div className="base-map" ref={rootRef}>
+    <div ref={containerRef} className="base-map__canvas-container" />
+    {titulo && <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
+      <div><strong>{titulo}</strong><span className="map-title__meta">Misiones · {publicadoEn ? `Publicado ${tiempoRelativo(publicadoEn)} · ${fechaPronostico || fechaLarga(publicadoEn)}` : "Vista previa · sin publicar"}</span></div></div>}
+    {mostrarSelectorEstilo && <div className="map-style-switcher" data-capture-ignore>
+      <label>Mapa base <select value={estilo} onChange={e => cambiarEstilo(e.target.value)}><option value="positron">Positron · claro</option><option value="liberty">Liberty · color</option></select></label>
+    </div>}
+    {(!ready || error) && <div className="map-status" role="status" data-capture-ignore>{error || "Cargando mapa…"}</div>}
+    {activo && renderInfo && <div className="map-info" data-capture-ignore>{renderInfo(activo, { onCerrar: () => setSelected(null) })}</div>}
+    {leyenda && <div className="map-legend">{leyenda}</div>}
+  </div>;
 });
-
 export default BaseMap;

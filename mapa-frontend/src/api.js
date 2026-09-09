@@ -4,6 +4,17 @@ import { API_URL } from "./config";
 // fetch que lo mande (y lo reciba) aunque front y back vivan en orígenes
 // distintos (Vercel/Render en vez de estar detrás del mismo Caddy).
 const CON_SESION = { credentials: "include" };
+// Geometrías y catálogo cambian solo con un deploy. Compartir la promesa
+// evita descargar los mismos MB cada vez que se cambia de pantalla.
+const cacheEstatico = new Map();
+async function getEstatico(url) {
+  if (!cacheEstatico.has(url)) {
+    const solicitud = (async () => handleJson(await fetch(url, { cache: "no-cache" })))()
+      .catch((error) => { cacheEstatico.delete(url); throw error; });
+    cacheEstatico.set(url, solicitud);
+  }
+  return cacheEstatico.get(url);
+}
 
 async function handleJson(res) {
   if (!res.ok) {
@@ -41,20 +52,17 @@ export async function getMunicipios() {
  * pronóstico — cambia poco, se puede cachear agresivo en el cliente.
  */
 export async function getMunicipiosGeojson() {
-  const res = await fetch(`${API_URL}/api/municipios/geojson`);
-  return handleJson(res);
+  return getEstatico(`${API_URL}/api/municipios/geojson`);
 }
 
 /** Países del mundo (polígonos + fronteras). */
 export async function getMundoGeojson() {
-  const res = await fetch(`${API_URL}/api/mundo/geojson`);
-  return handleJson(res);
+  return getEstatico(`${API_URL}/api/mundo/geojson`);
 }
 
 /** GeoJSON de división política / rótulos: `paises-labels`, `provincias`, `provincias-labels`. */
 export async function getGeo(nombre) {
-  const res = await fetch(`${API_URL}/api/geo/${nombre}`);
-  return handleJson(res);
+  return getEstatico(`${API_URL}/api/geo/${nombre}`);
 }
 
 /**
@@ -91,11 +99,11 @@ export async function getActual() {
   return handleJson(res);
 }
 
-export async function publicar(filas) {
+export async function publicar(filas, fechaPronostico) {
   const res = await fetch(`${API_URL}/api/pronostico/publicar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filas }),
+    body: JSON.stringify({ filas, fechaPronostico }),
     ...CON_SESION,
   });
   return handleJson(res);
@@ -163,6 +171,13 @@ export async function recuperarAlertasIncendio() {
   });
   return handleJson(res);
 }
+export async function publicarAlertasIncendio(datos) {
+  const res = await fetch(`${API_URL}/api/incendios/publicar`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ datos }), ...CON_SESION,
+  });
+  return handleJson(res);
+}
 
 /** Última tanda guardada (`null` si todavía no se recuperó ninguna). */
 export async function getAlertasIncendioActual() {
@@ -170,3 +185,35 @@ export async function getAlertasIncendioActual() {
   if (res.status === 404) return null;
   return handleJson(res);
 }
+
+// --- Riesgo por departamento (categoría manual de ECOSOTAT) --------------
+export async function getRiesgoCatalogo() {
+  return getEstatico(`${API_URL}/api/riesgo-incendios/catalogo`);
+}
+export async function getDepartamentosGeojson() {
+  return getEstatico(`${API_URL}/api/departamentos/geojson`);
+}
+export async function getRiesgoActual() {
+  const res = await fetch(`${API_URL}/api/riesgo-incendios/actual`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  return handleJson(res);
+}
+export async function publicarRiesgo(zonas) {
+  return handleJson(await fetch(`${API_URL}/api/riesgo-incendios/publicar`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zonas }), ...CON_SESION,
+  }));
+}
+
+export async function renderRiesgoPng(zonas, fecha) {
+  const res = await fetch(`${API_URL}/api/riesgo-incendios/render-png`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zonas, fecha }), ...CON_SESION,
+  });
+  if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || "No se pudo generar la imagen."); }
+  return res.blob();
+}
+export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/catalogo`);
+export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
+export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
+export async function publicarAlertasMeteorologicas(zonas){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas}),...CON_SESION}));}

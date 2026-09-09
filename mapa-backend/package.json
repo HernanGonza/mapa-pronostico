@@ -7,7 +7,9 @@
     "node": ">=18"
   },
   "scripts": {
+    "prestart": "node scripts/asegurar-postgres.js",
     "start": "node src/server.js",
+    "predev": "node scripts/asegurar-postgres.js",
     "dev": "node --watch src/server.js",
     "test": "node --test"
   },

@@ -1,71 +1,108 @@
-# Deploy — front en Vercel, back en Render
+# Despliegue con Docker Compose
 
-Dos servicios separados. Primero el back (para tener su URL), después el front.
+La aplicación usa React + MapLibre en el navegador, Express para la API y
+Postgres para publicaciones y sesiones. Caddy sirve el frontend, proxea la API
+y gestiona HTTPS. Pronóstico y riesgo de incendios comparten este stack;
+no hace falta desplegar Java ni ECOSOTAT.
 
-## 0. Base de datos → Neon (para que no se pierda el pronóstico)
+## Preparar el servidor
 
-Ya hay un **proyecto Neon temporal** creado (`orange-shadow-24106263`).
-Guarda el pronóstico publicado + el historial. Vos tenés que **reclamarlo
-a tu cuenta** antes de que expire (72 h desde que se creó), si no se
-borra.
+Requisitos: Docker Engine con Compose v2, un dominio apuntando al servidor y
+puertos 80/443 disponibles. Desde la raíz del repositorio:
 
-- Reclamarlo: te paso el link de claim (o corré `neon claim accept` en
-  `mapa-backend/`). Abrís el link, entrás con tu cuenta Neon y aceptás la
-  transferencia. Eso **rota el `DATABASE_URL`** — el nuevo lo sacás con
-  `neon env pull` o del dashboard.
-- El `DATABASE_URL` está en `mapa-backend/.env.local` (gitignoreado). Para
-  local no tenés que hacer nada más.
-- Si preferís tu propio proyecto desde cero: crealo en el dashboard de
-  Neon y reemplazá `DATABASE_URL`.
+```sh
+cp .env.example .env
+openssl rand -hex 24
+```
 
-Sin `DATABASE_URL` el backend igual funciona, pero guarda en un archivo en
-disco (y en Render free eso se borra en cada deploy).
+Usar el valor generado como `POSTGRES_PASSWORD` (hexadecimal evita caracteres
+reservados en la URL de conexión). Configurar `DOMAIN=mapas.ejemplo.gob.ar` y
+mantener `VITE_API_URL=` vacío: frontend y API se consumen por el mismo origen,
+incluidas las cookies de sesión. No subir `.env` al repositorio.
 
-## 1. Backend → Render
+```sh
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose exec backend node scripts/crear-usuario.js operador@ejemplo.gob.ar
+```
 
-1. Subí el repo a GitHub (o GitLab/Bitbucket).
-2. En Render: **New + → Blueprint**, elegí el repo. Render lee
-   `mapa-backend/render.yaml` y crea el web service.
-   - Si preferís a mano: **New + → Web Service**, root directory
-     `mapa-backend`, build `npm install`, start `npm start`,
-     health check `/health`.
-3. Variables de entorno:
-   - `NODE_VERSION` = `18` (con 20+ `canvas` intenta compilar y falla)
-   - `DATABASE_URL` = el connection string de Neon (paso 0). **Importante**
-     en Render free: sin esto, el pronóstico se borra en cada deploy.
-   - `CORS_ORIGIN` = la URL del front en Vercel (la completás en el paso 2,
-     después de crear el front). Podés dejarla vacía para la demo — sin
-     ella el back acepta cualquier origen.
-4. `canvas` (para el PNG de redes) usa binarios precompilados con Node 18
-   (por eso `NODE_VERSION=18`). Si en el futuro se sube a Node 20+, hay
-   que pasar a `canvas@^3`.
-5. Anotá la URL que te da Render, por ej. `https://mapa-pronostico-backend.onrender.com`.
+El último comando pide la contraseña del operador. Requiere Postgres disponible;
+el login no tiene modo de persistencia en archivos. Repetir el comando para un
+usuario existente cambia su contraseña.
 
-> El plan free de Render **duerme el servicio tras 15 min sin tráfico**.
-> La primera carga después de eso tarda ~30 s. Para la demo, abrí el back
-> una vez antes de mostrarlo.
+En producción Caddy solicita el certificado del dominio. En una prueba local,
+`DOMAIN=localhost` usa HTTPS con certificado local de Caddy: abrir
+`https://localhost` y confiar en ese certificado para la prueba. No se debe
+interpretar `localhost` como una configuración de HTTP plano.
 
-> El plan **free de Render no permite disco persistente**. Por eso el
-> pronóstico se guarda en **Neon** (paso 0), no en disco. Si no ponés
-> `DATABASE_URL`, cae al archivo en disco y se borra en cada deploy.
+## Verificación después de desplegar
 
-## 2. Frontend → Vercel
+1. `/health` debe devolver `{"ok":true}`.
+2. `/login`: ingresar con el operador creado.
+3. `/panel/pronostico`: cargar el DOCX, revisar, publicar y descargar PNG.
+4. `/embed`: verificar municipios, colores y fichas; cambiar Positron/Liberty.
+5. `/panel/riesgo-incendios`: asignar los 17 niveles, revisar y publicar.
+6. `/embed/riesgo-incendios`: comprobar el reporte público sin sesión.
+7. Descargar el PNG de riesgo y comprobar mapa, leyenda y estado publicado.
+8. Reiniciar con `docker compose restart` y comprobar que el reporte permanece.
 
-1. En Vercel: **Add New → Project**, elegí el repo.
-2. **Root Directory**: `mapa-frontend`.
-3. Framework: Vite (lo detecta solo; ya está en `vercel.json`).
-4. Variable de entorno:
-   - `VITE_API_URL` = la URL del back de Render (paso 1),
-     **sin barra final**.
-5. Deploy. Te queda algo como `https://mapa-pronostico.vercel.app`.
-6. Volvé a Render y poné esa URL en `CORS_ORIGIN` (redeploy del back).
+```html
+<iframe src="https://mapas.ejemplo.gob.ar/embed/riesgo-incendios"
+        title="Riesgo de incendios forestales de Misiones"
+        width="100%" height="720" style="border:0" loading="lazy"></iframe>
+```
 
-## 3. Probar
+El iframe de riesgo consulta actualizaciones cada minuto. La elección del mapa
+base se conserva en el navegador cuando el almacenamiento está disponible;
+no altera la publicación del operador.
 
-- `https://tu-front.vercel.app/admin` → subí el `.docx`, publicá.
-- `https://tu-front.vercel.app/embed` → el mapa que iría en el iframe.
+## Persistencia y actualizaciones
 
-## Notas
+El volumen `pgdata` guarda pronósticos, riesgo, usuarios y sesiones. Los volúmenes
+de Caddy guardan certificados y configuración. `docker compose down` conserva
+los volúmenes; **no usar `down -v`** si se quieren conservar los datos.
 
-- Los GeoJSON viajan en el repo dentro de `mapa-backend/data/` — se
-  deployan con el back, no hay que subirlos aparte.
+Respaldo antes de actualizar (ajustar usuario/base si cambiaron en `.env`):
+
+```sh
+docker compose exec -T db pg_dump -U mapa mapa_pronostico > respaldo.sql
+docker compose up -d --build
+docker compose logs --tail=100 backend frontend
+```
+
+La geometría de los 17 departamentos y su catálogo están incluidos en la imagen
+del backend. Las tablas de riesgo se crean al primer uso. Sin `DATABASE_URL`,
+el riesgo puede guardarse en archivo para desarrollo, pero ese modo no permite
+iniciar sesión y no sustituye Postgres en producción.
+
+## Mapas y exportación
+
+Los fondos Positron y Liberty se solicitan directamente a OpenFreeMap mediante
+su [integración oficial con MapLibre](https://openfreemap.org/quick_start/).
+El navegador necesita acceso a `tiles.openfreemap.org` y a los recursos indicados
+por esos estilos. No se requiere clave de API ni un servicio adicional en Compose.
+
+La integración de ECOSOTAT reproduce la asignación manual de cinco categorías
+por departamento y sus colores originales. Los IDs geográficos son los del
+GeoJSON actual, no los números `ZONA_n` del Java. No se calcula automáticamente
+el índice FWI. El catálogo de categorías se sirve desde el backend para mantener
+editor, validación, leyenda y PNG consistentes.
+
+La imagen institucional de riesgo se genera en el backend con la plantilla
+original `data/ecosotat/misiones.png`: escala semicircular, encabezado, nombres,
+colores por zona y franja de logos. La fecha se elige en el editor. No necesita
+OpenFreeMap, navegador ni Java para renderizar. El endpoint autenticado es
+`POST /api/riesgo-incendios/render-png` con `{zonas, fecha: "YYYY-MM-DD"}`.
+La descarga refleja las categorías editadas y no publica por sí sola.
+
+Ambas pantallas ofrecen además «Capturar mapa actual» para guardar la vista
+interactiva con sus overlays. El generador institucional del pronóstico conserva
+su plantilla existente. Ambos editores comparten el bloque para abrir el mapa
+público y copiar el iframe.
+
+## Alcance de la validación local
+
+Se debe ejecutar `npm test` en `mapa-backend` y `npm run build` en
+`mapa-frontend`. El build de las imágenes y el arranque completo de Compose
+requieren Docker; no quedan verificados solamente por esos dos comandos.

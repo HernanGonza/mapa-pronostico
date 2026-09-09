@@ -8,6 +8,17 @@
 
 const CAMPOS_LAT = ["latitude", "lat", "latitud"];
 const CAMPOS_LON = ["longitude", "lon", "lng", "longitud"];
+const CAMPOS_INTENSIDAD = ["intensity", "Intensity", "intensidad", "Intensidad", "brightness", "bright_ti4", "frp", "potencia", "confidence", "confianza"];
+
+// DEMO TEMPORAL: retirar cuando llegue el primer JSON real.
+export const DATOS_DEMO_ALERTAS = [
+  { lat: -27.91, lon: -55.75, intensity: 92, localidad: "Apóstoles" },
+  { lat: -27.77, lon: -55.79, intensity: 58, localidad: "San José" },
+  { lat: -26.41, lon: -54.62, intensity: 76, localidad: "Eldorado" },
+  { lat: -25.60, lon: -54.57, intensity: 34, localidad: "Puerto Iguazú" },
+  { lat: -27.36, lon: -55.90, intensity: 18, localidad: "Posadas" },
+  { lat: -27.49, lon: -55.12, intensity: 5, localidad: "Oberá" },
+];
 
 function buscarCampo(obj, candidatos) {
   for (const c of candidatos) {
@@ -22,14 +33,22 @@ function buscarCampo(obj, candidatos) {
 export function extraerFocos(datos) {
   const lista = Array.isArray(datos)
     ? datos
-    : datos?.alertas || datos?.focos || datos?.features || [];
+    : datos?.alertas || datos?.focos || datos?.features || datos?.data || [];
   const focos = [];
   for (const item of lista) {
     const props = item?.properties || item; // por si ya viene como GeoJSON
-    const lat = buscarCampo(props, CAMPOS_LAT);
-    const lon = buscarCampo(props, CAMPOS_LON);
+    let lat = buscarCampo(props, CAMPOS_LAT);
+    let lon = buscarCampo(props, CAMPOS_LON);
+    // También aceptamos FeatureCollection GeoJSON (coordinates = [lon, lat]).
+    if ((lat == null || lon == null) && item?.geometry?.type === "Point") {
+      const [x, y] = item.geometry.coordinates || [];
+      if (Number.isFinite(Number(x)) && Number.isFinite(Number(y))) {
+        lon = Number(x); lat = Number(y);
+      }
+    }
     if (lat == null || lon == null) continue;
-    focos.push({ lat, lon, propiedades: props });
+    const intensidad = buscarCampo(props, CAMPOS_INTENSIDAD);
+    focos.push({ lat, lon, intensidad: intensidad == null ? 1 : Math.max(0, intensidad), propiedades: props });
   }
   return focos;
 }
@@ -40,7 +59,13 @@ export function focosAGeojson(focos) {
     features: focos.map((f) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [f.lon, f.lat] },
-      properties: f.propiedades,
+      // La ficha usa nombres claros y no duplica `intensity`/`intensidad`.
+      properties: {
+        ...Object.fromEntries(Object.entries(f.propiedades || {}).filter(([key]) =>
+          !["intensity", "Intensity", "intensidad", "Intensidad", "lat", "latitude", "latitud", "lon", "lng", "longitude", "longitud"].includes(key)
+        )),
+        Intensidad: f.intensidad,
+      },
     })),
   };
 }

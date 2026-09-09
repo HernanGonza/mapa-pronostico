@@ -22,7 +22,7 @@ sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev \
 ## Correr
 
 ```bash
-npm start   # http://localhost:3000
+npm start   # http://localhost:3000; inicia también el Postgres local en 5544
 ```
 
 ## Dos sistemas de coordenadas — no confundirlos

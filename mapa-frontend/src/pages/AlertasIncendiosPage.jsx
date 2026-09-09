@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PointsMap from "../components/PointsMap";
+import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
 import {
   recuperarAlertasIncendio,
+  publicarAlertasIncendio,
   getAlertasIncendioActual,
-  getMundoGeojson,
-  getGeo,
 } from "../api";
-import { extraerFocos, focosAGeojson } from "../lib/alertasIncendio";
+import { DATOS_DEMO_ALERTAS, extraerFocos, focosAGeojson } from "../lib/alertasIncendio";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
 function descargarBlob(blob, nombre) {
@@ -22,23 +22,25 @@ function descargarBlob(blob, nombre) {
 
 export default function AlertasIncendiosPage() {
   const [actual, setActual] = useState(null); // { recuperadoEn, datos }
-  const [mundo, setMundo] = useState(null);
-  const [paisesLabels, setPaisesLabels] = useState(null);
-  const [provincias, setProvincias] = useState(null);
-  const [provinciasLabels, setProvinciasLabels] = useState(null);
   const [cargando, setCargando] = useState(false);
+  const [publicando, setPublicando] = useState(false);
   const [error, setError] = useState(null);
   const mapaRef = useRef(null);
 
   useEffect(() => {
-    getMundoGeojson().then(setMundo).catch(() => {});
-    getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
-    getGeo("provincias").then(setProvincias).catch(() => {});
-    getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
-    getAlertasIncendioActual().then(setActual).catch(() => {});
+    let cancelado = false;
+    getAlertasIncendioActual().then((actualData) => {
+      if (cancelado) return;
+      setActual(actualData);
+    }).catch(() => {});
+    // El webhook puede recibir una tanda mientras el panel está abierto.
+    const timer = setInterval(() => getAlertasIncendioActual().then(data => {
+      if (!cancelado) setActual(data);
+    }).catch(() => {}), 60000);
+    return () => { cancelado = true; clearInterval(timer); };
   }, []);
 
-  const focos = actual ? extraerFocos(actual.datos) : [];
+  const focos = extraerFocos(actual?.datos || DATOS_DEMO_ALERTAS);
 
   async function onRecuperar() {
     setCargando(true);
@@ -66,22 +68,31 @@ export default function AlertasIncendiosPage() {
     }
   }
 
+  async function onPublicar() {
+    const datos = actual?.datos || DATOS_DEMO_ALERTAS;
+    setPublicando(true); setError(null);
+    try { setActual(await publicarAlertasIncendio(datos)); }
+    catch (err) { setError(err.message); }
+    finally { setPublicando(false); }
+  }
+
   const relativo = tiempoRelativo(actual?.recuperadoEn);
 
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Alertas de incendios · NASA FIRMS">
         <Link to="/panel" className="btn-link">
-          ← Volver a la botonera
+          ← Panel
         </Link>
       </BrandHeader>
 
       <div className="admin-panel">
+        <div className="editor-heading"><span className="editor-eyebrow">FOCOS SATELITALES · NASA FIRMS</span><h1>Alertas de incendios</h1><p>Recuperá las últimas alertas y revisá los focos en el mapa.</p></div>
+        {!actual && <p className="alertas-demo-aviso" role="status">Vista de prueba: esperando el primer JSON real.</p>}
         <h2>1 · Recuperar</h2>
         <p className="admin-panel__hint">
-          Le pide al sistema de alertas el último JSON de focos y lo publica:
-          /embed/alertas-incendios va a mostrar esta tanda hasta la próxima vez
-          que se apriete este botón.
+          Recuperar las alertas actualiza el mapa público. Esta tanda permanece
+          visible hasta la próxima actualización.
         </p>
 
         {error && <div className="alert alert--error">{error}</div>}
@@ -93,6 +104,11 @@ export default function AlertasIncendiosPage() {
             disabled={cargando}
           >
             {cargando ? "Recuperando…" : "Recuperar últimas alertas"}
+          </button>
+        </div>
+        <div className="admin-actions">
+          <button className="btn btn--primary btn--block" onClick={onPublicar} disabled={publicando}>
+            {publicando ? "Publicando…" : "Publicar alertas"}
           </button>
         </div>
 
@@ -115,15 +131,12 @@ export default function AlertasIncendiosPage() {
             </div>
           </>
         )}
+        <EmbedShare path="/embed/alertas-incendios" title="Alertas de incendios de Misiones" />
       </div>
 
       <div className="admin-map-area">
         <PointsMap
           ref={mapaRef}
-          mundoGeojson={mundo}
-          paisesLabels={paisesLabels}
-          provincias={provincias}
-          provinciasLabels={provinciasLabels}
           puntos={focosAGeojson(focos)}
           titulo="Alertas de incendios"
           enableCapture

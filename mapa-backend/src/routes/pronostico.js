@@ -80,7 +80,7 @@ router.post("/pronostico/publicar", requireAuth, express.json(), async (req, res
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });
   try {
-    const payload = await publicar(filas);
+    const payload = await publicar(filas, req.body.fechaPronostico);
     res.json(payload);
   } catch (err) {
     console.error(err);
@@ -189,6 +189,7 @@ router.get("/municipios", (req, res) => {
  * WGS84), sin datos de pronóstico — geometría pura, cambia poco.
  */
 router.get("/municipios/geojson", (req, res) => {
+  res.set("Cache-Control", "public, max-age=604800");
   res.sendFile(path.join(__dirname, "..", "..", "data", "municipios.geojson"));
 });
 
@@ -235,7 +236,7 @@ router.get("/pronostico/mapa", async (req, res) => {
   try {
     const actual = await obtenerActual();
     const municipios = armarMunicipiosConPronostico(actual ? actual.filas : null);
-    res.json({ publicadoEn: actual ? actual.publicadoEn : null, municipios });
+    res.json({ publicadoEn: actual ? actual.publicadoEn : null, fechaPronostico: actual?.fechaPronostico || null, municipios });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

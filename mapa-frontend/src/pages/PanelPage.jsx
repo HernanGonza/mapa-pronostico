@@ -19,6 +19,11 @@ const OPCIONES = [
     titulo: "Alertas de incendios",
     descripcion: "Últimos focos detectados (NASA FIRMS).",
   },
+  {
+    to: "/panel/alertas-meteorologicas",
+    titulo: "Alertas meteorológicas",
+    descripcion: "Nivel de alerta por departamento: amarillo, naranja, rojo o gris.",
+  },
 ];
 
 export default function PanelPage() {

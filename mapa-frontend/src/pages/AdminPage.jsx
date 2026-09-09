@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BaseMap from "../components/BaseMap";
+import { colorPronostico, infoPronostico, LeyendaPronostico } from "../components/PronosticoMapContent";
+import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
 import {
   parseDocx,
@@ -9,8 +11,6 @@ import {
   getActual,
   getMapaPreview,
   getMunicipiosGeojson,
-  getMundoGeojson,
-  getGeo,
 } from "../api";
 import {
   CONDICIONES_CANONICAS,
@@ -71,22 +71,15 @@ export default function AdminPage() {
   const [publicado, setPublicado] = useState(null); // { publicadoEn, filas }
   const [municipiosPreview, setMunicipiosPreview] = useState(null);
   const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
-  const [mundo, setMundo] = useState(null);
-  const [paisesLabels, setPaisesLabels] = useState(null);
-  const [provincias, setProvincias] = useState(null);
-  const [provinciasLabels, setProvinciasLabels] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const [mensajeOk, setMensajeOk] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
+  const [fechaPronostico, setFechaPronostico] = useState(new Date().toISOString().slice(0, 10));
   const mapaRef = useRef(null);
 
   useEffect(() => {
     getMunicipiosGeojson().then(setMunicipiosGeojson).catch(() => {});
-    getMundoGeojson().then(setMundo).catch(() => {});
-    getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
-    getGeo("provincias").then(setProvincias).catch(() => {});
-    getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -95,6 +88,7 @@ export default function AdminPage() {
         if (actual) {
           setPublicado(actual);
           setFilas(actual.filas);
+          if (actual.fechaPronostico) setFechaPronostico(actual.fechaPronostico);
         }
       })
       .catch(() => {});
@@ -161,7 +155,7 @@ export default function AdminPage() {
     setError(null);
     setMensajeOk(null);
     try {
-      const payload = await publicar(filas);
+      const payload = await publicar(filas, fechaPronostico);
       setPublicado(payload);
       setConfirmando(false);
       setMensajeOk("Publicado. El mapa público (/embed) ya muestra esta versión.");
@@ -190,13 +184,13 @@ export default function AdminPage() {
     setCargando(true);
     setError(null);
     try {
-      const dataUrl = mapaRef.current.capturePng();
+      const dataUrl = await mapaRef.current.capturarConOverlay();
       if (!dataUrl) throw new Error("El mapa todavía no está listo");
       const blob = await (await fetch(dataUrl)).blob();
       descargarBlob(blob, `mapa_captura_${Date.now()}.png`);
     } catch (err) {
       setError(
-        "No se pudo capturar el mapa. Usá 'Imagen para redes (servidor)', que es la vía confiable. Detalle: " +
+        "No se pudo capturar el mapa. Usá 'Descargar imagen institucional', que es la vía confiable. Detalle: " +
           err.message
       );
     } finally {
@@ -208,7 +202,7 @@ export default function AdminPage() {
 
   return (
     <div className="admin-layout">
-      <BrandHeader subtitulo="Panel de operador · Previsión del tiempo">
+      <BrandHeader subtitulo="Previsión del tiempo">
         {publicado ? (
           <span>
             Publicado <b>{relativo}</b> · {fechaLarga(publicado.publicadoEn)}
@@ -217,12 +211,14 @@ export default function AdminPage() {
           <span>Todavía no se publicó ningún pronóstico</span>
         )}
         <Link to="/panel" className="btn-link">
-          ← Volver a la botonera
+          ← Panel
         </Link>
       </BrandHeader>
 
       <div className="admin-panel">
+        <div className="editor-heading"><span className="editor-eyebrow">REPORTE POR MUNICIPIO</span><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
         <h2>1 · Subir el .docx del día</h2>
+        <label className="field"><span>Fecha del pronóstico</span><input type="date" value={fechaPronostico} onChange={e => setFechaPronostico(e.target.value)} /></label>
         <p className="admin-panel__hint">
           Así lo genera Alerta Temprana. El mapa se arma solo con esos datos —
           no hace falta cargar nada a mano.
@@ -347,7 +343,7 @@ export default function AdminPage() {
                   onClick={() => setConfirmando(true)}
                   disabled={cargando || hayInvalidos}
                 >
-                  Publicar (actualiza el mapa público)
+                  Revisar y publicar
                 </button>
               ) : (
                 <>
@@ -363,7 +359,7 @@ export default function AdminPage() {
                     onClick={() => setConfirmando(false)}
                     disabled={cargando}
                   >
-                    Cancelar
+                    Seguir editando
                   </button>
                 </>
               )}
@@ -373,32 +369,33 @@ export default function AdminPage() {
                 onClick={onDescargarImagenServer}
                 disabled={cargando || hayInvalidos}
               >
-                Imagen para redes (servidor)
+                Descargar imagen institucional
               </button>
               <button
                 className="btn btn--block"
                 onClick={onCapturarDesdeElMapa}
                 disabled={cargando}
               >
-                Capturar el mapa como se ve acá
+                Capturar mapa actual
               </button>
             </div>
           </>
         )}
+        <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
       <div className="admin-map-area">
         {municipiosPreview && municipiosGeojson ? (
           <BaseMap
             ref={mapaRef}
-            municipiosGeojson={municipiosGeojson}
-            mundoGeojson={mundo}
-            paisesLabels={paisesLabels}
-            provincias={provincias}
-            provinciasLabels={provinciasLabels}
-            pronostico={municipiosPreview}
+            poligonos={municipiosGeojson}
+            datos={municipiosPreview}
+            colorDe={colorPronostico}
+            renderInfo={infoPronostico}
+            leyenda={<LeyendaPronostico />}
             titulo="Previsión del tiempo"
-            publicadoEn={publicado?.publicadoEn}
+            publicadoEn={cambios?.length ? null : publicado?.publicadoEn}
+            fechaPronostico={fechaPronostico}
             enableCapture
           />
         ) : (

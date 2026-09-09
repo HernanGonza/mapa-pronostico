@@ -47,9 +47,11 @@ async function init() {
       `CREATE TABLE IF NOT EXISTS pronosticos (
          id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
          publicado_en timestamptz NOT NULL DEFAULT now(),
-         filas        jsonb NOT NULL
+         filas        jsonb NOT NULL,
+         fecha_pronostico date
        )`
     )
+    .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS fecha_pronostico date`))
     .then(() => {
       console.log("[store] Postgres listo (tabla pronosticos)");
     })
@@ -65,19 +67,19 @@ async function init() {
   return listo;
 }
 
-async function publicar(filas) {
+async function publicar(filas, fechaPronostico = null) {
   if (usaPostgres()) {
     await init();
     const { rows } = await pool.query(
-      `INSERT INTO pronosticos (filas)
-       VALUES ($1::jsonb)
-       RETURNING publicado_en, filas`,
-      [JSON.stringify(filas)]
+      `INSERT INTO pronosticos (filas, fecha_pronostico)
+       VALUES ($1::jsonb, $2::date)
+       RETURNING publicado_en, filas, fecha_pronostico`,
+      [JSON.stringify(filas), fechaPronostico || null]
     );
-    return { publicadoEn: rows[0].publicado_en.toISOString(), filas: rows[0].filas };
+    return { publicadoEn: rows[0].publicado_en.toISOString(), fechaPronostico: rows[0].fecha_pronostico, filas: rows[0].filas };
   }
 
-  const payload = { publicadoEn: new Date().toISOString(), filas };
+  const payload = { publicadoEn: new Date().toISOString(), fechaPronostico: fechaPronostico || null, filas };
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, JSON.stringify(payload, null, 2));
   return payload;
@@ -87,7 +89,7 @@ async function obtenerActual() {
   if (usaPostgres()) {
     await init();
     const { rows } = await pool.query(
-      `SELECT publicado_en, filas
+      `SELECT publicado_en, fecha_pronostico, filas
          FROM pronosticos
          ORDER BY id DESC
          LIMIT 1`
@@ -95,6 +97,7 @@ async function obtenerActual() {
     if (!rows.length) return null;
     return {
       publicadoEn: rows[0].publicado_en.toISOString(),
+      fechaPronostico: rows[0].fecha_pronostico,
       filas: rows[0].filas,
     };
   }

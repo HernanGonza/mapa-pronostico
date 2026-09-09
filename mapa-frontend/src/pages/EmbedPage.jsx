@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import BaseMap from "../components/BaseMap";
+import { colorPronostico, infoPronostico, LeyendaPronostico } from "../components/PronosticoMapContent";
 import {
   getMapaActual,
   getMunicipiosGeojson,
-  getMundoGeojson,
-  getGeo,
 } from "../api";
 
 /**
@@ -14,22 +13,15 @@ import {
  */
 export default function EmbedPage() {
   const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
-  const [mundo, setMundo] = useState(null);
-  const [paisesLabels, setPaisesLabels] = useState(null);
-  const [provincias, setProvincias] = useState(null);
-  const [provinciasLabels, setProvinciasLabels] = useState(null);
   const [municipios, setMunicipios] = useState(null);
   const [publicadoEn, setPublicadoEn] = useState(null);
+  const [fechaPronostico, setFechaPronostico] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     getMunicipiosGeojson()
       .then(setMunicipiosGeojson)
       .catch((err) => setError(err.message));
-    getMundoGeojson().then(setMundo).catch(() => {});
-    getGeo("paises-labels").then(setPaisesLabels).catch(() => {});
-    getGeo("provincias").then(setProvincias).catch(() => {});
-    getGeo("provincias-labels").then(setProvinciasLabels).catch(() => {});
   }, []);
 
   const cargarPronostico = useCallback(async () => {
@@ -37,6 +29,7 @@ export default function EmbedPage() {
       const data = await getMapaActual();
       setMunicipios(data.municipios);
       setPublicadoEn(data.publicadoEn);
+      setFechaPronostico(data.fechaPronostico);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -69,14 +62,14 @@ export default function EmbedPage() {
 
   return (
     <BaseMap
-      municipiosGeojson={municipiosGeojson}
-      mundoGeojson={mundo}
-      paisesLabels={paisesLabels}
-      provincias={provincias}
-      provinciasLabels={provinciasLabels}
-      pronostico={municipios}
-      titulo="Previsión del tiempo"
+      poligonos={municipiosGeojson}
+      datos={municipios}
+      colorDe={colorPronostico}
+            renderInfo={infoPronostico}
+            leyenda={<LeyendaPronostico />}
+            titulo="Previsión del tiempo"
       publicadoEn={publicadoEn}
+      fechaPronostico={fechaPronostico}
     />
   );
 }

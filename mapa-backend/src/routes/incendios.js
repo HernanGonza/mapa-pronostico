@@ -95,6 +95,18 @@ router.post("/incendios/recuperar", requireAuth, async (req, res) => {
   }
 });
 
+// Publicación explícita desde el panel (permite revisar la tanda antes de
+// hacerla visible en el embed público).
+router.post("/incendios/publicar", requireAuth, express.json({ limit: "2mb" }), async (req, res) => {
+  if (req.body?.datos == null) return res.status(400).json({ error: "Faltan los datos de alertas" });
+  try {
+    res.json(await incendiosStore.guardar(req.body.datos));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * GET /api/incendios/actual
  * Pública (la usa /embed/alertas-incendios, igual que /pronostico/actual).

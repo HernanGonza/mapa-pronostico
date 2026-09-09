@@ -9,9 +9,12 @@ import {
 import maplibregl from "maplibre-gl";
 import { API_URL } from "../config";
 import { soportaWebGL } from "../lib/soportaWebGL";
+import { BASEMAP_STYLES } from "./BaseMap";
+import { prepararEstilo } from "../lib/mapStyle";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
+const ETIQUETAS = { localidad: "Localidad", municipio: "Municipio", fecha: "Fecha", confidence: "Confianza", frp: "Potencia" };
 
 /**
  * Mapa liviano de puntos sobre el mismo fondo (mundo + provincias) que
@@ -90,12 +93,7 @@ const PointsMap = forwardRef(function PointsMap(
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: {
-        version: 8,
-        glyphs: `${API_URL}/glyphs/{fontstack}/{range}.pbf`,
-        sources: {},
-        layers: [{ id: "background", type: "background", paint: { "background-color": "#0e2233" } }],
-      },
+      style: null,
       center: CENTRO_MISIONES,
       zoom: ZOOM_INICIAL,
       pitch: 0,
@@ -120,6 +118,8 @@ const PointsMap = forwardRef(function PointsMap(
       const msg = e?.error?.message || "";
       if (!/40\d|Failed to fetch|AbortError/.test(msg)) console.warn("[PointsMap] error:", msg);
     });
+    // Usa la misma cartografía base que pronóstico y riesgo.
+    map.setStyle(BASEMAP_STYLES.positron, { transformStyle: prepararEstilo });
 
     // Mismo destrabe que BaseMap: fuentes solo-GeoJSON a veces dejan el
     // primer frame sin pintar hasta el próximo drag del usuario.
@@ -170,58 +170,9 @@ const PointsMap = forwardRef(function PointsMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Fondo: mundo + provincias ---
-  useEffect(() => {
-    if (!mundoGeojson) return undefined;
-    return conEstilo((map) => {
-      if (map.getSource("mundo")) return;
-      map.addSource("mundo", { type: "geojson", data: mundoGeojson });
-      map.addLayer({ id: "mundo-fill", type: "fill", source: "mundo", paint: { "fill-color": "#31513d" } });
-      map.addLayer({
-        id: "mundo-line",
-        type: "line",
-        source: "mundo",
-        paint: { "line-color": "#b7cabd", "line-width": 1, "line-opacity": 0.9 },
-      });
-      if (paisesLabels) {
-        map.addSource("paises-labels", { type: "geojson", data: paisesLabels });
-        map.addLayer({
-          id: "paises-labels",
-          type: "symbol",
-          source: "paises-labels",
-          maxzoom: 6.5,
-          layout: {
-            "text-field": ["get", "nombre"],
-            "text-font": ["Metropolis Regular"],
-            "text-size": 11,
-            "text-transform": "uppercase",
-          },
-          paint: { "text-color": "#dbe6dd", "text-halo-color": "#0e1a16", "text-halo-width": 1.4 },
-        });
-      }
-      if (provincias) {
-        map.addSource("provincias", { type: "geojson", data: provincias });
-        map.addLayer({
-          id: "provincias-line",
-          type: "line",
-          source: "provincias",
-          paint: { "line-color": "#8aa294", "line-width": 0.8, "line-dasharray": [2, 1.6] },
-        });
-      }
-      if (provinciasLabels) {
-        map.addSource("provincias-labels", { type: "geojson", data: provinciasLabels });
-        map.addLayer({
-          id: "provincias-labels",
-          type: "symbol",
-          source: "provincias-labels",
-          minzoom: 3.8,
-          layout: { "text-field": ["get", "nombre"], "text-font": ["Metropolis Regular"], "text-size": 11 },
-          paint: { "text-color": "#d6e2da", "text-halo-color": "#0b1512", "text-halo-width": 1.6 },
-        });
-      }
-      marcarSucio();
-    });
-  }, [mundoGeojson, paisesLabels, provincias, provinciasLabels, conEstilo, marcarSucio]);
+  // OpenFreeMap ya aporta países, provincias, fronteras y rótulos. No se
+  // agregan capas oscuras propias: así esta vista comparte exactamente la
+  // misma base cartográfica que pronóstico y riesgo.
 
   // --- Puntos (focos) ---
   useEffect(() => {
@@ -232,15 +183,41 @@ const PointsMap = forwardRef(function PointsMap(
       } else {
         map.addSource("focos", { type: "geojson", data: geojson });
         map.addLayer({
+          id: "focos-calor",
+          type: "heatmap",
+          source: "focos",
+          maxzoom: 12,
+          paint: {
+            "heatmap-weight": ["interpolate", ["linear"], ["get", "Intensidad"], 0, 0, 1, 0.35, 100, 1],
+            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 5, 0.8, 10, 1.8],
+            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 5, 16, 10, 30],
+            "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"],
+              0, "rgba(255, 209, 102, 0)", 0.2, "#ffd166", 0.45, "#ff7b25", 0.8, "#e31a1c", 1, "#8b0000"],
+            "heatmap-opacity": 0.78,
+          },
+        });
+        map.addLayer({
           id: "focos-punto",
           type: "circle",
           source: "focos",
           paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 3, 10, 7],
-            "circle-color": "#ff5a1f",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 4, 10, 9],
+            "circle-color": ["interpolate", ["linear"], ["get", "Intensidad"], 0, "#ffd166", 25, "#ff7b25", 100, "#e31a1c"],
             "circle-stroke-color": "#fff3e6",
             "circle-stroke-width": 1,
-            "circle-opacity": 0.85,
+            "circle-opacity": 0.9,
+          },
+        });
+        map.addLayer({
+          id: "focos-eco",
+          type: "circle",
+          source: "focos",
+          paint: {
+            "circle-radius": 7,
+            "circle-color": "rgba(255, 123, 37, 0)",
+            "circle-stroke-color": ["interpolate", ["linear"], ["get", "Intensidad"], 0, "#ffd166", 25, "#ff7b25", 100, "#e31a1c"],
+            "circle-stroke-width": 2,
+            "circle-opacity": 0.7,
           },
         });
         map.on("mouseenter", "focos-punto", () => (map.getCanvas().style.cursor = "pointer"));
@@ -252,6 +229,27 @@ const PointsMap = forwardRef(function PointsMap(
       marcarSucio();
     });
   }, [puntos, conEstilo, marcarSucio]);
+
+  // Pulso sutil sobre los focos: ayuda a identificar que son alertas activas
+  // sin convertir el mapa en una animación pesada.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const map = mapRef.current;
+      if (!map?.getLayer("focos-punto")) return;
+      const fase = (Date.now() % 1600) / 1600;
+      const pulso = 0.82 + Math.sin(fase * Math.PI * 2) * 0.12;
+      const eco = fase < 0.5 ? fase * 2 : 2 - fase * 2;
+      try {
+        map.setPaintProperty("focos-punto", "circle-opacity", pulso);
+        map.setPaintProperty("focos-punto", "circle-stroke-width", 1 + (pulso - 0.7) * 2);
+        if (map.getLayer("focos-eco")) {
+          map.setPaintProperty("focos-eco", "circle-radius", 7 + eco * 18);
+          map.setPaintProperty("focos-eco", "circle-opacity", 0.72 * (1 - eco));
+        }
+      } catch { /* el estilo puede estar cambiando */ }
+    }, 90);
+    return () => clearInterval(timer);
+  }, []);
 
   if (!webglOk) {
     return (
@@ -285,7 +283,7 @@ const PointsMap = forwardRef(function PointsMap(
           <ul className="info-card__props">
             {Object.entries(activo).map(([k, v]) => (
               <li key={k}>
-                <b>{k}:</b> {String(v)}
+                <b>{ETIQUETAS[k] || k}:</b> {String(v)}
               </li>
             ))}
           </ul>

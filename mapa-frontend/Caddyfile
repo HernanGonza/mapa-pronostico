@@ -1,5 +1,5 @@
 # DOMAIN: dominio real (Caddy pide el certificado TLS solo automáticamente)
-# o "localhost"/una IP para levantar en HTTP plano sin intentar ACME.
+# o "localhost" para HTTPS con certificado local de Caddy.
 {$DOMAIN:localhost} {
 	encode gzip
 
