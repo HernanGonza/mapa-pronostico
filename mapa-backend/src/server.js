@@ -60,6 +60,7 @@ app.use("/api", pronosticoRouter);
 app.use("/api", incendiosRouter);
 app.use("/api", riesgoIncendiosRouter);
 app.use("/api", alertasMeteorologicasRouter);
+app.use("/api", require("./routes/smn"));
 
 // Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.
 store
@@ -68,6 +69,12 @@ store
   .finally(() => {
     app.listen(PORT, () => {
       console.log(`Servidor escuchando en http://localhost:${PORT}`);
+      if (process.env.SMN_SYNC_ENABLED !== "false") {
+        import("./lib/smn/service.mjs").then(({ iniciar }) => iniciar()).catch(err => console.error("[SMN inicio]", err.message));
+      }
+      if (process.env.ALERTAS_INCENDIOS_SYNC_ENABLED !== "false") {
+        require("./lib/incendiosSync").iniciar();
+      }
       console.log(
         process.env.DATABASE_URL
           ? "[store] persistencia: Postgres"

@@ -19,7 +19,7 @@ function estiloInicial() {
 const BaseMap = forwardRef(function BaseMap({
   poligonos, datos = [], colorDe, renderInfo, campoEtiqueta = "nombre",
   leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false,
-  mostrarSelectorEstilo = true,
+  mostrarSelectorEstilo = true, regionLabel = 'Misiones',
 }, ref) {
   const containerRef = useRef(null);
   const rootRef = useRef(null);
@@ -152,7 +152,7 @@ const BaseMap = forwardRef(function BaseMap({
   return <div className="base-map" ref={rootRef}>
     <div ref={containerRef} className="base-map__canvas-container" />
     {titulo && <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
-      <div><strong>{titulo}</strong><span className="map-title__meta">Misiones · {publicadoEn ? `Publicado ${tiempoRelativo(publicadoEn)} · ${fechaPronostico || fechaLarga(publicadoEn)}` : "Vista previa · sin publicar"}</span></div></div>}
+      <div><strong>{titulo}</strong><span className="map-title__meta">{regionLabel} · {publicadoEn ? `Publicado ${tiempoRelativo(publicadoEn)} · ${fechaPronostico || fechaLarga(publicadoEn)}` : "Vista previa · sin publicar"}</span></div></div>}
     {mostrarSelectorEstilo && <div className="map-style-switcher" data-capture-ignore>
       <label>Mapa base <select value={estilo} onChange={e => cambiarEstilo(e.target.value)}><option value="positron">Positron · claro</option><option value="liberty">Liberty · color</option></select></label>
     </div>}

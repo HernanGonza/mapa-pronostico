@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PointsMap from "../components/PointsMap";
 import EmbedShare from "../components/EmbedShare";
@@ -40,7 +40,8 @@ export default function AlertasIncendiosPage() {
     return () => { cancelado = true; clearInterval(timer); };
   }, []);
 
-  const focos = extraerFocos(actual?.datos || DATOS_DEMO_ALERTAS);
+  const focos = useMemo(() => extraerFocos(actual?.datos || DATOS_DEMO_ALERTAS), [actual?.datos]);
+  const puntos = useMemo(() => focosAGeojson(focos), [focos]);
 
   async function onRecuperar() {
     setCargando(true);
@@ -59,7 +60,7 @@ export default function AlertasIncendiosPage() {
     if (!mapaRef.current) return;
     setError(null);
     try {
-      const dataUrl = mapaRef.current.capturePng();
+      const dataUrl = await mapaRef.current.capturePng();
       if (!dataUrl) throw new Error("El mapa todavía no está listo");
       const blob = await (await fetch(dataUrl)).blob();
       descargarBlob(blob, `alertas_incendio_${Date.now()}.png`);
@@ -137,7 +138,7 @@ export default function AlertasIncendiosPage() {
       <div className="admin-map-area">
         <PointsMap
           ref={mapaRef}
-          puntos={focosAGeojson(focos)}
+          puntos={puntos}
           titulo="Alertas de incendios"
           enableCapture
         />

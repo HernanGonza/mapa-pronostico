@@ -1,23 +1,36 @@
 /**
- * Normaliza la respuesta de nuestro sistema de alertas (que a su vez lee
- * NASA FIRMS) a una lista de `{ lat, lon, propiedades }`. Probamos varios
- * nombres de campo en vez de asumir uno solo — todavía no tenemos una
- * muestra real del endpoint (falta ALERTAS_INCENDIOS_URL), así que hasta
- * confirmarla esto evita romperse en silencio si el shape es otro.
+ * Normaliza la respuesta del sistema de alertas de incendio a una lista de
+ * `{ lat, lon, intensidad, propiedades }`. El endpoint (ALERTAS_INCENDIOS_URL)
+ * manda un array con un objeto por foco, shape confirmada:
+ *
+ *   {
+ *     "latitud": -26.07103, "longitud": -54.31158,
+ *     "fecha": "9/9/2026", "hora": "11:03 a. m.",
+ *     "satelite": "PRUEBA", "frp": 5, "intensidad": 1,
+ *     "municipio": "PUERTO ESPERANZA", "departamento": "IGUAZU",
+ *     "vinculadoAANP": true, "anpNombre": "Buffer: Parque Provincial Esperanza"
+ *   }
+ *
+ * `vinculadoAANP` (true/false) no filtra nada acá: vienen y se mapean todos
+ * los focos de la provincia, estén o no en un área protegida. Se mantienen
+ * también los nombres en inglés y variantes de mayúscula como respaldo, por
+ * si el endpoint cambia de forma más adelante.
  */
 
-const CAMPOS_LAT = ["latitude", "lat", "latitud"];
-const CAMPOS_LON = ["longitude", "lon", "lng", "longitud"];
-const CAMPOS_INTENSIDAD = ["intensity", "Intensity", "intensidad", "Intensidad", "brightness", "bright_ti4", "frp", "potencia", "confidence", "confianza"];
+const CAMPOS_LAT = ["latitud", "latitude", "lat"];
+const CAMPOS_LON = ["longitud", "longitude", "lon", "lng"];
+const CAMPOS_INTENSIDAD = ["intensidad", "Intensidad", "intensity", "Intensity", "frp", "brightness", "bright_ti4", "potencia", "confidence", "confianza"];
 
-// DEMO TEMPORAL: retirar cuando llegue el primer JSON real.
+// DEMO TEMPORAL: se muestra hasta que llegue la primera tanda real del
+// endpoint. Misma forma que el JSON confirmado, para ejercitar el mismo
+// camino de código que los datos reales.
 export const DATOS_DEMO_ALERTAS = [
-  { lat: -27.91, lon: -55.75, intensity: 92, localidad: "Apóstoles" },
-  { lat: -27.77, lon: -55.79, intensity: 58, localidad: "San José" },
-  { lat: -26.41, lon: -54.62, intensity: 76, localidad: "Eldorado" },
-  { lat: -25.60, lon: -54.57, intensity: 34, localidad: "Puerto Iguazú" },
-  { lat: -27.36, lon: -55.90, intensity: 18, localidad: "Posadas" },
-  { lat: -27.49, lon: -55.12, intensity: 5, localidad: "Oberá" },
+  { latitud: -27.91, longitud: -55.75, fecha: "9/9/2026", hora: "09:15 a. m.", satelite: "DEMO", frp: 12, intensidad: 3, municipio: "APÓSTOLES", departamento: "APÓSTOLES", vinculadoAANP: false, anpNombre: null },
+  { latitud: -27.77, longitud: -55.79, fecha: "9/9/2026", hora: "09:20 a. m.", satelite: "DEMO", frp: 8, intensidad: 2, municipio: "SAN JOSÉ", departamento: "APÓSTOLES", vinculadoAANP: false, anpNombre: null },
+  { latitud: -26.41, longitud: -54.62, fecha: "9/9/2026", hora: "10:02 a. m.", satelite: "DEMO", frp: 15, intensidad: 3, municipio: "ELDORADO", departamento: "ELDORADO", vinculadoAANP: true, anpNombre: "Parque Provincial Piñalito" },
+  { latitud: -25.60, longitud: -54.57, fecha: "9/9/2026", hora: "10:40 a. m.", satelite: "DEMO", frp: 5, intensidad: 1, municipio: "PUERTO IGUAZÚ", departamento: "IGUAZÚ", vinculadoAANP: false, anpNombre: null },
+  { latitud: -27.36, longitud: -55.90, fecha: "9/9/2026", hora: "11:03 a. m.", satelite: "DEMO", frp: 3, intensidad: 1, municipio: "POSADAS", departamento: "CAPITAL", vinculadoAANP: false, anpNombre: null },
+  { latitud: -27.49, longitud: -55.12, fecha: "9/9/2026", hora: "11:10 a. m.", satelite: "DEMO", frp: 20, intensidad: 4, municipio: "OBERÁ", departamento: "OBERÁ", vinculadoAANP: false, anpNombre: null },
 ];
 
 function buscarCampo(obj, candidatos) {

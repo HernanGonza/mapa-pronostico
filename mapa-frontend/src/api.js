@@ -217,3 +217,12 @@ export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/ap
 export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
 export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
 export async function publicarAlertasMeteorologicas(zonas){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas}),...CON_SESION}));}
+export async function renderAlertaPng(payload) {
+  const r = await fetch(`${API_URL}/api/alertas-meteorologicas/render-png`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION});
+  if (!r.ok) { const error = await r.json().catch(()=>({})); throw new Error(error.error || 'No se pudo generar la placa'); }
+  return r.blob();
+}
+export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
+export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }
+export async function getSmnApiAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn-api`, { cache: 'no-store' })); }
+export async function scrapeSmnPagina(url) { const q = url ? `?url=${encodeURIComponent(url)}` : ''; return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn-scrape${q}`, { cache: 'no-store' })); }
