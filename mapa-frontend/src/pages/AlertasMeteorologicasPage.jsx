@@ -11,7 +11,10 @@ export default function AlertasMeteorologicasPage() {
   const [iconos,setIconos]=useState([]),[imagenes,setImagenes]=useState(null),[vista,setVista]=useState('manual');
   const [confirmando,setConfirmando]=useState(false),[mensaje,setMensaje]=useState('');
   const [recomendaciones,setRecomendaciones]=useState(''),[imagenesRecomendaciones,setImagenesRecomendaciones]=useState(null);
+  const [titulo,setTitulo]=useState('Alerta meteorológica');
+  const [imagenRecomendaciones,setImagenRecomendaciones]=useState(null);
   const textoRef=useRef(null);
+  const imagenRef=useRef(null);
   useEffect(()=>{
     let alive=true;
     Promise.all([api.getAlertasMeteorologicasCatalogo(),api.getAlertasMeteorologicasGeojson(),api.getAlertasMeteorologicasActual()]).then(([c,g,p])=>{
@@ -27,13 +30,31 @@ export default function AlertasMeteorologicasPage() {
   function quitarIcono(id){setIconos(l=>l.filter(i=>i.id!==id));setImagenes(null);setConfirmando(false);setMensaje('');}
   async function guardar(){setBusy(true);setError('');try{setPublicado(await api.publicarAlertasMeteorologicas(zonas,iconos));setConfirmando(false);setMensaje('Publicado. El mapa público ya muestra este mapa.');}catch(e){setError(e.message);}finally{setBusy(false);}}
   async function generar(){setBusy(true);setError('');try{
-    const placa=await api.generarPlaca({zonas,periodo,fondo,iconos});
+    const placa=await api.generarPlaca({zonas,periodo,fondo,iconos,titulo});
     setImagenes({feed:placa.feedUrl,historias:placa.historiasUrl,feedNombre:placa.feedNombre,historiasNombre:placa.historiasNombre});setVista('placa');
   }catch(e){setError(e.message);}finally{setBusy(false);}}
   async function generarTexto(){setBusy(true);setError('');try{
-    const placa=await api.generarRecomendaciones({texto:recomendaciones,fondo});
+    const placa=await api.generarRecomendaciones({texto:recomendaciones,fondo,titulo,imagen:imagenRecomendaciones});
     setImagenesRecomendaciones({feed:placa.feedUrl,historias:placa.historiasUrl,feedNombre:placa.feedNombre,historiasNombre:placa.historiasNombre});setVista('recomendaciones');
   }catch(e){setError(e.message);}finally{setBusy(false);}}
+  async function cargarImagen(event) {
+    const archivo=event.target.files?.[0];
+    if(!archivo)return;
+    setError('');
+    if(!['image/png','image/jpeg','image/webp'].includes(archivo.type)||archivo.size>5*1024*1024){
+      setError('Elegí una imagen PNG, JPG o WebP de hasta 5 MB.');event.target.value='';return;
+    }
+    setBusy(true);
+    try {
+      const data=await new Promise((resolve,reject)=>{
+        const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('No se pudo leer la imagen.'));reader.readAsDataURL(archivo);
+      });
+      const img=new Image();img.src=data;await img.decode();
+      if(img.naturalWidth*img.naturalHeight>25000000)throw new Error('La imagen supera los 25 megapíxeles. Elegí una más pequeña.');
+      setImagenRecomendaciones(data);setImagenesRecomendaciones(null);
+    }catch(e){setError(e.message||'No se pudo leer la imagen.');if(imagenRef.current)imagenRef.current.value='';}
+    finally{setBusy(false);}
+  }
   function insertarIcono(icono){
     const campo=textoRef.current, inicio=campo?.selectionStart??recomendaciones.length, fin=campo?.selectionEnd??inicio;
     const nuevo=recomendaciones.slice(0,inicio)+icono+recomendaciones.slice(fin);
@@ -67,9 +88,10 @@ export default function AlertasMeteorologicasPage() {
             <button type="button" disabled={busy} onClick={()=>quitarIcono(elegido.id)} title="Quitar icono">×</button>
           </div>;})}
         </div>
+        <label className="field"><span>Título de las placas</span><input value={titulo} maxLength={60} disabled={busy} placeholder="Ej.: Aviso" onChange={e=>{setTitulo(e.target.value);setImagenes(null);setImagenesRecomendaciones(null);}}/><small>Se aplica a la placa del mapa y a las recomendaciones.</small></label>
         <label className="field"><span>Período de la placa</span><textarea value={periodo} rows={3} maxLength={140} disabled={busy} onChange={e=>{setPeriodo(e.target.value);setImagenes(null);}}/></label>
         <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={e=>{setFondo(e.target.value);setImagenes(null);setImagenesRecomendaciones(null);}}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
-        <button className="btn btn--primary btn--block" disabled={busy||!periodo.trim()} onClick={generar}>{busy?'Procesando…':'Generar placa para redes'}</button>
+        <button className="btn btn--primary btn--block" disabled={busy||!periodo.trim()||!titulo.trim()} onClick={generar}>{busy?'Procesando…':'Generar placa para redes'}</button>
         {imagenes&&<div className="meteo-downloads">
           {/* Las imágenes ahora viven en el bucket de Storage (otro origen) — el
               atributo `download` del <a> no fuerza la descarga en cross-origin;
@@ -79,13 +101,15 @@ export default function AlertasMeteorologicasPage() {
         </div>}
         <section className="meteo-recomendaciones" aria-labelledby="recomendaciones-titulo">
           <h2 id="recomendaciones-titulo">Recomendaciones <small>Opcional</small></h2>
-          <p>Solo texto sobre el fondo elegido: {fondo==='tormenta'?'Tormenta':'Nubes'}. Podés pegar emojis y usar Enter para separar párrafos.</p>
+          <p>Texto e imagen opcional sobre el fondo elegido: {fondo==='tormenta'?'Tormenta':'Nubes'}. Podés pegar emojis y usar Enter para separar párrafos.</p>
           <label className="field"><span>Texto de recomendaciones</span><textarea ref={textoRef} value={recomendaciones} rows={12} maxLength={2400} disabled={busy} placeholder="Escribí aquí las recomendaciones para la población…" onChange={e=>{setRecomendaciones(e.target.value);setImagenesRecomendaciones(null);}}/></label>
+          <label className="field"><span>Imagen para las recomendaciones (opcional)</span><input ref={imagenRef} type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={cargarImagen}/><small>PNG, JPG o WebP, hasta 5 MB y 25 megapíxeles. Se coloca arriba del texto sin recortarla.</small></label>
+          {imagenRecomendaciones&&<div className="meteo-imagen-preview"><img src={imagenRecomendaciones} alt="Imagen elegida para las recomendaciones"/><button className="btn" type="button" disabled={busy} onClick={()=>{setImagenRecomendaciones(null);setImagenesRecomendaciones(null);if(imagenRef.current)imagenRef.current.value='';}}>Quitar imagen</button></div>}
           <div className="meteo-emojis" role="group" aria-label="Insertar icono en el texto">
             {[['⚠️','Advertencia'],['⛈️','Tormenta'],['🌧️','Lluvia'],['💨','Viento'],['🏠','Casa'],['🚫','Prohibido'],['✅','Recomendación'],['📞','Teléfono'],['🔌','Electricidad']].map(([icono,nombre])=><button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={()=>insertarIcono(icono)}>{icono}</button>)}
           </div>
           <p className="meteo-count">{recomendaciones.length}/2400 caracteres</p>
-          <button type="button" className="btn btn--primary btn--block" disabled={busy||!recomendaciones.trim()} onClick={generarTexto}>{busy?'Procesando…':'Generar placa de recomendaciones'}</button>
+          <button type="button" className="btn btn--primary btn--block" disabled={busy||!recomendaciones.trim()||!titulo.trim()} onClick={generarTexto}>{busy?'Procesando…':'Generar placa de recomendaciones'}</button>
           {imagenesRecomendaciones&&<div className="meteo-downloads">
             <a className="btn" href={`${imagenesRecomendaciones.feed}?download=${encodeURIComponent(imagenesRecomendaciones.feedNombre)}`}>Descargar recomendaciones feed</a>
             <a className="btn" href={`${imagenesRecomendaciones.historias}?download=${encodeURIComponent(imagenesRecomendaciones.historiasNombre)}`}>Descargar recomendaciones historias</a>

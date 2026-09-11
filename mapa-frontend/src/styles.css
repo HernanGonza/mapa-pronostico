@@ -907,3 +907,6 @@ input[type="file"] {
 .meteo-emojis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .meteo-emojis .btn { padding: 8px 12px; font-size: 20px; }
 .meteo-count { font-size: 12px; text-align: right; }
+
+.meteo-imagen-preview { display: grid; gap: 10px; margin-block: 12px; }
+.meteo-imagen-preview img { display: block; width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; background: #e9eeeb; }

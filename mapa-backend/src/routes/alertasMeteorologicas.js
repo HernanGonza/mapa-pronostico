@@ -20,32 +20,38 @@ router.post('/alertas-meteorologicas/publicar',requireAuth,express.json(),async(
 // registro de "se generó una placa"). Sube las dos al bucket de Storage
 // y graba quién/cuándo/con qué parámetros en alertas_meteo_placas.
 router.post('/alertas-meteorologicas/placa',requireAuth,express.json(),async(req,res)=>{
-  const {zonas,periodo,fondo,iconos:iconosElegidos=[]}=req.body||{};
-  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos);
+  const {zonas,periodo,fondo,titulo,iconos:iconosElegidos=[]}=req.body||{};
+  const { errorDeTitulo, TITULO_PREDETERMINADO } = require('../lib/generateAlertaMap');
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTitulo(titulo === undefined ? TITULO_PREDETERMINADO : titulo);
   if(error||typeof periodo!=='string'||!periodo.trim()||periodo.length>140||!['tormenta','nubes'].includes(fondo))return res.status(400).json({error:error||'Revisá período y fondo.'});
   try {
     const {generateAlertaMap}=require('../lib/generateAlertaMap');
     const zonasNorm=normalizarZonas(zonas),iconosNorm=normalizarIconos(iconosElegidos);
     const [feedPng,historiasPng]=await Promise.all([
-      generateAlertaMap({zonas:zonasNorm,periodo,fondo,tamano:'feed',iconos:iconosNorm}),
-      generateAlertaMap({zonas:zonasNorm,periodo,fondo,tamano:'historias',iconos:iconosNorm}),
+      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'feed',iconos:iconosNorm}),
+      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'historias',iconos:iconosNorm}),
     ]);
     const placa=await placas.crear({zonas:zonasNorm,iconos:iconosNorm,periodo,fondo,usuarioId:req.usuario.usuarioId,feedPng,historiasPng});
     res.set('Cache-Control','no-store').json(placa);
   }catch(e){console.error(e);res.status(500).json({error:'No se pudo generar la placa.'});}
 });
-router.post('/alertas-meteorologicas/recomendaciones',requireAuth,express.json(),async(req,res)=>{
-  const { texto, fondo } = req.body || {};
+router.post('/alertas-meteorologicas/recomendaciones',requireAuth,express.json({limit:'8mb'}),async(req,res)=>{
+  const { texto, fondo, imagen, titulo } = req.body || {};
   const { generateRecomendaciones, errorDeRecomendaciones } = require('../lib/generateAlertaMap');
-  const error = errorDeRecomendaciones(texto, fondo);
+  const error = errorDeRecomendaciones(texto, fondo, imagen, titulo);
   if (error) return res.status(400).json({ error });
   try {
-    const feedPng = await generateRecomendaciones({ texto, fondo, tamano: 'feed' });
-    const historiasPng = await generateRecomendaciones({ texto, fondo, tamano: 'historias' });
+    const feedPng = await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'feed' });
+    const historiasPng = await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'historias' });
     res.set('Cache-Control','no-store').json(await placas.crearRecomendaciones({ feedPng, historiasPng, fondo }));
   } catch (e) {
     console.error(e);
-    res.status(e.status === 400 ? 400 : 500).json({ error: e.status === 400 ? e.message : 'No se pudieron generar las recomendaciones.' });
+    res.status([400,503].includes(e.status) ? e.status : 500).json({ error: [400,503].includes(e.status) ? e.message : 'No se pudieron generar o guardar las recomendaciones. Revisá el registro del backend.' });
   }
+});
+router.use((err,req,res,next)=>{
+  if(err.type==='entity.too.large')return res.status(413).json({error:'La imagen es demasiado grande. El máximo es 5 MB.'});
+  if(err.type==='entity.parse.failed')return res.status(400).json({error:'El contenido enviado no es válido.'});
+  next(err);
 });
 module.exports=router;
