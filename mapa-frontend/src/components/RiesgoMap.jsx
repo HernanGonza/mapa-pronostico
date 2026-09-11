@@ -10,13 +10,30 @@ export function LeyendaRiesgo({ categorias, titulo = "Riesgo de incendios forest
     <small>Clasificación por departamento · Ministerio de Ecología y RNR</small>
   </div>;
 }
-const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicadoEn, titulo, ...props }, ref) {
+function LeyendaFenomenos({ iconos, catalogo }) {
+  const seleccionados = iconos.flatMap(elegido => {
+    const icono = catalogo.iconos?.find(i => i.id === elegido.id);
+    const categoria = catalogo.categorias.find(c => c.nombre === elegido.categoria);
+    return icono && categoria ? [{ ...icono, categoria }] : [];
+  });
+  if (!seleccionados.length) return null;
+  return <div className="risk-legend weather-legend">
+    <strong>Fenómenos meteorológicos</strong>
+    <ul>{seleccionados.map(icono => <li key={icono.id}>
+      <span className="weather-legend__icon" aria-hidden="true"><img src={`/iconos/alertas/${icono.id}.png`} alt="" /></span>
+      <span className="weather-legend__label" style={{ borderBottomColor: icono.categoria.color }}>
+        {icono.nombre}<span className="weather-legend__level"> · {icono.categoria.nombre}</span>
+      </span>
+    </li>)}</ul>
+  </div>;
+}
+const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicadoEn, titulo, iconos = [], ...props }, ref) {
   const nombreMapa = titulo || (catalogo.categorias.some(c => c.nombre === "Naranja") ? "Alertas meteorológicas" : "Riesgo de incendios forestales");
   const colorDe = useCallback(d => catalogo.categorias.find(c => c.nombre === d?.categoria)?.color, [catalogo]);
   const datos = catalogo.departamentos.map(d => ({ ...d, ...zonas.find(z => String(z.id) === String(d.id)) }));
   return <BaseMap ref={ref} poligonos={geo} datos={datos} colorDe={colorDe}
     titulo={nombreMapa} publicadoEn={publicadoEn}
-    leyenda={<LeyendaRiesgo categorias={catalogo.categorias} titulo={nombreMapa} />}
+    leyenda={<div className="risk-legends"><LeyendaRiesgo categorias={catalogo.categorias} titulo={nombreMapa} /><LeyendaFenomenos iconos={iconos} catalogo={catalogo} /></div>}
     renderInfo={(d, { onCerrar }) => <div className="municipio-popover" role="dialog" aria-label={d.nombre}>
       <button className="municipio-popover__close" onClick={onCerrar} aria-label="Cerrar">✕</button>
       <h3>{d.nombre}</h3><p className="risk-category"><i style={{ background: colorDe(d) || "#d5dbd5" }} />{d.categoria || "Sin asignar"}</p>

@@ -109,7 +109,7 @@ export default function AlertasMeteorologicasPage() {
         {vista!=='manual'?imagenesVista?<div style={{display:'flex',gap:16,height:'100%',padding:16,boxSizing:'border-box'}}>
           <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Feed</figcaption><img src={imagenesVista.feed} alt={`Vista previa de ${vista} (feed)`} style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
           <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Historias</figcaption><img src={imagenesVista.historias} alt={`Vista previa de ${vista} (historias)`} style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
-        </div>:<div className="admin-map-area__vacio">{vista==='recomendaciones'?'Escribí el texto y presioná «Generar placa de recomendaciones».':'Elegí colores e iconos y presioná «Generar placa para redes». '}</div>:catalogo&&geo?<RiesgoMap geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={publicado?.publicadoEn}/>:<div className="admin-map-area__vacio">Preparando mapa…</div>}
+        </div>:<div className="admin-map-area__vacio">{vista==='recomendaciones'?'Escribí el texto y presioná «Generar placa de recomendaciones».':'Elegí colores e iconos y presioná «Generar placa para redes». '}</div>:catalogo&&geo?<RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={publicado?.publicadoEn}/>:<div className="admin-map-area__vacio">Preparando mapa…</div>}
       </div>
     </div>
   </div>;
