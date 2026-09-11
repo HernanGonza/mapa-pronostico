@@ -7,8 +7,7 @@ import {
 } from "react";
 import maplibregl from "maplibre-gl";
 import { soportaWebGL } from "../lib/soportaWebGL";
-import { BASEMAP_STYLES } from "./BaseMap";
-import { prepararEstilo } from "../lib/mapStyle";
+import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -101,7 +100,7 @@ const PointsMap = forwardRef(function PointsMap(
       if (!/40\d|Failed to fetch|AbortError/.test(msg)) console.warn("[PointsMap] error:", msg);
     });
     // Usa la misma cartografía base que pronóstico y riesgo.
-    map.setStyle(BASEMAP_STYLES.positron, { transformStyle: prepararEstilo });
+    map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
 
     mapRef.current = map;
     const sync = () => {

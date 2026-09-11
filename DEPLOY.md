@@ -55,7 +55,7 @@ correctamente, pero las siguientes solicitudes devuelven 401.
 1. `/health` debe devolver `{"ok":true}`.
 2. `/login`: ingresar con el operador creado.
 3. `/panel/pronostico`: cargar el DOCX, revisar, publicar y descargar PNG.
-4. `/embed`: verificar municipios, colores y fichas; cambiar Positron/Liberty.
+4. `/embed`: verificar municipios, colores y fichas sobre Positron, sin selector de tema.
 5. `/panel/riesgo-incendios`: asignar los 17 niveles, revisar y publicar.
 6. `/embed/riesgo-incendios`: comprobar el reporte público sin sesión.
 7. Descargar el PNG de riesgo y comprobar mapa, leyenda y estado publicado.
@@ -67,9 +67,8 @@ correctamente, pero las siguientes solicitudes devuelven 401.
         width="100%" height="720" style="border:0" loading="lazy"></iframe>
 ```
 
-El iframe de riesgo consulta actualizaciones cada minuto. La elección del mapa
-base se conserva en el navegador cuando el almacenamiento está disponible;
-no altera la publicación del operador.
+El iframe de riesgo consulta actualizaciones cada minuto. Todos los mapas usan
+Positron como fondo fijo, sin selector ni preferencias de tema del navegador.
 
 ## Persistencia y actualizaciones
 
@@ -92,10 +91,10 @@ iniciar sesión y no sustituye Postgres en producción.
 
 ## Mapas y exportación
 
-Los fondos Positron y Liberty se solicitan directamente a OpenFreeMap mediante
+El fondo Positron se solicita directamente a OpenFreeMap mediante
 su [integración oficial con MapLibre](https://openfreemap.org/quick_start/).
 El navegador necesita acceso a `tiles.openfreemap.org` y a los recursos indicados
-por esos estilos. No se requiere clave de API ni un servicio adicional en Compose.
+por ese estilo. No se requiere clave de API ni un servicio adicional en Compose.
 
 La integración de ECOSOTAT reproduce la asignación manual de cinco categorías
 por departamento y sus colores originales. Los IDs geográficos son los del

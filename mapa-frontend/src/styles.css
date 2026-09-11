@@ -825,7 +825,7 @@ input[type="file"] {
 }
 
 
-/* Cartografía clara: controles legibles sobre Positron y Liberty. */
+/* Cartografía clara: controles legibles sobre Positron. */
 .base-map {
   --map-panel: rgba(255, 255, 255, .96);
   --map-border: #d8e2dc;
@@ -834,14 +834,6 @@ input[type="file"] {
   background: #e9eeea;
 }
 .map-title { max-width: calc(100% - 86px); border-radius: 14px; }
-.map-style-switcher {
-  position: absolute; top: 91px; left: 16px; z-index: 4;
-  padding: 8px 12px; border: 1px solid #d8e2dc; border-radius: 10px;
-  background: rgba(255,255,255,.96); box-shadow: 0 3px 16px #16332512;
-  color: #345345; font-size: 12px;
-}
-.map-style-switcher label { display: flex; align-items: center; gap: 10px; }
-.map-style-switcher select { border: 0; background: transparent; color: #193d2c; font: inherit; font-weight: 600; padding: 5px; }
 .map-legend { position: absolute; bottom: 40px; left: 16px; right: 16px; z-index: 3; width: fit-content; max-width: calc(100% - 32px); }
 .map-key, .risk-legend { padding: 13px 16px; background: rgba(255,255,255,.96); border: 1px solid #d8e2dc; border-radius: 14px; box-shadow: 0 4px 24px #16332515; color: #193d2c; }
 .map-key strong, .risk-legend strong { display: block; font-size: 12px; margin-bottom: 10px; }
@@ -869,7 +861,7 @@ input[type="file"] {
 .risk-zone { display: grid; grid-template-columns: 1fr 142px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid #edf1ee; }
 .risk-zone > span { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #294c39; }
 .risk-zone select { width: 100%; border: 1px solid #d6e0d9; border-radius: 7px; background: #f8faf8; font: inherit; font-size: 11px; color: #294c39; padding: 8px 5px; }
-.risk-zone select:focus-visible, .map-style-switcher select:focus-visible { outline: 2px solid #3e6c51; outline-offset: 2px; }
+.risk-zone select:focus-visible { outline: 2px solid #3e6c51; outline-offset: 2px; }
 .risk-message { padding: 12px; background: #edf6ef; color: #265c36; font-size: 12px; border-radius: 9px; line-height: 1.5; }
 .risk-message--error { background: #fff0ed; color: #9e3025; }
 .risk-review { background: #f4f7f4; border: 1px solid #d8e2dc; border-radius: 12px; padding: 14px; margin-bottom: 16px; font-size: 12px; }
@@ -887,7 +879,6 @@ input[type="file"] {
   .map-title { left: 10px; top: 10px; padding: 9px 10px; }
   .map-title strong { font-size: 13px; }
   .map-title__meta { font-size: 10px; }
-  .map-style-switcher { left: 10px; top: 85px; }
   .map-legend { left: 10px; right: 10px; max-width: calc(100% - 20px); bottom: 46px; }
   .risk-legend, .map-key { padding: 10px; }
   .risk-legend small { max-width: 290px; }
@@ -897,7 +888,6 @@ input[type="file"] {
 
 .base-map .maplibregl-ctrl-attrib { background: rgba(255,255,255,.93) !important; color: #435d4d !important; font-size: 10px; }
 .base-map .maplibregl-ctrl-attrib a { color: #435d4d !important; }
-.map-style-switcher label { white-space: nowrap; }
 .meteo-layout .admin-panel > .btn { margin-block: 12px; }
 .meteo-layout .risk-review > .btn { margin-top: 12px; }
 .meteo-downloads { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }

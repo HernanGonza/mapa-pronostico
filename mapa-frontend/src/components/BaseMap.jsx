@@ -2,24 +2,15 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import maplibregl from "maplibre-gl";
 import { toPng } from "html-to-image";
 import { soportaWebGL } from "../lib/soportaWebGL";
-import { prepararEstilo } from "../lib/mapStyle";
+import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
-export const BASEMAP_STYLES = {
-  positron: "https://tiles.openfreemap.org/styles/positron",
-  liberty: "https://tiles.openfreemap.org/styles/liberty",
-};
-const STORAGE_KEY = "mapa:estiloBase";
 const SIN_DATO = "#d5dbd5";
-function estiloInicial() {
-  try { return BASEMAP_STYLES[localStorage.getItem(STORAGE_KEY)] ? localStorage.getItem(STORAGE_KEY) : "positron"; }
-  catch { return "positron"; }
-}
 
 const BaseMap = forwardRef(function BaseMap({
   poligonos, datos = [], colorDe, renderInfo, campoEtiqueta = "nombre",
   leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false,
-  mostrarSelectorEstilo = true, regionLabel = 'Misiones',
+  regionLabel = 'Misiones',
 }, ref) {
   const containerRef = useRef(null);
   const rootRef = useRef(null);
@@ -28,7 +19,6 @@ const BaseMap = forwardRef(function BaseMap({
   const fittedRef = useRef(false);
   const fitRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
-  const [estilo, setEstilo] = useState(estiloInicial);
   const [selected, setSelected] = useState(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -55,7 +45,7 @@ const BaseMap = forwardRef(function BaseMap({
       if (!map.isStyleLoaded()) return;
       const { poligonos: geo, datos: rows, colorDe: color, campoEtiqueta: label, selected: id } = actual.current;
       if (!geo) return;
-      // Color via propiedades: setData conserva los valores al cambiar de estilo.
+      // Los colores se actualizan junto con los datos de cada zona.
       const byId = new Map(rows.map(d => [String(d.id), d]));
       const painted = { ...geo, features: geo.features.map(f => ({ ...f,
         properties: { ...f.properties, color: color?.(byId.get(String(f.properties.id))) || SIN_DATO,
@@ -90,7 +80,7 @@ const BaseMap = forwardRef(function BaseMap({
     syncRef.current = sync;
     const loaded = () => { setError(""); sync(); };
     const idle = () => { setReady(!!map.getLayer("zonas-fill")); };
-    const failed = () => { setError("No se pudo cargar parte del mapa. Revisá la conexión o probá el otro estilo."); };
+    const failed = () => { setError("No se pudo cargar parte del mapa. Revisá la conexión e intentá recargar la página."); };
     map.on("style.load", loaded);
     map.on("idle", idle);
     map.on("error", failed);
@@ -103,10 +93,10 @@ const BaseMap = forwardRef(function BaseMap({
     map.on("mouseleave", "zonas-fill", () => { map.getCanvas().style.cursor = ""; });
     const ro = new ResizeObserver(() => { map.resize(); fitRef.current?.(); });
     ro.observe(containerRef.current);
-    map.setStyle(BASEMAP_STYLES[estilo], { transformStyle: prepararEstilo });
+    map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
     if (import.meta.env.DEV) window.__map = map;
     return () => { ro.disconnect(); syncRef.current = null; mapRef.current = null; fittedRef.current = false; fitRef.current = null; map.remove(); };
-    // El mapa vive durante el montaje; datos y estilo se sincronizan por separado.
+    // El mapa vive durante el montaje; los datos se sincronizan por separado.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -117,12 +107,6 @@ const BaseMap = forwardRef(function BaseMap({
     else map?.once("idle", sync);
     return () => { map?.off("idle", sync); };
   }, [poligonos, datos, colorDe, campoEtiqueta, selected]);
-
-  function cambiarEstilo(value) {
-    setEstilo(value); setReady(false); setError("");
-    try { localStorage.setItem(STORAGE_KEY, value); } catch { /* iframe sin storage */ }
-    mapRef.current?.setStyle(BASEMAP_STYLES[value], { diff: false, transformStyle: prepararEstilo });
-  }
 
   async function esperarMapa() {
     const map = mapRef.current;
@@ -153,9 +137,6 @@ const BaseMap = forwardRef(function BaseMap({
     <div ref={containerRef} className="base-map__canvas-container" />
     {titulo && <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
       <div><strong>{titulo}</strong><span className="map-title__meta">{regionLabel} · {publicadoEn ? `Publicado ${tiempoRelativo(publicadoEn)} · ${fechaPronostico || fechaLarga(publicadoEn)}` : "Vista previa · sin publicar"}</span></div></div>}
-    {mostrarSelectorEstilo && <div className="map-style-switcher" data-capture-ignore>
-      <label>Mapa base <select value={estilo} onChange={e => cambiarEstilo(e.target.value)}><option value="positron">Positron · claro</option><option value="liberty">Liberty · color</option></select></label>
-    </div>}
     {(!ready || error) && <div className="map-status" role="status" data-capture-ignore>{error || "Cargando mapa…"}</div>}
     {activo && renderInfo && <div className="map-info" data-capture-ignore>{renderInfo(activo, { onCerrar: () => setSelected(null) })}</div>}
     {leyenda && <div className="map-legend">{leyenda}</div>}
