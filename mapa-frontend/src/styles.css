@@ -898,3 +898,14 @@ input[type="file"] {
 .base-map .maplibregl-ctrl-attrib { background: rgba(255,255,255,.93) !important; color: #435d4d !important; font-size: 10px; }
 .base-map .maplibregl-ctrl-attrib a { color: #435d4d !important; }
 .map-style-switcher label { white-space: nowrap; }
+.meteo-layout .admin-panel > .btn { margin-block: 12px; }
+.meteo-layout .risk-review > .btn { margin-top: 12px; }
+.meteo-downloads { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
+.meteo-downloads > .btn { flex: 1 1 150px; width: auto; white-space: normal; text-align: center; }
+.meteo-recomendaciones { border-block: 1px solid #d8e2dc; padding-block: 20px; margin-block: 20px; }
+.meteo-recomendaciones h2 { font-size: 18px; margin: 0 0 12px; }
+.meteo-recomendaciones h2 small { font-size: 12px; font-weight: normal; }
+.meteo-recomendaciones textarea { width: 100%; resize: vertical; box-sizing: border-box; line-height: 1.5; }
+.meteo-emojis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.meteo-emojis .btn { padding: 8px 12px; font-size: 20px; }
+.meteo-count { font-size: 12px; text-align: right; }

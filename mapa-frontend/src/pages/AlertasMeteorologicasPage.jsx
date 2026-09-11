@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BrandHeader from '../components/BrandHeader';
 import EmbedShare from '../components/EmbedShare';
@@ -10,6 +10,8 @@ export default function AlertasMeteorologicasPage() {
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[periodo,setPeriodo]=useState('Próximas 24 horas'),[fondo,setFondo]=useState('tormenta');
   const [iconos,setIconos]=useState([]),[imagenes,setImagenes]=useState(null),[vista,setVista]=useState('manual');
   const [confirmando,setConfirmando]=useState(false),[mensaje,setMensaje]=useState('');
+  const [recomendaciones,setRecomendaciones]=useState(''),[imagenesRecomendaciones,setImagenesRecomendaciones]=useState(null);
+  const textoRef=useRef(null);
   useEffect(()=>{
     let alive=true;
     Promise.all([api.getAlertasMeteorologicasCatalogo(),api.getAlertasMeteorologicasGeojson(),api.getAlertasMeteorologicasActual()]).then(([c,g,p])=>{
@@ -26,12 +28,24 @@ export default function AlertasMeteorologicasPage() {
   async function guardar(){setBusy(true);setError('');try{setPublicado(await api.publicarAlertasMeteorologicas(zonas,iconos));setConfirmando(false);setMensaje('Publicado. El mapa público ya muestra este mapa.');}catch(e){setError(e.message);}finally{setBusy(false);}}
   async function generar(){setBusy(true);setError('');try{
     const placa=await api.generarPlaca({zonas,periodo,fondo,iconos});
-    setImagenes({feed:placa.feedUrl,historias:placa.historiasUrl});setVista('placa');
+    setImagenes({feed:placa.feedUrl,historias:placa.historiasUrl,feedNombre:placa.feedNombre,historiasNombre:placa.historiasNombre});setVista('placa');
   }catch(e){setError(e.message);}finally{setBusy(false);}}
+  async function generarTexto(){setBusy(true);setError('');try{
+    const placa=await api.generarRecomendaciones({texto:recomendaciones,fondo});
+    setImagenesRecomendaciones({feed:placa.feedUrl,historias:placa.historiasUrl,feedNombre:placa.feedNombre,historiasNombre:placa.historiasNombre});setVista('recomendaciones');
+  }catch(e){setError(e.message);}finally{setBusy(false);}}
+  function insertarIcono(icono){
+    const campo=textoRef.current, inicio=campo?.selectionStart??recomendaciones.length, fin=campo?.selectionEnd??inicio;
+    const nuevo=recomendaciones.slice(0,inicio)+icono+recomendaciones.slice(fin);
+    if(nuevo.length>2400)return;
+    setRecomendaciones(nuevo);setImagenesRecomendaciones(null);
+    requestAnimationFrame(()=>{campo?.focus();campo?.setSelectionRange(inicio+icono.length,inicio+icono.length);});
+  }
+  const imagenesVista=vista==='recomendaciones'?imagenesRecomendaciones:imagenes;
   const zonasCambiadas=zonas.filter(z=>z.categoria!==(publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'));
   const iconosCambiaron=JSON.stringify(iconos)!==JSON.stringify(publicado?.iconos||[]);
   const cambios=zonasCambiadas.length>0||iconosCambiaron;
-  return <div className="admin-layout risk-layout">
+  return <div className="admin-layout risk-layout meteo-layout">
     <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel" className="btn-link">← Panel</Link></BrandHeader>
     <section className="admin-panel">
       <div className="editor-heading"><span className="editor-eyebrow">MAPA Y PLACA PARA REDES</span><h1>Alertas meteorológicas</h1><p>Asigná el color y uno o varios fenómenos a cada departamento.</p></div>
@@ -54,15 +68,29 @@ export default function AlertasMeteorologicasPage() {
           </div>;})}
         </div>
         <label className="field"><span>Período de la placa</span><textarea value={periodo} rows={3} maxLength={140} disabled={busy} onChange={e=>{setPeriodo(e.target.value);setImagenes(null);}}/></label>
-        <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={e=>{setFondo(e.target.value);setImagenes(null);}}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
+        <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={e=>{setFondo(e.target.value);setImagenes(null);setImagenesRecomendaciones(null);}}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
         <button className="btn btn--primary btn--block" disabled={busy||!periodo.trim()} onClick={generar}>{busy?'Procesando…':'Generar placa para redes'}</button>
-        {imagenes&&<div style={{display:'flex',gap:8}}>
+        {imagenes&&<div className="meteo-downloads">
           {/* Las imágenes ahora viven en el bucket de Storage (otro origen) — el
               atributo `download` del <a> no fuerza la descarga en cross-origin;
               Supabase Storage sí soporta el query param `?download=` para eso. */}
-          <a className="btn btn--block" href={`${imagenes.feed}?download=alerta-meteorologica-feed.png`}>Descargar feed</a>
-          <a className="btn btn--block" href={`${imagenes.historias}?download=alerta-meteorologica-historias.png`}>Descargar historias</a>
+          <a className="btn btn--block" href={`${imagenes.feed}?download=${encodeURIComponent(imagenes.feedNombre)}`}>Descargar feed</a>
+          <a className="btn btn--block" href={`${imagenes.historias}?download=${encodeURIComponent(imagenes.historiasNombre)}`}>Descargar historias</a>
         </div>}
+        <section className="meteo-recomendaciones" aria-labelledby="recomendaciones-titulo">
+          <h2 id="recomendaciones-titulo">Recomendaciones <small>Opcional</small></h2>
+          <p>Solo texto sobre el fondo elegido: {fondo==='tormenta'?'Tormenta':'Nubes'}. Podés pegar emojis y usar Enter para separar párrafos.</p>
+          <label className="field"><span>Texto de recomendaciones</span><textarea ref={textoRef} value={recomendaciones} rows={12} maxLength={2400} disabled={busy} placeholder="Escribí aquí las recomendaciones para la población…" onChange={e=>{setRecomendaciones(e.target.value);setImagenesRecomendaciones(null);}}/></label>
+          <div className="meteo-emojis" role="group" aria-label="Insertar icono en el texto">
+            {[['⚠️','Advertencia'],['⛈️','Tormenta'],['🌧️','Lluvia'],['💨','Viento'],['🏠','Casa'],['🚫','Prohibido'],['✅','Recomendación'],['📞','Teléfono'],['🔌','Electricidad']].map(([icono,nombre])=><button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={()=>insertarIcono(icono)}>{icono}</button>)}
+          </div>
+          <p className="meteo-count">{recomendaciones.length}/2400 caracteres</p>
+          <button type="button" className="btn btn--primary btn--block" disabled={busy||!recomendaciones.trim()} onClick={generarTexto}>{busy?'Procesando…':'Generar placa de recomendaciones'}</button>
+          {imagenesRecomendaciones&&<div className="meteo-downloads">
+            <a className="btn" href={`${imagenesRecomendaciones.feed}?download=${encodeURIComponent(imagenesRecomendaciones.feedNombre)}`}>Descargar recomendaciones feed</a>
+            <a className="btn" href={`${imagenesRecomendaciones.historias}?download=${encodeURIComponent(imagenesRecomendaciones.historiasNombre)}`}>Descargar recomendaciones historias</a>
+          </div>}
+        </section>
         {confirmando&&<div className="risk-review"><h2>Revisar publicación</h2>
           {zonasCambiadas.length>0&&<><p>Se actualizarán {zonasCambiadas.length} departamentos en el mapa público.</p>
             <ul>{zonasCambiadas.map(z=><li key={z.id}><b>{catalogo.departamentos.find(d=>String(d.id)===String(z.id))?.nombre}</b>: {publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'} → {z.categoria}</li>)}</ul></>}
@@ -76,12 +104,12 @@ export default function AlertasMeteorologicasPage() {
       </>}
     </section>
     <div className="admin-map-area" style={{display:'flex',flexDirection:'column'}}>
-      <div style={{padding:10,display:'flex',gap:10,background:'#fff'}}>{[['manual','Mapa manual'],['placa','Placa para redes']].map(([id,label])=><button key={id} className="btn" onClick={()=>setVista(id)} disabled={vista===id}>{label}</button>)}</div>
+      <div style={{padding:10,display:'flex',flexWrap:'wrap',gap:10,background:'#fff'}}>{[['manual','Mapa manual'],['placa','Placa para redes'],['recomendaciones','Recomendaciones']].map(([id,label])=><button key={id} className="btn" onClick={()=>setVista(id)} disabled={vista===id}>{label}</button>)}</div>
       <div style={{flex:1,minHeight:0,overflow:vista==='manual'?'hidden':'auto'}}>
-        {vista==='placa'?imagenes?<div style={{display:'flex',gap:16,height:'100%',padding:16,boxSizing:'border-box'}}>
-          <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Feed</figcaption><img src={imagenes.feed} alt="Vista previa de la placa meteorológica (feed)" style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
-          <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Historias</figcaption><img src={imagenes.historias} alt="Vista previa de la placa meteorológica (historias)" style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
-        </div>:<div className="admin-map-area__vacio">Elegí colores e iconos y presioná «Generar placa para redes».</div>:catalogo&&geo?<RiesgoMap geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={publicado?.publicadoEn}/>:<div className="admin-map-area__vacio">Preparando mapa…</div>}
+        {vista!=='manual'?imagenesVista?<div style={{display:'flex',gap:16,height:'100%',padding:16,boxSizing:'border-box'}}>
+          <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Feed</figcaption><img src={imagenesVista.feed} alt={`Vista previa de ${vista} (feed)`} style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
+          <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Historias</figcaption><img src={imagenesVista.historias} alt={`Vista previa de ${vista} (historias)`} style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
+        </div>:<div className="admin-map-area__vacio">{vista==='recomendaciones'?'Escribí el texto y presioná «Generar placa de recomendaciones».':'Elegí colores e iconos y presioná «Generar placa para redes». '}</div>:catalogo&&geo?<RiesgoMap geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={publicado?.publicadoEn}/>:<div className="admin-map-area__vacio">Preparando mapa…</div>}
       </div>
     </div>
   </div>;

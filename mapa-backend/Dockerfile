@@ -24,7 +24,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libjpeg62-turbo libgif7 \
       librsvg2-2 \
-      chromium fonts-liberation \
+      chromium fonts-liberation fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app /app

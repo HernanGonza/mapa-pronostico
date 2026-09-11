@@ -236,6 +236,12 @@ export async function publicarAlertasMeteorologicas(zonas,iconos){return handleJ
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }
+export async function generarRecomendaciones(payload) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/recomendaciones`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload), ...CON_SESION,
+  }));
+}
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }
 export async function getSmnApiAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn-api`, { cache: 'no-store' })); }

@@ -53,13 +53,22 @@ function baseRuta() {
   return `placas/${stamp}-${crypto.randomBytes(3).toString("hex")}`;
 }
 
+function nombresArchivos(tipo, fondo) {
+  const fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  return {
+    feedNombre: `${tipo}-feed-${fondo}-${fecha}.png`,
+    historiasNombre: `${tipo}-historias-${fondo}-${fecha}.png`,
+  };
+}
+
 /** Sube feed + historias al bucket y graba la fila. Sin DATABASE_URL no
  * hay dónde grabar autoría/histórico — igual sube las imágenes y
  * devuelve sus URLs, para no perder la función en desarrollo local. */
 async function crear({ zonas, iconos, periodo, fondo, usuarioId = null, feedPng, historiasPng }) {
   const base = baseRuta();
-  const feedPath = `${base}/feed.png`;
-  const historiasPath = `${base}/historias.png`;
+  const nombres = nombresArchivos('alerta-meteorologica', fondo);
+  const feedPath = `${base}/${nombres.feedNombre}`;
+  const historiasPath = `${base}/${nombres.historiasNombre}`;
   await Promise.all([subirArchivo(feedPath, feedPng), subirArchivo(historiasPath, historiasPng)]);
 
   await init();
@@ -73,6 +82,7 @@ async function crear({ zonas, iconos, periodo, fondo, usuarioId = null, feedPng,
     );
     return {
       id: Number(rows[0].id),
+      ...nombres,
       generadoEn: rows[0].generado_en.toISOString(),
       feedUrl: urlPublica(feedPath),
       historiasUrl: urlPublica(historiasPath),
@@ -80,10 +90,20 @@ async function crear({ zonas, iconos, periodo, fondo, usuarioId = null, feedPng,
   }
   return {
     id: null,
+    ...nombres,
     generadoEn: new Date().toISOString(),
     feedUrl: urlPublica(feedPath),
     historiasUrl: urlPublica(historiasPath),
   };
 }
 
-module.exports = { init, crear };
+// Placa opcional de texto: conserva las imágenes sin publicar el mapa.
+async function crearRecomendaciones({ feedPng, historiasPng, fondo }) {
+  const base = `${baseRuta()}/recomendaciones`;
+  const nombres = nombresArchivos('recomendaciones', fondo);
+  const feedPath = `${base}/${nombres.feedNombre}`, historiasPath = `${base}/${nombres.historiasNombre}`;
+  await Promise.all([subirArchivo(feedPath, feedPng), subirArchivo(historiasPath, historiasPng)]);
+  return { ...nombres, feedUrl: urlPublica(feedPath), historiasUrl: urlPublica(historiasPath) };
+}
+
+module.exports = { init, crear, crearRecomendaciones };

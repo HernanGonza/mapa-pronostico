@@ -199,4 +199,48 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   });
   return canvas.toBuffer('image/png');
 }
-module.exports={generateAlertaMap,TAMANOS};
+const MAX_RECOMENDACIONES = 2400;
+function errorDeRecomendaciones(texto, fondo) {
+  if (typeof texto !== 'string' || !texto.trim() || texto.length > MAX_RECOMENDACIONES)
+    return `Escribí las recomendaciones (hasta ${MAX_RECOMENDACIONES} caracteres).`;
+  if (!Object.hasOwn(FONDOS, fondo)) return 'Elegí un fondo válido.';
+  return null;
+}
+
+async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'feed' }) {
+  const error = errorDeRecomendaciones(texto, fondo);
+  if (error || !TAMANOS.includes(tamano)) throw Object.assign(new Error(error || 'Tamaño inválido.'), { status: 400 });
+  const puppeteer = require('puppeteer-core');
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || ['/usr/bin/chromium', '/usr/bin/google-chrome'].find(p => fs.existsSync(p));
+  const browser = await puppeteer.launch({ executablePath, headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
+  try {
+    const page = await browser.newPage();
+    const height = tamano === 'feed' ? 2813 : 4000;
+    await page.setViewport({ width: 2250, height, deviceScaleFactor: 1 });
+    const font = fs.readFileSync(path.join(DIR, 'OakSans-Regular.ttf')).toString('base64');
+    const bg = fs.readFileSync(path.join(PLACAS_DIR, FONDOS[fondo][tamano])).toString('base64');
+    const top = tamano === 'feed' ? 520 : 760;
+    const bottom = tamano === 'feed' ? 2200 : 3200;
+    await page.setContent(`<style>
+      @font-face { font-family: OakPlaca; src: url(data:font/ttf;base64,${font}); }
+      * { box-sizing: border-box; } html, body { margin: 0; width: 2250px; height: ${height}px; overflow: hidden; }
+      body { background: url(data:image/png;base64,${bg}) center / 100% 100% no-repeat; }
+      #area { position: absolute; left: 190px; right: 190px; top: ${top}px; height: ${bottom-top}px; display: flex; align-items: center; }
+      #texto { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; font: 88px/1.4 OakPlaca, "Noto Color Emoji", sans-serif; color: white; text-shadow: 0 3px 8px rgba(0,0,0,.85); }
+      </style><div id="area"><div id="texto"></div></div>`);
+    const fits = await page.evaluate(async texto => {
+      const element = document.getElementById('texto');
+      element.textContent = texto.trim();
+      await document.fonts.ready;
+      for (let size = 88; size >= 44; size -= 2) {
+        element.style.fontSize = `${size}px`;
+        if (element.getBoundingClientRect().height <= document.getElementById('area').clientHeight) return true;
+      }
+      return false;
+    }, texto);
+    if (!fits) throw Object.assign(new Error('El texto no entra en la placa. Acortalo o reducí los saltos de línea.'), { status: 400 });
+    return Buffer.from(await page.screenshot({ type: 'png' }));
+  } finally { await browser.close(); }
+}
+
+module.exports={generateAlertaMap,generateRecomendaciones,errorDeRecomendaciones,MAX_RECOMENDACIONES,TAMANOS};

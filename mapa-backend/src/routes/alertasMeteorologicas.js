@@ -34,4 +34,18 @@ router.post('/alertas-meteorologicas/placa',requireAuth,express.json(),async(req
     res.set('Cache-Control','no-store').json(placa);
   }catch(e){console.error(e);res.status(500).json({error:'No se pudo generar la placa.'});}
 });
+router.post('/alertas-meteorologicas/recomendaciones',requireAuth,express.json(),async(req,res)=>{
+  const { texto, fondo } = req.body || {};
+  const { generateRecomendaciones, errorDeRecomendaciones } = require('../lib/generateAlertaMap');
+  const error = errorDeRecomendaciones(texto, fondo);
+  if (error) return res.status(400).json({ error });
+  try {
+    const feedPng = await generateRecomendaciones({ texto, fondo, tamano: 'feed' });
+    const historiasPng = await generateRecomendaciones({ texto, fondo, tamano: 'historias' });
+    res.set('Cache-Control','no-store').json(await placas.crearRecomendaciones({ feedPng, historiasPng, fondo }));
+  } catch (e) {
+    console.error(e);
+    res.status(e.status === 400 ? 400 : 500).json({ error: e.status === 400 ? e.message : 'No se pudieron generar las recomendaciones.' });
+  }
+});
 module.exports=router;
