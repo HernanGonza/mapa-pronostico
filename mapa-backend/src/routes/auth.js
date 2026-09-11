@@ -3,6 +3,7 @@ const { parseCookie, stringifySetCookie } = require("cookie");
 const rateLimit = require("express-rate-limit");
 const auth = require("../lib/auth");
 const requireAuth = require("../middleware/requireAuth");
+const requireRole = require("../middleware/requireRole");
 
 const router = express.Router();
 
@@ -42,7 +43,7 @@ router.post("/auth/login", loginLimiter, express.json(), async (req, res) => {
     }
     const { token, expiraEn } = await auth.crearSesion(usuario.id);
     setCookieSesion(res, token, expiraEn);
-    res.json({ email: usuario.email });
+    res.json({ email: usuario.email, rol: usuario.rol, nombre: usuario.nombre });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "No se pudo iniciar sesión" });
@@ -66,7 +67,77 @@ router.post("/auth/logout", async (req, res) => {
 });
 
 router.get("/auth/me", requireAuth, (req, res) => {
-  res.json({ email: req.usuario.email });
+  res.json({ email: req.usuario.email, rol: req.usuario.rol, nombre: req.usuario.nombre });
 });
+
+// --- Usuarios (alta desde el panel — no hay registro público) -------------
+// Solo `superadmin` ve y usa esta pantalla — `admin` y `usuario` ni
+// llegan (el front la oculta, y esto la respalda del lado del servidor).
+
+router.get("/auth/usuarios", requireAuth, requireRole("superadmin"), async (req, res) => {
+  try {
+    const usuarios = await auth.listarUsuarios();
+    res.json(usuarios);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo obtener la lista de usuarios" });
+  }
+});
+
+router.post(
+  "/auth/usuarios",
+  requireAuth,
+  requireRole("superadmin"),
+  express.json(),
+  async (req, res) => {
+    const {
+      email,
+      password,
+      repetirPassword,
+      nombre,
+      apellido,
+      telefono,
+      dni,
+      puesto,
+      dependencia,
+      rol,
+    } = req.body || {};
+
+    if (!email || !password || !nombre || !apellido || !telefono || !dni || !rol) {
+      return res.status(400).json({ error: "Faltan campos obligatorios" });
+    }
+    if (password !== repetirPassword) {
+      return res.status(400).json({ error: "Las contraseñas no coinciden" });
+    }
+    if (!auth.validarPassword(password)) {
+      return res.status(400).json({ error: "La contraseña no cumple los requisitos mínimos" });
+    }
+    if (!auth.validarDni(dni)) {
+      return res.status(400).json({ error: "El DNI tiene que tener 7 u 8 dígitos, sin puntos" });
+    }
+    if (!auth.puedeCrearRol(req.usuario.rol, rol)) {
+      return res.status(403).json({ error: "No tenés permiso para crear un usuario con ese rol" });
+    }
+
+    try {
+      const usuario = await auth.crearUsuario({
+        email,
+        password,
+        nombre,
+        apellido,
+        telefono,
+        dni,
+        puesto: puesto || null,
+        dependencia: dependencia || null,
+        rol,
+      });
+      res.status(201).json(usuario);
+    } catch (err) {
+      const conocido = /Ya existe un usuario/.test(err.message);
+      if (!conocido) console.error(err);
+      res.status(conocido ? 409 : 500).json({ error: conocido ? err.message : "No se pudo crear el usuario" });
+    }
+  }
+);
 
 module.exports = router;

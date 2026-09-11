@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450.67 331.51">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #f7dc8a;
+      }
+
+      .cls-2 {
+        letter-spacing: -.06em;
+      }
+
+      .cls-3 {
+        font-family: OakSans-Bold, 'Oak Sans';
+        font-size: 38.46px;
+        font-weight: 700;
+      }
+
+      .cls-3, .cls-4, .cls-5 {
+        fill: #fff;
+      }
+
+      .cls-6 {
+        fill: #7ad5b0;
+      }
+
+      .cls-4 {
+        font-family: OakSansLight-Regular, 'Oak Sans';
+        font-size: 30.65px;
+        font-variation-settings: 'wght' 400;
+      }
+
+      .cls-7 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-8 {
+        letter-spacing: -.05em;
+      }
+
+      .cls-9 {
+        letter-spacing: 0em;
+      }
+
+      .cls-5 {
+        opacity: .12;
+        stroke: #fff;
+        stroke-miterlimit: 10;
+        stroke-width: 1.44px;
+      }
+
+      .cls-10 {
+        letter-spacing: 0em;
+      }
+
+      .cls-11 {
+        letter-spacing: 0em;
+      }
+
+      .cls-12 {
+        fill: #f4953d;
+      }
+
+      .cls-13 {
+        letter-spacing: 0em;
+      }
+
+      .cls-14 {
+        fill: #db5461;
+      }
+    </style>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g>
+      <path class="cls-5" d="M41.57.72h334.41c40.83,0,73.97,33.14,73.97,73.97v145.51c0,44.66-36.26,80.92-80.92,80.92H41.57c-22.55,0-40.85-18.3-40.85-40.85V41.57C.72,19.02,19.02.72,41.57.72Z"/>
+      <text class="cls-4" transform="translate(87.93 111.72)"><tspan class="cls-8" x="0" y="0">T</tspan><tspan x="15.48" y="0">ranquilidad</tspan><tspan x="0" y="43.79">In</tspan><tspan class="cls-10" x="25.41" y="43.79">f</tspan><tspan x="36.63" y="43.79">orma</tspan><tspan class="cls-13" x="106.48" y="43.79">t</tspan><tspan x="117.98" y="43.79">e</tspan><tspan class="cls-11" x="0" y="87.58">P</tspan><tspan x="17.62" y="87.58">repara</tspan><tspan class="cls-10" x="104.46" y="87.58">t</tspan><tspan x="115.95" y="87.58">e</tspan></text>
+      <text class="cls-4" transform="translate(87.93 238.72)"><tspan x="0" y="0">Seguí instrucciones </tspan><tspan x="0" y="32.4">oficiales</tspan></text>
+      <circle class="cls-6" cx="54.1" cy="101.78" r="17.66"/>
+      <circle class="cls-1" cx="54.1" cy="144.68" r="17.66"/>
+      <circle class="cls-12" cx="54.35" cy="187.59" r="17.66"/>
+      <circle class="cls-14" cx="54.35" cy="228.24" r="17.66"/>
+      <text class="cls-3" transform="translate(38.81 60.36)"><tspan x="0" y="0">NIVEL DE ALE</tspan><tspan class="cls-7" x="250.86" y="0">R</tspan><tspan class="cls-2" x="275.2" y="0">T</tspan><tspan class="cls-9" x="295.28" y="0">A</tspan></text>
+    </g>
+  </g>
+</svg>

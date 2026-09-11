@@ -8,7 +8,7 @@ const { loadImage } = require("canvas");
 
 const coordinates = require("../src/config/coordinates");
 const { extractDocxTables } = require("../src/lib/docxTables");
-const { generateForecastMap } = require("../src/lib/generateMap");
+const { generateForecastMap, MATERIALES_DIR } = require("../src/lib/generateMap");
 const { errorDeFilas } = require("../src/routes/pronostico");
 
 test("valida coherencia de temperaturas antes de publicar", () => {
@@ -36,7 +36,7 @@ test("fast-xml-parser 5 conserva la lectura de tablas DOCX", async () => {
   assert.deepEqual(tables, [[['LOCALIDAD'], ['POSADAS']]]);
 });
 
-test("canvas 3 genera el PNG de redes en 1280 x 1280", async () => {
+test("canvas 3 genera el PNG de redes del mismo tamaño que basemap.png", async () => {
   const outputPath = path.join(os.tmpdir(), `mapa-test-${process.pid}.png`);
   const forecastRows = coordinates.map(({ LOCALIDAD }) => ({
     LOCALIDAD,
@@ -45,10 +45,11 @@ test("canvas 3 genera el PNG de redes en 1280 x 1280", async () => {
     CONDICION: "despejado",
   }));
   try {
+    const basemap = await loadImage(path.join(MATERIALES_DIR, "basemap.png"));
     await generateForecastMap({ forecastRows, outputPath, date: new Date("2026-08-31T12:00:00-03:00") });
     const image = await loadImage(outputPath);
-    assert.equal(image.width, 1280);
-    assert.equal(image.height, 1280);
+    assert.equal(image.width, basemap.width);
+    assert.equal(image.height, basemap.height);
   } finally {
     fs.rmSync(outputPath, { force: true });
   }

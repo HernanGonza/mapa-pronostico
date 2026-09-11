@@ -161,6 +161,22 @@ export async function getSesion() {
   return handleJson(res);
 }
 
+// --- Usuarios (pantalla "Usuarios" del panel — sin alta pública) ----------
+
+export async function listarUsuariosPanel() {
+  return handleJson(await fetch(`${API_URL}/api/auth/usuarios`, CON_SESION));
+}
+
+export async function crearUsuarioPanel(datos) {
+  const res = await fetch(`${API_URL}/api/auth/usuarios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datos),
+    ...CON_SESION,
+  });
+  return handleJson(res);
+}
+
 // --- Alertas de incendio (NASA FIRMS, vía nuestro sistema de alertas) -----
 
 /** Le pide al back que traiga la última tanda de alertas y la guarde. */
@@ -216,11 +232,9 @@ export async function renderRiesgoPng(zonas, fecha) {
 export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/catalogo`);
 export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
 export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
-export async function publicarAlertasMeteorologicas(zonas){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas}),...CON_SESION}));}
-export async function renderAlertaPng(payload) {
-  const r = await fetch(`${API_URL}/api/alertas-meteorologicas/render-png`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION});
-  if (!r.ok) { const error = await r.json().catch(()=>({})); throw new Error(error.error || 'No se pudo generar la placa'); }
-  return r.blob();
+export async function publicarAlertasMeteorologicas(zonas,iconos){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos}),...CON_SESION}));}
+export async function generarPlaca(payload) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }

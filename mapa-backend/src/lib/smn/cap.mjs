@@ -8,8 +8,9 @@ export const FEEDS = {
   SAT: 'https://ssl.smn.gob.ar/feeds/CAP/rss_alertaCAP_nuevo_2026.xml',
   ACP: 'https://ssl.smn.gob.ar/feeds/CAP/avisocortoplazo/rss_acpCAP.xml',
 };
-// El endpoint oficial requiere JWT. En local se recomienda apuntar al proxy
-// OpenSMN (http://localhost:6942), que obtiene y renueva ese token.
+// El endpoint oficial requiere JWT. Por defecto se le pega directo — el
+// token lo consigue y renueva automáticamente `token.mjs` (ver
+// leerApiAlertas). SMN_API_TOKEN sigue disponible para forzar uno manual.
 export const API_ALERTAS = process.env.SMN_API_URL || 'https://ws1.smn.gob.ar/v1/warning/alert/area?mode=alert';
 export const API_AREAS = process.env.SMN_API_AREAS_URL || API_ALERTAS.replace(/\/warning\/alert\/area(?:\?.*)?$/, '/georef/area');
 export const colores = { Amarillo: '#FFCC35', Naranja: '#F67F15', Rojo: '#D62E42', ACP: '#8b3fc4' };
@@ -190,10 +191,26 @@ export async function leerFuente(fuente, download = descargar) {
 // RSS/CAP está caído. Su formato no está documentado de forma estable, por
 // eso se devuelve crudo y no se mezcla automáticamente con el histórico CAP.
 export async function leerApiAlertas(download = descargar) {
-  const token = process.env.SMN_API_TOKEN?.trim();
-  const headers = { Accept: 'application/json' };
-  if (token) headers.Authorization = token.startsWith('JWT ') ? token : `JWT ${token}`;
-  const text = await download(API_ALERTAS, { headers });
-  try { return JSON.parse(text); }
-  catch { throw new Error('SMN API: respuesta no es JSON'); }
+  const parsear = (text) => {
+    try { return JSON.parse(text); }
+    catch { throw new Error('SMN API: respuesta no es JSON'); }
+  };
+  const manual = process.env.SMN_API_TOKEN?.trim();
+  if (manual) {
+    const auth = manual.startsWith('JWT ') ? manual : `JWT ${manual}`;
+    return parsear(await download(API_ALERTAS, { headers: { Accept: 'application/json', Authorization: auth } }));
+  }
+  // Sin SMN_API_TOKEN manual: el JWT lo gestiona solo token.mjs (Chromium
+  // headless lee el localStorage de smn.gob.ar), renovándolo si vino vencido.
+  const { obtenerToken, refrescarToken } = await import('./token.mjs');
+  const pedir = (token) => download(API_ALERTAS, {
+    headers: { Accept: 'application/json', Authorization: `JWT ${token}` },
+    intentos: 1, // el reintento por token vencido se hace acá, no en descargar()
+  });
+  try {
+    return parsear(await pedir(await obtenerToken()));
+  } catch (e) {
+    if (!/SMN HTTP 401/.test(e.message)) throw e;
+    return parsear(await pedir(await refrescarToken()));
+  }
 }

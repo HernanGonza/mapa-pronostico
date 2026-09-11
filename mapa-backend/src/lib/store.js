@@ -10,7 +10,18 @@ const path = require("path");
  *   JSON en disco, sin historial.
  *
  * Todas las funciones son async.
+ *
+ * El Postgres de producción es el de Supabase self-hosted de "ecodatos"
+ * (compartido con otros servicios del Ministerio) — para no pisar sus
+ * tablas, todo lo de este proyecto vive en el schema `alerta_temprana`,
+ * propio. Cada conexión del pool fija `search_path` a ese schema (ver
+ * `crearPool` más abajo); así las `CREATE TABLE IF NOT EXISTS` sin
+ * calificar de este archivo y del resto de los módulos (auth,
+ * alertasMeteorologicasStore, etc.) quedan ahí solas, sin tocar nada de
+ * `public` ni de los demás schemas de ecodatos.
  */
+
+const DATABASE_SCHEMA = process.env.DATABASE_SCHEMA || "alerta_temprana";
 
 const STORE_PATH = path.join(
   __dirname,
@@ -42,14 +53,25 @@ async function init() {
     ssl: sslDeshabilitado ? false : { rejectUnauthorized: false },
     max: 3,
   });
+  // `options: -c search_path=...` en la connection string no siempre
+  // sobrevive a un pooler (Supavisor) entre medio — se fija a mano en
+  // cada conexión nueva del pool, que es lo que efectivamente respeta.
+  pool.on("connect", (client) => {
+    client.query(`SET search_path TO ${DATABASE_SCHEMA}, public`).catch((err) => {
+      console.error("[store] No se pudo fijar el search_path:", err.message);
+    });
+  });
   listo = pool
-    .query(
-      `CREATE TABLE IF NOT EXISTS pronosticos (
-         id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-         publicado_en timestamptz NOT NULL DEFAULT now(),
-         filas        jsonb NOT NULL,
-         fecha_pronostico date
-       )`
+    .query(`CREATE SCHEMA IF NOT EXISTS ${DATABASE_SCHEMA}`)
+    .then(() =>
+      pool.query(
+        `CREATE TABLE IF NOT EXISTS pronosticos (
+           id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+           publicado_en timestamptz NOT NULL DEFAULT now(),
+           filas        jsonb NOT NULL,
+           fecha_pronostico date
+         )`
+      )
     )
     .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS fecha_pronostico date`))
     .then(() => {

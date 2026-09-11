@@ -11,8 +11,8 @@ export default function BrandHeader({ subtitulo, children }) {
           src="/brand/ecologia-flor.png"
           alt=""
           className="brand-header__flor"
-          width={34}
-          height={34}
+          width={44}
+          height={44}
         />
         <div className="brand-header__wordmark">
           <strong>Ecología</strong>

@@ -11,6 +11,8 @@ import EmbedAlertasPage from "./pages/EmbedAlertasPage";
 import EmbedRiesgoPage from "./pages/EmbedRiesgoPage";
 import AlertasMeteorologicasPage from "./pages/AlertasMeteorologicasPage";
 import EmbedAlertasMeteorologicasPage from "./pages/EmbedAlertasMeteorologicasPage";
+import AlertasAutomaticasPage from "./pages/AlertasAutomaticasPage";
+import UsuariosPage from "./pages/UsuariosPage";
 
 export default function App() {
   return (
@@ -53,6 +55,8 @@ export default function App() {
             }
           />
           <Route path="/panel/alertas-meteorologicas" element={<RutaProtegida><AlertasMeteorologicasPage /></RutaProtegida>} />
+          <Route path="/panel/alertas-automaticas" element={<RutaProtegida><AlertasAutomaticasPage /></RutaProtegida>} />
+          <Route path="/panel/usuarios" element={<RutaProtegida><UsuariosPage /></RutaProtegida>} />
 
           {/* Esta es la ruta que va en el src del <iframe> del ministerio — pública, sin login */}
           <Route path="/embed/alertas-incendios" element={<EmbedAlertasPage />} />

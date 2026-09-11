@@ -30,10 +30,11 @@ const sep_cordy = [53, 294, 332, 520, 455, 697, 668, 704, 776, 794, 903, 1022, 1
 const img_cordx = [770, 1130, 768, 960, 665, 470, 870, 650, 590, 255, 450, 330, 515];
 const img_cordy = [0, 270, 317, 416, 395, 585, 550, 600, 770, 726, 832, 950, 935];
 
-// Puntos rojos reales impresos en basemap.png. El exportador moderno usa
+// Puntos rojos reales impresos en basemap.png (medidos sobre el PNG actual,
+// 2250x2813 — recalibrar si se reemplaza la imagen). El exportador usa
 // éstos como anclas y ubica alrededor una tarjeta sin colisiones.
-const anchorX = [806, 1159, 787, 981, 735, 559, 842, 687, 604, 310, 528, 369, 599];
-const anchorY = [57, 328, 391, 484, 460, 660, 644, 684, 848, 807, 898, 1030, 1012];
+const anchorX = [1428, 2052, 1397, 1739, 1303, 995, 1494, 1219, 1073, 556, 939, 660, 1065];
+const anchorY = [483, 961, 1071, 1234, 1193, 1547, 1517, 1588, 1878, 1805, 1964, 2196, 2167];
 
 const coordinates = LOCALIDADES.map((LOCALIDAD, i) => ({
   LOCALIDAD,

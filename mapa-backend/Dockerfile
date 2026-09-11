@@ -14,13 +14,17 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY . .
 
-# --- runtime: solo las libs compartidas que canvas necesita en ejecución ---
+# --- runtime: libs de canvas + Chromium para lib/smn/token.mjs y scrape.mjs ---
 FROM node:20-bookworm-slim
 WORKDIR /app
 
+# `chromium` de Debian trae sus propias deps de sistema (apt las resuelve
+# solo); puppeteer-core no baja ningún navegador, usa este binario vía
+# PUPPETEER_EXECUTABLE_PATH (default /usr/bin/chromium, ver .env.example).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libjpeg62-turbo libgif7 \
       librsvg2-2 \
+      chromium fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app /app

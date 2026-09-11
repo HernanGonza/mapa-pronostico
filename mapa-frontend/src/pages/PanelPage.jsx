@@ -24,10 +24,26 @@ const OPCIONES = [
     titulo: "Alertas meteorológicas",
     descripcion: "Nivel de alerta por departamento: amarillo, naranja, rojo o gris.",
   },
+  {
+    to: "/panel/alertas-automaticas",
+    titulo: "Alertas automáticas (SMN)",
+    descripcion: "Avisos del SMN por período y zona, en revisión.",
+  },
 ];
+
+const OPCION_USUARIOS = {
+  to: "/panel/usuarios",
+  titulo: "Usuarios",
+  descripcion: "Alta de usuarios del panel y roles (admin/superadmin).",
+};
 
 export default function PanelPage() {
   const { usuario, logout } = useAuth();
+  // Solo `superadmin` ve "Usuarios" — `admin` y `usuario` ven el resto de
+  // cuadros por igual (a `usuario` todavía le falta definir su propia
+  // matriz de permisos, por ahora queda igual que `admin`).
+  const opciones =
+    usuario.rol === "superadmin" ? [...OPCIONES, OPCION_USUARIOS] : OPCIONES;
 
   return (
     <div className="panel-layout">
@@ -41,7 +57,7 @@ export default function PanelPage() {
       </BrandHeader>
 
       <div className="panel-botonera">
-        {OPCIONES.map((op) => (
+        {opciones.map((op) => (
           <Link key={op.to} to={op.to} className="panel-boton">
             <h2>{op.titulo}</h2>
             <p>{op.descripcion}</p>
