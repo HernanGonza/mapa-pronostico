@@ -33,7 +33,7 @@ const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicad
   const datos = catalogo.departamentos.map(d => ({ ...d, ...zonas.find(z => String(z.id) === String(d.id)) }));
   return <BaseMap ref={ref} poligonos={geo} datos={datos} colorDe={colorDe}
     titulo={nombreMapa} publicadoEn={publicadoEn}
-    leyenda={<div className="risk-legends"><LeyendaRiesgo categorias={catalogo.categorias} titulo={nombreMapa} /><LeyendaFenomenos iconos={iconos} catalogo={catalogo} /></div>}
+    leyenda={<div className="risk-legends"><LeyendaFenomenos iconos={iconos} catalogo={catalogo} /><LeyendaRiesgo categorias={catalogo.categorias} titulo={nombreMapa} /></div>}
     renderInfo={(d, { onCerrar }) => <div className="municipio-popover" role="dialog" aria-label={d.nombre}>
       <button className="municipio-popover__close" onClick={onCerrar} aria-label="Cerrar">✕</button>
       <h3>{d.nombre}</h3><p className="risk-category"><i style={{ background: colorDe(d) || "#d5dbd5" }} />{d.categoria || "Sin asignar"}</p>
