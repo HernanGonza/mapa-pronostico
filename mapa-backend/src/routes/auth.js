@@ -23,7 +23,9 @@ function setCookieSesion(res, token, expiraEn) {
       name: auth.COOKIE_SESION,
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.SESSION_COOKIE_SECURE === "false"
+        ? false
+        : process.env.SESSION_COOKIE_SECURE === "true" || process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       expires: expiraEn,

@@ -16,6 +16,9 @@ const alertasMeteorologicasRouter = require("./routes/alertasMeteorologicas");
 const store = require("./lib/store");
 
 const app = express();
+// Compose expone únicamente Caddy; el backend recibe un salto de proxy.
+// Fuera de ese despliegue la confianza sigue desactivada por defecto.
+if (process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
 // Cabeceras de seguridad estándar (helmet), con dos excepciones a

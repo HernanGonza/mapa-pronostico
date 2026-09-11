@@ -16,7 +16,12 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     try {
-      const u = await iniciarSesion(email, password);
+      await iniciarSesion(email, password);
+      const u = await getSesion();
+      if (!u) {
+        setUsuario(null);
+        return { ok: false, error: "El navegador no pudo mantener la sesión. Verificá que las cookies estén habilitadas; si continúa, contactá al administrador." };
+      }
       setUsuario(u);
       return { ok: true };
     } catch (err) {

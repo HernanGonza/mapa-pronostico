@@ -10,6 +10,8 @@ services:
     restart: unless-stopped
     environment:
       PORT: 3000
+      TRUST_PROXY: "1"
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en .env (Supabase de ecodatos)}
       # El Postgres de ecodatos no tiene TLS habilitado — ver store.js.
       DATABASE_SSL: ${DATABASE_SSL:-false}

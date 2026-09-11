@@ -36,6 +36,20 @@ En producción Caddy solicita el certificado del dominio. En una prueba local,
 `https://localhost` y confiar en ese certificado para la prueba. No se debe
 interpretar `localhost` como una configuración de HTTP plano.
 
+Para probar por HTTP en la red local, por ejemplo `http://10.0.0.227:8080`,
+configurar en `.env`:
+
+```dotenv
+DOMAIN=:80
+HTTP_PORT=8080
+SESSION_COOKIE_SECURE=false
+```
+
+Aplicar con `docker compose up -d --build` y volver a iniciar sesión.
+En HTTPS mantener `SESSION_COOKIE_SECURE=true` (valor predeterminado).
+Una cookie `Secure` no se envía por HTTP a una IP: el login puede responder
+correctamente, pero las siguientes solicitudes devuelven 401.
+
 ## Verificación después de desplegar
 
 1. `/health` debe devolver `{"ok":true}`.
