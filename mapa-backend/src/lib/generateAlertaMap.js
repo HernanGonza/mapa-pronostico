@@ -27,17 +27,23 @@ const TAMANOS = ['feed', 'historias'];
 // "Alerta metorológica {feed,historias} {1,2}.png"): período arriba (igual
 // que antes), mapa y caja de niveles en la misma zona donde estaban.
 const LAYOUTS = {
+  // La placa feed es más baja que la de historias (2813 vs 4000 de alto)
+  // pero el mapa ocupa casi el mismo ancho relativo — con la fila de
+  // fenómenos al tamaño de historias, la cola sudoeste de Misiones (la
+  // parte del mapa que más entra hacia la izquierda) termina pisando la
+  // última fila si hay 4 o 5 fenómenos elegidos. Por eso acá los iconos,
+  // el texto y la caja de "NIVEL DE ALERTA" van más chicos.
   feed: {
     periodo: { x: 180, y: 345, w: 860, h: 175, r: 87 },
     mapa: { x: 431, y: 414, w: 1614, h: 2011 },
-    niveles: { x: 195, y: 625, w: 780 },
-    iconos: { x: 165, y0: 1260, rowH: 190, iw: 170 },
+    niveles: { x: 195, y: 625, w: 640 },
+    iconos: { x: 165, y0: 1200, rowH: 132, iw: 112, fontSize: 27, gap: 20 },
   },
   historias: {
     periodo: { x: 630, y: 448, w: 945, h: 200, r: 100 },
     mapa: { x: 191, y: 979, w: 1862, h: 2319 },
     niveles: { x: 160, y: 886, w: 780 },
-    iconos: { x: 165, y0: 1570, rowH: 190, iw: 170 },
+    iconos: { x: 165, y0: 1570, rowH: 190, iw: 170, fontSize: 38, gap: 30 },
   },
 };
 // Rectángulo con puntas redondeadas dibujado a mano (arcos), en vez de
@@ -205,15 +211,15 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   // mismo recorte que usaban los 4 PNG viejos — y el texto/color se sigue
   // dibujando a mano, igual que antes.
   const catalogoIcono=new Map(iconos.map(i=>[i.id,i])), colorPorCategoria=new Map(categorias.map(c=>[c.nombre,c.color]));
-  const ic = layout.iconos, iw=ic.iw, ih=Math.round(iw*324/350);
+  const ic = layout.iconos, iw=ic.iw, ih=Math.round(iw*324/350), fontSize=ic.fontSize, escalaFuente=fontSize/38;
   iconosElegidos.forEach((elegido,index)=> {
     const icon=catalogoIcono.get(elegido.id), color=colorPorCategoria.get(elegido.categoria);
     const y=ic.y0+index*ic.rowH;
     ctx.drawImage(symbols[icon.id],0,0,350,324,ic.x,y,iw,ih);
-    const tx=ic.x+iw+30, baseline=y+ih/2+13;
-    ctx.fillStyle='#fff';ctx.font='bold 38px AlertaPlaca';ctx.fillText(icon.nombre,tx,baseline);
+    const tx=ic.x+iw+ic.gap, baseline=y+ih/2+Math.round(13*escalaFuente);
+    ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px AlertaPlaca`;ctx.fillText(icon.nombre,tx,baseline);
     const tw=ctx.measureText(icon.nombre).width;
-    ctx.fillStyle=color;ctx.fillRect(tx,baseline+12,tw,7);
+    ctx.fillStyle=color;ctx.fillRect(tx,baseline+Math.round(12*escalaFuente),tw,Math.max(4,Math.round(7*escalaFuente)));
   });
   return canvas.toBuffer('image/png');
 }
