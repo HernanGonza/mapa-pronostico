@@ -31,6 +31,15 @@ services:
       # Token JWT del SMN (lib/smn/token.mjs) — sin este volumen, cada
       # redeploy fuerza abrir Chromium de nuevo para renovarlo.
       - smn_token:/app/data/smn
+    ports:
+      # Puerto directo al backend, sin pasar por Caddy/el dominio público —
+      # para que el sistema de alertas de incendios (otro docker compose en
+      # esta misma VM) le pegue a POST /api/incendios/webhook internamente,
+      # llamando a la IP interna de la VM (no localhost: eso adentro del
+      # OTRO contenedor sería su propio loopback, no el de esta VM).
+      # Exponé este puerto solo en la red interna del Ministerio, nunca al
+      # dominio/internet público — no tiene TLS ni pasa por el proxy.
+      - "${INCENDIOS_WEBHOOK_PORT:-3001}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
