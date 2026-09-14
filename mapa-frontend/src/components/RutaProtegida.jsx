@@ -8,7 +8,7 @@ export default function RutaProtegida({ children }) {
   const { usuario, cargando } = useAuth();
   const location = useLocation();
 
-  if (cargando) return null;
+  if (cargando) return <p className="page-loading" role="status">Comprobando sesión…</p>;
   if (!usuario) {
     return <Navigate to="/login" state={{ desde: location.pathname }} replace />;
   }

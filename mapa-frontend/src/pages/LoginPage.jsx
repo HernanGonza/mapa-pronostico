@@ -29,15 +29,18 @@ export default function LoginPage() {
     <div className="login-layout">
       <BrandHeader subtitulo="Mapas Alerta Temprana" />
 
-      <form className="login-form" onSubmit={onSubmit}>
+      <form id="contenido-principal" tabIndex={-1} className="login-form" onSubmit={onSubmit}>
         <h1>Iniciar sesión</h1>
+        <p className="admin-panel__hint">Ingresá al panel de Alerta Temprana con tu cuenta institucional.</p>
 
-        {error && <div className="alert alert--error">{error}</div>}
+        {error && <div className="alert alert--error" role="alert">{error}</div>}
 
         <label className="field">
-          <span>Email</span>
+          <span>Correo electrónico</span>
           <input
             type="email"
+            name="email"
+            spellCheck={false}
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -49,6 +52,7 @@ export default function LoginPage() {
           <span>Contraseña</span>
           <input
             type="password"
+            name="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

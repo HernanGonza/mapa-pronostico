@@ -14,7 +14,7 @@ export default function AlertasAutomaticasPage() {
           ← Panel
         </Link>
       </BrandHeader>
-      <div style={{ minHeight: "calc(100vh - var(--header-h))" }}>
+      <div id="contenido-principal" tabIndex={-1} style={{ minHeight: "calc(100vh - var(--header-h))" }}>
         <SmnAlertas />
       </div>
     </div>

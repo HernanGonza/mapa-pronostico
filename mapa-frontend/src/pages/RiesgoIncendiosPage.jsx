@@ -1,3 +1,5 @@
+import PublicationStatus from "../components/PublicationStatus";
+import PublicationReview from "../components/PublicationReview";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import EmbedShare from "../components/EmbedShare";
@@ -77,13 +79,13 @@ export default function RiesgoIncendiosPage() {
   }
   return <div className="admin-layout risk-layout">
     <BrandHeader subtitulo="Riesgo de incendios forestales"><Link to="/panel" className="btn-link">← Panel</Link></BrandHeader>
-    <section className="admin-panel">
-      <div className="editor-heading"><span className="editor-eyebrow">REPORTE POR DEPARTAMENTO</span><h1>Riesgo de incendios</h1>
+    <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
+      <div className="editor-heading"><h1>Riesgo de incendios</h1>
         <p>Elegí el nivel de cada zona. Los cambios se ven en el mapa antes de publicar.</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}{!catalogo && <button className="btn" onClick={() => setIntento(i => i + 1)}>Reintentar</button>}</div>}
       {mensaje && <p className="risk-message" role="status">{mensaje}</p>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
-        <div className="risk-progress"><strong>{completos} / {zonas.length} zonas</strong><span>{sucio ? "Cambios sin publicar" : publicado ? "Publicado" : "Sin publicar"}</span></div>
+        <PublicationStatus changed={sucio} published={publicado}>{completos} / {zonas.length} departamentos</PublicationStatus>
         <div className="risk-zones">{catalogo.departamentos.map(d => {
           const categoria = zonas.find(z => String(z.id) === String(d.id))?.categoria || "";
           const color = catalogo.categorias.find(c => c.nombre === categoria)?.color || "#d5dbd5";
@@ -92,11 +94,9 @@ export default function RiesgoIncendiosPage() {
               <option value="">Elegir nivel…</option>{catalogo.categorias.map(c => <option key={c.nombre}>{c.nombre}</option>)}
             </select></label>;
         })}</div>
-        {confirmando && <div className="risk-review"><h2>Revisar publicación</h2><p>Se actualizarán {cambios.length} departamentos en el mapa público.</p>
+        {confirmando && <PublicationReview busy={ocupado} onConfirm={guardar} onCancel={() => setConfirmando(false)}><p>Se actualizarán {cambios.length} departamentos en el mapa público.</p>
           <ul>{cambios.map(z => <li key={z.id}><b>{catalogo.departamentos.find(d => String(d.id) === String(z.id))?.nombre}</b>: {publicado?.zonas.find(p => String(p.id) === String(z.id))?.categoria || "Sin asignar"} → {z.categoria}</li>)}</ul>
-          <button className="btn btn--primary btn--block" disabled={ocupado} onClick={guardar}>Confirmar y publicar</button>
-          <button className="btn btn--block" disabled={ocupado} onClick={() => setConfirmando(false)}>Seguir editando</button>
-        </div>}
+        </PublicationReview>}
         <div className="admin-actions">
           <label className="field"><span>Fecha de la imagen institucional</span><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} disabled={ocupado} /></label>
           {!confirmando && <button className="btn btn--primary btn--block" disabled={ocupado || completos !== zonas.length || !sucio} onClick={() => setConfirmando(true)}>Revisar y publicar</button>}

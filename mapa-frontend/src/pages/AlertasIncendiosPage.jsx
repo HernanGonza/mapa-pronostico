@@ -87,7 +87,7 @@ export default function AlertasIncendiosPage() {
         </Link>
       </BrandHeader>
 
-      <div className="admin-panel">
+      <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading"><span className="editor-eyebrow">FOCOS SATELITALES · NASA FIRMS</span><h1>Alertas de incendios</h1><p>Recuperá las últimas alertas y revisá los focos en el mapa.</p></div>
         {!actual && <p className="alertas-demo-aviso" role="status">Vista de prueba: esperando el primer JSON real.</p>}
         <h2>1 · Recuperar</h2>

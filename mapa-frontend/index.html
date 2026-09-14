@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#faf4eb" />
+    <script>
+      try {
+        const saved = localStorage.getItem("ecologia-theme-v1");
+        const dark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.querySelector('meta[name="theme-color"]').content = dark ? "#17251e" : "#faf4eb";
+      } catch { document.documentElement.dataset.theme = "light"; }
+    </script>
     <title>Generador de mapas - Alerta Temprana Misiones</title>
   </head>
   <body>

@@ -1,3 +1,5 @@
+import PublicationStatus from "../components/PublicationStatus";
+import PublicationReview from "../components/PublicationReview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PlacaPreview from "../components/PlacaPreview";
@@ -64,6 +66,12 @@ function calcularCambios(editadas, publicadas) {
       }
     }
   }
+  const actuales = new Set(editadas.map(row => row.LOCALIDAD));
+  for (const row of publicadas) {
+    if (!actuales.has(row.LOCALIDAD)) {
+      cambios.push({ localidad: row.LOCALIDAD, campo: "localidad", de: "incluida", a: "quitada del pronóstico" });
+    }
+  }
   return cambios;
 }
 
@@ -126,6 +134,9 @@ export default function AdminPage() {
     [filas, publicado]
   );
 
+  const fechaCambiada = !!filas && fechaPronostico !== (publicado?.fechaPronostico || "");
+  const sucio = !!filas && (!publicado || !!cambios?.length || fechaCambiada);
+
   async function onSubirDocx(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -162,7 +173,7 @@ export default function AdminPage() {
       const payload = await publicar(filas, fechaPronostico);
       setPublicado(payload);
       setConfirmando(false);
-      setMensajeOk("Publicado. El mapa público (/embed) ya muestra esta versión.");
+      setMensajeOk("Publicado. El mapa público ya muestra esta versión.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -221,17 +232,18 @@ export default function AdminPage() {
         </Link>
       </BrandHeader>
 
-      <div className="admin-panel">
-        <div className="editor-heading"><span className="editor-eyebrow">REPORTE POR MUNICIPIO</span><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
+      <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
+        <div className="editor-heading"><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
+        <PublicationStatus changed={sucio} published={publicado} />
         <h2>1 · Subir el .docx del día</h2>
-        <label className="field"><span>Fecha del pronóstico</span><input type="date" disabled={cargando} value={fechaPronostico} onChange={e => setFechaPronostico(e.target.value)} /></label>
+        <label className="field"><span>Fecha del pronóstico</span><input type="date" disabled={cargando} value={fechaPronostico} onChange={e => { setFechaPronostico(e.target.value); setConfirmando(false); setMensajeOk(null); }} /></label>
         <p className="admin-panel__hint">
           Así lo genera Alerta Temprana. El mapa se arma solo con esos datos —
           no hace falta cargar nada a mano.
         </p>
 
-        {error && <div className="alert alert--error">{error}</div>}
-        {mensajeOk && <div className="alert alert--ok">{mensajeOk}</div>}
+        {error && <div className="alert alert--error" role="alert">{error}</div>}
+        {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
 
         <label className="field">
           <span>Archivo .docx del pronóstico</span>
@@ -280,6 +292,7 @@ export default function AdminPage() {
                         <input
                           disabled={cargando}
                           type="number"
+                          aria-label={`${campo === "TMIN" ? "Mínima" : "Máxima"} de ${row.LOCALIDAD}`}
                           value={row[campo]}
                           className={tempInvalida(row[campo]) ? "is-invalid" : ""}
                           onChange={(e) =>
@@ -295,6 +308,7 @@ export default function AdminPage() {
                           style={{ background: colorPorCondicion(row.CONDICION) }}
                         />
                         <select
+                          aria-label={`Condición de ${row.LOCALIDAD}`}
                           disabled={cargando}
                           value={condicionCanonica(row.CONDICION) || ""}
                           className={
@@ -324,53 +338,15 @@ export default function AdminPage() {
 
             <h2 style={{ marginTop: 22 }}>3 · Publicar</h2>
 
-            {confirmando && cambios && cambios.length > 0 && (
-              <div className="diff-panel">
-                <h3>{cambios.length} cambio(s) respecto de lo publicado</h3>
-                <ul className="diff-list">
-                  {cambios.map((c, k) => (
-                    <li key={k}>
-                      <b>{c.localidad}</b> · {c.campo}:{" "}
-                      <span className="diff-de">{c.de}</span>{" "}
-                      <span className="diff-a">→ {c.a}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {confirmando && cambios && cambios.length === 0 && (
-              <div className="alert alert--warn">
-                No hay cambios respecto de lo ya publicado.
-              </div>
-            )}
-
+            {confirmando && <PublicationReview busy={cargando} onConfirm={onPublicar} onCancel={() => setConfirmando(false)}>
+              {!publicado && <p>Se publicará el primer pronóstico con {filas.length} localidades.</p>}
+              {fechaCambiada && <p>Fecha del pronóstico: {fechaPronostico}.</p>}
+              {!!cambios?.length && <ul className="diff-list">
+                {cambios.map((c, k) => <li key={k}><b>{c.localidad}</b> · {c.campo}: {c.de} → {c.a}</li>)}
+              </ul>}
+            </PublicationReview>}
             <div className="admin-actions">
-              {!confirmando ? (
-                <button
-                  className="btn btn--primary btn--block"
-                  onClick={() => setConfirmando(true)}
-                  disabled={cargando || hayInvalidos}
-                >
-                  Revisar y publicar
-                </button>
-              ) : (
-                <>
-                  <button
-                    className="btn btn--primary btn--block"
-                    onClick={onPublicar}
-                    disabled={cargando}
-                  >
-                    Confirmar y publicar
-                  </button>
-                  <button
-                    className="btn btn--ghost btn--block"
-                    onClick={() => setConfirmando(false)}
-                    disabled={cargando}
-                  >
-                    Seguir editando
-                  </button>
-                </>
-              )}
+              {!confirmando && <button className="btn btn--primary btn--block" onClick={() => setConfirmando(true)} disabled={cargando || hayInvalidos || !fechaPronostico || !sucio}>Revisar y publicar</button>}
 
               <button
                 className="btn btn--block"
@@ -402,7 +378,7 @@ export default function AdminPage() {
             renderInfo={infoPronostico}
             leyenda={<LeyendaPronostico />}
             titulo="Previsión del tiempo"
-            publicadoEn={cambios?.length ? null : publicado?.publicadoEn}
+            publicadoEn={sucio ? null : publicado?.publicadoEn}
             fechaPronostico={fechaPronostico}
             enableCapture
           />

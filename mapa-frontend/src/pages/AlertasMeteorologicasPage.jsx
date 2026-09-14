@@ -1,3 +1,6 @@
+import PlacaPreview from "../components/PlacaPreview";
+import PublicationStatus from "../components/PublicationStatus";
+import PublicationReview from "../components/PublicationReview";
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BrandHeader from '../components/BrandHeader';
@@ -8,7 +11,7 @@ import * as api from '../api';
 export default function AlertasMeteorologicasPage() {
   const [catalogo,setCatalogo]=useState(null),[geo,setGeo]=useState(null),[zonas,setZonas]=useState([]),[publicado,setPublicado]=useState(null);
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[periodo,setPeriodo]=useState('Próximas 24 horas'),[fondo,setFondo]=useState('tormenta');
-  const [iconos,setIconos]=useState([]),[imagenes,setImagenes]=useState(null),[vista,setVista]=useState('manual');
+  const [iconos,setIconos]=useState([]),[imagenes,setImagenes]=useState(null),[vista,setVista]=useState('mapa');
   const [confirmando,setConfirmando]=useState(false),[mensaje,setMensaje]=useState('');
   const [recomendaciones,setRecomendaciones]=useState(''),[imagenesRecomendaciones,setImagenesRecomendaciones]=useState(null);
   const [titulo,setTitulo]=useState('Alerta meteorológica');
@@ -62,18 +65,18 @@ export default function AlertasMeteorologicasPage() {
     setRecomendaciones(nuevo);setImagenesRecomendaciones(null);
     requestAnimationFrame(()=>{campo?.focus();campo?.setSelectionRange(inicio+icono.length,inicio+icono.length);});
   }
-  const imagenesVista=vista==='recomendaciones'?imagenesRecomendaciones:imagenes;
   const zonasCambiadas=zonas.filter(z=>z.categoria!==(publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'));
   const iconosCambiaron=JSON.stringify(iconos)!==JSON.stringify(publicado?.iconos||[]);
   const cambios=zonasCambiadas.length>0||iconosCambiaron;
+  const puedePublicar=!!catalogo&&(!publicado||cambios);
   return <div className="admin-layout risk-layout meteo-layout">
     <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel" className="btn-link">← Panel</Link></BrandHeader>
-    <section className="admin-panel">
-      <div className="editor-heading"><span className="editor-eyebrow">MAPA Y PLACA PARA REDES</span><h1>Alertas meteorológicas</h1><p>Asigná el color y uno o varios fenómenos a cada departamento.</p></div>
+    <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
+      <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Asigná el color y uno o varios fenómenos a cada departamento.</p></div>
       {error&&<div className="risk-message risk-message--error" role="alert">{error}</div>}
       {mensaje&&<p className="risk-message" role="status">{mensaje}</p>}
       {!catalogo?<p>Cargando departamentos…</p>:<>
-        <div className="risk-progress"><span>{cambios?'Cambios sin publicar':publicado?'Publicado':'Sin publicar'}</span></div>
+        <PublicationStatus changed={cambios} published={publicado} />
         <div className="risk-zones">{catalogo.departamentos.map(d=>{const z=zonas.find(x=>x.id===String(d.id));return <div className="risk-zone" key={d.id} style={{display:'block'}}>
           <strong>{d.nombre}</strong>
           <select aria-label={`Nivel de alerta de ${d.nombre}`} value={z.categoria} disabled={busy} onChange={e=>change(z.id,{categoria:e.target.value})} style={{marginTop:8}}>{catalogo.categorias.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre} · {c.accion}</option>)}</select>
@@ -85,20 +88,23 @@ export default function AlertasMeteorologicasPage() {
           {iconos.map(elegido=>{const info=catalogo.iconos.find(i=>i.id===elegido.id);return <div key={elegido.id} style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
             <span style={{flex:1}}>{info?.nombre}</span>
             <select aria-label={`Color de ${info?.nombre}`} value={elegido.categoria} disabled={busy} onChange={e=>cambiarIcono(elegido.id,{categoria:e.target.value})}>{catalogo.categorias.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}</select>
-            <button type="button" disabled={busy} onClick={()=>quitarIcono(elegido.id)} title="Quitar icono">×</button>
+            <button type="button" disabled={busy} onClick={()=>quitarIcono(elegido.id)} className="btn" aria-label={`Quitar ${info?.nombre || "fenómeno"}`}>×</button>
           </div>;})}
         </div>
+        <h2>Revisar y publicar el mapa</h2>
+        {confirmando&&<PublicationReview busy={busy} onConfirm={guardar} onCancel={()=>setConfirmando(false)}>
+          {!publicado&&<p>Se publicará el primer mapa con los niveles seleccionados.</p>}
+          {zonasCambiadas.length>0&&<><p>Se actualizarán {zonasCambiadas.length} departamentos en el mapa público.</p>
+            <ul>{zonasCambiadas.map(z=><li key={z.id}><b>{catalogo.departamentos.find(d=>String(d.id)===String(z.id))?.nombre}</b>: {publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'} → {z.categoria}</li>)}</ul></>}
+          {iconosCambiaron&&<p>Cambiaron los fenómenos/iconos de la placa.</p>}
+        </PublicationReview>}
+        {!confirmando&&<button className="btn btn--primary btn--block" disabled={busy||!puedePublicar} onClick={()=>setConfirmando(true)}>Revisar y publicar</button>}
+        <p>El mapa público muestra lo último que publicaste acá. La placa usa los colores e iconos seleccionados.</p>
+        <h2>Placas para redes</h2>
         <label className="field"><span>Título de las placas</span><input value={titulo} maxLength={60} disabled={busy} placeholder="Ej.: Aviso" onChange={e=>{setTitulo(e.target.value);setImagenes(null);setImagenesRecomendaciones(null);}}/><small>Se aplica a la placa del mapa y a las recomendaciones.</small></label>
         <label className="field"><span>Período de la placa</span><textarea value={periodo} rows={3} maxLength={140} disabled={busy} onChange={e=>{setPeriodo(e.target.value);setImagenes(null);}}/></label>
         <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={e=>{setFondo(e.target.value);setImagenes(null);setImagenesRecomendaciones(null);}}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
-        <button className="btn btn--primary btn--block" disabled={busy||!periodo.trim()||!titulo.trim()} onClick={generar}>{busy?'Procesando…':'Generar placa para redes'}</button>
-        {imagenes&&<div className="meteo-downloads">
-          {/* Las imágenes ahora viven en el bucket de Storage (otro origen) — el
-              atributo `download` del <a> no fuerza la descarga en cross-origin;
-              Supabase Storage sí soporta el query param `?download=` para eso. */}
-          <a className="btn btn--block" href={`${imagenes.feed}?download=${encodeURIComponent(imagenes.feedNombre)}`}>Descargar feed</a>
-          <a className="btn btn--block" href={`${imagenes.historias}?download=${encodeURIComponent(imagenes.historiasNombre)}`}>Descargar historias</a>
-        </div>}
+        <button className="btn btn--block" disabled={busy||!periodo.trim()||!titulo.trim()} onClick={generar}>{busy?'Procesando…':'Generar placa para redes'}</button>
         <section className="meteo-recomendaciones" aria-labelledby="recomendaciones-titulo">
           <h2 id="recomendaciones-titulo">Recomendaciones <small>Opcional</small></h2>
           <p>Texto e imagen opcional sobre el fondo elegido: {fondo==='tormenta'?'Tormenta':'Nubes'}. Podés pegar emojis y usar Enter para separar párrafos.</p>
@@ -109,32 +115,13 @@ export default function AlertasMeteorologicasPage() {
             {[['⚠️','Advertencia'],['⛈️','Tormenta'],['🌧️','Lluvia'],['💨','Viento'],['🏠','Casa'],['🚫','Prohibido'],['✅','Recomendación'],['📞','Teléfono'],['🔌','Electricidad']].map(([icono,nombre])=><button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={()=>insertarIcono(icono)}>{icono}</button>)}
           </div>
           <p className="meteo-count">{recomendaciones.length}/2400 caracteres</p>
-          <button type="button" className="btn btn--primary btn--block" disabled={busy||!recomendaciones.trim()||!titulo.trim()} onClick={generarTexto}>{busy?'Procesando…':'Generar placa de recomendaciones'}</button>
-          {imagenesRecomendaciones&&<div className="meteo-downloads">
-            <a className="btn" href={`${imagenesRecomendaciones.feed}?download=${encodeURIComponent(imagenesRecomendaciones.feedNombre)}`}>Descargar recomendaciones feed</a>
-            <a className="btn" href={`${imagenesRecomendaciones.historias}?download=${encodeURIComponent(imagenesRecomendaciones.historiasNombre)}`}>Descargar recomendaciones historias</a>
-          </div>}
+          <button type="button" className="btn btn--block" disabled={busy||!recomendaciones.trim()||!titulo.trim()} onClick={generarTexto}>{busy?'Procesando…':'Generar placa de recomendaciones'}</button>
         </section>
-        {confirmando&&<div className="risk-review"><h2>Revisar publicación</h2>
-          {zonasCambiadas.length>0&&<><p>Se actualizarán {zonasCambiadas.length} departamentos en el mapa público.</p>
-            <ul>{zonasCambiadas.map(z=><li key={z.id}><b>{catalogo.departamentos.find(d=>String(d.id)===String(z.id))?.nombre}</b>: {publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'} → {z.categoria}</li>)}</ul></>}
-          {iconosCambiaron&&<p>Cambiaron los fenómenos/iconos de la placa.</p>}
-          <button className="btn btn--primary btn--block" disabled={busy} onClick={guardar}>Confirmar y publicar</button>
-          <button className="btn btn--block" disabled={busy} onClick={()=>setConfirmando(false)}>Seguir editando</button>
-        </div>}
-        {!confirmando&&<button className="btn btn--primary btn--block" disabled={busy||!cambios} onClick={()=>setConfirmando(true)}>Revisar y publicar</button>}
-        <p>El mapa público muestra lo último que publicaste acá. La placa usa los colores e iconos seleccionados.</p>
         <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones"/>
       </>}
     </section>
-    <div className="admin-map-area" style={{display:'flex',flexDirection:'column'}}>
-      <div style={{padding:10,display:'flex',flexWrap:'wrap',gap:10,background:'#fff'}}>{[['manual','Mapa manual'],['placa','Placa para redes'],['recomendaciones','Recomendaciones']].map(([id,label])=><button key={id} className="btn" onClick={()=>setVista(id)} disabled={vista===id}>{label}</button>)}</div>
-      <div style={{flex:1,minHeight:0,overflow:vista==='manual'?'hidden':'auto'}}>
-        {vista!=='manual'?imagenesVista?<div style={{display:'flex',gap:16,height:'100%',padding:16,boxSizing:'border-box'}}>
-          <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Feed</figcaption><img src={imagenesVista.feed} alt={`Vista previa de ${vista} (feed)`} style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
-          <figure style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',margin:0}}><figcaption>Historias</figcaption><img src={imagenesVista.historias} alt={`Vista previa de ${vista} (historias)`} style={{flex:1,minHeight:0,maxWidth:'100%',objectFit:'contain'}}/></figure>
-        </div>:<div className="admin-map-area__vacio">{vista==='recomendaciones'?'Escribí el texto y presioná «Generar placa de recomendaciones».':'Elegí colores e iconos y presioná «Generar placa para redes». '}</div>:catalogo&&geo?<RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={publicado?.publicadoEn}/>:<div className="admin-map-area__vacio">Preparando mapa…</div>}
-      </div>
-    </div>
+    <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenes} recomendaciones={imagenesRecomendaciones}>
+      {catalogo&&geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn}/> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
+    </PlacaPreview>
   </div>;
 }

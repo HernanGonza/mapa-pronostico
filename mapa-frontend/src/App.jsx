@@ -1,23 +1,25 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
-import LoginPage from "./pages/LoginPage";
-import PanelPage from "./pages/PanelPage";
-import AdminPage from "./pages/AdminPage";
-import RiesgoIncendiosPage from "./pages/RiesgoIncendiosPage";
-import AlertasIncendiosPage from "./pages/AlertasIncendiosPage";
-import EmbedPage from "./pages/EmbedPage";
-import EmbedAlertasPage from "./pages/EmbedAlertasPage";
-import EmbedRiesgoPage from "./pages/EmbedRiesgoPage";
-import AlertasMeteorologicasPage from "./pages/AlertasMeteorologicasPage";
-import EmbedAlertasMeteorologicasPage from "./pages/EmbedAlertasMeteorologicasPage";
-import AlertasAutomaticasPage from "./pages/AlertasAutomaticasPage";
-import UsuariosPage from "./pages/UsuariosPage";
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const PanelPage = lazy(() => import("./pages/PanelPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const RiesgoIncendiosPage = lazy(() => import("./pages/RiesgoIncendiosPage"));
+const AlertasIncendiosPage = lazy(() => import("./pages/AlertasIncendiosPage"));
+const EmbedPage = lazy(() => import("./pages/EmbedPage"));
+const EmbedAlertasPage = lazy(() => import("./pages/EmbedAlertasPage"));
+const EmbedRiesgoPage = lazy(() => import("./pages/EmbedRiesgoPage"));
+const AlertasMeteorologicasPage = lazy(() => import("./pages/AlertasMeteorologicasPage"));
+const EmbedAlertasMeteorologicasPage = lazy(() => import("./pages/EmbedAlertasMeteorologicasPage"));
+const AlertasAutomaticasPage = lazy(() => import("./pages/AlertasAutomaticasPage"));
+const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
+        <Suspense fallback={<p className="page-loading" role="status">Cargando pantalla…</p>}>
         <Routes>
           <Route path="/" element={<Navigate to="/panel" replace />} />
           <Route path="/login" element={<LoginPage />} />
@@ -66,6 +68,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/panel" replace />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

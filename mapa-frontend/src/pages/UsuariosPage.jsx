@@ -51,6 +51,7 @@ export default function UsuariosPage() {
 
   function campo(nombre) {
     return {
+      name: nombre,
       value: form[nombre],
       onChange: (e) => setForm((f) => ({ ...f, [nombre]: e.target.value })),
     };
@@ -89,7 +90,7 @@ export default function UsuariosPage() {
         </Link>
       </BrandHeader>
 
-      <div className="usuarios-panel">
+      <main id="contenido-principal" tabIndex={-1} className="usuarios-panel">
         <section className="usuarios-form-card">
           <h1>Crear usuario</h1>
           <p className="admin-panel__hint">
@@ -97,8 +98,8 @@ export default function UsuariosPage() {
             crea, con este email y contraseña.
           </p>
 
-          {error && <div className="alert alert--error">{error}</div>}
-          {mensajeOk && <div className="alert alert--ok">{mensajeOk}</div>}
+          {error && <div className="alert alert--error" role="alert">{error}</div>}
+          {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
 
           <form onSubmit={onSubmit}>
             <div className="usuarios-form-grid">
@@ -120,7 +121,7 @@ export default function UsuariosPage() {
             <div className="usuarios-form-grid">
               <label className="field">
                 <span>Teléfono</span>
-                <input type="text" required disabled={cargando} {...campo("telefono")} />
+                <input type="tel" autoComplete="tel" required disabled={cargando} {...campo("telefono")} />
               </label>
               <label className="field">
                 <span>DNI</span>
@@ -217,7 +218,7 @@ export default function UsuariosPage() {
             </table>
           )}
         </section>
-      </div>
+      </main>
     </div>
   );
 }

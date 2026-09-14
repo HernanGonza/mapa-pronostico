@@ -3,9 +3,12 @@
  * logotipo "Ecología Misiones" en Oak Sans (la tipografía oficial del
  * manual). A la derecha, un slot para estado/acciones.
  */
+import ThemeToggle from "./ThemeToggle";
+
 export default function BrandHeader({ subtitulo, children }) {
   return (
     <header className="brand-header">
+      <a className="skip-link" href="#contenido-principal">Ir al contenido</a>
       <div className="brand-header__mark">
         <img
           src="/brand/ecologia-flor.png"
@@ -23,7 +26,7 @@ export default function BrandHeader({ subtitulo, children }) {
       {subtitulo && <div className="brand-header__sep" aria-hidden />}
       {subtitulo && <p className="brand-header__subtitulo">{subtitulo}</p>}
 
-      <div className="brand-header__slot">{children}</div>
+      <div className="brand-header__slot">{children}<ThemeToggle /></div>
     </header>
   );
 }

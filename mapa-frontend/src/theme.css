@@ -82,9 +82,11 @@
   --border-strong: #d3c6ab;
   --text: #21130d;
   --text-muted: #6b6152;
-  --text-faint: #9a8f7d;
-  --accent: var(--rosa-600);
-  --accent-hover: var(--rosa-700);
+  --text-faint: #756a58;
+  --accent: var(--verde-600);
+  --accent-contrast: #ffffff;
+  --heading: var(--verde-600);
+  --accent-hover: var(--verde-700);
   --accent-soft: #f6e3ea;
   --focus-ring: 0 0 0 3px rgba(201, 52, 108, 0.35);
 
@@ -152,4 +154,34 @@ textarea {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Los tonos de interfaz son adaptaciones funcionales; los tres colores
+   oficiales de la marca y las escalas de alertas conservan sus valores. */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #17251e;
+  --surface: #203229;
+  --surface-2: #293f33;
+  --surface-3: #344d3e;
+  --border: #42564a;
+  --border-strong: #637a69;
+  --text: #f6f3ec;
+  --text-muted: #c3cdbf;
+  --text-faint: #abbba8;
+  --heading: #cad4a0;
+  --accent: #cad4a0;
+  --accent-hover: #dce5b8;
+  --accent-contrast: #1b3325;
+  --accent-soft: #47303d;
+  --ok: #b9dfbc;
+  --ok-soft: #284532;
+  --danger: #ffb8bd;
+  --danger-soft: #4b2930;
+  --warn: #f3d58a;
+  --warn-soft: #463d27;
+  --shadow-1: 0 2px 8px #0003;
+  --shadow-2: 0 10px 34px #0005;
+  --shadow-pop: 0 4px 18px #0003;
 }

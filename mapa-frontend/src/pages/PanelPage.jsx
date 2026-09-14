@@ -22,7 +22,7 @@ const OPCIONES = [
   {
     to: "/panel/alertas-meteorologicas",
     titulo: "Alertas meteorológicas",
-    descripcion: "Nivel de alerta por departamento: amarillo, naranja, rojo o gris.",
+    descripcion: "Mapa de alertas por departamento, placas para redes y recomendaciones.",
   },
   {
     to: "/panel/alertas-automaticas",
@@ -34,7 +34,7 @@ const OPCIONES = [
 const OPCION_USUARIOS = {
   to: "/panel/usuarios",
   titulo: "Usuarios",
-  descripcion: "Alta de usuarios del panel y roles (admin/superadmin).",
+  descripcion: "Creá cuentas y asigná permisos de acceso al panel.",
 };
 
 export default function PanelPage() {
@@ -56,14 +56,18 @@ export default function PanelPage() {
         </span>
       </BrandHeader>
 
+      <main id="contenido-principal" tabIndex={-1}>
+      <div className="panel-intro"><h1>Mapas de Alerta Temprana</h1><p>Elegí un reporte para editar sus datos, revisar el mapa y publicar. Las placas para redes se generan y descargan desde la vista previa.</p></div>
       <div className="panel-botonera">
         {opciones.map((op) => (
           <Link key={op.to} to={op.to} className="panel-boton">
+            {["/panel/alertas-incendios", "/panel/alertas-automaticas"].includes(op.to) && <span className="panel-boton__state">En desarrollo</span>}
             <h2>{op.titulo}</h2>
             <p>{op.descripcion}</p>
           </Link>
         ))}
       </div>
+      </main>
     </div>
   );
 }
