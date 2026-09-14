@@ -15,6 +15,8 @@ const EmbedAlertasMeteorologicasPage = lazy(() => import("./pages/EmbedAlertasMe
 const AlertasAutomaticasPage = lazy(() => import("./pages/AlertasAutomaticasPage"));
 const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 
+const RecuperarPasswordPage = lazy(() => import("./pages/RecuperarPasswordPage"));
+
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -23,6 +25,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/panel" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/recuperar-contrasena" element={<RecuperarPasswordPage />} />
 
           <Route
             path="/panel"

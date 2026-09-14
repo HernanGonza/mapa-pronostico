@@ -5,6 +5,7 @@ const auth = require("../lib/auth");
 const requireAuth = require("../middleware/requireAuth");
 const requireRole = require("../middleware/requireRole");
 
+const recovery = require("../lib/passwordRecovery");
 const router = express.Router();
 
 // Frena fuerza bruta contra /login sin bloquear el resto de la API.
@@ -43,7 +44,9 @@ router.post("/auth/login", loginLimiter, express.json(), async (req, res) => {
     if (!usuario) {
       return res.status(401).json({ error: "Email o contraseña incorrectos" });
     }
-    const { token, expiraEn } = await auth.crearSesion(usuario.id);
+    const sesion = await auth.crearSesion(usuario.id, usuario.passwordHash);
+    if (!sesion) return res.status(401).json({ error: "Las credenciales cambiaron. Volvé a iniciar sesión." });
+    const { token, expiraEn } = sesion;
     setCookieSesion(res, token, expiraEn);
     res.json({ email: usuario.email, rol: usuario.rol, nombre: usuario.nombre });
   } catch (err) {
@@ -141,5 +144,45 @@ router.post(
     }
   }
 );
+
+const recoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+  message: { error: "Demasiados intentos. Probá de nuevo en 15 minutos." },
+});
+const issueLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: req => String(req.usuario.usuarioId),
+  message: { error: "Se generaron demasiados códigos. Probá de nuevo en 15 minutos." },
+});
+const codeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: req => require('node:crypto').createHash('sha256').update(recovery.normalizarCodigo(req.body?.codigo)).digest('hex'),
+  message: { error: "Demasiados intentos con este código. Esperá o pedí uno nuevo." },
+});
+function noCache(req, res, next) { res.setHeader("Cache-Control", "no-store"); next(); }
+router.post('/auth/usuarios/:id/recuperacion', noCache, requireAuth, requireRole('superadmin'), issueLimiter, express.json({ limit: '4kb' }), async (req, res) => {
+  if (!/^[1-9][0-9]{0,17}$/.test(req.params.id) || req.body?.identidadVerificada !== true || typeof req.body?.telefono !== 'string') {
+    return res.status(400).json({ error: 'Confirmá la identidad y el teléfono registrado de la persona.' });
+  }
+  try {
+    res.status(201).json(await recovery.generar(req.params.id, req.usuario.usuarioId, req.body.telefono));
+  } catch (error) {
+    if (!error.status) console.error('[recovery] No se pudo emitir el código:', error.code || 'error interno');
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'No se pudo generar el código. Intentá nuevamente.' });
+  }
+});
+router.post('/auth/recuperacion', noCache, recoveryLimiter, express.json({ limit: '4kb' }), codeLimiter, async (req, res) => {
+  const { codigo, password, repetirPassword } = req.body || {};
+  if (typeof password !== 'string' || password !== repetirPassword || password.length > 256 || !auth.validarPassword(password)) {
+    return res.status(400).json({ error: 'Las contraseñas deben coincidir y cumplir los requisitos (máximo 256 caracteres).' });
+  }
+  try {
+    await recovery.restablecer(codigo, password);
+    res.json({ ok: true });
+  } catch (error) {
+    if (!error.status) console.error('[recovery] No se pudo cambiar la contraseña:', error.code || 'error interno');
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'No se pudo cambiar la contraseña. Intentá nuevamente.' });
+  }
+});
 
 module.exports = router;

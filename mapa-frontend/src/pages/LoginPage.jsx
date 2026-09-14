@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandHeader from "../components/BrandHeader";
 
@@ -64,6 +64,7 @@ export default function LoginPage() {
         <button className="btn btn--primary btn--block" type="submit" disabled={cargando}>
           {cargando ? "Entrando…" : "Entrar"}
         </button>
+        <Link className="btn-link login-help" to="/recuperar-contrasena">¿Olvidaste tu contraseña?</Link>
       </form>
     </div>
   );

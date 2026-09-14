@@ -994,3 +994,8 @@ textarea { resize: vertical; line-height: 1.5; }
 .page-loading { padding: 32px; color: var(--text-muted); }
 .base-map { color-scheme: light; }
 .embed-warning { color: #755b16; }
+input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-xs); color: var(--text); background: var(--surface); }
+.recovery-issuer { margin-block: 20px; }
+.recovery-check { display: flex; align-items: flex-start; gap: 10px; margin-block: 16px; }
+.recovery-check input { width: auto; flex-shrink: 0; margin-top: 4px; }
+.recovery-close { margin-top: 16px; }

@@ -242,18 +242,27 @@ async function verificarCredenciales(email, password) {
   const usuario = rows[0];
   const ok = await argon2Verify(usuario.password_hash, password).catch(() => false);
   if (!ok) return null;
-  return { id: usuario.id, email: usuario.email, rol: usuario.rol, nombre: usuario.nombre };
+  return { id: usuario.id, email: usuario.email, rol: usuario.rol, nombre: usuario.nombre, passwordHash: usuario.password_hash };
 }
 
-async function crearSesion(usuarioId) {
+async function crearSesion(usuarioId, passwordHash) {
   await init();
   const pool = store.getPool();
   const token = crypto.randomBytes(32).toString("base64url");
   const expiraEn = new Date(Date.now() + SESION_DIAS * 24 * 60 * 60 * 1000);
-  await pool.query(
-    `INSERT INTO sesiones (token_hash, usuario_id, expira_en) VALUES ($1, $2, $3)`,
-    [hashToken(token), usuarioId, expiraEn]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT password_hash FROM usuarios WHERE id = $1 FOR UPDATE', [usuarioId]);
+    if (!rows.length || (passwordHash && rows[0].password_hash !== passwordHash)) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await client.query(`INSERT INTO sesiones (token_hash, usuario_id, expira_en) VALUES ($1, $2, $3)`,
+      [hashToken(token), usuarioId, expiraEn]);
+    await client.query('COMMIT');
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
   return { token, expiraEn };
 }
 

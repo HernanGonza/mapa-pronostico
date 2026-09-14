@@ -246,3 +246,16 @@ export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }
 export async function getSmnApiAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn-api`, { cache: 'no-store' })); }
 export async function scrapeSmnPagina(url) { const q = url ? `?url=${encodeURIComponent(url)}` : ''; return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn-scrape${q}`, { cache: 'no-store' })); }
+
+export async function generarCodigoRecuperacion(usuarioId, telefono) {
+  return handleJson(await fetch(`${API_URL}/api/auth/usuarios/${encodeURIComponent(usuarioId)}/recuperacion`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, ...CON_SESION,
+    body: JSON.stringify({ identidadVerificada: true, telefono }),
+  }));
+}
+export async function recuperarPassword({ codigo, password, repetirPassword }) {
+  return handleJson(await fetch(`${API_URL}/api/auth/recuperacion`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ codigo, password, repetirPassword }),
+  }));
+}

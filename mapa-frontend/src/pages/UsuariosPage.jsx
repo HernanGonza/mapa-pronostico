@@ -1,3 +1,4 @@
+import RecoveryIssuer from "../components/RecoveryIssuer";
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
@@ -38,6 +39,8 @@ export default function UsuariosPage() {
   const [mensajeOk, setMensajeOk] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [recargar, setRecargar] = useState(0);
+  const [busqueda, setBusqueda] = useState("");
+  const [recuperar, setRecuperar] = useState(null);
 
   useEffect(() => {
     listarUsuariosPanel()
@@ -81,6 +84,12 @@ export default function UsuariosPage() {
       setCargando(false);
     }
   }
+
+  const termino = busqueda.trim().toLocaleLowerCase("es-AR");
+  const digitos = termino.replace(/[^0-9]/g, "");
+  const visibles = (usuarios || []).filter(u => !termino ||
+    [u.nombre, u.apellido, u.email, u.dni, u.telefono].some(v => String(v || "").toLocaleLowerCase("es-AR").includes(termino)) ||
+    (digitos && /^[\d\s.+()-]+$/.test(termino) && [u.dni, u.telefono].some(v => String(v || "").replace(/[^0-9]/g, "").includes(digitos))));
 
   return (
     <div className="panel-layout">
@@ -191,6 +200,9 @@ export default function UsuariosPage() {
 
         <section className="usuarios-lista">
           <h2>Usuarios existentes</h2>
+          <label className="field"><span>Buscar por nombre, correo, DNI o teléfono</span><input type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)} /></label>
+          {recuperar && <RecoveryIssuer key={recuperar.id} usuario={recuperar} onClose={() => setRecuperar(null)} />}
+          {usuarios && !visibles.length && <p role="status">No hay usuarios que coincidan con la búsqueda.</p>}
           {!usuarios ? (
             <p className="admin-panel__hint">Cargando…</p>
           ) : (
@@ -202,16 +214,20 @@ export default function UsuariosPage() {
                   <th>Rol</th>
                   <th>Puesto</th>
                   <th>Dependencia</th>
+                  <th>DNI / Teléfono</th>
+                  <th>Acceso</th>
                 </tr>
               </thead>
               <tbody>
-                {usuarios.map((u) => (
+                {visibles.map((u) => (
                   <tr key={u.id}>
                     <td>{[u.nombre, u.apellido].filter(Boolean).join(" ") || "—"}</td>
                     <td>{u.email}</td>
                     <td>{ETIQUETA_ROL[u.rol] || u.rol}</td>
                     <td>{u.puesto || "—"}</td>
                     <td>{u.dependencia || "—"}</td>
+                    <td>{u.dni || "—"}<br />{u.telefono || "Sin teléfono"}</td>
+                    <td><button className="btn" type="button" disabled={!!recuperar} onClick={() => setRecuperar(u)}>Recuperar acceso</button></td>
                   </tr>
                 ))}
               </tbody>
