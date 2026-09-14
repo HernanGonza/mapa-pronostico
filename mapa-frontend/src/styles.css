@@ -354,6 +354,20 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+.brand-header__at-icon {
+  display: block;
+}
+.brand-header__wordmark--small strong {
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+.brand-header__wordmark--small span {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
 .brand-header__sep {
   width: 1px;
   height: 32px;
@@ -941,6 +955,9 @@ textarea { resize: vertical; line-height: 1.5; }
 .brand-header__wordmark span { color: var(--heading); }
 .theme-toggle { flex-shrink: 0; white-space: nowrap; }
 .theme-toggle > span:first-child { font-size: 20px; line-height: 1; }
+/* "Oscuro" es más largo que "Claro" — ancho fijo para que el botón no
+   cambie de tamaño ni mueva lo que tiene al lado al alternar el tema. */
+.theme-toggle > span:last-child { display: inline-block; min-width: 6ch; text-align: left; }
 .editor-heading h1 { font-size: 26px; line-height: 1.2; text-wrap: balance; }
 .editor-heading p { max-width: 65ch; }
 .admin-panel { min-width: 0; font-size: 14px; line-height: 1.5; }

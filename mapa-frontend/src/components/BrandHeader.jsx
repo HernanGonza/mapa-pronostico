@@ -1,7 +1,8 @@
 /**
  * Cabecera institucional del panel de operador. La flor del Lapacho +
  * logotipo "Ecología Misiones" en Oak Sans (la tipografía oficial del
- * manual). A la derecha, un slot para estado/acciones.
+ * manual), seguido del logo de la Dirección General de Alerta Temprana.
+ * A la derecha, un slot para estado/acciones.
  */
 import ThemeToggle from "./ThemeToggle";
 
@@ -20,6 +21,21 @@ export default function BrandHeader({ subtitulo, children }) {
         <div className="brand-header__wordmark">
           <strong>Ecología</strong>
           <span>Misiones</span>
+        </div>
+      </div>
+
+      <div className="brand-header__sep" aria-hidden />
+      <div className="brand-header__mark">
+        <img
+          src="/brand/alerta-temprana.png"
+          alt=""
+          className="brand-header__at-icon"
+          width={36}
+          height={36}
+        />
+        <div className="brand-header__wordmark brand-header__wordmark--small">
+          <strong>Dirección General de</strong>
+          <span>Alerta Temprana</span>
         </div>
       </div>
 

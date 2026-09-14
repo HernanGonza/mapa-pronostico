@@ -10,6 +10,9 @@ const ZONAS = [
   [70,"14"], [80,"13"], [90,"2"], [100,"10"], [110,"17"], [120,"8"],
   [130,"12"], [140,"16"], [150,"6"], [160,"9"], [170,"7"],
 ];
+// Franja reservada para la fecha en la plantilla actual (recuadro difuminado
+// debajo del título). Si se cambia `misiones.png`, reubicar acá.
+const CAJA_FECHA = { x: 77, y: 800, w: 847, h: 135 };
 let plantilla;
 async function cargarPlantilla() {
   if (plantilla) return plantilla;
@@ -20,7 +23,7 @@ async function cargarPlantilla() {
     const canvas = createCanvas(image.width, image.height);
     const ctx = canvas.getContext("2d"); ctx.drawImage(image, 0, 0);
     const pixels = ctx.getImageData(0, 0, image.width, image.height).data;
-    const w = image.width, h = 912;
+    const w = image.width, h = image.height;
     const visited = new Uint8Array(w*h);
     const masks = new Map();
     const grayAt = i => {
@@ -83,8 +86,15 @@ async function generateRiesgoMap({ zonas, fecha }) {
   const date=new Date(`${fecha}T12:00:00Z`);
   const day=new Intl.DateTimeFormat("es-AR",{weekday:"long",timeZone:"America/Argentina/Buenos_Aires"}).format(date);
   const [year,month,num]=fecha.split("-");
-  ctx.fillStyle="#000";ctx.textAlign="left";ctx.textBaseline="top";ctx.font='bold 35px "EcoReporte"';
-  ctx.fillText(`${day[0].toUpperCase()+day.slice(1)} ${num}/${month}/${year}`,60,400,425);
+  const texto = `${day[0].toUpperCase()+day.slice(1)} ${num}/${month}/${year}`;
+  ctx.fillStyle="#1a1a1a";ctx.textAlign="center";ctx.textBaseline="middle";
+  let tamano=90;
+  do {
+    ctx.font=`bold ${tamano}px "EcoReporte"`;
+    if(ctx.measureText(texto).width<=CAJA_FECHA.w-40 || tamano<=24) break;
+    tamano-=2;
+  } while(true);
+  ctx.fillText(texto,CAJA_FECHA.x+CAJA_FECHA.w/2,CAJA_FECHA.y+CAJA_FECHA.h/2);
   return canvas.toBuffer("image/png");
 }
-module.exports={generateRiesgoMap,fechaValida,ZONAS};
+module.exports={generateRiesgoMap,fechaValida,ZONAS,cargarPlantilla,CAJA_FECHA};

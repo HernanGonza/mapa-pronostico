@@ -72,27 +72,43 @@ test("geometría y catálogo tienen los mismos 17 departamentos", () => {
   }
 });
 
-test("PNG institucional conserva logos y asigna cada zona según el mapa del Java", async () => {
-  const { generateRiesgoMap, fechaValida } = require("../src/lib/generateRiesgoMap");
+test("PNG institucional conserva el resto de la plantilla y asigna cada zona según el mapa del Java", async () => {
+  const { generateRiesgoMap, fechaValida, ZONAS, cargarPlantilla, CAJA_FECHA } = require("../src/lib/generateRiesgoMap");
   const { createCanvas, loadImage } = require("canvas");
   assert.equal(fechaValida("2026-02-30"), false);
   assert.equal(fechaValida("2026-09-08"), true);
   const buffer = await generateRiesgoMap({ zonas: validas(), fecha: "2026-09-08" });
   const image = await loadImage(buffer);
-  assert.equal(image.width, 1000); assert.equal(image.height, 1000);
-  const canvas = createCanvas(1000,1000), ctx = canvas.getContext("2d");
+  const { image: template, masks, labels } = await cargarPlantilla();
+  // Dimensiones y máscaras vienen de la plantilla real (`data/ecosotat/misiones.png`),
+  // no de valores fijos: así el test no rompe si el archivo cambia de tamaño.
+  assert.equal(image.width, template.width); assert.equal(image.height, template.height);
+  const canvas = createCanvas(template.width, template.height), ctx = canvas.getContext("2d");
   ctx.drawImage(image,0,0);
-  const footer = ctx.getImageData(0,912,1000,88).data;
-  // Anclas interiores alejadas de los textos: comprueba el cruce de IDs,
-  // especialmente Capital (4) vs ZONA_1 y Apóstoles (1) vs ZONA_3.
-  const samples = [["4",210,720],["1",263,852],["9",658,190],["7",765,210]];
-  for(const [id,x,y] of samples) {
+  // Un píxel dentro de cada una de las 17 máscaras (no un punto fijo elegido a
+  // ojo) debe llevar el color de la categoría asignada a ese departamento.
+  for(const [gray,id] of ZONAS) {
     const name=validas().find(z=>z.id===id).categoria;
     const hex=categorias.find(c=>c.nombre===name).color;
+    const idx=masks.get(gray)[0];
+    const x=idx%template.width, y=Math.floor(idx/template.width);
     assert.deepEqual([...ctx.getImageData(x,y,1,1).data].slice(0,3),[1,3,5].map(n=>parseInt(hex.slice(n,n+2),16)));
   }
-  const template=await loadImage(path.join(__dirname,"../data/ecosotat/misiones.png"));
-  ctx.drawImage(template,0,0);
-  assert.deepEqual(footer,ctx.getImageData(0,912,1000,88).data);
+  // El resto de la plantilla (logos, título, escala, fondo) no debe tocarse:
+  // cualquier píxel fuera de las máscaras/rótulos de zona y de la franja de
+  // la fecha tiene que quedar igual al original.
+  const modificados = new Set();
+  for(const [gray] of ZONAS) { for(const i of masks.get(gray)) modificados.add(i); for(const i of labels.get(gray)) modificados.add(i); }
+  for(let y=CAJA_FECHA.y;y<CAJA_FECHA.y+CAJA_FECHA.h;y++) for(let x=CAJA_FECHA.x;x<CAJA_FECHA.x+CAJA_FECHA.w;x++) modificados.add(y*template.width+x);
+  const generado=ctx.getImageData(0,0,template.width,template.height).data;
+  const plantillaCanvas=createCanvas(template.width,template.height);
+  const plantillaCtx=plantillaCanvas.getContext("2d"); plantillaCtx.drawImage(template,0,0);
+  const original=plantillaCtx.getImageData(0,0,template.width,template.height).data;
+  const total=template.width*template.height;
+  for(let i=0;i<total;i+=97) {
+    if(modificados.has(i)) continue;
+    const j=i*4;
+    assert.deepEqual([generado[j],generado[j+1],generado[j+2],generado[j+3]],[original[j],original[j+1],original[j+2],original[j+3]]);
+  }
   await assert.rejects(generateRiesgoMap({zonas:validas().slice(1),fecha:"2026-09-08"}));
 });
