@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import PlacaPreview from "../components/PlacaPreview";
 import BaseMap from "../components/BaseMap";
 import { colorPronostico, infoPronostico, LeyendaPronostico } from "../components/PronosticoMapContent";
 import EmbedShare from "../components/EmbedShare";
@@ -76,6 +77,9 @@ export default function AdminPage() {
   const [mensajeOk, setMensajeOk] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [fechaPronostico, setFechaPronostico] = useState(new Date().toISOString().slice(0, 10));
+  const [placa, setPlaca] = useState(null);
+  const [vista, setVista] = useState("mapa");
+  useEffect(() => { setPlaca(null); }, [filas, fechaPronostico]);
   const mapaRef = useRef(null);
 
   useEffect(() => {
@@ -171,7 +175,9 @@ export default function AdminPage() {
     setError(null);
     try {
       const blob = await renderPngEnBack(filas);
-      descargarBlob(blob, `mapa_prono_${Date.now()}.png`);
+      setPlaca({ blob, nombre: `pronostico-${fechaPronostico}.png` });
+      setVista("placa");
+      setMensajeOk("Placa generada. Revisala en la vista previa y descargala desde ahí.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -190,7 +196,7 @@ export default function AdminPage() {
       descargarBlob(blob, `mapa_captura_${Date.now()}.png`);
     } catch (err) {
       setError(
-        "No se pudo capturar el mapa. Usá 'Descargar imagen institucional', que es la vía confiable. Detalle: " +
+        "No se pudo capturar el mapa. Usá 'Generar placa para redes', que es la vía confiable. Detalle: " +
           err.message
       );
     } finally {
@@ -218,7 +224,7 @@ export default function AdminPage() {
       <div className="admin-panel">
         <div className="editor-heading"><span className="editor-eyebrow">REPORTE POR MUNICIPIO</span><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
         <h2>1 · Subir el .docx del día</h2>
-        <label className="field"><span>Fecha del pronóstico</span><input type="date" value={fechaPronostico} onChange={e => setFechaPronostico(e.target.value)} /></label>
+        <label className="field"><span>Fecha del pronóstico</span><input type="date" disabled={cargando} value={fechaPronostico} onChange={e => setFechaPronostico(e.target.value)} /></label>
         <p className="admin-panel__hint">
           Así lo genera Alerta Temprana. El mapa se arma solo con esos datos —
           no hace falta cargar nada a mano.
@@ -272,6 +278,7 @@ export default function AdminPage() {
                     {CAMPOS.map(([campo]) => (
                       <td key={campo}>
                         <input
+                          disabled={cargando}
                           type="number"
                           value={row[campo]}
                           className={tempInvalida(row[campo]) ? "is-invalid" : ""}
@@ -288,6 +295,7 @@ export default function AdminPage() {
                           style={{ background: colorPorCondicion(row.CONDICION) }}
                         />
                         <select
+                          disabled={cargando}
                           value={condicionCanonica(row.CONDICION) || ""}
                           className={
                             esCondicionConocida(row.CONDICION) ? "" : "is-invalid"
@@ -369,7 +377,7 @@ export default function AdminPage() {
                 onClick={onDescargarImagenServer}
                 disabled={cargando || hayInvalidos}
               >
-                Descargar imagen institucional
+                {cargando ? "Procesando…" : "Generar placa para redes"}
               </button>
               <button
                 className="btn btn--block"
@@ -384,7 +392,7 @@ export default function AdminPage() {
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
-      <div className="admin-map-area">
+      <PlacaPreview placa={placa} vista={vista} onVista={setVista} titulo="pronóstico">
         {municipiosPreview && municipiosGeojson ? (
           <BaseMap
             ref={mapaRef}
@@ -403,7 +411,7 @@ export default function AdminPage() {
             Subí un .docx para ver el mapa.
           </div>
         )}
-      </div>
+      </PlacaPreview>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
+import PlacaPreview from "../components/PlacaPreview";
 import RiesgoMap from "../components/RiesgoMap";
 import { getRiesgoCatalogo, getDepartamentosGeojson, getRiesgoActual, publicarRiesgo, renderRiesgoPng } from "../api";
 
@@ -15,17 +16,18 @@ export default function RiesgoIncendiosPage() {
   const [ocupado, setOcupado] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [intento, setIntento] = useState(0);
+  const [placa, setPlaca] = useState(null);
+  const [vista, setVista] = useState("mapa");
   const mapaRef = useRef(null);
   const [fecha, setFecha] = useState(() => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date()));
+  useEffect(() => { setPlaca(null); }, [zonas, fecha]);
   async function exportarInstitucional() {
     setOcupado(true); setError("");
     try {
       const blob = await renderRiesgoPng(zonas, fecha);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url;
-      a.download = `riesgo-incendios-${fecha}.png`; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMensaje("Imagen institucional descargada.");
+      setPlaca({ blob, nombre: `riesgo-incendios-${fecha}.png` });
+      setVista("placa");
+      setMensaje("Placa generada. Revisala en la vista previa y descargala desde ahí.");
     } catch (e) { setError(e.message); }
     finally { setOcupado(false); }
   }
@@ -98,13 +100,13 @@ export default function RiesgoIncendiosPage() {
         <div className="admin-actions">
           <label className="field"><span>Fecha de la imagen institucional</span><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} disabled={ocupado} /></label>
           {!confirmando && <button className="btn btn--primary btn--block" disabled={ocupado || completos !== zonas.length || !sucio} onClick={() => setConfirmando(true)}>Revisar y publicar</button>}
-          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length || !fecha} onClick={exportarInstitucional}>{ocupado ? "Procesando…" : "Descargar imagen institucional"}</button>
+          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length || !fecha} onClick={exportarInstitucional}>{ocupado ? "Procesando…" : "Generar placa para redes"}</button>
           <button className="btn btn--block" disabled={ocupado || completos !== zonas.length} onClick={exportar}>Capturar mapa actual</button>
           {sucio && <p className="admin-panel__hint">La descarga reflejará el borrador visible. Publicá para actualizar el mapa del sitio.</p>}
         </div>
       </>}
         <EmbedShare path="/embed/riesgo-incendios" title="Riesgo de incendios forestales de Misiones" />
     </section>
-    <div className="admin-map-area">{geo && catalogo ? <RiesgoMap ref={mapaRef} geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={sucio ? null : publicado?.publicadoEn} enableCapture /> : <div className="admin-map-area__vacio">Preparando mapa de Misiones…</div>}</div>
+    <PlacaPreview placa={placa} vista={vista} onVista={setVista} titulo="riesgo de incendios">{geo && catalogo ? <RiesgoMap ref={mapaRef} geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={sucio ? null : publicado?.publicadoEn} enableCapture /> : <div className="admin-map-area__vacio">Preparando mapa de Misiones…</div>}</PlacaPreview>
   </div>;
 }
