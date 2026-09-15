@@ -231,6 +231,13 @@
   border-radius: 8px;
   font-size: 13px;
 }
+.avisos-historial li .btn { margin-top: 8px; }
+.avisos-historial__publicado {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--accent);
+  font-weight: 600;
+}
 
 .base-map--fallback p {
   color: var(--map-text-muted);

@@ -75,6 +75,11 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
     map.on("style.load", () => {
       if (municipiosRef.current) {
         map.addSource("municipios-limite", { type: "geojson", data: municipiosRef.current });
+        // Relleno verde tenue sobre los 79 municipios: sin esto, Misiones se
+        // pierde contra Brasil/Paraguay/Corrientes en el fondo "positron"
+        // (todo blanco/gris) — con el mapa capturado como placa, hace falta
+        // que la provincia se distinga a simple vista.
+        map.addLayer({ id: "municipios-limite-relleno", type: "fill", source: "municipios-limite", paint: { "fill-color": "#3e6c51", "fill-opacity": 0.16 } });
         map.addLayer({ id: "municipios-limite-linea", type: "line", source: "municipios-limite", paint: { "line-color": "#345345", "line-width": 1, "line-opacity": 0.55 } });
         map.addLayer({ id: "municipios-limite-label", type: "symbol", source: "municipios-limite", minzoom: 7.5,
           layout: { "text-field": ["get", "nombre"], "text-font": ["Noto Sans Regular"], "text-size": 10.5, "text-max-width": 8 },

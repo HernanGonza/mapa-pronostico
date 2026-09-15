@@ -20,8 +20,9 @@ export default function AvisosCortoPlazoPage() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [historial, setHistorial] = useState(null);
+  const [historialAbierto, setHistorialAbierto] = useState(false);
   const [municipios, setMunicipios] = useState(null);
-  const [generado, setGenerado] = useState(null); // { id, publicadoEn } del último aviso generado
+  const [publicando, setPublicando] = useState(null); // id del aviso que se está publicando
   const [publicado, setPublicado] = useState(null); // último aviso publicado (mapa público)
   const textoRef = useRef(null);
   const mapaRef = useRef(null);
@@ -32,7 +33,7 @@ export default function AvisosCortoPlazoPage() {
     api.getAvisoCortoPlazoActual().then(setPublicado).catch(() => setPublicado(null));
   }, []);
 
-  function cambiarPuntos(nuevos) { setPuntos(nuevos); setImagenes(null); setGenerado(null); }
+  function cambiarPuntos(nuevos) { setPuntos(nuevos); setImagenes(null); }
 
   async function generar() {
     setBusy(true); setError(""); setMensaje("");
@@ -40,34 +41,37 @@ export default function AvisosCortoPlazoPage() {
       const imagen = mapaRef.current?.capturePng() || null;
       const placa = await api.generarAvisoCortoPlazo({ poligono: puntos, titulo, texto, fondo, imagen });
       setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
-      setGenerado({ id: placa.id });
       setVista("recomendaciones");
       setHistorial((h) => [{ ...placa, poligono: puntos, titulo, texto, fondo }, ...(h || [])]);
+      setHistorialAbierto(true);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
 
-  async function publicar() {
-    if (!generado?.id) return;
-    setBusy(true); setError(""); setMensaje("");
+  // Publicar es independiente de la sesión: cualquier aviso ya generado
+  // (esta sesión o una anterior — viene del historial, que persiste en la
+  // base) se puede publicar, no solo el que se acaba de generar.
+  async function publicarAviso(id) {
+    if (id == null) return;
+    setPublicando(id); setError(""); setMensaje("");
     try {
-      const nuevo = await api.publicarAvisoCortoPlazo(generado.id);
+      const nuevo = await api.publicarAvisoCortoPlazo(id);
       setPublicado(nuevo);
       setMensaje("Publicado. El mapa público ya muestra este aviso.");
     } catch (e) { setError(e.message); }
-    finally { setBusy(false); }
+    finally { setPublicando(null); }
   }
 
   function insertarIcono(icono) {
     const campo = textoRef.current, inicio = campo?.selectionStart ?? texto.length, fin = campo?.selectionEnd ?? inicio;
     const nuevo = texto.slice(0, inicio) + icono + texto.slice(fin);
     if (nuevo.length > 2400) return;
-    setTexto(nuevo); setImagenes(null); setGenerado(null);
+    setTexto(nuevo); setImagenes(null);
     requestAnimationFrame(() => { campo?.focus(); campo?.setSelectionRange(inicio + icono.length, inicio + icono.length); });
   }
 
   const puedeGenerar = puntos.length >= 3 && texto.trim() && titulo.trim();
-  const yaPublicadoEsteId = !!generado?.id && publicado?.id === generado.id;
+  const hayCambiosSinPublicar = !!historial?.length && historial[0].id != null && historial[0].id !== publicado?.id;
 
   return (
     <div className="admin-layout risk-layout meteo-layout">
@@ -77,14 +81,14 @@ export default function AvisosCortoPlazoPage() {
           <h1>Avisos a muy corto plazo</h1>
           <p>Dibujá en el mapa la zona afectada, sobre los límites municipales, y escribí el aviso. El mapa con el polígono queda en la placa, arriba del texto.</p>
         </div>
-        <PublicationStatus changed={!yaPublicadoEsteId && !!generado} published={publicado}>
+        <PublicationStatus changed={hayCambiosSinPublicar} published={publicado}>
           {publicado ? `«${publicado.titulo}»` : null}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
         {mensaje && <p className="risk-message" role="status">{mensaje}</p>}
-        <label className="field"><span>Título de la placa</span><input value={titulo} maxLength={60} disabled={busy} onChange={(e) => { setTitulo(e.target.value); setImagenes(null); setGenerado(null); }} /></label>
-        <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={(e) => { setFondo(e.target.value); setImagenes(null); setGenerado(null); }}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
-        <label className="field"><span>Texto del aviso</span><textarea ref={textoRef} value={texto} rows={10} maxLength={2400} disabled={busy} placeholder="Escribí acá el aviso a muy corto plazo…" onChange={(e) => { setTexto(e.target.value); setImagenes(null); setGenerado(null); }} /></label>
+        <label className="field"><span>Título de la placa</span><input value={titulo} maxLength={60} disabled={busy} onChange={(e) => { setTitulo(e.target.value); setImagenes(null); }} /></label>
+        <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={(e) => { setFondo(e.target.value); setImagenes(null); }}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
+        <label className="field"><span>Texto del aviso</span><textarea ref={textoRef} value={texto} rows={10} maxLength={2400} disabled={busy} placeholder="Escribí acá el aviso a muy corto plazo…" onChange={(e) => { setTexto(e.target.value); setImagenes(null); }} /></label>
         <div className="meteo-emojis" role="group" aria-label="Insertar icono en el texto">
           {EMOJIS.map(([icono, nombre]) => <button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={() => insertarIcono(icono)}>{icono}</button>)}
         </div>
@@ -92,12 +96,9 @@ export default function AvisosCortoPlazoPage() {
         <button type="button" className="btn btn--block btn--primary" disabled={busy || !puedeGenerar} onClick={generar}>
           {busy ? "Procesando…" : puntos.length < 3 ? "Dibujá al menos 3 puntos en el mapa" : "Generar placa para redes"}
         </button>
-        {generado && !yaPublicadoEsteId && (
-          <button type="button" className="btn btn--block" disabled={busy} onClick={publicar}>Publicar en el mapa público</button>
-        )}
 
         {historial && historial.length > 0 && (
-          <details className="avisos-historial">
+          <details className="avisos-historial" open={historialAbierto} onToggle={(e) => setHistorialAbierto(e.target.open)}>
             <summary>Historial ({historial.length})</summary>
             <ul>
               {historial.map((h, i) => (
@@ -105,6 +106,14 @@ export default function AvisosCortoPlazoPage() {
                   <strong>{h.titulo}</strong> · {new Date(h.generadoEn).toLocaleString("es-AR")}
                   {h.generadoPorEmail && <> · {h.generadoPorEmail}</>}
                   <br /><a href={h.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={h.historiasUrl} target="_blank" rel="noreferrer">historias</a>
+                  <br />
+                  {publicado?.id != null && publicado.id === h.id ? (
+                    <span className="avisos-historial__publicado">Publicado en el mapa público</span>
+                  ) : (
+                    <button type="button" className="btn" disabled={h.id == null || publicando != null} title={h.id == null ? "Este aviso no se guardó en la base — no se puede publicar." : undefined} onClick={() => publicarAviso(h.id)}>
+                      {publicando === h.id ? "Publicando…" : "Publicar en el mapa público"}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

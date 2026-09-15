@@ -121,8 +121,8 @@ function dibujarTitulo(ctx, titulo, tamano, width) {
   ctx.save();
   ctx.fillStyle = '#172332'; ctx.fillRect(0, 0, width, h);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 116px AlertaPlaca';
-  ctx.textAlign = tamano === 'feed' ? 'left' : 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(titulo.trim().toLocaleUpperCase('es-AR'), tamano === 'feed' ? 190 : width / 2, h * 0.72, width - 380);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(titulo.trim().toLocaleUpperCase('es-AR'), width / 2, h * 0.72, width - 380);
   ctx.restore();
 }
 async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='tormenta',tamano='feed',iconos:iconosElegidos=[],titulo=TITULO_PREDETERMINADO}) {
