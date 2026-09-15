@@ -204,6 +204,17 @@
   white-space: pre-wrap;
 }
 
+.extendido-editor { display: grid; gap: 18px; margin: 16px 0; }
+.extendido-editor__dia { border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: grid; gap: 12px; }
+.extendido-editor__dia legend { padding: 0 6px; font-weight: 700; font-size: 13px; }
+.extendido-editor__encabezado { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.extendido-editor__zonas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.extendido-editor__zona { display: grid; gap: 6px; font-size: 12px; }
+.extendido-editor__zona strong { font-size: 13px; }
+.extendido-editor__zona label { display: grid; gap: 3px; color: var(--text-muted); }
+.extendido-editor__zona input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
+.extendido-editor__zona select { width: 100%; }
+
 .avisos-historial {
   margin-top: 20px;
 }
@@ -858,6 +869,28 @@ input[type="file"] {
   }
 }
 
+/* Variante de .admin-layout para pantallas sin mapa (una sola columna) —
+   sin esto, la columna "map" del grid queda vacía y se ve un panel en
+   blanco a la derecha. Doble clase para pesar más que las reglas de
+   arriba (incluida la de la media query) en cualquier ancho. */
+.admin-layout.admin-layout--sin-mapa {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "panel";
+  height: 100vh;
+}
+.admin-layout--sin-mapa .admin-panel {
+  grid-area: panel;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  max-height: none;
+  border-right: 0;
+  border-bottom: 0;
+}
+
 /* =========================================================================
    Login (/login)
    ========================================================================= */
@@ -1107,6 +1140,12 @@ input[type="file"] {
 .risk-share textarea { width: 100%; height: 90px; resize: vertical; padding: 8px; margin-top: 6px; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 11px; background: var(--surface); color: var(--text-muted); }
 .embed-risk { height: 100%; position: relative; }
 .embed-warning { position: absolute; top: 0; left: 0; right: 0; z-index: 12; background: #fff0c9; padding: 6px; font-size: 12px; text-align: center; }
+.aviso-embed { height: 100%; display: flex; flex-direction: column; }
+.aviso-embed__mapa { flex: 1 1 auto; min-height: 220px; position: relative; }
+.aviso-embed__info { flex: none; padding: 16px 20px; background: var(--surface); border-top: 1px solid var(--border); }
+.aviso-embed__info h2 { margin: 0 0 8px; font-size: 16px; }
+.aviso-embed__info p { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+.aviso-embed__info small { color: var(--text-muted); }
 .alertas-demo-aviso { margin: 12px 0; padding: 8px 10px; border-radius: 6px; background: #fff0c9; color: #755b16; font-size: 12px; }
 @media (max-width: 600px) {
   .map-title { left: 10px; top: 10px; padding: 9px 10px; }

@@ -1,11 +1,12 @@
 /**
  * Validación del polígono que el operador dibuja a mano sobre el mapa
- * (avisos a muy corto plazo). Es geometría de referencia únicamente —no
- * se dibuja en la placa (ver generateAlertaMap.generateRecomendaciones,
- * que ya sabe poner texto libre sobre el fondo elegido)— así que la
- * validación es laxa: alcanza con que sean puntos [lng,lat] razonables
- * dentro de Misiones y alrededores, no hace falta que caigan en la
- * provincia exacta (evita rechazar un trazo que roza el límite).
+ * (avisos a muy corto plazo). El mapa con el polígono viaja capturado
+ * como PNG (`imagen`, ver generateAlertaMap.generateRecomendaciones) y
+ * queda en la placa — el polígono en sí se guarda aparte para poder
+ * volver a mostrarlo (mapa público, historial). La validación es laxa:
+ * alcanza con que sean puntos [lng,lat] razonables dentro de Misiones y
+ * alrededores, no hace falta que caigan en la provincia exacta (evita
+ * rechazar un trazo que roza el límite).
  */
 const LAT_MIN = -30, LAT_MAX = -22, LNG_MIN = -58, LNG_MAX = -52;
 

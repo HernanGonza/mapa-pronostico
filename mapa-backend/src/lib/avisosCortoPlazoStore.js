@@ -35,6 +35,7 @@ async function init() {
          historias_path text NOT NULL
        )`
     )
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS publicado_en timestamptz`))
     .then(() => console.log("[avisosCortoPlazoStore] Postgres listo (tabla avisos_corto_plazo)"))
     .catch((e) => {
       initPromise = null;
@@ -94,7 +95,7 @@ async function obtenerHistorial(limite = 20) {
   await init();
   const p = store.getPool();
   const { rows } = await p.query(
-    `SELECT a.id, a.generado_en, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
+    `SELECT a.id, a.generado_en, a.publicado_en, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
             u.email AS generado_por_email
        FROM avisos_corto_plazo a
        LEFT JOIN usuarios u ON u.id = a.generado_por
@@ -102,9 +103,14 @@ async function obtenerHistorial(limite = 20) {
       LIMIT $1`,
     [limite]
   );
-  return rows.map((r) => ({
+  return rows.map(filaAAviso);
+}
+
+function filaAAviso(r) {
+  return {
     id: Number(r.id),
     generadoEn: r.generado_en.toISOString(),
+    publicadoEn: r.publicado_en ? r.publicado_en.toISOString() : null,
     titulo: r.titulo,
     texto: r.texto,
     fondo: r.fondo,
@@ -112,7 +118,41 @@ async function obtenerHistorial(limite = 20) {
     generadoPorEmail: r.generado_por_email,
     feedUrl: urlPublica(r.feed_path),
     historiasUrl: urlPublica(r.historias_path),
-  }));
+  };
 }
 
-module.exports = { init, crear, obtenerHistorial };
+/** Marca este aviso como el que se muestra en el mapa público/iframe — es
+ * el único "publicado" en un momento dado (no hace falta "despublicar" el
+ * anterior: `obtenerActual` siempre toma el de `publicado_en` más reciente). */
+async function publicar(id) {
+  await init();
+  const p = store.getPool();
+  if (!p) throw Object.assign(new Error("No hay base de datos disponible para publicar."), { status: 503 });
+  const { rows } = await p.query(
+    `UPDATE avisos_corto_plazo SET publicado_en = now() WHERE id = $1
+       RETURNING id, generado_en, publicado_en, titulo, texto, fondo, poligono, feed_path, historias_path,
+         (SELECT email FROM usuarios WHERE id = generado_por) AS generado_por_email`,
+    [id]
+  );
+  if (!rows.length) throw Object.assign(new Error("No existe ese aviso."), { status: 404 });
+  return filaAAviso(rows[0]);
+}
+
+/** El aviso publicado actualmente (`null` si ninguno lo está todavía). */
+async function obtenerActual() {
+  if (!store.usaPostgres()) return null;
+  await init();
+  const p = store.getPool();
+  const { rows } = await p.query(
+    `SELECT a.id, a.generado_en, a.publicado_en, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
+            u.email AS generado_por_email
+       FROM avisos_corto_plazo a
+       LEFT JOIN usuarios u ON u.id = a.generado_por
+      WHERE a.publicado_en IS NOT NULL
+      ORDER BY a.publicado_en DESC
+      LIMIT 1`
+  );
+  return rows.length ? filaAAviso(rows[0]) : null;
+}
+
+module.exports = { init, crear, obtenerHistorial, publicar, obtenerActual };
