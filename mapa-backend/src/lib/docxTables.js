@@ -79,4 +79,69 @@ async function extractDocxTables(buffer) {
   return tables;
 }
 
-module.exports = { extractDocxTables };
+/**
+ * Extrae el texto de cada párrafo (<w:p>) del .docx, en orden, tanto
+ * dentro como fuera de tablas. A diferencia de extractDocxTables, no
+ * agrupa por celda — sirve para leer contenido que Alerta Temprana manda
+ * como texto libre (ej. "PRONÓSTICO EXTENDIDO", "INFORMES DE
+ * PRONÓSTICO"), no como tabla.
+ *
+ * @param {Buffer} buffer - contenido del archivo .docx
+ * @returns {Promise<string[]>} un string por párrafo no vacío
+ */
+async function extractDocxParagraphs(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const documentEntry = zip.file("word/document.xml");
+  if (!documentEntry) {
+    throw new Error("El archivo no parece ser un .docx válido (falta word/document.xml)");
+  }
+  const xml = await documentEntry.async("string");
+
+  const parser = new XMLParser({ ignoreAttributes: true, preserveOrder: true, trimValues: false });
+  const parsed = parser.parse(xml);
+
+  const parrafos = [];
+
+  function collectText(node, acc) {
+    if (Array.isArray(node)) {
+      node.forEach((n) => collectText(n, acc));
+      return;
+    }
+    if (node && typeof node === "object") {
+      for (const key of Object.keys(node)) {
+        if (key === ":@") continue;
+        if (key === "w:t") {
+          const val = node[key];
+          if (Array.isArray(val) && val[0] && val[0]["#text"] !== undefined) {
+            acc.push(String(val[0]["#text"]));
+          } else if (typeof val === "string") {
+            acc.push(val);
+          }
+        } else {
+          collectText(node[key], acc);
+        }
+      }
+    }
+  }
+
+  function walk(nodes) {
+    if (!Array.isArray(nodes)) return;
+    for (const node of nodes) {
+      if (node["w:p"]) {
+        const acc = [];
+        collectText(node["w:p"], acc);
+        const texto = acc.join("").trim();
+        if (texto) parrafos.push(texto);
+      } else {
+        for (const key of Object.keys(node)) {
+          if (key !== ":@") walk(node[key]);
+        }
+      }
+    }
+  }
+
+  walk(parsed);
+  return parrafos;
+}
+
+module.exports = { extractDocxTables, extractDocxParagraphs };

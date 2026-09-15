@@ -2,8 +2,8 @@ const path = require('path');
 const fs = require('fs');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const { categorias, iconos, errorDeZonas, errorDeIconos } = require('./alertasMeteorologicas');
+const { PLACAS_DIR, dibujarMapaEnRecuadro } = require('./misionesVectorMap');
 const DIR = path.join(__dirname, '../../data/alertas');
-const PLACAS_DIR = path.join(DIR, 'placas-2025');
 registerFont(path.join(DIR, 'OakSans-Regular.ttf'), {family:'AlertaPlaca'});
 registerFont(path.join(DIR, 'OakSans-Bold.ttf'), {family:'AlertaPlaca',weight:'bold'});
 // Material fuente: Placas-Alertas-Separadas/ en la raíz del repo (assets
@@ -11,10 +11,6 @@ registerFont(path.join(DIR, 'OakSans-Bold.ttf'), {family:'AlertaPlaca',weight:'b
 // data/alertas/placas-2025/ para que el backend no dependa de una carpeta
 // fuera de su propio árbol.
 //
-// gris (redondeado a la decena) -> id de depto: mismo criterio de color que
-// traía el arte plano viejo, ahora resuelto contra "MAPA MISIONES.svg" (mapa
-// vectorial real) en vez de flood-fill sobre un PNG.
-const ZONAS = [[10,'4'],[20,'3'],[30,'1'],[40,'11'],[50,'5'],[60,'15'],[70,'14'],[80,'13'],[90,'2'],[100,'10'],[110,'17'],[120,'8'],[130,'12'],[140,'16'],[150,'6'],[160,'9'],[170,'7']];
 const FONDOS = {
   // el nombre de archivo no indica tamaño ni tema (assets exportados con
   // nombres genéricos) — verificado a mano abriendo cada uno.
@@ -83,36 +79,6 @@ function loadFondos() {
   if (!fondosPromise) fondosPromise = Promise.all(TAMANOS.flatMap(tamano => Object.keys(FONDOS).map(async fondo => [`${fondo}:${tamano}`, await loadImage(path.join(PLACAS_DIR, FONDOS[fondo][tamano]))]))).then(Object.fromEntries);
   return fondosPromise;
 }
-// --- Mapa vectorial (departamentos) ---------------------------------------
-const mapaSvgCrudo = fs.readFileSync(path.join(PLACAS_DIR, 'MAPA MISIONES.svg'), 'utf8');
-// Resuelve, una sola vez al cargar, qué clase CSS del SVG corresponde a cada
-// depto: cada clase trae de fábrica un gris (mismo criterio que ZONAS); no
-// hace falta ningún flood-fill, es una tabla directa clase -> gray -> depto.
-const claseDeDepto = (() => {
-  const grayADepto = new Map(ZONAS);
-  const claseAGray = new Map();
-  for (const m of mapaSvgCrudo.matchAll(/\.(cls-\d+)\s*\{\s*fill:\s*#([0-9a-fA-F]{6});\s*\}/g)) {
-    claseAGray.set(m[1], Math.round(parseInt(m[2].slice(0,2),16)/10)*10);
-  }
-  const out = new Map();
-  for (const [clase, gray] of claseAGray) {
-    const depto = grayADepto.get(gray);
-    if (depto) out.set(depto, clase);
-  }
-  if (out.size !== ZONAS.length) throw new Error(`MAPA MISIONES.svg: se esperaban ${ZONAS.length} deptos, se resolvieron ${out.size}.`);
-  return out;
-})();
-async function rasterizarMapa(zonas, w, h) {
-  const byId = new Map(zonas.map(z => [String(z.id), z]));
-  const colorDeCategoria = new Map(categorias.map(c => [c.nombre, c.color]));
-  let svg = mapaSvgCrudo;
-  for (const [depto, clase] of claseDeDepto) {
-    const hex = colorDeCategoria.get(byId.get(depto).categoria);
-    svg = svg.replace(new RegExp(`\\.${clase}\\s*\\{\\s*fill:\\s*#[0-9a-fA-F]{6};\\s*\\}`), `.${clase} { fill: ${hex}; }`);
-  }
-  svg = svg.replace(/<svg\b([^>]*)>/, (m, attrs) => `<svg${attrs.replace(/\s(width|height)="[^"]*"/g,'')} width="${w}" height="${h}">`);
-  return loadImage(Buffer.from(svg));
-}
 // --- Caja "NIVEL DE ALERTA" (referencias) ---------------------------------
 const nivelesSvgCrudo = fs.readFileSync(path.join(PLACAS_DIR, 'NIVELES DE ALERTA.svg'), 'utf8');
 // El SVG trae el texto en <text>/<tspan> con font-family "Oak Sans" — pero
@@ -173,11 +139,9 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   // donde va) y se dibuja centrado ahí, conservando el aspect ratio real
   // del SVG (el recuadro es sólo una referencia de encuadre, no se
   // deforma el mapa para llenarlo).
-  const m = layout.mapa, mapaAspect = 976.1/1072.11;
-  let mw = m.w, mh = Math.round(mw/mapaAspect);
-  if (mh > m.h) { mh = m.h; mw = Math.round(mh*mapaAspect); }
-  const mapaImg = await rasterizarMapa(zonas, mw*2, mh*2); // 2x para nitidez, se dibuja al tamaño final
-  ctx.drawImage(mapaImg, m.x+(m.w-mw)/2, m.y+(m.h-mh)/2, mw, mh);
+  const colorDeCategoria = new Map(categorias.map(c => [c.nombre, c.color]));
+  const coloresPorDepto = new Map(zonas.map(z => [String(z.id), colorDeCategoria.get(z.categoria)]));
+  await dibujarMapaEnRecuadro(ctx, coloresPorDepto, layout.mapa);
 
   // Caja "NIVEL DE ALERTA": mismo criterio, ancho fijo por layout, alto
   // según el aspect ratio real del SVG.
@@ -210,13 +174,27 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   // referencia, todo en un lienzo de 2250x324) sólo se usa el ícono —
   // mismo recorte que usaban los 4 PNG viejos — y el texto/color se sigue
   // dibujando a mano, igual que antes.
+  //
+  // Con 5 fenómenos, una sola columna de filas bajaba lo suficiente como
+  // para pisar la cola sudoeste del mapa (la provincia no es rectangular:
+  // esa punta entra bastante a la izquierda justo a la altura de la 4ª/5ª
+  // fila). A partir de 5 fenómenos se arma en 2 columnas para no bajar
+  // tanto: la 2ª columna arranca después del texto más largo del catálogo
+  // (medido, no fijo a mano) más un margen, así nunca cae encima del mapa
+  // sin importar qué fenómenos se elijan.
   const catalogoIcono=new Map(iconos.map(i=>[i.id,i])), colorPorCategoria=new Map(categorias.map(c=>[c.nombre,c.color]));
   const ic = layout.iconos, iw=ic.iw, ih=Math.round(iw*324/350), fontSize=ic.fontSize, escalaFuente=fontSize/38;
+  ctx.font=`bold ${fontSize}px AlertaPlaca`;
+  const columnas = iconosElegidos.length > 4 ? 2 : 1;
+  const filasPorColumna = Math.ceil(iconosElegidos.length / columnas);
+  const anchoTextoMax = Math.max(...iconos.map(i => ctx.measureText(i.nombre).width));
+  const anchoColumna = iw + ic.gap + anchoTextoMax + ic.gap * 2;
   iconosElegidos.forEach((elegido,index)=> {
     const icon=catalogoIcono.get(elegido.id), color=colorPorCategoria.get(elegido.categoria);
-    const y=ic.y0+index*ic.rowH;
-    ctx.drawImage(symbols[icon.id],0,0,350,324,ic.x,y,iw,ih);
-    const tx=ic.x+iw+ic.gap, baseline=y+ih/2+Math.round(13*escalaFuente);
+    const columna = Math.floor(index / filasPorColumna), fila = index % filasPorColumna;
+    const x = ic.x + columna * anchoColumna, y = ic.y0 + fila * ic.rowH;
+    ctx.drawImage(symbols[icon.id],0,0,350,324,x,y,iw,ih);
+    const tx=x+iw+ic.gap, baseline=y+ih/2+Math.round(13*escalaFuente);
     ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px AlertaPlaca`;ctx.fillText(icon.nombre,tx,baseline);
     const tw=ctx.measureText(icon.nombre).width;
     ctx.fillStyle=color;ctx.fillRect(tx,baseline+Math.round(12*escalaFuente),tw,Math.max(4,Math.round(7*escalaFuente)));

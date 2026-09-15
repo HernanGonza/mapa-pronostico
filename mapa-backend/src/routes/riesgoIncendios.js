@@ -86,4 +86,27 @@ router.post("/riesgo-incendios/render-png", requireAuth, express.json(), async (
   }
 });
 
+// Placa para redes en los dos formatos (feed + historias), mismo criterio
+// que alertas meteorológicas: genera ambas, las sube y graba quién/cuándo.
+router.post("/riesgo-incendios/placa", requireAuth, express.json(), async (req, res) => {
+  const { generateRiesgoMap, fechaValida } = require("../lib/generateRiesgoMap");
+  const { generateRiesgoMapFeed } = require("../lib/generateRiesgoMapFeed");
+  const placas = require("../lib/riesgoPlacasStore");
+  const { zonas, fecha } = req.body || {};
+  const error = errorDeZonas(zonas);
+  if (error || !fechaValida(fecha)) return res.status(400).json({ error: error || "Fecha de informe inválida." });
+  try {
+    const zonasNorm = normalizarZonas(zonas);
+    const [historiasPng, feedPng] = await Promise.all([
+      generateRiesgoMap({ zonas: zonasNorm, fecha }),
+      generateRiesgoMapFeed({ zonas: zonasNorm, fecha }),
+    ]);
+    const placa = await placas.crear({ fecha, usuarioId: req.usuario.usuarioId, feedPng, historiasPng });
+    res.set("Cache-Control", "no-store").json(placa);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo generar la placa." });
+  }
+});
+
 module.exports = router;

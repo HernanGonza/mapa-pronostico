@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, onVista, titulo, children }) {
+export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, onVista, titulo, children, labelRecomendaciones = 'Recomendaciones' }) {
   const [url, setUrl] = useState(null);
   useEffect(() => {
     if (!placa) { setUrl(null); return; }
@@ -9,8 +9,9 @@ export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, 
     return () => URL.revokeObjectURL(nuevaUrl);
   }, [placa]);
   const conjunto = vista === 'recomendaciones' ? recomendaciones : imagenes;
-  const vistas = [['mapa', 'Mapa manual'], ['placa', 'Placa para redes']];
-  if (recomendaciones !== undefined) vistas.push(['recomendaciones', 'Recomendaciones']);
+  const vistas = [['mapa', 'Mapa manual']];
+  if (imagenes !== undefined) vistas.push(['placa', 'Placa para redes']);
+  if (recomendaciones !== undefined) vistas.push(['recomendaciones', labelRecomendaciones]);
 
   return <div className="admin-map-area placa-workspace">
     <div className="placa-toolbar" role="group" aria-label="Vista del reporte">

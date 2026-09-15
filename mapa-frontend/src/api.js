@@ -38,8 +38,7 @@ export async function parseDocx(file) {
     body: form,
     ...CON_SESION,
   });
-  const data = await handleJson(res);
-  return data.filas;
+  return handleJson(res);
 }
 
 export async function getMunicipios() {
@@ -99,11 +98,11 @@ export async function getActual() {
   return handleJson(res);
 }
 
-export async function publicar(filas, fechaPronostico) {
+export async function publicar(filas, fechaPronostico, extendido) {
   const res = await fetch(`${API_URL}/api/pronostico/publicar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filas, fechaPronostico }),
+    body: JSON.stringify({ filas, fechaPronostico, extendido: extendido || null }),
     ...CON_SESION,
   });
   return handleJson(res);
@@ -113,6 +112,12 @@ export async function publicar(filas, fechaPronostico) {
  * Pide al back que genere el PNG (server-side, con canvas) y devuelve un
  * Blob listo para descargar. Usa el último publicado si no se pasan filas.
  */
+export async function generarPronosticoPlaca(filas, fechaPronostico) {
+  return handleJson(await fetch(`${API_URL}/api/pronostico/placa`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(filas ? { filas, fechaPronostico } : { fechaPronostico }), ...CON_SESION,
+  }));
+}
 export async function renderPngEnBack(filas) {
   const res = await fetch(`${API_URL}/api/pronostico/render-png`, {
     method: "POST",
@@ -221,6 +226,12 @@ export async function publicarRiesgo(zonas) {
   }));
 }
 
+export async function generarRiesgoPlaca(zonas, fecha) {
+  return handleJson(await fetch(`${API_URL}/api/riesgo-incendios/placa`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zonas, fecha }), ...CON_SESION,
+  }));
+}
 export async function renderRiesgoPng(zonas, fecha) {
   const res = await fetch(`${API_URL}/api/riesgo-incendios/render-png`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -241,6 +252,15 @@ export async function generarRecomendaciones(payload) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload), ...CON_SESION,
   }));
+}
+export async function generarAvisoCortoPlazo(payload) {
+  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/generar`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload), ...CON_SESION,
+  }));
+}
+export async function getAvisosCortoPlazoHistorial() {
+  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/historial`, CON_SESION));
 }
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }

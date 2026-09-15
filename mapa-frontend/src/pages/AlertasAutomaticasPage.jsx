@@ -10,7 +10,7 @@ export default function AlertasAutomaticasPage() {
   return (
     <div className="panel-layout">
       <BrandHeader subtitulo="Alertas automáticas · SMN">
-        <Link to="/panel" className="btn-link">
+        <Link to="/panel/mapas" className="btn-link">
           ← Panel
         </Link>
       </BrandHeader>

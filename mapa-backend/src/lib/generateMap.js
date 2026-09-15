@@ -92,6 +92,16 @@ function ubicarTarjeta(anchorX, anchorY, ocupadas, reservadas, w, h, margen, can
   return mejor;
 }
 
+/** Recorta `texto` a `maxWidth` (con `ctx.font` ya seteado) agregando "…". */
+function truncarTexto(ctx, texto, maxWidth) {
+  if (ctx.measureText(texto).width <= maxWidth) return texto;
+  let recortado = texto;
+  while (recortado.length > 1 && ctx.measureText(`${recortado}…`).width > maxWidth) {
+    recortado = recortado.slice(0, -1);
+  }
+  return `${recortado}…`;
+}
+
 function roundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -211,16 +221,18 @@ function pintarMunicipios(ctx, width, height, forecastRows, scale) {
 }
 
 /**
- * Genera el PNG del mapa de pronóstico para redes (mismo tamaño que
- * basemap.png). Las tarjetas/fuentes escalan en proporción al ancho de la
- * imagen — se calibraron a mano para un diseño de 1280px de ancho, DESIGN_W
- * lo mantiene proporcional si basemap.png cambia de tamaño.
+ * Arma el canvas del mapa de pronóstico para redes (mismo tamaño que
+ * basemap.png: formato "feed"). Las tarjetas/fuentes escalan en proporción
+ * al ancho de la imagen — se calibraron a mano para un diseño de 1280px de
+ * ancho, DESIGN_W lo mantiene proporcional si basemap.png cambia de tamaño.
+ * Devuelve el canvas (node-canvas), no escribe a disco — lo hacen
+ * generateForecastMap (feed, a archivo) y generateForecastMapHistorias
+ * (historias, recomponiendo esto sobre un lienzo más alto).
  *
  * @param {Array} forecastRows - [{LOCALIDAD, TMIN, TMAX, CONDICION}, ...]
- * @param {string} outputPath
  * @param {Date} [date] - fecha usada para el título (default: ahora)
  */
-async function generateForecastMap({ forecastRows, outputPath, date = new Date() }) {
+async function renderForecastCanvas({ forecastRows, date = new Date() }) {
   ensureFonts();
 
   const baseImage = await loadImage(path.join(MATERIALES_DIR, "basemap.png"));
@@ -260,7 +272,10 @@ async function generateForecastMap({ forecastRows, outputPath, date = new Date()
   }));
 
   const CARD_W = 226 * scale;
-  const CARD_H = 72 * scale;
+  // +22 respecto de antes: hueco para la descripción de la condición debajo
+  // del ícono (siempre que hay un pictograma tiene que haber una leyenda de
+  // qué significa, aunque sea chica).
+  const CARD_H = 94 * scale;
   const MARGEN = 22 * scale;
   const GAP = 18 * scale;
   const ocupadas = [];
@@ -335,11 +350,66 @@ async function generateForecastMap({ forecastRows, outputPath, date = new Date()
     ctx.fillRect(tx + 54 * scale, box.y + 40 * scale, 1.5 * scale, 23 * scale);
     ctx.fillStyle = COLOR_TMAX;
     ctx.fillText(`${row.TMAX}°`, tx + 68 * scale, box.y + 37 * scale);
+
+    // Descripción de la condición (lo que dice el pictograma), en una línea
+    // aparte debajo de ícono + temperaturas, angosta a todo el ancho de la
+    // tarjeta para que entren nombres largos ("lluvias y tormentas
+    // aisladas"); si ni así entra, se recorta con "…".
+    if (row.CONDICION) {
+      const condicionTexto = row.CONDICION.trim();
+      const textoCapitalizado = condicionTexto.charAt(0).toUpperCase() + condicionTexto.slice(1);
+      const maxCondicionWidth = box.w - 12 * scale;
+      let condicionSize = 13 * scale;
+      ctx.font = fontStack("FiraSans-Regular", condicionSize);
+      while (ctx.measureText(textoCapitalizado).width > maxCondicionWidth && condicionSize > 10 * scale) {
+        condicionSize -= scale;
+        ctx.font = fontStack("FiraSans-Regular", condicionSize);
+      }
+      ctx.fillStyle = "#5b625d";
+      ctx.fillText(truncarTexto(ctx, textoCapitalizado, maxCondicionWidth), box.x + 6 * scale, box.y + 68 * scale);
+    }
   }
 
+  return canvas;
+}
+
+/** generateForecastMap: formato "feed" — igual que antes, escribe a disco. */
+async function generateForecastMap({ forecastRows, outputPath, date = new Date() }) {
+  const canvas = await renderForecastCanvas({ forecastRows, date });
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, canvas.toBuffer("image/png"));
   return outputPath;
 }
 
-module.exports = { generateForecastMap, MATERIALES_DIR };
+// Franja institucional (pie con los 3 logos) de basemap.png: medida a mano
+// escaneando la imagen — de acá para abajo es el pie verde, de acá para
+// arriba es la zona de contenido (título/mapa/tarjetas).
+const FOOTER_Y = 2564;
+const CREMA = "#f5f2ed"; // color real del papel de fondo (basemap.png), no el de la marca — así no hay costura visible con el recorte.
+
+/**
+ * Formato "historias" del pronóstico (2250x4000, misma convención de
+ * tamaño que usa alertas meteorológicas): NO hay arte de fondo alto
+ * propio (basemap.png es plano, calibrado para "feed"), así que se arma
+ * recomponiendo el feed ya probado — título+mapa+tarjetas arriba, sin
+ * tocar ese código — sobre un lienzo más alto, con el mismo pie
+ * institucional (recortado de basemap.png) al final y de relleno el color
+ * de papel real.
+ */
+async function generateForecastMapHistorias({ forecastRows, date = new Date() }) {
+  const [feedCanvas, baseImage] = await Promise.all([
+    renderForecastCanvas({ forecastRows, date }),
+    loadImage(path.join(MATERIALES_DIR, "basemap.png")),
+  ]);
+  const W = feedCanvas.width, H = 4000;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = CREMA;
+  ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(feedCanvas, 0, 0, W, FOOTER_Y, 0, 0, W, FOOTER_Y);
+  const footerH = baseImage.height - FOOTER_Y;
+  ctx.drawImage(baseImage, 0, FOOTER_Y, W, footerH, 0, H - footerH, W, footerH);
+  return canvas.toBuffer("image/png");
+}
+
+module.exports = { generateForecastMap, generateForecastMapHistorias, MATERIALES_DIR };

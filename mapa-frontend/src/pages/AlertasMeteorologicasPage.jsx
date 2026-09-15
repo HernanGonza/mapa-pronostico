@@ -70,7 +70,7 @@ export default function AlertasMeteorologicasPage() {
   const cambios=zonasCambiadas.length>0||iconosCambiaron;
   const puedePublicar=!!catalogo&&(!publicado||cambios);
   return <div className="admin-layout risk-layout meteo-layout">
-    <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel" className="btn-link">← Panel</Link></BrandHeader>
+    <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Asigná el color y uno o varios fenómenos a cada departamento.</p></div>
       {error&&<div className="risk-message risk-message--error" role="alert">{error}</div>}

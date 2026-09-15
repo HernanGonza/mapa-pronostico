@@ -13,6 +13,7 @@ const authRouter = require("./routes/auth");
 const incendiosRouter = require("./routes/incendios");
 const riesgoIncendiosRouter = require("./routes/riesgoIncendios");
 const alertasMeteorologicasRouter = require("./routes/alertasMeteorologicas");
+const avisosCortoPlazoRouter = require("./routes/avisosCortoPlazo");
 const store = require("./lib/store");
 
 const app = express();
@@ -63,6 +64,7 @@ app.use("/api", pronosticoRouter);
 app.use("/api", incendiosRouter);
 app.use("/api", riesgoIncendiosRouter);
 app.use("/api", alertasMeteorologicasRouter);
+app.use("/api", avisosCortoPlazoRouter);
 app.use("/api", require("./routes/smn"));
 
 // Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.

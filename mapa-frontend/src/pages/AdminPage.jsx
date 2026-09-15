@@ -10,7 +10,7 @@ import BrandHeader from "../components/BrandHeader";
 import {
   parseDocx,
   publicar,
-  renderPngEnBack,
+  generarPronosticoPlaca,
   getActual,
   getMapaPreview,
   getMunicipiosGeojson,
@@ -77,6 +77,7 @@ function calcularCambios(editadas, publicadas) {
 
 export default function AdminPage() {
   const [filas, setFilas] = useState(null);
+  const [extendido, setExtendido] = useState(null);
   const [publicado, setPublicado] = useState(null); // { publicadoEn, filas }
   const [municipiosPreview, setMunicipiosPreview] = useState(null);
   const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
@@ -85,9 +86,9 @@ export default function AdminPage() {
   const [mensajeOk, setMensajeOk] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [fechaPronostico, setFechaPronostico] = useState(new Date().toISOString().slice(0, 10));
-  const [placa, setPlaca] = useState(null);
+  const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
-  useEffect(() => { setPlaca(null); }, [filas, fechaPronostico]);
+  useEffect(() => { setImagenes(null); }, [filas, fechaPronostico]);
   const mapaRef = useRef(null);
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export default function AdminPage() {
         if (actual) {
           setPublicado(actual);
           setFilas(actual.filas);
+          setExtendido(actual.extendido || null);
           if (actual.fechaPronostico) setFechaPronostico(actual.fechaPronostico);
         }
       })
@@ -145,8 +147,9 @@ export default function AdminPage() {
     setMensajeOk(null);
     setConfirmando(false);
     try {
-      const nuevasFilas = await parseDocx(file);
+      const { filas: nuevasFilas, extendido: nuevoExtendido } = await parseDocx(file);
       setFilas(nuevasFilas);
+      setExtendido(nuevoExtendido || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -170,7 +173,7 @@ export default function AdminPage() {
     setError(null);
     setMensajeOk(null);
     try {
-      const payload = await publicar(filas, fechaPronostico);
+      const payload = await publicar(filas, fechaPronostico, extendido);
       setPublicado(payload);
       setConfirmando(false);
       setMensajeOk("Publicado. El mapa público ya muestra esta versión.");
@@ -181,12 +184,12 @@ export default function AdminPage() {
     }
   }
 
-  async function onDescargarImagenServer() {
+  async function onGenerarPlaca() {
     setCargando(true);
     setError(null);
     try {
-      const blob = await renderPngEnBack(filas);
-      setPlaca({ blob, nombre: `pronostico-${fechaPronostico}.png` });
+      const placa = await generarPronosticoPlaca(filas, fechaPronostico);
+      setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
       setVista("placa");
       setMensajeOk("Placa generada. Revisala en la vista previa y descargala desde ahí.");
     } catch (err) {
@@ -227,7 +230,7 @@ export default function AdminPage() {
         ) : (
           <span>Todavía no se publicó ningún pronóstico</span>
         )}
-        <Link to="/panel" className="btn-link">
+        <Link to="/panel/mapas" className="btn-link">
           ← Panel
         </Link>
       </BrandHeader>
@@ -254,6 +257,13 @@ export default function AdminPage() {
             disabled={cargando}
           />
         </label>
+
+        {extendido && (
+          <div className="alert alert--ok" role="status">
+            Este .docx también trae pronóstico extendido (sábado y domingo, por zona). Ahora podés ir a la pantalla del{" "}
+            <Link to="/panel/pronostico-3-dias">pronóstico de 3 días</Link>.
+          </div>
+        )}
 
         {filas && (
           <>
@@ -350,7 +360,7 @@ export default function AdminPage() {
 
               <button
                 className="btn btn--block"
-                onClick={onDescargarImagenServer}
+                onClick={onGenerarPlaca}
                 disabled={cargando || hayInvalidos}
               >
                 {cargando ? "Procesando…" : "Generar placa para redes"}
@@ -368,7 +378,7 @@ export default function AdminPage() {
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
-      <PlacaPreview placa={placa} vista={vista} onVista={setVista} titulo="pronóstico">
+      <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico">
         {municipiosPreview && municipiosGeojson ? (
           <BaseMap
             ref={mapaRef}

@@ -74,6 +74,7 @@ async function init() {
       )
     )
     .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS fecha_pronostico date`))
+    .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS extendido jsonb`))
     .then(() => {
       console.log("[store] Postgres listo (tabla pronosticos)");
     })
@@ -89,19 +90,19 @@ async function init() {
   return listo;
 }
 
-async function publicar(filas, fechaPronostico = null) {
+async function publicar(filas, fechaPronostico = null, extendido = null) {
   if (usaPostgres()) {
     await init();
     const { rows } = await pool.query(
-      `INSERT INTO pronosticos (filas, fecha_pronostico)
-       VALUES ($1::jsonb, $2::date)
-       RETURNING publicado_en, filas, fecha_pronostico`,
-      [JSON.stringify(filas), fechaPronostico || null]
+      `INSERT INTO pronosticos (filas, fecha_pronostico, extendido)
+       VALUES ($1::jsonb, $2::date, $3::jsonb)
+       RETURNING publicado_en, filas, fecha_pronostico, extendido`,
+      [JSON.stringify(filas), fechaPronostico || null, extendido ? JSON.stringify(extendido) : null]
     );
-    return { publicadoEn: rows[0].publicado_en.toISOString(), fechaPronostico: rows[0].fecha_pronostico, filas: rows[0].filas };
+    return { publicadoEn: rows[0].publicado_en.toISOString(), fechaPronostico: rows[0].fecha_pronostico, filas: rows[0].filas, extendido: rows[0].extendido };
   }
 
-  const payload = { publicadoEn: new Date().toISOString(), fechaPronostico: fechaPronostico || null, filas };
+  const payload = { publicadoEn: new Date().toISOString(), fechaPronostico: fechaPronostico || null, filas, extendido };
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, JSON.stringify(payload, null, 2));
   return payload;
@@ -111,7 +112,7 @@ async function obtenerActual() {
   if (usaPostgres()) {
     await init();
     const { rows } = await pool.query(
-      `SELECT publicado_en, fecha_pronostico, filas
+      `SELECT publicado_en, fecha_pronostico, filas, extendido
          FROM pronosticos
          ORDER BY id DESC
          LIMIT 1`
@@ -121,6 +122,7 @@ async function obtenerActual() {
       publicadoEn: rows[0].publicado_en.toISOString(),
       fechaPronostico: rows[0].fecha_pronostico,
       filas: rows[0].filas,
+      extendido: rows[0].extendido,
     };
   }
 

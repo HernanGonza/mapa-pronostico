@@ -82,7 +82,7 @@ export default function AlertasIncendiosPage() {
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Alertas de incendios · NASA FIRMS">
-        <Link to="/panel" className="btn-link">
+        <Link to="/panel/mapas" className="btn-link">
           ← Panel
         </Link>
       </BrandHeader>

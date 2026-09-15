@@ -4,9 +4,10 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
-const { extractDocxTables } = require("../lib/docxTables");
+const { extractDocxTables, extractDocxParagraphs } = require("../lib/docxTables");
 const { buildForecastRows } = require("../lib/parseForecast");
-const { generateForecastMap } = require("../lib/generateMap");
+const { buildExtendedForecast, hayExtendido } = require("../lib/parseForecastExtendido");
+const { generateForecastMap, generateForecastMapHistorias } = require("../lib/generateMap");
 const { nowInArgentina } = require("../lib/dateUtils");
 const { publicar, obtenerActual, obtenerHistorial } = require("../lib/store");
 const { resolveIconPath } = require("../lib/iconResolver");
@@ -62,7 +63,13 @@ router.post("/pronostico/parse", requireAuth, upload.single("pronostico"), async
       });
     }
     const filas = buildForecastRows(tables);
-    res.json({ filas });
+    // "PRONÓSTICO EXTENDIDO" (sábado/domingo por zona) e "INFORMES DE
+    // PRONÓSTICO" (texto narrativo por día) vienen como texto libre, no
+    // como tabla — si el .docx no los trae, buildExtendedForecast
+    // devuelve zonas sin días extra y el front no muestra nada extra.
+    const parrafos = await extractDocxParagraphs(req.file.buffer);
+    const extendido = buildExtendedForecast(tables, parrafos);
+    res.json({ filas, extendido: hayExtendido(extendido) ? extendido : null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -75,12 +82,12 @@ router.post("/pronostico/parse", requireAuth, upload.single("pronostico"), async
  * Guarda el dataset como "el pronóstico actual" — esto es lo que lee
  * el iframe público (/embed en el front).
  */
-router.post("/pronostico/publicar", requireAuth, express.json(), async (req, res) => {
+router.post("/pronostico/publicar", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
   const { filas } = req.body || {};
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });
   try {
-    const payload = await publicar(filas, req.body.fechaPronostico);
+    const payload = await publicar(filas, req.body.fechaPronostico, req.body.extendido || null);
     res.json(payload);
   } catch (err) {
     console.error(err);
@@ -155,6 +162,38 @@ router.post("/pronostico/render-png", requireAuth, express.json(), async (req, r
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/pronostico/placa
+ * body JSON: { filas, fechaPronostico } (opcional; si no viene, usa el
+ * último publicado). Genera feed + historias (mismo criterio que alertas
+ * meteorológicas), las sube y graba quién/cuándo las generó.
+ */
+router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) => {
+  try {
+    let filas = req.body && req.body.filas;
+    const fechaPronostico = req.body && req.body.fechaPronostico;
+    if (!filas) {
+      const actual = await obtenerActual();
+      if (!actual) return res.status(400).json({ error: "No se mandaron `filas` y todavía no hay un pronóstico publicado" });
+      filas = actual.filas;
+    }
+    const errorFilas = errorDeFilas(filas);
+    if (errorFilas) return res.status(400).json({ error: errorFilas });
+    const placas = require("../lib/pronosticoPlacasStore");
+    const fecha = nowInArgentina();
+    const outputPath = path.join(os.tmpdir(), `mapa_prono_feed_${Date.now()}.png`);
+    await generateForecastMap({ forecastRows: filas, outputPath, date: fecha });
+    const feedBuffer = fs.readFileSync(outputPath);
+    fs.unlink(outputPath, () => {});
+    const historiasBuffer = await generateForecastMapHistorias({ forecastRows: filas, date: fecha });
+    const placa = await placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, feedPng: feedBuffer, historiasPng: historiasBuffer });
+    res.set("Cache-Control", "no-store").json(placa);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo generar la placa." });
   }
 });
 

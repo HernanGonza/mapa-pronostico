@@ -50,7 +50,7 @@ export default function UsuariosPage() {
 
   // Solo `superadmin` tiene acceso a esta pantalla — el back también lo
   // frena (esto es solo para no mostrarla).
-  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel" replace />;
+  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel/configuracion" replace />;
 
   function campo(nombre) {
     return {
@@ -94,8 +94,8 @@ export default function UsuariosPage() {
   return (
     <div className="panel-layout">
       <BrandHeader subtitulo="Usuarios">
-        <Link to="/panel" className="btn-link">
-          ← Panel
+        <Link to="/panel/configuracion" className="btn-link">
+          ← Configuración
         </Link>
       </BrandHeader>
 

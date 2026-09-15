@@ -6,7 +6,7 @@ import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
 import PlacaPreview from "../components/PlacaPreview";
 import RiesgoMap from "../components/RiesgoMap";
-import { getRiesgoCatalogo, getDepartamentosGeojson, getRiesgoActual, publicarRiesgo, renderRiesgoPng } from "../api";
+import { getRiesgoCatalogo, getDepartamentosGeojson, getRiesgoActual, publicarRiesgo, generarRiesgoPlaca } from "../api";
 
 export default function RiesgoIncendiosPage() {
   const [catalogo, setCatalogo] = useState(null);
@@ -18,16 +18,16 @@ export default function RiesgoIncendiosPage() {
   const [ocupado, setOcupado] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [intento, setIntento] = useState(0);
-  const [placa, setPlaca] = useState(null);
+  const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
   const mapaRef = useRef(null);
   const [fecha, setFecha] = useState(() => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date()));
-  useEffect(() => { setPlaca(null); }, [zonas, fecha]);
+  useEffect(() => { setImagenes(null); }, [zonas, fecha]);
   async function exportarInstitucional() {
     setOcupado(true); setError("");
     try {
-      const blob = await renderRiesgoPng(zonas, fecha);
-      setPlaca({ blob, nombre: `riesgo-incendios-${fecha}.png` });
+      const placa = await generarRiesgoPlaca(zonas, fecha);
+      setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
       setVista("placa");
       setMensaje("Placa generada. Revisala en la vista previa y descargala desde ahí.");
     } catch (e) { setError(e.message); }
@@ -78,7 +78,7 @@ export default function RiesgoIncendiosPage() {
     finally { setOcupado(false); }
   }
   return <div className="admin-layout risk-layout">
-    <BrandHeader subtitulo="Riesgo de incendios forestales"><Link to="/panel" className="btn-link">← Panel</Link></BrandHeader>
+    <BrandHeader subtitulo="Riesgo de incendios forestales"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading"><h1>Riesgo de incendios</h1>
         <p>Elegí el nivel de cada zona. Los cambios se ven en el mapa antes de publicar.</p></div>
@@ -107,6 +107,6 @@ export default function RiesgoIncendiosPage() {
       </>}
         <EmbedShare path="/embed/riesgo-incendios" title="Riesgo de incendios forestales de Misiones" />
     </section>
-    <PlacaPreview placa={placa} vista={vista} onVista={setVista} titulo="riesgo de incendios">{geo && catalogo ? <RiesgoMap ref={mapaRef} geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={sucio ? null : publicado?.publicadoEn} enableCapture /> : <div className="admin-map-area__vacio">Preparando mapa de Misiones…</div>}</PlacaPreview>
+    <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="riesgo de incendios">{geo && catalogo ? <RiesgoMap ref={mapaRef} geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={sucio ? null : publicado?.publicadoEn} enableCapture /> : <div className="admin-map-area__vacio">Preparando mapa de Misiones…</div>}</PlacaPreview>
   </div>;
 }
