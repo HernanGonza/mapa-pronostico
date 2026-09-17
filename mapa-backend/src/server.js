@@ -79,9 +79,6 @@ store
       if (process.env.SMN_SYNC_ENABLED !== "false") {
         import("./lib/smn/service.mjs").then(({ iniciar }) => iniciar()).catch(err => console.error("[SMN inicio]", err.message));
       }
-      if (process.env.ALERTAS_INCENDIOS_SYNC_ENABLED !== "false") {
-        require("./lib/incendiosSync").iniciar();
-      }
       console.log(
         process.env.DATABASE_URL
           ? "[store] persistencia: Postgres"

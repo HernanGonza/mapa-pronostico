@@ -1,14 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PointsMap from "../components/PointsMap";
 import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
-import {
-  recuperarAlertasIncendio,
-  publicarAlertasIncendio,
-  getAlertasIncendioActual,
-} from "../api";
-import { DATOS_DEMO_ALERTAS, extraerFocos, focosAGeojson } from "../lib/alertasIncendio";
+import { extraerFocos, focosAGeojson } from "../lib/alertasIncendio";
+import { useAlertasIncendioActual } from "../lib/useAlertasIncendioActual";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
 function descargarBlob(blob, nombre) {
@@ -21,40 +17,12 @@ function descargarBlob(blob, nombre) {
 }
 
 export default function AlertasIncendiosPage() {
-  const [actual, setActual] = useState(null); // { recuperadoEn, datos }
-  const [cargando, setCargando] = useState(false);
-  const [publicando, setPublicando] = useState(false);
+  const { actual, error: errorCarga, cargando } = useAlertasIncendioActual();
   const [error, setError] = useState(null);
   const mapaRef = useRef(null);
 
-  useEffect(() => {
-    let cancelado = false;
-    getAlertasIncendioActual().then((actualData) => {
-      if (cancelado) return;
-      setActual(actualData);
-    }).catch(() => {});
-    // El webhook puede recibir una tanda mientras el panel está abierto.
-    const timer = setInterval(() => getAlertasIncendioActual().then(data => {
-      if (!cancelado) setActual(data);
-    }).catch(() => {}), 60000);
-    return () => { cancelado = true; clearInterval(timer); };
-  }, []);
-
-  const focos = useMemo(() => extraerFocos(actual?.datos || DATOS_DEMO_ALERTAS), [actual?.datos]);
+  const focos = useMemo(() => extraerFocos(actual?.datos), [actual?.datos]);
   const puntos = useMemo(() => focosAGeojson(focos), [focos]);
-
-  async function onRecuperar() {
-    setCargando(true);
-    setError(null);
-    try {
-      const payload = await recuperarAlertasIncendio();
-      setActual(payload);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setCargando(false);
-    }
-  }
 
   async function onCapturar() {
     if (!mapaRef.current) return;
@@ -69,14 +37,6 @@ export default function AlertasIncendiosPage() {
     }
   }
 
-  async function onPublicar() {
-    const datos = actual?.datos || DATOS_DEMO_ALERTAS;
-    setPublicando(true); setError(null);
-    try { setActual(await publicarAlertasIncendio(datos)); }
-    catch (err) { setError(err.message); }
-    finally { setPublicando(false); }
-  }
-
   const relativo = tiempoRelativo(actual?.recuperadoEn);
 
   return (
@@ -88,36 +48,16 @@ export default function AlertasIncendiosPage() {
       </BrandHeader>
 
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
-        <div className="editor-heading"><span className="editor-eyebrow">FOCOS SATELITALES · NASA FIRMS</span><h1>Alertas de incendios</h1><p>Recuperá las últimas alertas y revisá los focos en el mapa.</p></div>
-        {!actual && <p className="alertas-demo-aviso" role="status">Vista de prueba: esperando el primer JSON real.</p>}
-        <h2>1 · Recuperar</h2>
-        <p className="admin-panel__hint">
-          Recuperar las alertas actualiza el mapa público. Esta tanda permanece
-          visible hasta la próxima actualización.
-        </p>
-
-        {error && <div className="alert alert--error">{error}</div>}
-
-        <div className="admin-actions">
-          <button
-            className="btn btn--primary btn--block"
-            onClick={onRecuperar}
-            disabled={cargando}
-          >
-            {cargando ? "Recuperando…" : "Recuperar últimas alertas"}
-          </button>
-        </div>
-        <div className="admin-actions">
-          <button className="btn btn--primary btn--block" onClick={onPublicar} disabled={publicando}>
-            {publicando ? "Publicando…" : "Publicar alertas"}
-          </button>
-        </div>
+        <div className="editor-heading"><span className="editor-eyebrow">FOCOS SATELITALES · NASA FIRMS</span><h1>Alertas de incendios</h1><p>Las alertas que envía el sistema se publican automáticamente en el mapa.</p></div>
+        <h2>Recepción automática</h2>
+        <p className="admin-panel__hint">{cargando ? "Consultando alertas…" : actual ? "Mapa público actualizado con la última tanda recibida." : "Esperando la primera tanda del sistema de alertas."}</p>
+        {(error || errorCarga) && <div className="alert alert--error">{error || errorCarga}</div>}
 
         {actual && (
           <>
-            <h2 style={{ marginTop: 22 }}>2 · Estado</h2>
+            <h2 style={{ marginTop: 22 }}>Última tanda</h2>
             <p className="admin-panel__hint">
-              Recuperado <b>{relativo}</b> · {fechaLarga(actual.recuperadoEn)}
+              Recibida y publicada <b>{relativo}</b> · {fechaLarga(actual.recuperadoEn)}
               <br />
               {focos.length} foco(s) con coordenadas reconocidas.
             </p>
@@ -125,9 +65,6 @@ export default function AlertasIncendiosPage() {
             <div className="admin-actions">
               <button className="btn btn--block" onClick={onCapturar} disabled={cargando}>
                 Capturar el mapa como se ve acá
-              </button>
-              <button className="btn btn--block" disabled title="Pendiente: generador de imagen en el servidor">
-                Imagen para redes (servidor) — pendiente
               </button>
             </div>
           </>

@@ -25,7 +25,6 @@ services:
       # Token fijo que manda el sistema de alertas en X-Api-Key al pegarle
       # al webhook de incendios — ver .env.example.
       ALERTAS_INCENDIOS_TOKEN: ${ALERTAS_INCENDIOS_TOKEN:-}
-      ALERTAS_INCENDIOS_URL: ${ALERTAS_INCENDIOS_URL:-}
       SMN_SCOPE: ${SMN_SCOPE:-misiones}
     volumes:
       # Token JWT del SMN (lib/smn/token.mjs) — sin este volumen, cada

@@ -1,13 +1,13 @@
 const store = require("./store");
+const { EventEmitter } = require("events");
 
 /**
- * Última tanda de alertas de incendio (NASA FIRMS, vía nuestro sistema de
- * alertas) que se recuperó. Mismo patrón que `store.js` para el
- * pronóstico: una fila por "Recuperar últimas alertas", el embed público
- * usa siempre la más reciente.
+ * Tandas de alertas de incendio recibidas por webhook. Cada recepción
+ * queda publicada de inmediato; el mapa público usa la más reciente.
  */
 
 let listo = null;
+const cambios = new EventEmitter();
 
 async function init() {
   if (listo) return listo;
@@ -35,7 +35,9 @@ async function guardar(datos) {
      RETURNING recuperado_en, datos`,
     [JSON.stringify(datos)]
   );
-  return { recuperadoEn: rows[0].recuperado_en.toISOString(), datos: rows[0].datos };
+  const actual = { recuperadoEn: rows[0].recuperado_en.toISOString(), datos: rows[0].datos };
+  cambios.emit("actualizado", actual.recuperadoEn);
+  return actual;
 }
 
 async function obtenerActual() {
@@ -64,4 +66,4 @@ async function obtenerHistorial(limite = 10) {
   }));
 }
 
-module.exports = { init, guardar, obtenerActual, obtenerHistorial };
+module.exports = { init, guardar, obtenerActual, obtenerHistorial, cambios };

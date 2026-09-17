@@ -184,27 +184,17 @@ export async function crearUsuarioPanel(datos) {
 
 // --- Alertas de incendio (NASA FIRMS, vía nuestro sistema de alertas) -----
 
-/** Le pide al back que traiga la última tanda de alertas y la guarde. */
-export async function recuperarAlertasIncendio() {
-  const res = await fetch(`${API_URL}/api/incendios/recuperar`, {
-    method: "POST",
-    ...CON_SESION,
-  });
-  return handleJson(res);
-}
-export async function publicarAlertasIncendio(datos) {
-  const res = await fetch(`${API_URL}/api/incendios/publicar`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ datos }), ...CON_SESION,
-  });
+/** Última tanda recibida por webhook (`null` si todavía no llegó ninguna). */
+export async function getAlertasIncendioActual() {
+  const res = await fetch(`${API_URL}/api/incendios/actual`, { cache: "no-store" });
+  if (res.status === 404) return null;
   return handleJson(res);
 }
 
-/** Última tanda guardada (`null` si todavía no se recuperó ninguna). */
-export async function getAlertasIncendioActual() {
-  const res = await fetch(`${API_URL}/api/incendios/actual`, CON_SESION);
-  if (res.status === 404) return null;
-  return handleJson(res);
+export function escucharAlertasIncendio(onActualizar) {
+  const eventos = new EventSource(`${API_URL}/api/incendios/eventos`);
+  eventos.addEventListener("actualizado", onActualizar);
+  return () => eventos.close();
 }
 
 // --- Riesgo por departamento (categoría manual de ECOSOTAT) --------------

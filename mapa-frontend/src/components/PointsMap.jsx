@@ -8,6 +8,7 @@ import {
 import maplibregl from "maplibre-gl";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
+import { getGeo } from "../api";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -18,7 +19,7 @@ const ETIQUETAS = {
   hora: "Hora",
   satelite: "Satélite",
   confidence: "Confianza",
-  frp: "Potencia (FRP)",
+  frp: "Potencia (FRP, MW)",
   vinculadoAANP: "¿Área protegida?",
   anpNombre: "Área protegida",
   Intensidad: "Intensidad",
@@ -35,7 +36,7 @@ const ETIQUETAS = {
  * arriesga esa ruta sin necesidad.
  */
 const PointsMap = forwardRef(function PointsMap(
-  { mundoGeojson, paisesLabels, provincias, provinciasLabels, puntos, titulo, enableCapture = false },
+  { puntos, titulo, enableCapture = false },
   ref
 ) {
   const mapContainerRef = useRef(null);
@@ -46,25 +47,47 @@ const PointsMap = forwardRef(function PointsMap(
   const puntosRef = useRef(puntos);
   puntosRef.current = puntos;
   const syncRef = useRef(null);
+  const misionesRef = useRef(null);
+  const animacionRef = useRef(null);
+  const iniciarAnimacionRef = useRef(null);
+
+  useEffect(() => {
+    let activo = true;
+    getGeo("provincias").then(geo => {
+      if (!activo) return;
+      misionesRef.current = { type: "FeatureCollection", features: geo.features.filter(f =>
+        f.properties?.nombre === "Misiones" && f.properties?.pais === "ARG"
+      ) };
+      syncRef.current?.();
+    }).catch(err => console.warn("[PointsMap] no se pudo cargar Misiones:", err));
+    return () => { activo = false; };
+  }, []);
 
   useImperativeHandle(ref, () => ({
     async capturePng() {
       const map = mapRef.current;
       if (!map) return null;
-      if (!map.loaded() || !map.areTilesLoaded()) {
-        await new Promise((resolve, reject) => {
-          const done = () => { clearTimeout(timer); map.off('idle', done); resolve(); };
-          const timer = setTimeout(() => { map.off('idle', done); reject(new Error('El mapa sigue cargando. Reintentá en unos segundos.')); }, 10000);
-          map.on('idle', done); map.triggerRepaint();
-        });
+      // La animación mantiene el mapa ocupado; pausarla permite esperar 'idle'.
+      cancelAnimationFrame(animacionRef.current);
+      animacionRef.current = null;
+      try {
+        if (!map.loaded() || !map.areTilesLoaded()) {
+          await new Promise((resolve, reject) => {
+            const done = () => { clearTimeout(timer); map.off('idle', done); resolve(); };
+            const timer = setTimeout(() => { map.off('idle', done); reject(new Error('El mapa sigue cargando. Reintentá en unos segundos.')); }, 10000);
+            map.on('idle', done); map.triggerRepaint();
+          });
+        }
+        await new Promise(resolve => { map.once('render', resolve); map.triggerRepaint(); });
+        const mapCanvas = map.getCanvas();
+        const out = document.createElement("canvas");
+        out.width = mapCanvas.width;
+        out.height = mapCanvas.height;
+        out.getContext("2d").drawImage(mapCanvas, 0, 0);
+        return out.toDataURL("image/png");
+      } finally {
+        iniciarAnimacionRef.current?.();
       }
-      await new Promise(resolve => { map.once('render', resolve); map.triggerRepaint(); });
-      const mapCanvas = map.getCanvas();
-      const out = document.createElement("canvas");
-      out.width = mapCanvas.width;
-      out.height = mapCanvas.height;
-      out.getContext("2d").drawImage(mapCanvas, 0, 0);
-      return out.toDataURL("image/png");
     },
   }));
 
@@ -105,13 +128,21 @@ const PointsMap = forwardRef(function PointsMap(
     mapRef.current = map;
     const sync = () => {
       if (!map.isStyleLoaded()) return;
+      if (misionesRef.current && !map.getSource("misiones-destacada")) {
+        map.addSource("misiones-destacada", { type: "geojson", data: misionesRef.current });
+        const before = map.getStyle().layers.find(l => l.type === "symbol")?.id;
+        map.addLayer({ id: "misiones-fondo", type: "fill", source: "misiones-destacada",
+          paint: { "fill-color": "#4a9b63", "fill-opacity": 0.24 } }, before);
+        map.addLayer({ id: "misiones-borde", type: "line", source: "misiones-destacada",
+          paint: { "line-color": "#17633b", "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2, 9, 4], "line-opacity": 0.95 } });
+      }
       const geojson = puntosRef.current || {type: 'FeatureCollection', features: []};
       if (map.getSource('focos')) { map.getSource('focos').setData(geojson); return; }
       map.addSource('focos', {type: 'geojson', data: geojson});
       const color = ['interpolate', ['linear'], ['coalesce', ['get', 'Intensidad'], 0], 0, '#ffd166', 25, '#ff7b25', 100, '#e31a1c'];
       map.addLayer({id: 'focos-eco', type: 'circle', source: 'focos', paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 7, 10, 13],
-        'circle-color': color, 'circle-opacity': 0.18,
+        'circle-radius': 9,
+        'circle-color': color, 'circle-opacity': 0.35,
       }});
       map.addLayer({id: 'focos-punto', type: 'circle', source: 'focos', paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 9],
@@ -120,20 +151,42 @@ const PointsMap = forwardRef(function PointsMap(
     };
     syncRef.current = sync;
     map.on('style.load', sync);
+    let ultimoCuadro = 0;
+    const animar = (tiempo) => {
+      animacionRef.current = null;
+      if (tiempo - ultimoCuadro >= 32 && !document.hidden && puntosRef.current?.features?.length && map.getLayer('focos-eco')) {
+        ultimoCuadro = tiempo;
+        const fase = (tiempo % 1800) / 1800;
+        const escala = Math.max(0.65, Math.min(1.5, map.getZoom() / 7));
+        map.setPaintProperty('focos-eco', 'circle-radius', (9 + fase * 17) * escala);
+        map.setPaintProperty('focos-eco', 'circle-opacity', 0.42 * (1 - fase));
+      }
+      if (!document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && puntosRef.current?.features?.length) animacionRef.current = requestAnimationFrame(animar);
+    };
+    const iniciarAnimacion = () => {
+      if (!animacionRef.current && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && puntosRef.current?.features?.length) {
+        animacionRef.current = requestAnimationFrame(animar);
+      }
+    };
+    iniciarAnimacionRef.current = iniciarAnimacion;
+    map.on('style.load', iniciarAnimacion);
+    document.addEventListener('visibilitychange', iniciarAnimacion);
+    iniciarAnimacion();
     map.on('mouseenter', 'focos-punto', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'focos-punto', () => { map.getCanvas().style.cursor = ''; });
     map.on('click', 'focos-punto', e => setActivo(e.features?.[0]?.properties || null));
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(mapContainerRef.current);
-    return () => { ro.disconnect(); syncRef.current = null; mapRef.current = null; map.remove(); };
+    return () => { ro.disconnect(); document.removeEventListener('visibilitychange', iniciarAnimacion); cancelAnimationFrame(animacionRef.current); animacionRef.current = null; iniciarAnimacionRef.current = null; syncRef.current = null; mapRef.current = null; map.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // OpenFreeMap ya aporta países, provincias, fronteras y rótulos. No se
-  // agregan capas oscuras propias: así esta vista comparte exactamente la
-  // misma base cartográfica que pronóstico y riesgo.
+  // OpenFreeMap aporta el fondo; encima se destaca Misiones y los focos.
 
-  useEffect(() => { syncRef.current?.(); }, [puntos]);
+  useEffect(() => {
+    syncRef.current?.();
+    iniciarAnimacionRef.current?.();
+  }, [puntos]);
 
   if (!webglOk) {
     return (
@@ -166,7 +219,7 @@ const PointsMap = forwardRef(function PointsMap(
           </button>
           <ul className="info-card__props">
             {Object.entries(activo)
-              .filter(([k, v]) => v != null && v !== "" && !(k === "anpNombre" && !activo.vinculadoAANP))
+              .filter(([k, v]) => v != null && v !== "" && !(k === "anpNombre" && !activo.vinculadoAANP) && !(k === "Intensidad" && activo.frp != null))
               .map(([k, v]) => (
                 <li key={k}>
                   <b>{ETIQUETAS[k] || k}:</b>{" "}

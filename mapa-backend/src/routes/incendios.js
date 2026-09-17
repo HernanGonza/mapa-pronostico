@@ -68,43 +68,23 @@ router.get("/incendios/historial", requireAuth, async (req, res) => {
   }
 });
 
-/**
- * POST /api/incendios/recuperar
- * Fallback manual (botón del panel, previo al webhook de arriba): le pide
- * al sistema de alertas su último JSON por pull en vez de esperar a que lo
- * empuje. Se mantiene por si hace falta forzar una actualización a mano.
- * Requiere `ALERTAS_INCENDIOS_URL` (todavía no configurado).
- */
-router.post("/incendios/recuperar", requireAuth, async (req, res) => {
-  const url = process.env.ALERTAS_INCENDIOS_URL;
-  if (!url) {
-    return res.status(501).json({
-      error:
-        "Falta configurar ALERTAS_INCENDIOS_URL (el endpoint del sistema de alertas de incendio).",
-    });
-  }
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`El sistema de alertas respondió ${r.status}`);
-    const datos = await r.json();
-    const payload = await incendiosStore.guardar(datos);
-    res.json(payload);
-  } catch (err) {
-    console.error(err);
-    res.status(502).json({ error: "No se pudo traer las alertas: " + err.message });
-  }
-});
-
-// Publicación explícita desde el panel (permite revisar la tanda antes de
-// hacerla visible en el embed público).
-router.post("/incendios/publicar", requireAuth, express.json({ limit: "2mb" }), async (req, res) => {
-  if (req.body?.datos == null) return res.status(400).json({ error: "Faltan los datos de alertas" });
-  try {
-    res.json(await incendiosStore.guardar(req.body.datos));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
+// Avisa a los mapas abiertos apenas el webhook guarda una tanda.
+router.get("/incendios/eventos", (req, res) => {
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders();
+  res.write(": conectado\n\n");
+  res.flush?.();
+  const avisar = () => { res.write("event: actualizado\ndata: {}\n\n"); res.flush?.(); };
+  incendiosStore.cambios.on("actualizado", avisar);
+  const heartbeat = setInterval(() => { res.write(": activo\n\n"); res.flush?.(); }, 25000);
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    incendiosStore.cambios.off("actualizado", avisar);
+  });
 });
 
 /**
@@ -115,7 +95,7 @@ router.get("/incendios/actual", async (req, res) => {
   try {
     const actual = await incendiosStore.obtenerActual();
     if (!actual) {
-      return res.status(404).json({ error: "Todavía no se recuperó ninguna alerta" });
+      return res.status(404).json({ error: "Todavía no se recibió ninguna alerta" });
     }
     res.json(actual);
   } catch (err) {

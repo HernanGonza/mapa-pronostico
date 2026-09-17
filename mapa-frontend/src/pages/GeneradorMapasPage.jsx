@@ -66,7 +66,7 @@ export default function GeneradorMapasPage() {
       <div className="panel-botonera">
         {OPCIONES.map((op) => (
           <Link key={op.to} to={op.to} className="panel-boton">
-            {["/panel/alertas-incendios", "/panel/alertas-automaticas", "/panel/inundaciones"].includes(op.to) && <span className="panel-boton__state">En desarrollo</span>}
+            {["/panel/alertas-automaticas", "/panel/inundaciones"].includes(op.to) && <span className="panel-boton__state">En desarrollo</span>}
             <h2>{op.titulo}</h2>
             <p>{op.descripcion}</p>
           </Link>

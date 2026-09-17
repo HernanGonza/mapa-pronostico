@@ -1,14 +1,12 @@
 /**
  * Normaliza la respuesta del sistema de alertas de incendio a una lista de
- * `{ lat, lon, intensidad, propiedades }`. El endpoint (ALERTAS_INCENDIOS_URL)
- * manda un array con un objeto por foco, shape confirmada:
+ * `{ lat, lon, intensidad, propiedades }`. El webhook recibe un array
+ * con un objeto por foco, con el formato de NASA FIRMS:
  *
  *   {
- *     "latitud": -26.07103, "longitud": -54.31158,
- *     "fecha": "9/9/2026", "hora": "11:03 a. m.",
- *     "satelite": "PRUEBA", "frp": 5, "intensidad": 1,
- *     "municipio": "PUERTO ESPERANZA", "departamento": "IGUAZU",
- *     "vinculadoAANP": true, "anpNombre": "Buffer: Parque Provincial Esperanza"
+ *     "latitude": -26.08404, "longitude": -54.46181,
+ *     "acq_date": "2026-09-17", "acq_time": "446",
+ *     "frp": 0.47, "confidence": "n"
  *   }
  *
  * `vinculadoAANP` (true/false) no filtra nada acá: vienen y se mapean todos
@@ -19,19 +17,7 @@
 
 const CAMPOS_LAT = ["latitud", "latitude", "lat"];
 const CAMPOS_LON = ["longitud", "longitude", "lon", "lng"];
-const CAMPOS_INTENSIDAD = ["intensidad", "Intensidad", "intensity", "Intensity", "frp", "brightness", "bright_ti4", "potencia", "confidence", "confianza"];
-
-// DEMO TEMPORAL: se muestra hasta que llegue la primera tanda real del
-// endpoint. Misma forma que el JSON confirmado, para ejercitar el mismo
-// camino de código que los datos reales.
-export const DATOS_DEMO_ALERTAS = [
-  { latitud: -27.91, longitud: -55.75, fecha: "9/9/2026", hora: "09:15 a. m.", satelite: "DEMO", frp: 12, intensidad: 3, municipio: "APÓSTOLES", departamento: "APÓSTOLES", vinculadoAANP: false, anpNombre: null },
-  { latitud: -27.77, longitud: -55.79, fecha: "9/9/2026", hora: "09:20 a. m.", satelite: "DEMO", frp: 8, intensidad: 2, municipio: "SAN JOSÉ", departamento: "APÓSTOLES", vinculadoAANP: false, anpNombre: null },
-  { latitud: -26.41, longitud: -54.62, fecha: "9/9/2026", hora: "10:02 a. m.", satelite: "DEMO", frp: 15, intensidad: 3, municipio: "ELDORADO", departamento: "ELDORADO", vinculadoAANP: true, anpNombre: "Parque Provincial Piñalito" },
-  { latitud: -25.60, longitud: -54.57, fecha: "9/9/2026", hora: "10:40 a. m.", satelite: "DEMO", frp: 5, intensidad: 1, municipio: "PUERTO IGUAZÚ", departamento: "IGUAZÚ", vinculadoAANP: false, anpNombre: null },
-  { latitud: -27.36, longitud: -55.90, fecha: "9/9/2026", hora: "11:03 a. m.", satelite: "DEMO", frp: 3, intensidad: 1, municipio: "POSADAS", departamento: "CAPITAL", vinculadoAANP: false, anpNombre: null },
-  { latitud: -27.49, longitud: -55.12, fecha: "9/9/2026", hora: "11:10 a. m.", satelite: "DEMO", frp: 20, intensidad: 4, municipio: "OBERÁ", departamento: "OBERÁ", vinculadoAANP: false, anpNombre: null },
-];
+const CAMPOS_INTENSIDAD = ["frp", "intensidad", "Intensidad", "intensity", "Intensity", "brightness", "bright_ti4", "potencia"];
 
 function buscarCampo(obj, candidatos) {
   for (const c of candidatos) {
@@ -75,8 +61,10 @@ export function focosAGeojson(focos) {
       // La ficha usa nombres claros y no duplica `intensity`/`intensidad`.
       properties: {
         ...Object.fromEntries(Object.entries(f.propiedades || {}).filter(([key]) =>
-          !["intensity", "Intensity", "intensidad", "Intensidad", "lat", "latitude", "latitud", "lon", "lng", "longitude", "longitud"].includes(key)
+          !["intensity", "Intensity", "intensidad", "Intensidad", "lat", "latitude", "latitud", "lon", "lng", "longitude", "longitud", "acq_date", "acq_time"].includes(key)
         )),
+        ...(f.propiedades?.acq_date ? { fecha: f.propiedades.acq_date } : {}),
+        ...(f.propiedades?.acq_time != null ? { hora: `${String(f.propiedades.acq_time).padStart(4, "0").slice(0, 2)}:${String(f.propiedades.acq_time).padStart(4, "0").slice(2)} UTC` } : {}),
         Intensidad: f.intensidad,
       },
     })),
