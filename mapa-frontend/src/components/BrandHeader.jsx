@@ -30,8 +30,8 @@ export default function BrandHeader({ subtitulo, children }) {
           src="/brand/alerta-temprana.png"
           alt=""
           className="brand-header__at-icon"
-          width={36}
-          height={36}
+          width={100}
+          height={50}
         />
         <div className="brand-header__wordmark brand-header__wordmark--small">
           <strong>Dirección General de</strong>

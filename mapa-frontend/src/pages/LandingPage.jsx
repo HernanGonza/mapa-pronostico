@@ -10,7 +10,7 @@ export default function LandingPage() {
   return (
     <div className="landing">
       <main className="landing__hero" id="contenido-principal" tabIndex={-1}>
-        <img src="/brand/alerta-temprana.png" alt="" className="landing__icono" width={140} height={154} />
+        <img src="/brand/alerta-temprana.png" alt="" className="landing__icono" width={290} height={290} />
         <h1>Sistema Integrado Alerta Temprana</h1>
         <p>Mapas, pronósticos y alertas de la Dirección General de Alerta Temprana de Misiones.</p>
         <Link to="/login" className="btn btn--primary landing__cta">Ingresar</Link>

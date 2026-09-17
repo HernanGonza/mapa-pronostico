@@ -27,7 +27,7 @@ export default function LoginPage() {
 
   return (
     <div className="login-layout">
-      <BrandHeader subtitulo="Mapas Alerta Temprana" />
+      <BrandHeader subtitulo="Sistema integrado Alerta Temprana" />
 
       <form id="contenido-principal" tabIndex={-1} className="login-form" onSubmit={onSubmit}>
         <h1>Iniciar sesión</h1>
