@@ -8,26 +8,29 @@ import {
 import maplibregl from "maplibre-gl";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
-import { getGeo } from "../api";
+import { getMunicipiosGeojson } from "../api";
+import { agregarMunicipios, crearIndiceMunicipios } from "../lib/alertasIncendio";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
+const COLORES_INTENSIDAD = ["#b5a99d", "#f5d35d", "#f6a53d", "#ed6b2f", "#d73b29", "#941c32"];
 const ETIQUETAS = {
   municipio: "Municipio",
   departamento: "Departamento",
   fecha: "Fecha",
   hora: "Hora",
+  horaArgentina: "Hora (Argentina)",
   satelite: "Satélite",
   confidence: "Confianza",
   frp: "Potencia (FRP, MW)",
   vinculadoAANP: "¿Área protegida?",
   anpNombre: "Área protegida",
-  Intensidad: "Intensidad",
+  Intensidad: "Intensidad de riesgo",
 };
 
 /**
- * Mapa liviano de puntos sobre el mismo fondo (mundo + provincias) que
- * BaseMap, para datasets que no son "un valor por municipio" — hoy,
+ * Mapa de puntos sobre los mismos municipios y fondo que BaseMap, para
+ * datasets que no son "un valor por municipio" — hoy,
  * alertas de incendio. Si en el futuro riesgo-incendios también pinta
  * puntos/celdas en vez de un choropleth por municipio, se reutiliza.
  *
@@ -47,19 +50,19 @@ const PointsMap = forwardRef(function PointsMap(
   const puntosRef = useRef(puntos);
   puntosRef.current = puntos;
   const syncRef = useRef(null);
-  const misionesRef = useRef(null);
+  const municipiosRef = useRef(null);
+  const indiceMunicipiosRef = useRef(null);
   const animacionRef = useRef(null);
   const iniciarAnimacionRef = useRef(null);
 
   useEffect(() => {
     let activo = true;
-    getGeo("provincias").then(geo => {
+    getMunicipiosGeojson().then(geo => {
       if (!activo) return;
-      misionesRef.current = { type: "FeatureCollection", features: geo.features.filter(f =>
-        f.properties?.nombre === "Misiones" && f.properties?.pais === "ARG"
-      ) };
+      municipiosRef.current = geo;
+      indiceMunicipiosRef.current = crearIndiceMunicipios(geo);
       syncRef.current?.();
-    }).catch(err => console.warn("[PointsMap] no se pudo cargar Misiones:", err));
+    }).catch(err => console.warn("[PointsMap] no se pudieron cargar los municipios:", err));
     return () => { activo = false; };
   }, []);
 
@@ -113,7 +116,7 @@ const PointsMap = forwardRef(function PointsMap(
     map.addControl(
       new maplibregl.AttributionControl({
         compact: true,
-        customAttribution: "Focos: NASA FIRMS · Límites: Natural Earth (Misiones)",
+        customAttribution: "Focos: NASA FIRMS · Municipios: Ministerio de Ecología y RNR",
       }),
       "bottom-right"
     );
@@ -128,18 +131,22 @@ const PointsMap = forwardRef(function PointsMap(
     mapRef.current = map;
     const sync = () => {
       if (!map.isStyleLoaded()) return;
-      if (misionesRef.current && !map.getSource("misiones-destacada")) {
-        map.addSource("misiones-destacada", { type: "geojson", data: misionesRef.current });
+      if (municipiosRef.current && !map.getSource("municipios")) {
+        map.addSource("municipios", { type: "geojson", data: municipiosRef.current });
         const before = map.getStyle().layers.find(l => l.type === "symbol")?.id;
-        map.addLayer({ id: "misiones-fondo", type: "fill", source: "misiones-destacada",
-          paint: { "fill-color": "#4a9b63", "fill-opacity": 0.24 } }, before);
-        map.addLayer({ id: "misiones-borde", type: "line", source: "misiones-destacada",
-          paint: { "line-color": "#17633b", "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2, 9, 4], "line-opacity": 0.95 } });
+        map.addLayer({ id: "municipios-fondo", type: "fill", source: "municipios",
+          paint: { "fill-color": "#8bc4b9", "fill-opacity": 0.78 } }, before);
+        map.addLayer({ id: "municipios-limites", type: "line", source: "municipios",
+          paint: { "line-color": "#37675f", "line-width": 1, "line-opacity": 0.85 } }, before);
+        map.addLayer({ id: "municipios-nombres", type: "symbol", source: "municipios", minzoom: 6.5,
+          layout: { "text-field": ["get", "nombre"], "text-font": ["Noto Sans Regular"],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 6.5, 10, 11, 14], "text-max-width": 9 },
+          paint: { "text-color": "#1b4339", "text-halo-color": "#e8f5ef", "text-halo-width": 1.5 } }, before);
       }
-      const geojson = puntosRef.current || {type: 'FeatureCollection', features: []};
+      const geojson = agregarMunicipios(puntosRef.current, indiceMunicipiosRef.current) || {type: 'FeatureCollection', features: []};
       if (map.getSource('focos')) { map.getSource('focos').setData(geojson); return; }
       map.addSource('focos', {type: 'geojson', data: geojson});
-      const color = ['interpolate', ['linear'], ['coalesce', ['get', 'Intensidad'], 0], 0, '#ffd166', 25, '#ff7b25', 100, '#e31a1c'];
+      const color = ['match', ['get', 'Intensidad'], 1, COLORES_INTENSIDAD[1], 2, COLORES_INTENSIDAD[2], 3, COLORES_INTENSIDAD[3], 4, COLORES_INTENSIDAD[4], 5, COLORES_INTENSIDAD[5], COLORES_INTENSIDAD[0]];
       map.addLayer({id: 'focos-eco', type: 'circle', source: 'focos', paint: {
         'circle-radius': 9,
         'circle-color': color, 'circle-opacity': 0.35,
@@ -181,7 +188,7 @@ const PointsMap = forwardRef(function PointsMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // OpenFreeMap aporta el fondo; encima se destaca Misiones y los focos.
+  // OpenFreeMap aporta el fondo; encima se ven los municipios y los focos.
 
   useEffect(() => {
     syncRef.current?.();
@@ -213,13 +220,24 @@ const PointsMap = forwardRef(function PointsMap(
       )}
 
       {activo && (
-        <div className="info-card" role="dialog" aria-label="Foco de calor">
+        <div className="info-card" role="dialog" aria-label="Foco de calor"
+          style={{ "--foco-color": COLORES_INTENSIDAD[Number(activo.Intensidad)] || COLORES_INTENSIDAD[0] }}>
           <button className="info-card__close" onClick={() => setActivo(null)} aria-label="Cerrar">
             ✕
           </button>
+          <div className="info-card__hero">
+            <span className="info-card__pulse" aria-hidden="true" />
+            <div>
+              <span className="info-card__eyebrow">Foco de calor detectado</span>
+              <h3 className="info-card__nombre">{activo.municipio || "Municipio por determinar"}</h3>
+            </div>
+          </div>
+          {activo.Intensidad != null && <div className="info-card__level">
+            <span>Intensidad de riesgo</span><strong>{activo.Intensidad}<small> / 5</small></strong>
+          </div>}
           <ul className="info-card__props">
             {Object.entries(activo)
-              .filter(([k, v]) => v != null && v !== "" && !(k === "anpNombre" && !activo.vinculadoAANP) && !(k === "Intensidad" && activo.frp != null))
+              .filter(([k, v]) => v != null && v !== "" && !["municipio", "Intensidad"].includes(k) && !(k === "anpNombre" && !activo.vinculadoAANP))
               .map(([k, v]) => (
                 <li key={k}>
                   <b>{ETIQUETAS[k] || k}:</b>{" "}
