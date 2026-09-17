@@ -287,3 +287,58 @@ export async function recuperarPassword({ codigo, password, repetirPassword }) {
     body: JSON.stringify({ codigo, password, repetirPassword }),
   }));
 }
+
+// --- Registro histórico y estadísticas ------------------------------------
+
+export const getCatalogoEventos = () => getEstatico(`${API_URL}/api/catalogo-eventos`);
+
+export async function getEventosClimaticos(filtros = {}) {
+  const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)));
+  const res = await fetch(`${API_URL}/api/eventos-climaticos?${q}`, CON_SESION);
+  return handleJson(res);
+}
+export async function getEventosClimaticosPublicos(filtros = {}) {
+  const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)));
+  const res = await fetch(`${API_URL}/api/eventos-climaticos/publicos?${q}`, { cache: "no-store" });
+  return handleJson(res);
+}
+export async function crearEventoClimatico(datos) {
+  return handleJson(await fetch(`${API_URL}/api/eventos-climaticos`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datos), ...CON_SESION,
+  }));
+}
+export async function publicarEventoClimatico(id) {
+  return handleJson(await fetch(`${API_URL}/api/eventos-climaticos/${id}/publicar`, { method: "POST", ...CON_SESION }));
+}
+export async function despublicarEventoClimatico(id) {
+  return handleJson(await fetch(`${API_URL}/api/eventos-climaticos/${id}/despublicar`, { method: "POST", ...CON_SESION }));
+}
+
+export async function getEstacionesClimaticas() {
+  return handleJson(await fetch(`${API_URL}/api/registros-climaticos/estaciones`, { cache: "no-store" }));
+}
+export async function getSerieClimatica(estacion, desde, hasta) {
+  const q = new URLSearchParams({ estacion, ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}) });
+  return handleJson(await fetch(`${API_URL}/api/registros-climaticos/serie?${q}`, { cache: "no-store" }));
+}
+export async function getEstadisticasClimaticas() {
+  return handleJson(await fetch(`${API_URL}/api/registros-climaticos/estadisticas`, { cache: "no-store" }));
+}
+export async function cargarRegistroClimaticoManual(datos) {
+  return handleJson(await fetch(`${API_URL}/api/registros-climaticos`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datos), ...CON_SESION,
+  }));
+}
+export async function detectarColumnasCsv(archivo) {
+  const form = new FormData();
+  form.append("archivo", archivo);
+  return handleJson(await fetch(`${API_URL}/api/registros-climaticos/detectar-columnas`, { method: "POST", body: form, ...CON_SESION }));
+}
+export async function importarCsvClimatico(archivo, mapeo) {
+  const form = new FormData();
+  form.append("archivo", archivo);
+  form.append("mapeo", JSON.stringify(mapeo));
+  return handleJson(await fetch(`${API_URL}/api/registros-climaticos/importar`, { method: "POST", body: form, ...CON_SESION }));
+}

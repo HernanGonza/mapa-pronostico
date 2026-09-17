@@ -20,6 +20,7 @@ const EmbedAlertasMeteorologicasPage = lazy(() => import("./pages/EmbedAlertasMe
 const AlertasAutomaticasPage = lazy(() => import("./pages/AlertasAutomaticasPage"));
 const AvisosCortoPlazoPage = lazy(() => import("./pages/AvisosCortoPlazoPage"));
 const EmbedAvisosCortoPlazoPage = lazy(() => import("./pages/EmbedAvisosCortoPlazoPage"));
+const EmbedHistoricoPage = lazy(() => import("./pages/EmbedHistoricoPage"));
 const InundacionesPage = lazy(() => import("./pages/InundacionesPage"));
 const PronosticoExtendidoPage = lazy(() => import("./pages/PronosticoExtendidoPage"));
 const EmbedPronosticoExtendidoPage = lazy(() => import("./pages/EmbedPronosticoExtendidoPage"));
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/embed/alertas-meteorologicas" element={<EmbedAlertasMeteorologicasPage />} />
           <Route path="/embed/pronostico-3-dias" element={<EmbedPronosticoExtendidoPage />} />
           <Route path="/embed/avisos-corto-plazo" element={<EmbedAvisosCortoPlazoPage />} />
+          <Route path="/embed/historico" element={<EmbedHistoricoPage />} />
 
           <Route path="*" element={<Navigate to="/panel" replace />} />
         </Routes>

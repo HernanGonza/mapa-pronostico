@@ -10,6 +10,7 @@ const { buildExtendedForecast, hayExtendido } = require("../lib/parseForecastExt
 const { generateForecastMap, generateForecastMapHistorias } = require("../lib/generateMap");
 const { nowInArgentina } = require("../lib/dateUtils");
 const { publicar, obtenerActual, obtenerHistorial } = require("../lib/store");
+const registrosClimaticosStore = require("../lib/registrosClimaticosStore");
 const { resolveIconPath } = require("../lib/iconResolver");
 const { MATERIALES_DIR } = require("../lib/generateMap");
 const { loadMunicipios, armarMunicipiosConPronostico } = require("../lib/municipios");
@@ -88,6 +89,10 @@ router.post("/pronostico/publicar", requireAuth, express.json({ limit: "1mb" }),
   if (errorFilas) return res.status(400).json({ error: errorFilas });
   try {
     const payload = await publicar(filas, req.body.fechaPronostico, req.body.extendido || null);
+    // No debe romper ni demorar la publicación si esto falla — es un
+    // registro derivado (serie histórica por estación), no la fuente
+    // de verdad del pronóstico publicado.
+    registrosClimaticosStore.upsertMuchos(filas, req.body.fechaPronostico).catch((e) => console.error("[registrosClimaticos] no se pudo actualizar la serie:", e.message));
     res.json(payload);
   } catch (err) {
     console.error(err);
