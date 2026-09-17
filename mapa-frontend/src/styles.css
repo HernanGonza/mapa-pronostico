@@ -1261,16 +1261,36 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 
 /* =========================================================================
    Registro histórico y estadísticas (/panel/historico, /embed/historico)
+   Layout propio, a pantalla completa (no el grid panel|mapa de
+   .admin-layout — acá no hay un mapa fijo al costado, cada pestaña es un
+   tablero ancho con sus propias tarjetas).
    ========================================================================= */
-.historico-tabs { margin-bottom: 18px; border-radius: 10px; border: 1px solid var(--border); }
+.historico-layout { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+.historico-nav { display: flex; gap: 4px; padding: 0 28px; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
+.historico-nav__tab { flex: none; padding: 14px 18px; border: 0; background: none; border-bottom: 3px solid transparent; font-size: 14px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+.historico-nav__tab:hover { color: var(--text); }
+.historico-nav__tab[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+.historico-body { flex: 1; padding: 24px 28px 48px; }
+.historico-body > .risk-message { margin-bottom: 16px; }
+
+.historico-card { padding: 20px 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.historico-card h2 { margin: 0 0 14px; font-size: 15px; }
+.historico-stack { display: grid; gap: 20px; }
+
+.historico-grid { display: grid; gap: 20px; }
+.historico-grid--clima { grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1fr); align-items: start; }
+@media (max-width: 1080px) {
+  .historico-grid--clima { grid-template-columns: 1fr; }
+}
+
 .historico-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 16px; margin-bottom: 14px; }
 .historico-chart-wrap { position: relative; }
-.historico-chart { width: 100%; height: 340px; }
+.historico-chart { width: 100%; height: 420px; }
 .historico-seccion { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .historico-seccion summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
 .historico-seccion .historico-filtros, .historico-seccion .field { margin-top: 12px; }
 
-.eventos-lista { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 14px; }
+.eventos-lista { list-style: none; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 .evento-card { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
 .evento-card__miniatura { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: var(--surface-2); }
 .evento-card__cuerpo { flex: 1; min-width: 0; }
@@ -1284,15 +1304,15 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .evento-card__galeria figcaption { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .evento-card__cuerpo > .btn { margin-top: 10px; }
 
-.historico-form-evento { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
-.historico-form-evento__mapa { height: 320px; margin-bottom: 14px; border-radius: 8px; overflow: hidden; position: relative; }
-.evento-form__imagenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 10px 0 16px; }
-.evento-form__imagen img { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; background: var(--surface); }
+.historico-form-evento { margin-top: 16px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 18px; align-items: start; }
+.historico-form-evento__full { grid-column: 1 / -1; }
+.historico-form-evento__mapa { height: 360px; margin-top: 10px; border-radius: 8px; overflow: hidden; position: relative; }
+.evento-form__imagenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 10px; }
+.evento-form__imagen img { width: 100%; height: 110px; object-fit: cover; border-radius: 6px; background: var(--surface); }
 .evento-form__imagen input { margin-top: 6px; font-size: 12px; }
 .evento-form__imagen .btn { margin-top: 6px; width: 100%; }
 
-.historico-stats { display: grid; gap: 24px; }
-.historico-stats h2 { font-size: 14px; margin: 0 0 10px; }
+.historico-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; align-items: start; }
 .historico-barras { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .historico-barras li { display: grid; grid-template-columns: 140px 1fr 32px; align-items: center; gap: 8px; font-size: 12.5px; }
 .historico-barras li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1300,6 +1320,8 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .historico-barra > div { height: 100%; background: var(--accent); border-radius: 999px; }
 .historico-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .historico-tabla th, .historico-tabla td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+
+.historico-compartir { max-width: 480px; margin-top: 32px; }
 
 .historico-embed { height: 100%; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); color: var(--text); }
 .historico-embed__clima, .historico-embed__eventos { padding: 16px 20px; }
@@ -1310,6 +1332,7 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .historico-embed__lista li { display: flex; gap: 10px; font-size: 12.5px; }
 .historico-embed__lista img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
 .historico-embed__lista p { margin: 2px 0; }
-@media (min-width: 720px) {
-  .historico-stats { grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) {
+  .historico-nav { padding: 0 16px; }
+  .historico-body { padding: 18px 16px 36px; }
 }

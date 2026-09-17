@@ -33,24 +33,25 @@ export default function HistoricoPage() {
 
   useEffect(() => { api.getCatalogoEventos().then(setCatalogo).catch(() => {}); }, []);
 
+  const TABS = [
+    ["clima", "Clima histórico"],
+    ["eventos", "Eventos"],
+    ["estadisticas", "Estadísticas"],
+  ];
+
   return (
-    <div className="admin-layout admin-layout--sin-mapa">
+    <div className="historico-layout">
       <BrandHeader subtitulo="Registro histórico y estadísticas">
         <Link to="/panel" className="btn-link">← Panel</Link>
       </BrandHeader>
-      <section className="admin-panel historico-panel" id="contenido-principal" tabIndex={-1}>
-        <div className="editor-heading">
-          <h1>Registro histórico y estadísticas</h1>
-          <p>
-            Serie histórica de temperaturas por estación, eventos meteorológicos puntuales (tornados,
-            granizo, inundaciones…) con imágenes, y estadísticas sobre todo lo cargado.
-          </p>
-        </div>
-        <div className="placa-toolbar historico-tabs" role="group" aria-label="Sección del registro histórico">
-          <button type="button" className="btn" aria-pressed={pestana === "clima"} onClick={() => setPestana("clima")}>Clima histórico</button>
-          <button type="button" className="btn" aria-pressed={pestana === "eventos"} onClick={() => setPestana("eventos")}>Eventos</button>
-          <button type="button" className="btn" aria-pressed={pestana === "estadisticas"} onClick={() => setPestana("estadisticas")}>Estadísticas</button>
-        </div>
+      <nav className="historico-nav" aria-label="Sección del registro histórico">
+        {TABS.map(([id, label]) => (
+          <button key={id} type="button" className="historico-nav__tab" aria-current={pestana === id ? "page" : undefined} onClick={() => setPestana(id)}>
+            {label}
+          </button>
+        ))}
+      </nav>
+      <main id="contenido-principal" tabIndex={-1} className="historico-body">
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
         {mensaje && <p className="risk-message" role="status">{mensaje}</p>}
 
@@ -58,8 +59,8 @@ export default function HistoricoPage() {
         {pestana === "eventos" && <Eventos puedeEscribir={puedeEscribir} catalogo={catalogo} setError={setError} setMensaje={setMensaje} />}
         {pestana === "estadisticas" && <Estadisticas />}
 
-        <EmbedShare path="/embed/historico" title="Registro histórico · Misiones" />
-      </section>
+        <div className="historico-compartir"><EmbedShare path="/embed/historico" title="Registro histórico · Misiones" /></div>
+      </main>
     </div>
   );
 }
@@ -93,24 +94,28 @@ function ClimaHistorico({ puedeEscribir, setError, setMensaje }) {
   }
 
   return (
-    <div>
-      <div className="historico-filtros">
-        <label className="field"><span>Estación</span>
-          <select value={estacion} onChange={(e) => setEstacion(e.target.value)}>
-            {estaciones.length === 0 && <option value="">Sin datos todavía</option>}
-            {estaciones.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Desde</span><input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} /></label>
-        <label className="field"><span>Hasta</span><input type="date" value={hasta} min={desde} max={hoyIso()} onChange={(e) => setHasta(e.target.value)} /></label>
+    <div className="historico-grid historico-grid--clima">
+      <div className="historico-card historico-card--chart">
+        <h2>Serie histórica por estación</h2>
+        <div className="historico-filtros">
+          <label className="field"><span>Estación</span>
+            <select value={estacion} onChange={(e) => setEstacion(e.target.value)}>
+              {estaciones.length === 0 && <option value="">Sin datos todavía</option>}
+              {estaciones.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </label>
+          <label className="field"><span>Desde</span><input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} /></label>
+          <label className="field"><span>Hasta</span><input type="date" value={hasta} min={desde} max={hoyIso()} onChange={(e) => setHasta(e.target.value)} /></label>
+        </div>
+        {cargandoSerie ? <p role="status">Cargando serie…</p> : <SerieClimaticaChart serie={serie || []} />}
       </div>
-      {cargandoSerie ? <p role="status">Cargando serie…</p> : <SerieClimaticaChart serie={serie || []} />}
 
       {puedeEscribir && (
-        <>
+        <div className="historico-card">
+          <h2>Cargar datos históricos</h2>
           <ImportadorClimatico onImportado={recargarEstaciones} setError={setError} setMensaje={setMensaje} />
           <CargaManualClimatica onCargado={() => { recargarEstaciones(); api.getSerieClimatica(estacion, desde, hasta).then((r) => setSerie(r.serie)).catch(() => {}); }} setError={setError} setMensaje={setMensaje} />
-        </>
+        </div>
       )}
     </div>
   );
@@ -273,39 +278,42 @@ function Eventos({ puedeEscribir, catalogo, setError, setMensaje }) {
   const etiquetaPorTipo = useMemo(() => Object.fromEntries((catalogo?.tipos || []).map((t) => [t.id, t.etiqueta])), [catalogo]);
 
   return (
-    <div>
-      <div className="historico-filtros">
-        <label className="field"><span>Tipo</span>
-          <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
-            <option value="">Todos</option>
-            {(catalogo?.tipos || []).map((t) => <option key={t.id} value={t.id}>{t.etiqueta}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Departamento</span>
-          <select value={filtroDepartamento} onChange={(e) => setFiltroDepartamento(e.target.value)}>
-            <option value="">Todos</option>
-            {(catalogo?.departamentos || []).map((d) => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
-          </select>
-        </label>
-      </div>
+    <div className="historico-stack">
+      <div className="historico-card">
+        <h2>Eventos meteorológicos puntuales</h2>
+        <div className="historico-filtros">
+          <label className="field"><span>Tipo</span>
+            <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+              <option value="">Todos</option>
+              {(catalogo?.tipos || []).map((t) => <option key={t.id} value={t.id}>{t.etiqueta}</option>)}
+            </select>
+          </label>
+          <label className="field"><span>Departamento</span>
+            <select value={filtroDepartamento} onChange={(e) => setFiltroDepartamento(e.target.value)}>
+              <option value="">Todos</option>
+              {(catalogo?.departamentos || []).map((d) => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
+            </select>
+          </label>
+        </div>
 
-      {puedeEscribir && (
-        <button type="button" className="btn btn--block" onClick={() => setMostrarForm((v) => !v)}>
-          {mostrarForm ? "Cerrar formulario" : "Cargar evento nuevo"}
-        </button>
-      )}
-      {mostrarForm && puedeEscribir && (
-        <FormularioEvento
-          catalogo={catalogo}
-          setError={setError} setMensaje={setMensaje}
-          onCreado={(evento) => { setEventosLista((lista) => [evento, ...(lista || [])]); setMostrarForm(false); }}
-        />
-      )}
+        {puedeEscribir && (
+          <button type="button" className="btn" onClick={() => setMostrarForm((v) => !v)}>
+            {mostrarForm ? "Cerrar formulario" : "Cargar evento nuevo"}
+          </button>
+        )}
+        {mostrarForm && puedeEscribir && (
+          <FormularioEvento
+            catalogo={catalogo}
+            setError={setError} setMensaje={setMensaje}
+            onCreado={(evento) => { setEventosLista((lista) => [evento, ...(lista || [])]); setMostrarForm(false); }}
+          />
+        )}
+      </div>
 
       {eventosLista === null ? <p role="status">Cargando eventos…</p> : eventosLista.length === 0 ? (
         <p className="admin-panel__hint">No hay eventos cargados con estos filtros.</p>
       ) : (
-        <ul className="eventos-lista">
+        <ul className="eventos-lista historico-card">
           {eventosLista.map((ev) => (
             <li key={ev.id} className="evento-card">
               {ev.imagenes?.[0] && <img src={ev.imagenes[0].url} alt="" className="evento-card__miniatura" />}
@@ -409,42 +417,40 @@ function FormularioEvento({ catalogo, setError, setMensaje, onCreado }) {
         </select>
       </label>
       {form.tipo === "otro" && <label className="field"><span>¿Qué tipo de evento fue?</span><input value={form.tipoOtro} maxLength={80} disabled={busy} onChange={campo("tipoOtro")} /></label>}
-      <label className="field"><span>Título</span><input value={form.titulo} maxLength={140} disabled={busy} onChange={campo("titulo")} placeholder="Ej: Tornado en Oberá" /></label>
-      <label className="field"><span>Descripción</span><textarea value={form.descripcion} rows={6} maxLength={4000} disabled={busy} onChange={campo("descripcion")} /></label>
       <label className="field"><span>Severidad (opcional)</span>
         <select value={form.severidad} onChange={campo("severidad")} disabled={busy}>
           <option value="">Sin especificar</option>
           {(catalogo?.severidades || []).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
-      <div className="historico-filtros">
-        <label className="field"><span>Fecha de inicio</span><input type="date" value={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={campo("fechaInicio")} /></label>
-        <label className="field"><span>Fecha de fin (opcional)</span><input type="date" value={form.fechaFin} min={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={campo("fechaFin")} /></label>
-      </div>
-      <div className="historico-filtros">
-        <label className="field"><span>Departamento (opcional)</span>
-          <select value={form.departamento} onChange={campo("departamento")} disabled={busy}>
-            <option value="">Sin especificar</option>
-            {(catalogo?.departamentos || []).map((d) => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Municipio/localidad (opcional)</span><input value={form.municipio} maxLength={120} disabled={busy} onChange={campo("municipio")} /></label>
-      </div>
-      <label className="field"><span>Fuente (opcional)</span><input value={form.fuente} maxLength={200} disabled={busy} placeholder="Ej: reporte de Defensa Civil, enlace a nota…" onChange={campo("fuente")} /></label>
+      <label className="field"><span>Fecha de inicio</span><input type="date" value={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={campo("fechaInicio")} /></label>
+      <label className="field"><span>Fecha de fin (opcional)</span><input type="date" value={form.fechaFin} min={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={campo("fechaFin")} /></label>
+      <label className="field"><span>Departamento (opcional)</span>
+        <select value={form.departamento} onChange={campo("departamento")} disabled={busy}>
+          <option value="">Sin especificar</option>
+          {(catalogo?.departamentos || []).map((d) => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
+        </select>
+      </label>
+      <label className="field"><span>Municipio/localidad (opcional)</span><input value={form.municipio} maxLength={120} disabled={busy} onChange={campo("municipio")} /></label>
+      <label className="field historico-form-evento__full"><span>Título</span><input value={form.titulo} maxLength={140} disabled={busy} onChange={campo("titulo")} placeholder="Ej: Tornado en Oberá" /></label>
+      <label className="field historico-form-evento__full"><span>Descripción</span><textarea value={form.descripcion} rows={6} maxLength={4000} disabled={busy} onChange={campo("descripcion")} /></label>
+      <label className="field historico-form-evento__full"><span>Fuente (opcional)</span><input value={form.fuente} maxLength={200} disabled={busy} placeholder="Ej: reporte de Defensa Civil, enlace a nota…" onChange={campo("fuente")} /></label>
 
-      <button type="button" className="btn" onClick={() => setMostrarMapa((v) => !v)}>{mostrarMapa ? "Ocultar mapa" : punto ? "Cambiar punto en el mapa" : "Marcar un punto en el mapa (opcional)"}</button>
-      {mostrarMapa && (
-        <div className="historico-form-evento__mapa">
-          <PolygonDrawMap puntos={punto ? [punto] : []} onChange={(nuevos) => setPunto(nuevos[nuevos.length - 1] || null)} municipios={municipios} />
-        </div>
-      )}
+      <div className="historico-form-evento__full">
+        <button type="button" className="btn" onClick={() => setMostrarMapa((v) => !v)}>{mostrarMapa ? "Ocultar mapa" : punto ? "Cambiar punto en el mapa" : "Marcar un punto en el mapa (opcional)"}</button>
+        {mostrarMapa && (
+          <div className="historico-form-evento__mapa">
+            <PolygonDrawMap puntos={punto ? [punto] : []} onChange={(nuevos) => setPunto(nuevos[nuevos.length - 1] || null)} municipios={municipios} />
+          </div>
+        )}
+      </div>
 
-      <label className="field"><span>Imágenes (opcional, hasta {MAX_IMAGENES})</span>
+      <label className="field historico-form-evento__full"><span>Imágenes (opcional, hasta {MAX_IMAGENES})</span>
         <input type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={busy || imagenes.length >= MAX_IMAGENES} onChange={agregarImagenes} />
         <small>PNG, JPG o WebP, hasta 5 MB cada una.</small>
       </label>
       {imagenes.length > 0 && (
-        <div className="evento-form__imagenes">
+        <div className="evento-form__imagenes historico-form-evento__full">
           {imagenes.map((img, i) => (
             <div key={i} className="evento-form__imagen">
               <img src={img.dataUrl} alt="" />
@@ -455,7 +461,7 @@ function FormularioEvento({ catalogo, setError, setMensaje, onCreado }) {
         </div>
       )}
 
-      <button type="button" className="btn btn--block btn--primary" disabled={busy || !puedeGuardar} onClick={guardar}>{busy ? "Guardando…" : "Guardar evento"}</button>
+      <button type="button" className="btn btn--block btn--primary historico-form-evento__full" disabled={busy || !puedeGuardar} onClick={guardar}>{busy ? "Guardando…" : "Guardar evento"}</button>
     </div>
   );
 }
@@ -473,7 +479,7 @@ function Estadisticas() {
 
   return (
     <div className="historico-stats">
-      <div>
+      <div className="historico-card">
         <h2>Eventos por tipo</h2>
         {datos.eventosPorTipo.length === 0 ? <p className="admin-panel__hint">Todavía no hay eventos publicados.</p> : (
           <ul className="historico-barras">
@@ -483,7 +489,7 @@ function Estadisticas() {
           </ul>
         )}
       </div>
-      <div>
+      <div className="historico-card">
         <h2>Eventos por departamento</h2>
         {datos.eventosPorDepartamento.length === 0 ? <p className="admin-panel__hint">Sin datos todavía.</p> : (
           <ul className="historico-barras">
@@ -493,7 +499,7 @@ function Estadisticas() {
           </ul>
         )}
       </div>
-      <div>
+      <div className="historico-card">
         <h2>Eventos por año</h2>
         {datos.eventosPorAnio.length === 0 ? <p className="admin-panel__hint">Sin datos todavía.</p> : (
           <ul className="historico-barras">
@@ -503,7 +509,7 @@ function Estadisticas() {
           </ul>
         )}
       </div>
-      <div>
+      <div className="historico-card">
         <h2>Cobertura del historial climático</h2>
         {datos.coberturaPorEstacion.length === 0 ? <p className="admin-panel__hint">Todavía no hay registros climáticos cargados.</p> : (
           <table className="historico-tabla">
