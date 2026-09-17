@@ -125,12 +125,12 @@ const PointsMap = forwardRef(function PointsMap(
       const msg = e?.error?.message || "";
       if (!/40\d|Failed to fetch|AbortError/.test(msg)) console.warn("[PointsMap] error:", msg);
     });
-    // Usa la misma cartografía base que pronóstico y riesgo.
-    map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
-
     mapRef.current = map;
+    let estiloListo = false;
     const sync = () => {
-      if (!map.isStyleLoaded()) return;
+      // style.load ya permite agregar capas; isStyleLoaded espera también
+      // recursos del fondo y retrasa innecesariamente municipios y focos.
+      if (!estiloListo) return;
       if (municipiosRef.current && !map.getSource("municipios")) {
         map.addSource("municipios", { type: "geojson", data: municipiosRef.current });
         const before = map.getStyle().layers.find(l => l.type === "symbol")?.id;
@@ -157,7 +157,7 @@ const PointsMap = forwardRef(function PointsMap(
       }});
     };
     syncRef.current = sync;
-    map.on('style.load', sync);
+    map.on('style.load', () => { estiloListo = true; sync(); });
     let ultimoCuadro = 0;
     const animar = (tiempo) => {
       animacionRef.current = null;
@@ -184,6 +184,8 @@ const PointsMap = forwardRef(function PointsMap(
     map.on('click', 'focos-punto', e => setActivo(e.features?.[0]?.properties || null));
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(mapContainerRef.current);
+    // Los listeners ya están instalados cuando empieza la carga del estilo.
+    map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
     return () => { ro.disconnect(); document.removeEventListener('visibilitychange', iniciarAnimacion); cancelAnimationFrame(animacionRef.current); animacionRef.current = null; iniciarAnimacionRef.current = null; syncRef.current = null; mapRef.current = null; map.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

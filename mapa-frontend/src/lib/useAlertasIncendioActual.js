@@ -13,7 +13,10 @@ export function useAlertasIncendioActual() {
       const estaSolicitud = ++solicitud;
       try {
         const data = await getAlertasIncendioActual();
-        if (activo && estaSolicitud === solicitud) { setActual(data); setError(""); }
+        if (activo && estaSolicitud === solicitud) {
+          setActual(previo => previo?.recuperadoEn === data?.recuperadoEn ? previo : data);
+          setError("");
+        }
       } catch (err) {
         if (activo && estaSolicitud === solicitud) setError(err.message);
       } finally {

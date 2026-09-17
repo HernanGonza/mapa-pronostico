@@ -9,7 +9,7 @@ const CON_SESION = { credentials: "include" };
 const cacheEstatico = new Map();
 async function getEstatico(url) {
   if (!cacheEstatico.has(url)) {
-    const solicitud = (async () => handleJson(await fetch(url, { cache: "no-cache" })))()
+    const solicitud = (async () => handleJson(await fetch(url)))()
       .catch((error) => { cacheEstatico.delete(url); throw error; });
     cacheEstatico.set(url, solicitud);
   }
