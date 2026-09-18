@@ -134,8 +134,6 @@ const PointsMap = forwardRef(function PointsMap(
       if (municipiosRef.current && !map.getSource("municipios")) {
         map.addSource("municipios", { type: "geojson", data: municipiosRef.current });
         const before = map.getStyle().layers.find(l => l.type === "symbol")?.id;
-        map.addLayer({ id: "municipios-fondo", type: "fill", source: "municipios",
-          paint: { "fill-color": "#8bc4b9", "fill-opacity": 0.78 } }, before);
         map.addLayer({ id: "municipios-limites", type: "line", source: "municipios",
           paint: { "line-color": "#37675f", "line-width": 1, "line-opacity": 0.85 } }, before);
         map.addLayer({ id: "municipios-nombres", type: "symbol", source: "municipios", minzoom: 6.5,
