@@ -5,6 +5,8 @@ import EmbedShare from "../components/EmbedShare";
 import PolygonDrawMap from "../components/PolygonDrawMap";
 import SerieClimaticaChart from "../components/SerieClimaticaChart";
 import HistoricoEstaciones from "../components/HistoricoEstaciones";
+import HistoricoMetricChart from "../components/HistoricoMetricChart";
+import GraficoCategorias from "../components/GraficoCategorias";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../api";
 
@@ -478,40 +480,12 @@ function Estadisticas() {
 
   if (!datos) return <p role="status">Cargando estadísticas…</p>;
 
-  const totalTipo = datos.eventosPorTipo.reduce((s, d) => s + d.cantidad, 0) || 1;
-  const totalDepto = datos.eventosPorDepartamento.reduce((s, d) => s + d.cantidad, 0) || 1;
-
   return (
     <div className="historico-stats">
+      <GraficoCategorias titulo="Eventos por tipo" filas={datos.eventosPorTipo.map(d => ({ etiqueta: d.tipo, cantidad: Number(d.cantidad) }))} />
+      <GraficoCategorias titulo="Eventos por departamento" filas={datos.eventosPorDepartamento.map(d => ({ etiqueta: d.departamento, cantidad: Number(d.cantidad) }))} />
       <div className="historico-card">
-        <h2>Eventos por tipo</h2>
-        {datos.eventosPorTipo.length === 0 ? <p className="admin-panel__hint">Todavía no hay eventos publicados.</p> : (
-          <ul className="historico-barras">
-            {datos.eventosPorTipo.map((d) => (
-              <li key={d.tipo}><span>{d.tipo}</span><div className="historico-barra"><div style={{ width: `${(d.cantidad / totalTipo) * 100}%` }} /></div><span>{d.cantidad}</span></li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="historico-card">
-        <h2>Eventos por departamento</h2>
-        {datos.eventosPorDepartamento.length === 0 ? <p className="admin-panel__hint">Sin datos todavía.</p> : (
-          <ul className="historico-barras">
-            {datos.eventosPorDepartamento.map((d) => (
-              <li key={d.departamento}><span>{d.departamento}</span><div className="historico-barra"><div style={{ width: `${(d.cantidad / totalDepto) * 100}%` }} /></div><span>{d.cantidad}</span></li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="historico-card">
-        <h2>Eventos por año</h2>
-        {datos.eventosPorAnio.length === 0 ? <p className="admin-panel__hint">Sin datos todavía.</p> : (
-          <ul className="historico-barras">
-            {datos.eventosPorAnio.map((d) => (
-              <li key={d.anio}><span>{d.anio}</span><div className="historico-barra"><div style={{ width: `${(d.cantidad / Math.max(...datos.eventosPorAnio.map((x) => x.cantidad))) * 100}%` }} /></div><span>{d.cantidad}</span></li>
-            ))}
-          </ul>
-        )}
+        <HistoricoMetricChart titulo="Eventos por año" subtitulo="Cantidad anual" datos={datos.eventosPorAnio.map(d => ({ fecha: `${d.anio}-01-01`, cantidad: Number(d.cantidad) }))} series={[{ campo: 'cantidad', nombre: 'Eventos', color: '#358a75' }]} tipo="barra" />
       </div>
       <div className="historico-card">
         <h2>Cobertura del historial climático</h2>

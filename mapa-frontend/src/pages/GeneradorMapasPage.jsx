@@ -21,8 +21,8 @@ const OPCIONES = [
   },
   {
     to: "/panel/alertas-incendios",
-    titulo: "Alertas de incendios",
-    descripcion: "Últimos focos detectados (NASA FIRMS).",
+    titulo: "Puntos de calor",
+    descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS).",
   },
   {
     to: "/panel/alertas-meteorologicas",

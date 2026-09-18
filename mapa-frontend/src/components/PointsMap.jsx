@@ -25,13 +25,13 @@ const ETIQUETAS = {
   frp: "Potencia (FRP, MW)",
   vinculadoAANP: "¿Área protegida?",
   anpNombre: "Área protegida",
-  Intensidad: "Intensidad de riesgo",
+  Intensidad: "Categoría visual",
 };
 
 /**
  * Mapa de puntos sobre los mismos municipios y fondo que BaseMap, para
  * datasets que no son "un valor por municipio" — hoy,
- * alertas de incendio. Si en el futuro riesgo-incendios también pinta
+ * puntos de calor. Si en el futuro riesgo-incendios también pinta
  * puntos/celdas en vez de un choropleth por municipio, se reutiliza.
  *
  * No comparte código con BaseMap a propósito: esa lógica está ligada al
@@ -116,7 +116,7 @@ const PointsMap = forwardRef(function PointsMap(
     map.addControl(
       new maplibregl.AttributionControl({
         compact: true,
-        customAttribution: "Focos: NASA FIRMS · Municipios: Ministerio de Ecología y RNR",
+        customAttribution: "Puntos de calor: NASA FIRMS · Municipios: Ministerio de Ecología y RNR",
       }),
       "bottom-right"
     );
@@ -221,6 +221,12 @@ const PointsMap = forwardRef(function PointsMap(
         </div>
       )}
 
+      <div className="heat-map-note">
+        <strong>¿Qué indica un punto de calor?</strong>
+        <span>Es una anomalía térmica detectada por satélite. Marca aproximadamente el centro del píxel observado; por sí sola no confirma un incendio.</span>
+        <a href="https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_MODIS_Firehotspots.html" target="_blank" rel="noopener noreferrer">Cómo interpreta NASA FIRMS estos datos ↗</a>
+      </div>
+
       {activo && (
         <div className="info-card" role="dialog" aria-label="Foco de calor"
           style={{ "--foco-color": COLORES_INTENSIDAD[Number(activo.Intensidad)] || COLORES_INTENSIDAD[0] }}>
@@ -230,13 +236,14 @@ const PointsMap = forwardRef(function PointsMap(
           <div className="info-card__hero">
             <span className="info-card__pulse" aria-hidden="true" />
             <div>
-              <span className="info-card__eyebrow">Foco de calor detectado</span>
+              <span className="info-card__eyebrow">Punto de calor detectado</span>
               <h3 className="info-card__nombre">{activo.municipio || "Municipio por determinar"}</h3>
             </div>
           </div>
           {activo.Intensidad != null && <div className="info-card__level">
-            <span>Intensidad de riesgo</span><strong>{activo.Intensidad}<small> / 5</small></strong>
+            <span>Categoría visual</span><strong>{activo.Intensidad}<small> / 5</small></strong>
           </div>}
+          <p className="heat-map-note__popup">La categoría representa el dato térmico recibido; no mide riesgo de incendio.</p>
           <ul className="info-card__props">
             {Object.entries(activo)
               .filter(([k, v]) => v != null && v !== "" && !["municipio", "Intensidad"].includes(k) && !(k === "anpNombre" && !activo.vinculadoAANP))

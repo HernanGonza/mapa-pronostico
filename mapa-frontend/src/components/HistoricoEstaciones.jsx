@@ -186,17 +186,20 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
   }, [id, desde, hasta, onError, revision]);
 
   const analisis = useMemo(() => analizarHistorico(serie, desde, hasta), [serie, desde, hasta]);
+  const provincia = id === 'toda_provincia';
   const periodos = analisis.periodos;
   const nombreEscala = { dia: 'día', mes: 'mes', anio: 'año' }[analisis.escala];
   const lluviaObservada = useMemo(() => serie.reduce((s, f) => s + (f.precipitacion ?? 0), 0), [serie]);
   const diasLluvia = useMemo(() => serie.filter(f => f.precipitacion >= 1).length, [serie]);
   const paginas = Math.max(1, Math.ceil(serie.length / 50));
   const filas = useMemo(() => serie.slice().reverse().slice(pagina * 50, (pagina + 1) * 50), [serie, pagina]);
-  const columnas = publico ? CAMPOS_DIARIOS.filter(([campo]) => ['fecha', 'temperatura_maxima', 'temperatura_minima', 'precipitacion'].includes(campo)) : CAMPOS_DIARIOS;
-  const gruposGraficos = publico ? [['', GRAFICOS_PUBLICOS]] : [
-    ['Temperatura', [GRAFICOS_TECNICOS[0], GRAFICOS_TECNICOS[3], GRAFICOS_TECNICOS[7]]],
-    ['Precipitación', GRAFICOS_TECNICOS.slice(1, 3).concat(GRAFICOS_TECNICOS.slice(4, 7))],
-    ['Otras variables atmosféricas', GRAFICOS_TECNICOS.slice(8)],
+  const columnasBase = publico ? CAMPOS_DIARIOS.filter(([campo]) => ['fecha', 'temperatura_maxima', 'temperatura_minima', 'precipitacion'].includes(campo)) : CAMPOS_DIARIOS;
+  const columnas = provincia ? CAMPOS_DIARIOS.filter(([campo]) => ['fecha', 'temperatura_maxima', 'temperatura_minima', 'temperatura_media', 'precipitacion'].includes(campo)).map(([campo, nombre]) => [campo,
+    campo === 'precipitacion' ? 'Lluvia suma 3 zonas (mm)' : campo === 'fecha' ? nombre : `${nombre} (media de 3)`]) : columnasBase;
+  const gruposGraficos = publico ? [['', provincia ? GRAFICOS_PUBLICOS.slice(0, 2) : GRAFICOS_PUBLICOS]] : [
+    ['Temperatura', provincia ? [GRAFICOS_TECNICOS[0], GRAFICOS_TECNICOS[7]] : [GRAFICOS_TECNICOS[0], GRAFICOS_TECNICOS[3], GRAFICOS_TECNICOS[7]]],
+    ['Precipitación', provincia ? [GRAFICOS_TECNICOS[1]] : GRAFICOS_TECNICOS.slice(1, 3).concat(GRAFICOS_TECNICOS.slice(4, 7))],
+    ...(!provincia ? [['Otras variables atmosféricas', GRAFICOS_TECNICOS.slice(8)]] : []),
   ];
 
   function rango(anios) {
@@ -206,8 +209,8 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
   }
 
   function descargarCsv() {
-    const encabezados = CAMPOS_DIARIOS.map(([campo]) => campo).join(';');
-    const cuerpo = serie.map(f => CAMPOS_DIARIOS.map(([campo]) => f[campo] ?? '').join(';')).join('\n');
+    const encabezados = columnas.map(([campo, nombre]) => provincia ? nombre : campo).join(';');
+    const cuerpo = serie.map(f => columnas.map(([campo]) => f[campo] ?? '').join(';')).join('\n');
     const blob = new Blob([`\uFEFF${encabezados}\n${cuerpo}\n`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const enlace = document.createElement('a');
@@ -221,7 +224,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     <header className="historico-observatorio__cabecera">
       <div>
         <h2>{publico ? 'Histórico del tiempo en Misiones' : 'Observatorio histórico de Misiones'}</h2>
-        <p>Datos diarios por estación. Elegí un período para explorar las series y consultar la tabla.</p>
+        <p>{provincia ? 'Serie conjunta de las estaciones del norte, centro y sur.' : 'Datos diarios por estación.'} Elegí un período para explorar las series y consultar la tabla.</p>
       </div>
       {estacion && <div className="historico-observatorio__cobertura">{estacion.zona} · {estacion.nombre}<small>{estacion.desde} al {estacion.hasta}</small></div>}
     </header>
@@ -244,15 +247,16 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     {cargando ? <p role="status">Calculando el período…</p> : <>
       <div className="historico-observatorio__resumen">
         <div><strong>{serie.length.toLocaleString('es-AR')}</strong><span>días con registro</span></div>
-        <div><strong>{formatoNumero(lluviaObservada)} mm</strong><span>lluvia observada</span></div>
-        <div><strong>{diasLluvia.toLocaleString('es-AR')}</strong><span>días con ≥ 1 mm</span></div>
+        <div><strong>{formatoNumero(lluviaObservada)} mm</strong><span>{provincia ? 'suma de lluvia de 3 zonas' : 'lluvia observada'}</span></div>
+        <div><strong>{diasLluvia.toLocaleString('es-AR')}</strong><span>{provincia ? 'días con lluvia en alguna zona' : 'días con ≥ 1 mm'}</span></div>
         <div><strong>{nombreEscala}</strong><span>escala de los gráficos</span></div>
       </div>
       <p className="historico-observatorio__nota">Los gráficos cambian automáticamente entre días, meses y años según el rango. Los acumulados y promedios de un período solo se trazan con al menos {coberturaMinima * 100}% de días válidos para esa variable; la tabla conserva cada observación disponible.</p>
+      {provincia && <p className="historico-observatorio__aviso">“Toda la provincia” suma la precipitación de Iguazú, Bernardo de Irigoyen y Posadas cuando las tres informaron ese día. Las temperaturas son el promedio simple de las tres estaciones. La suma en mm compara estos tres puntos de observación; no representa la lluvia areal ni el volumen de agua caído sobre toda Misiones. La serie conjunta comienza en 1984.</p>}
       {gruposGraficos.map(([grupo, graficos]) => <section className="historico-observatorio__grupo" key={grupo || 'publico'}>
         {grupo && <h3>{grupo}</h3>}
         <div className="historico-observatorio__graficos">
-          {graficos.map(g => <HistoricoMetricChart key={g.titulo} titulo={g.titulo} subtitulo={`Por ${nombreEscala}`} datos={periodos}
+          {graficos.map(g => <HistoricoMetricChart key={g.titulo} titulo={provincia && g.series[0]?.campo === 'lluvia' ? 'Suma de lluvia de las 3 zonas' : g.titulo} subtitulo={`Por ${nombreEscala}`} datos={periodos}
             series={g.series} unidad={g.unidad} tipo={g.tipo} />)}
         </div>
       </section>)}
@@ -265,7 +269,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
         </div>
       </section>}
       {!publico && <ComparacionZonas desde={desde} hasta={hasta} />}
-      {!publico && <AnomaliasHistoricas estacionId={id} anuales={analisis.anuales} />}
+      {!publico && !provincia && <AnomaliasHistoricas estacionId={id} anuales={analisis.anuales} />}
       {!publico && <details className="historico-observatorio__metodo">
         <summary>Definiciones y cobertura</summary>
         <p>R10 y R20 cuentan días con al menos 10 y 20 mm. Rx1 es la lluvia máxima de un día. CDD y CWD son las rachas máximas de días consecutivos con menos de 1 mm y al menos 1 mm. SDII es el acumulado de días lluviosos dividido por el número de esos días. La amplitud térmica es máxima menos mínima del mismo día.</p>
@@ -275,11 +279,12 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
       {!publico && <section className="historico-observatorio__periodos">
         <h3>Resumen por {nombreEscala}</h3>
         <div className="historico-tabla-scroll"><table className="historico-tabla">
-          <thead><tr><th>Período</th><th>Cob. temp.</th><th>Cob. lluvia</th><th>Máx. media °C</th><th>Mín. media °C</th><th>Lluvia mm</th><th>Días ≥ 1 mm</th><th>R10</th><th>R20</th><th>Rx1 mm</th><th>CDD</th><th>CWD</th></tr></thead>
+          <thead><tr><th>Período</th><th>Cob. temp.</th><th>Cob. lluvia</th><th>Máx. media °C</th><th>Mín. media °C</th><th>{provincia ? 'Suma 3 zonas (mm)' : 'Lluvia mm'}</th>
+            {!provincia && <><th>Días ≥ 1 mm</th><th>R10</th><th>R20</th><th>Rx1 mm</th><th>CDD</th><th>CWD</th></>}</tr></thead>
           <tbody>{periodos.map(p => <tr key={p.clave}>{[
             p.clave, `${formatoNumero(p.coberturaTemp)}%`, `${formatoNumero(p.coberturaLluvia)}%`,
-            p.tmax, p.tmin, p.lluvia, p.diasLluvia, p.r10, p.r20, p.rx1, p.cdd, p.cwd,
-          ].map((v, i) => <td key={i}>{i === 0 || i === 1 || i === 2 ? v : formatoNumero(v)}</td>)}</tr>)}</tbody>
+            p.tmax, p.tmin, p.lluvia, ...(!provincia ? [p.diasLluvia, p.r10, p.r20, p.rx1, p.cdd, p.cwd] : []),
+          ].map((v, i) => <td key={i}>{i < 3 ? v : formatoNumero(v)}</td>)}</tr>)}</tbody>
         </table></div>
       </section>}
       <div className="historico-observatorio__tabla-header"><h3>Observaciones diarias</h3><div>

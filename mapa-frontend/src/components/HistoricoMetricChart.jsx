@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { createChart, HistogramSeries, LineSeries } from 'lightweight-charts';
+import { AreaSeries, createChart, HistogramSeries, LineSeries } from 'lightweight-charts';
 
 export default function HistoricoMetricChart({ titulo, subtitulo, datos, series, unidad = '', tipo = 'linea' }) {
   const ref = useRef(null);
   const [detalle, setDetalle] = useState('');
+  const clave = `historico-grafico:${titulo}:${subtitulo}:${series.map(s => s.campo).join(',')}`;
+  const opciones = series.length === 1 ? ['linea', 'barra', 'area', 'puntos'] : ['linea', 'area', 'puntos'];
+  const [vista, setVista] = useState(() => {
+    try {
+      const guardada = localStorage.getItem(clave);
+      return opciones.includes(guardada) ? guardada : tipo;
+    } catch { return tipo; }
+  });
+
+  function cambiarVista(valor) {
+    setVista(valor);
+    try { localStorage.setItem(clave, valor); } catch { /* almacenamiento opcional */ }
+  }
 
   useEffect(() => {
     if (!ref.current) return undefined;
@@ -20,15 +33,26 @@ export default function HistoricoMetricChart({ titulo, subtitulo, datos, series,
     });
     const creadas = series.map(s => ({
       ...s,
-      ref: chart.addSeries(tipo === 'barra' ? HistogramSeries : LineSeries, {
+      ref: chart.addSeries(vista === 'barra' ? HistogramSeries : vista === 'area' ? AreaSeries : LineSeries, {
         color: s.color, title: s.nombre, lineWidth: 2, lastValueVisible: false, priceLineVisible: false,
-        ...(tipo === 'barra' ? { priceFormat: { type: 'volume' } } : {}),
+        ...(vista === 'barra' ? { priceFormat: { type: 'volume' } } : {}),
+        ...(vista === 'area' ? { lineColor: s.color, topColor: `${s.color}55`, bottomColor: `${s.color}08` } : {}),
+        ...(vista === 'puntos' ? { lineVisible: false, pointMarkersVisible: true, pointMarkersRadius: 3 } : {}),
       }),
     }));
     for (const s of creadas) {
       s.ref.setData(datos.filter(d => Number.isFinite(d[s.campo])).map(d => ({ time: d.fecha, value: d[s.campo] })));
     }
     chart.timeScale().fitContent();
+    const actualizarTema = () => {
+      const actual = getComputedStyle(document.documentElement);
+      chart.applyOptions({
+        layout: { textColor: actual.getPropertyValue('--text').trim() || '#f6f3ec' },
+        grid: { horzLines: { color: actual.getPropertyValue('--border').trim() || '#66736a' } },
+      });
+    };
+    const observador = new MutationObserver(actualizarTema);
+    observador.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     chart.subscribeCrosshairMove(param => {
       if (!param.time) { setDetalle(''); return; }
       const valores = creadas.map(s => {
@@ -39,11 +63,15 @@ export default function HistoricoMetricChart({ titulo, subtitulo, datos, series,
         `${param.time.year}-${String(param.time.month).padStart(2, '0')}-${String(param.time.day).padStart(2, '0')}`;
       setDetalle(`${fecha} · ${valores.join(' · ')}`);
     });
-    return () => chart.remove();
-  }, [datos, series, tipo, unidad]);
+    return () => { observador.disconnect(); chart.remove(); };
+  }, [datos, series, vista, unidad]);
 
   return <section className="historico-metrica" aria-label={titulo}>
-    <div className="historico-metrica__header"><h3>{titulo}</h3><span>{subtitulo}</span></div>
+    <div className="historico-metrica__header"><h3>{titulo}</h3><div><span>{subtitulo}</span><label>
+      <select value={vista} onChange={e => cambiarVista(e.target.value)} aria-label={`Tipo de gráfico para ${titulo}`}>
+        {opciones.map(opcion => <option key={opcion} value={opcion}>{({ linea: 'Líneas', barra: 'Barras', area: 'Área', puntos: 'Puntos' })[opcion]}</option>)}
+      </select>
+    </label></div></div>
     <div className="historico-metrica__leyenda">{series.map(s => <span key={s.campo}><i style={{ background: s.color }} />{s.nombre}</span>)}</div>
     {datos.some(d => series.some(s => Number.isFinite(d[s.campo])))
       ? <div ref={ref} className="historico-metrica__grafico" />

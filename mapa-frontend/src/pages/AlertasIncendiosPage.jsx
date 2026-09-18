@@ -31,7 +31,7 @@ export default function AlertasIncendiosPage() {
       const dataUrl = await mapaRef.current.capturePng();
       if (!dataUrl) throw new Error("El mapa todavía no está listo");
       const blob = await (await fetch(dataUrl)).blob();
-      descargarBlob(blob, `alertas_incendio_${Date.now()}.png`);
+      descargarBlob(blob, `puntos_calor_${Date.now()}.png`);
     } catch (err) {
       setError(err.message);
     }
@@ -41,16 +41,16 @@ export default function AlertasIncendiosPage() {
 
   return (
     <div className="admin-layout">
-      <BrandHeader subtitulo="Alertas de incendios · NASA FIRMS">
+      <BrandHeader subtitulo="Puntos de calor · NASA FIRMS">
         <Link to="/panel/mapas" className="btn-link">
           ← Panel
         </Link>
       </BrandHeader>
 
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
-        <div className="editor-heading"><span className="editor-eyebrow">FOCOS SATELITALES · NASA FIRMS</span><h1>Alertas de incendios</h1><p>Las alertas que envía el sistema se publican automáticamente en el mapa.</p></div>
+        <div className="editor-heading"><span className="editor-eyebrow">DETECCIONES SATELITALES · NASA FIRMS</span><h1>Puntos de calor</h1><p>Anomalías térmicas detectadas por satélite. Un punto no confirma por sí solo un incendio; puede corresponder a otras fuentes de calor. Los datos recibidos se actualizan automáticamente en el mapa.</p></div>
         <h2>Recepción automática</h2>
-        <p className="admin-panel__hint">{cargando ? "Consultando alertas…" : actual ? "Mapa público actualizado con la última tanda recibida." : "Esperando la primera tanda del sistema de alertas."}</p>
+        <p className="admin-panel__hint">{cargando ? "Consultando detecciones…" : actual ? "Mapa público actualizado con la última tanda recibida." : "Esperando la primera tanda de detecciones."}</p>
         {(error || errorCarga) && <div className="alert alert--error">{error || errorCarga}</div>}
 
         {actual && (
@@ -59,7 +59,7 @@ export default function AlertasIncendiosPage() {
             <p className="admin-panel__hint">
               Recibida y publicada <b>{relativo}</b> · {fechaLarga(actual.recuperadoEn)}
               <br />
-              {focos.length} foco(s) con coordenadas reconocidas.
+              {focos.length} punto(s) con coordenadas reconocidas.
             </p>
 
             <div className="admin-actions">
@@ -69,14 +69,14 @@ export default function AlertasIncendiosPage() {
             </div>
           </>
         )}
-        <EmbedShare path="/embed/alertas-incendios" title="Alertas de incendios de Misiones" />
+        <EmbedShare path="/embed/alertas-incendios" title="Puntos de calor de Misiones" />
       </div>
 
       <div className="admin-map-area">
         <PointsMap
           ref={mapaRef}
           puntos={puntos}
-          titulo="Alertas de incendios"
+          titulo="Puntos de calor"
           enableCapture
         />
       </div>

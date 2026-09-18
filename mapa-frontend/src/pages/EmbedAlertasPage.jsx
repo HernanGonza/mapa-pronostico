@@ -7,7 +7,7 @@ export default function EmbedAlertasPage() {
   const { actual, error, cargando } = useAlertasIncendioActual();
   const puntos = useMemo(() => focosAGeojson(extraerFocos(actual?.datos)), [actual?.datos]);
   return <div className="embed-risk">
-    {(error || !actual) && <div className="embed-warning" role="status">{error || (cargando ? "Cargando alertas…" : "Esperando alertas del sistema.")}</div>}
-    <PointsMap puntos={puntos} titulo="Alertas de incendios" />
+    {(error || !actual) && <div className="embed-warning" role="status">{error || (cargando ? "Cargando detecciones…" : "Esperando detecciones del sistema.")}</div>}
+    <PointsMap puntos={puntos} titulo="Puntos de calor" />
   </div>;
 }

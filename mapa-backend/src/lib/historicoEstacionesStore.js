@@ -5,6 +5,7 @@ const ESTACIONES = [
   { id: 'bernardo_de_irigoyen_aero', nombre: 'Bernardo de Irigoyen Aero', zona: 'Centro' },
   { id: 'posadas_aero', nombre: 'Posadas Aero', zona: 'Sur' },
 ];
+const ID_PROVINCIA = 'toda_provincia';
 
 let initPromise;
 
@@ -43,15 +44,40 @@ async function obtenerResumen() {
     count(o.fecha)::int AS dias, min(o.fecha) AS desde, max(o.fecha) AS hasta
     FROM estaciones_historicas e LEFT JOIN observaciones_historicas o ON o.estacion_id=e.id
     GROUP BY e.id,e.nombre,e.zona ORDER BY CASE e.zona WHEN 'Norte' THEN 1 WHEN 'Centro' THEN 2 ELSE 3 END`);
-  return rows.map(r => ({ ...r, desde: r.desde?.toISOString().slice(0,10) || null, hasta: r.hasta?.toISOString().slice(0,10) || null }));
+  const estaciones = rows.map(r => ({ ...r, desde: r.desde?.toISOString().slice(0,10) || null, hasta: r.hasta?.toISOString().slice(0,10) || null }));
+  const { rows: [total] } = await store.getPool().query(`SELECT count(*)::int AS dias, min(fecha) AS desde, max(fecha) AS hasta
+    FROM (SELECT fecha FROM observaciones_historicas
+      WHERE estacion_id = ANY($1::text[]) GROUP BY fecha HAVING count(*) = 3) fechas`, [ESTACIONES.map(e => e.id)]);
+  return [{ id: ID_PROVINCIA, nombre: 'Tres estaciones', zona: 'Toda la provincia', dias: total.dias,
+    desde: total.desde?.toISOString().slice(0,10) || null, hasta: total.hasta?.toISOString().slice(0,10) || null }, ...estaciones];
 }
 
 async function obtenerSerie(estacionId, desde, hasta) {
-  if (!ESTACIONES.some(e => e.id === estacionId)) throw Object.assign(new Error('Estación inválida.'), { status: 400 });
+  if (estacionId !== ID_PROVINCIA && !ESTACIONES.some(e => e.id === estacionId)) throw Object.assign(new Error('Estación inválida.'), { status: 400 });
   if (desde && !/^\d{4}-\d{2}-\d{2}$/.test(desde) || hasta && !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
     throw Object.assign(new Error('Fecha inválida.'), { status: 400 });
   }
   await init();
+  if (estacionId === ID_PROVINCIA) {
+    const { rows } = await store.getPool().query(`SELECT fecha,
+      CASE WHEN count(temperatura_maxima)=3 THEN avg(temperatura_maxima) END AS temperatura_maxima,
+      CASE WHEN count(temperatura_minima)=3 THEN avg(temperatura_minima) END AS temperatura_minima,
+      CASE WHEN count(temperatura_media)=3 THEN avg(temperatura_media) END AS temperatura_media,
+      NULL::numeric AS punto_rocio,
+      NULL::numeric AS presion_estacion,
+      CASE WHEN count(precipitacion)=3 THEN sum(precipitacion) END AS precipitacion,
+      NULL::numeric AS humedad_relativa,
+      NULL::numeric AS heliofania,
+      NULL::numeric AS nubosidad,
+      NULL::numeric AS viento_maximo_direccion,
+      NULL::numeric AS viento_maximo_intensidad,
+      NULL::numeric AS viento_medio_intensidad
+      FROM observaciones_historicas WHERE estacion_id = ANY($1::text[])
+      AND fecha >= COALESCE($2::date, '-infinity'::date)
+      AND fecha <= COALESCE($3::date, 'infinity'::date)
+      GROUP BY fecha HAVING count(*) = 3 ORDER BY fecha`, [ESTACIONES.map(e => e.id), desde || null, hasta || null]);
+    return normalizarSerie(rows);
+  }
   const { rows } = await store.getPool().query(`SELECT fecha, temperatura_maxima, temperatura_minima,
     temperatura_media, punto_rocio, presion_estacion, precipitacion, humedad_relativa,
     heliofania, nubosidad, viento_maximo_direccion, viento_maximo_intensidad, viento_medio_intensidad
@@ -59,6 +85,10 @@ async function obtenerSerie(estacionId, desde, hasta) {
     AND fecha >= COALESCE($2::date, '-infinity'::date)
     AND fecha <= COALESCE($3::date, 'infinity'::date)
     ORDER BY fecha`, [estacionId, desde || null, hasta || null]);
+  return normalizarSerie(rows);
+}
+
+function normalizarSerie(rows) {
   return rows.map(r => Object.fromEntries(Object.entries(r).map(([k,v]) =>
     [k, k === 'fecha' ? v.toISOString().slice(0,10) : v == null ? null : Number(v)])));
 }
@@ -77,4 +107,4 @@ async function obtenerComparacion(desde, hasta) {
   return rows.map(r => ({ ...r, temperatura: r.temperatura == null ? null : Number(r.temperatura), lluvia: r.lluvia == null ? null : Number(r.lluvia) }));
 }
 
-module.exports = { ESTACIONES, init, obtenerResumen, obtenerSerie, obtenerComparacion };
+module.exports = { ESTACIONES, ID_PROVINCIA, init, obtenerResumen, obtenerSerie, obtenerComparacion };
