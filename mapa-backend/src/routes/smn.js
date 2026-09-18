@@ -22,29 +22,6 @@ router.post('/alertas-meteorologicas/smn/actualizar', async (req, res) => {
     res.status(503).json({ error: 'No se pudo consultar el SMN ahora' });
   }
 });
-router.get('/alertas-meteorologicas/smn-api', async (req, res) => {
-  try {
-    const { leerApiAlertas, descargar, API_ALERTAS, API_AREAS } = await import('../lib/smn/cap.mjs');
-    let areas = [];
-    try { areas = JSON.parse(await descargar(API_AREAS)); } catch (e) { console.warn('[SMN API áreas]', e.message); }
-    const datos = await leerApiAlertas();
-    const soloMisiones = (process.env.SMN_SCOPE || 'argentina') === 'misiones';
-    const ids = soloMisiones ? new Set(areas.filter(a => a.provinces?.some(p => p.name === 'Misiones')).map(a => a.id)) : null;
-    res.set('Cache-Control', 'no-store').json({ fuente: API_ALERTAS, datos: ids ? datos.filter(a => ids.has(a.area_id)) : datos, areas: ids ? areas.filter(a => ids.has(a.id)) : areas });
-  } catch (e) {
-    console.error('[SMN API]', e.message);
-    res.status(503).json({ error: e.message, fuente: process.env.SMN_API_URL || 'https://ws.smn.gob.ar/alerts/type/AL' });
-  }
-});
-// Cuarta vía, manual y pesada: renderiza la página del SMN con Chrome headless.
-router.get('/alertas-meteorologicas/smn-scrape', async (req, res) => {
-  try {
-    const { consultarPagina } = await import('../lib/smn/scrape.mjs');
-    const url = req.query.url || process.env.SMN_SCRAPE_URL || 'https://www.smn.gob.ar/alertas';
-    if (!/^https:\/\/(www\.)?smn\.gob\.ar\//.test(url)) return res.status(400).json({ error: 'URL de scraping no permitida' });
-    res.set('Cache-Control', 'no-store').json(await consultarPagina(url));
-  } catch (e) { console.error('[SMN scraping]', e.message); res.status(503).json({ error: e.message }); }
-});
 router.get('/alertas-meteorologicas/smn/:fuente.png', async (req, res) => {
   const fuente = req.params.fuente.toUpperCase();
   if (!['SAT', 'ACP'].includes(fuente)) return res.sendStatus(404);

@@ -14,7 +14,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY . .
 
-# --- runtime: libs de canvas + Chromium para lib/smn/token.mjs y scrape.mjs ---
+# --- runtime: libs de canvas + Chromium para lib/generateAlertaMap.js (placas) ---
 FROM node:20-bookworm-slim
 WORKDIR /app
 

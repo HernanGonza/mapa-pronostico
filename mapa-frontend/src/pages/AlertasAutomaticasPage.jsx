@@ -8,15 +8,13 @@ import SmnAlertas from "../components/SmnAlertas";
 // herramienta de consulta que ya existía.
 export default function AlertasAutomaticasPage() {
   return (
-    <div className="panel-layout">
+    <div className="admin-layout">
       <BrandHeader subtitulo="Alertas automáticas · SMN">
         <Link to="/panel/mapas" className="btn-link">
           ← Panel
         </Link>
       </BrandHeader>
-      <div id="contenido-principal" tabIndex={-1} style={{ minHeight: "calc(100vh - var(--header-h))" }}>
-        <SmnAlertas />
-      </div>
+      <SmnAlertas />
     </div>
   );
 }
