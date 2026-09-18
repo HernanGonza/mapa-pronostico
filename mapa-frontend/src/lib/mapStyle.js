@@ -1,4 +1,4 @@
-export const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+export const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 // Preferir español; si el tile no trae traducción, conservar el nombre local.
 const NOMBRE_ES = ["coalesce",
