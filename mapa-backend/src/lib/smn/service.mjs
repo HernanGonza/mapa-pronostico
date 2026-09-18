@@ -3,7 +3,7 @@ import * as store from './store.mjs';
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
-const FUENTES_ACTIVAS = ['SAT'];
+const FUENTES_ACTIVAS = ['SAT', 'ACP'];
 
 // Ejecuta una consulta completa bajo demanda. El lock evita que el botón de
 // prueba y el sondeo periódico descarguen el SMN dos veces en paralelo.

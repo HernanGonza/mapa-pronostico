@@ -85,7 +85,11 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
         const departamentos = provincia.features.filter(f => intersecta(geo, f.geometry)).map(f => f.properties.nombre);
         if (departamentos.length || alcance === 'argentina') zonas.push({ nombre: nombreArea || departamentos.join(' · '), departamentos, geocodigos, campos, geometry: geo });
       }
-      if (!array(area.polygon).length && (alcance === 'argentina' || /\bmisiones\b/i.test(nombreArea))) zonas.push({ nombre: nombreArea, departamentos: [], geocodigos, campos, geometry: null });
+      // ACP: sin polígono no hay forma de confirmar geográficamente que es de
+      // Misiones (área hiperlocal, puede describir sólo una ciudad/partido).
+      // Se prioriza que la alarma suene — el operador filtra a ojo — sobre
+      // el riesgo de perder un aviso real por no decir "Misiones" en el texto.
+      if (!array(area.polygon).length && (alcance === 'argentina' || fuente === 'ACP' || /\bmisiones\b/i.test(nombreArea))) zonas.push({ nombre: nombreArea, departamentos: [], geocodigos, campos, geometry: null });
     }
     if (!zonas.length) continue;
     // En los CAP del SMN el nivel suele venir en `severity`, pero algunas
@@ -96,7 +100,11 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
       || (fuente === 'SAT' && /amarill/i.test(textoNivel) ? 'Amarillo' : null)
       || (fuente === 'SAT' && /naranj/i.test(textoNivel) ? 'Naranja' : null)
       || (fuente === 'SAT' && /rojo/i.test(textoNivel) ? 'Rojo' : null)
-      || (fuente === 'SAT' ? 'Sin nivel' : null);
+      || (fuente === 'SAT' ? 'Sin nivel' : null)
+      // ACP siempre se clasifica como 'ACP' más abajo — cualquier valor no
+      // nulo alcanza acá; no se descarta un aviso a muy corto plazo por no
+      // traer severity reconocible.
+      || (fuente === 'ACP' ? 'Sin nivel' : null);
     // Las advertencias SAT sin nivel explícito siguen siendo visibles en la
     // tabla, para poder diagnosticar el formato real que entrega el SMN.
     if (!categoria) continue;

@@ -9,7 +9,7 @@ const categorias = [
   {nombre:'Rojo',color:'#DB5461',accion:'Seguí instrucciones oficiales',descripcion:'Se esperan fenómenos meteorológicos excepcionales con potencial de provocar emergencias o desastres.'},
 ];
 // ids = nombre de archivo en data/alertas/ (sin extensión).
-const iconos = [{id:'tormentas-severas',nombre:'Tormentas severas'},{id:'vientos-fuertes',nombre:'Vientos fuertes'},{id:'granizo',nombre:'Granizo'},{id:'inundacion',nombre:'Inundación'},{id:'lluvias-intensas',nombre:'Lluvias intensas'}];
+const iconos = [{id:'tormentas',nombre:'Tormentas'},{id:'tormentas-severas',nombre:'Tormentas severas'},{id:'vientos-fuertes',nombre:'Vientos fuertes'},{id:'granizo',nombre:'Granizo'},{id:'inundacion',nombre:'Inundación'},{id:'lluvias-intensas',nombre:'Lluvias intensas'}];
 function errorDeZonas(zonas) {
   const ids = new Set(loadDepartamentos().map(d => String(d.id)));
   if (!Array.isArray(zonas) || zonas.length !== ids.size || new Set(zonas.map(z => String(z?.id))).size !== ids.size) return 'Completá los 17 departamentos, sin repetir zonas.';

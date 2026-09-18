@@ -1165,6 +1165,13 @@ input[type="file"] {
 .smn-aviso__categoria { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
 .smn-aviso p { margin: 4px 0 0; color: var(--text-muted); }
 .smn-aviso a { display: inline-block; margin-top: 6px; font-size: 11.5px; }
+.smn-alarma { padding: 12px 14px; margin-bottom: 14px; border-radius: 10px; background: #8b3fc4; color: #fff; font-size: 12.5px; line-height: 1.5; animation: smn-alarma-pulso 1.4s ease-in-out infinite; }
+.smn-alarma strong { display: block; font-size: 13.5px; margin-bottom: 4px; }
+.smn-alarma p { margin: 0 0 10px; }
+.smn-alarma a { color: #fff; text-decoration: underline; }
+.smn-alarma .btn { background: #fff; color: #8b3fc4; border: 0; font-weight: 700; }
+@keyframes smn-alarma-pulso { 0%, 100% { box-shadow: 0 0 0 0 #8b3fc466; } 50% { box-shadow: 0 0 0 8px #8b3fc400; } }
+@media (prefers-reduced-motion: reduce) { .smn-alarma { animation: none; } }
 .risk-review { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; font-size: 12px; }
 .risk-review ul { padding-left: 18px; line-height: 1.7; }
 .risk-share { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 18px; }
