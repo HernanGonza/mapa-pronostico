@@ -211,18 +211,27 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   // (medido, no fijo a mano) más un margen, así nunca cae encima del mapa
   // sin importar qué fenómenos se elijan.
   const catalogoIcono=new Map(iconos.map(i=>[i.id,i])), colorPorCategoria=new Map(categorias.map(c=>[c.nombre,c.color]));
-  const ic = layout.iconos, iw=ic.iw, ih=Math.round(iw*324/350), fontSize=ic.fontSize, escalaFuente=fontSize/38;
+  const ic = layout.iconos;
+  // Con pocos fenómenos elegidos sobra espacio: se agrandan hasta 1.8x en
+  // vez de quedar chicos y sueltos. A partir de 4 (donde ya se pasa a 1
+  // columna llena, o a 2 columnas con 5+) se vuelve al tamaño calibrado a
+  // mano — no hay margen de más ahí sin pisar la cola sudoeste del mapa
+  // (ver comentario arriba).
+  const cantidadElegidos = iconosElegidos.length;
+  const escalaCantidad = Math.max(1, Math.min(1.8, 1.8 - (cantidadElegidos - 1) * (0.8 / 3)));
+  const iw=ic.iw*escalaCantidad, ih=Math.round(iw*324/350), fontSize=ic.fontSize*escalaCantidad, escalaFuente=fontSize/38;
+  const gap=ic.gap*escalaCantidad, rowH=ic.rowH*escalaCantidad;
   ctx.font=`bold ${fontSize}px AlertaPlaca`;
-  const columnas = iconosElegidos.length > 4 ? 2 : 1;
-  const filasPorColumna = Math.ceil(iconosElegidos.length / columnas);
+  const columnas = cantidadElegidos > 4 ? 2 : 1;
+  const filasPorColumna = Math.ceil(cantidadElegidos / columnas);
   const anchoTextoMax = Math.max(...iconos.map(i => ctx.measureText(i.nombre).width));
-  const anchoColumna = iw + ic.gap + anchoTextoMax + ic.gap * 2;
+  const anchoColumna = iw + gap + anchoTextoMax + gap * 2;
   iconosElegidos.forEach((elegido,index)=> {
     const icon=catalogoIcono.get(elegido.id), color=colorPorCategoria.get(elegido.categoria);
     const columna = Math.floor(index / filasPorColumna), fila = index % filasPorColumna;
-    const x = ic.x + columna * anchoColumna, y = ic.y0 + fila * ic.rowH;
+    const x = ic.x + columna * anchoColumna, y = ic.y0 + fila * rowH;
     ctx.drawImage(symbols[icon.id],0,0,350,324,x,y,iw,ih);
-    const tx=x+iw+ic.gap, baseline=y+ih/2+Math.round(13*escalaFuente);
+    const tx=x+iw+gap, baseline=y+ih/2+Math.round(13*escalaFuente);
     ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px AlertaPlaca`;ctx.fillText(icon.nombre,tx,baseline);
     const tw=ctx.measureText(icon.nombre).width;
     ctx.fillStyle=color;ctx.fillRect(tx,baseline+Math.round(12*escalaFuente),tw,Math.max(4,Math.round(7*escalaFuente)));
