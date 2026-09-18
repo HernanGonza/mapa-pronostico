@@ -1401,14 +1401,38 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .historico-chart-wrap__selector { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .historico-chart-wrap__selector select { padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); }
 .historico-categorias__dona { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; }
-.historico-categorias__anillo { width: 170px; height: 170px; flex: none; border-radius: 50%; display: grid; place-items: center; }
-.historico-categorias__anillo > div { width: 110px; height: 110px; border-radius: 50%; background: var(--surface); display: grid; place-content: center; text-align: center; }
-.historico-categorias__anillo strong { font-size: 25px; }
-.historico-categorias__anillo small { color: var(--text-muted); }
+.historico-categorias__anillo { width: 170px; height: 170px; flex: none; }
+.historico-categorias__total { fill: var(--text); font-size: 24px; font-weight: 700; }
+.historico-categorias__total-etiqueta { fill: var(--text-muted); font-size: 11px; }
 .historico-categorias__leyenda { flex: 1; min-width: 130px; list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; font-size: 12px; }
 .historico-categorias__leyenda li { display: flex; align-items: center; gap: 7px; }
 .historico-categorias__leyenda i { width: 10px; height: 10px; flex: none; border-radius: 50%; }
 .historico-categorias__leyenda b { margin-left: auto; }
+.historico-categorias__embudo { display: grid; justify-items: center; gap: 4px; }
+.historico-categorias__embudo > div { min-width: 0; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; border-radius: 4px; color: #fff; font-size: 12px; transition: width 550ms ease; }
+.historico-categorias__embudo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rosen-chart { width: 100%; min-width: 0; }
+.rosen-chart svg { display: block; overflow: visible; }
+.rosen-chart__grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; }
+.rosen-chart__axis { fill: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
+.rosen-chart__cursor { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.rosen-chart__dato { transition: opacity 450ms, cx 550ms, cy 550ms, x 550ms, y 550ms, height 550ms, width 550ms; }
+.historico-exportar button { padding: 4px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); color: var(--text); font-size: 11px; cursor: pointer; }
+.historico-exportar small { display: block; color: var(--danger); max-width: 190px; }
+.historico-rosa__contenido { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 22px; }
+.historico-rosa__contenido svg { width: min(320px, 100%); height: auto; }
+.historico-rosa__malla { fill: none; stroke: var(--border-strong); stroke-width: 0.65; }
+.historico-rosa__marca, .historico-rosa__direccion { fill: var(--text); font-size: 9px; }
+.historico-rosa__marca { fill: var(--text-muted); }
+.historico-rosa__leyenda { display: grid; grid-template-columns: repeat(2, max-content); gap: 7px 13px; list-style: none; margin: 0; padding: 0; color: var(--text); font-size: 11px; }
+.historico-rosa__leyenda li { display: flex; align-items: center; gap: 5px; }
+.historico-rosa__leyenda i { display: inline-block; width: 11px; height: 11px; }
+.historico-observatorio__personalizado { margin: 24px 0; padding-top: 18px; border-top: 1px solid var(--border); }
+.historico-personalizado__controles { margin-bottom: 16px; }
+.historico-personalizado__resultado { background: var(--surface); }
+.historico-3d__acciones { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-muted); font-size: 11px; }
+.historico-3d__acciones button { padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+.historico-3d__lienzo { min-height: 370px; }
 
 .heat-map-note { position: absolute; z-index: 5; left: 16px; bottom: 25px; width: min(345px, calc(100% - 32px)); box-sizing: border-box; padding: 11px 13px; border: 1px solid #d8e2dc; border-radius: 10px; background: rgba(255,255,255,.96); color: #193d2c; box-shadow: 0 3px 16px #17322722; font-size: 11px; line-height: 1.4; }
 .heat-map-note strong, .heat-map-note span, .heat-map-note a { display: block; }

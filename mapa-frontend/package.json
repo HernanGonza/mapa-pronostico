@@ -9,9 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "d3": "^7.9.0",
+    "d3-interpolate-path": "^2.3.0",
     "html-to-image": "^1.11.11",
-    "lightweight-charts": "^5.2.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "maplibre-gl": "^5.24.0",
+    "plotly.js-gl3d-dist-min": "^4.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",

@@ -7,6 +7,7 @@ import SerieClimaticaChart from "../components/SerieClimaticaChart";
 import HistoricoEstaciones from "../components/HistoricoEstaciones";
 import HistoricoMetricChart from "../components/HistoricoMetricChart";
 import GraficoCategorias from "../components/GraficoCategorias";
+import BotonTablaPdf from "../components/BotonTablaPdf";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../api";
 
@@ -488,7 +489,7 @@ function Estadisticas() {
         <HistoricoMetricChart titulo="Eventos por año" subtitulo="Cantidad anual" datos={datos.eventosPorAnio.map(d => ({ fecha: `${d.anio}-01-01`, cantidad: Number(d.cantidad) }))} series={[{ campo: 'cantidad', nombre: 'Eventos', color: '#358a75' }]} tipo="barra" />
       </div>
       <div className="historico-card">
-        <h2>Cobertura del historial climático</h2>
+        <div className="historico-categorias__header"><h2>Cobertura del historial climático</h2><BotonTablaPdf titulo="Cobertura del historial climático" columnas={['Estación', 'Días cargados', 'Desde', 'Hasta']} filas={datos.coberturaPorEstacion.map(e => [e.estacion, e.dias, e.desde, e.hasta])} disabled={!datos.coberturaPorEstacion.length} /></div>
         {datos.coberturaPorEstacion.length === 0 ? <p className="admin-panel__hint">Todavía no hay registros climáticos cargados.</p> : (
           <table className="historico-tabla">
             <thead><tr><th>Estación</th><th>Días cargados</th><th>Desde</th><th>Hasta</th></tr></thead>

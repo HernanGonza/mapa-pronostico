@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getComparacionEstacionesHistoricas, getEstacionesHistoricas, getSerieEstacionHistorica } from '../api';
 import HistoricoMetricChart from './HistoricoMetricChart';
+import RosaVientos from './RosaVientos';
+import BotonTablaPdf from './BotonTablaPdf';
+import GraficoPersonalizado from './GraficoPersonalizado';
 import { analizarHistorico, coberturaMinima } from '../lib/historicoAnalisis';
 
 const AZUL = '#185f9a';
@@ -139,6 +142,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
   const [hasta, setHasta] = useState('');
   const [serie, setSerie] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [rangoCargado, setRangoCargado] = useState(null);
   const [error, setError] = useState('');
   const [pagina, setPagina] = useState(0);
   const [revision, setRevision] = useState(0);
@@ -179,14 +183,14 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     setCargando(true);
     setError('');
     getSerieEstacionHistorica(id, desde, hasta)
-      .then(r => { if (activo) setSerie(r.serie); })
+      .then(r => { if (activo) { setSerie(r.serie); setRangoCargado({ id, desde, hasta }); } })
       .catch(e => { if (activo) { setError(e.message); onError(e.message); } })
       .finally(() => { if (activo) setCargando(false); });
     return () => { activo = false; };
   }, [id, desde, hasta, onError, revision]);
 
-  const analisis = useMemo(() => analizarHistorico(serie, desde, hasta), [serie, desde, hasta]);
-  const provincia = id === 'toda_provincia';
+  const analisis = useMemo(() => analizarHistorico(serie, rangoCargado?.desde, rangoCargado?.hasta), [serie, rangoCargado]);
+  const provincia = (rangoCargado?.id || id) === 'toda_provincia';
   const periodos = analisis.periodos;
   const nombreEscala = { dia: 'día', mes: 'mes', anio: 'año' }[analisis.escala];
   const lluviaObservada = useMemo(() => serie.reduce((s, f) => s + (f.precipitacion ?? 0), 0), [serie]);
@@ -201,6 +205,10 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     ['Precipitación', provincia ? [GRAFICOS_TECNICOS[1]] : GRAFICOS_TECNICOS.slice(1, 3).concat(GRAFICOS_TECNICOS.slice(4, 7))],
     ...(!provincia ? [['Otras variables atmosféricas', GRAFICOS_TECNICOS.slice(8)]] : []),
   ];
+  const columnasPeriodos = ['Período', 'Cob. temp.', 'Cob. lluvia', 'Máx. media °C', 'Mín. media °C', provincia ? 'Suma 3 zonas (mm)' : 'Lluvia mm',
+    ...(!provincia ? ['Días ≥ 1 mm', 'R10', 'R20', 'Rx1 mm', 'CDD', 'CWD'] : [])];
+  const filasPeriodos = periodos.map(p => [p.clave, `${formatoNumero(p.coberturaTemp)}%`, `${formatoNumero(p.coberturaLluvia)}%`,
+    p.tmax, p.tmin, p.lluvia, ...(!provincia ? [p.diasLluvia, p.r10, p.r20, p.rx1, p.cdd, p.cwd] : [])].map((v, i) => i < 3 ? v : formatoNumero(v)));
 
   function rango(anios) {
     if (!estacion?.hasta) return;
@@ -244,7 +252,8 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     </div>
     {error && <p className="risk-message risk-message--error" role="alert">{error}</p>}
     {desde > hasta && <p className="risk-message risk-message--error" role="alert">La fecha inicial debe ser anterior a la final.</p>}
-    {cargando ? <p role="status">Calculando el período…</p> : <>
+    {cargando && <p role="status">Actualizando el período…</p>}
+    {rangoCargado && <>
       <div className="historico-observatorio__resumen">
         <div><strong>{serie.length.toLocaleString('es-AR')}</strong><span>días con registro</span></div>
         <div><strong>{formatoNumero(lluviaObservada)} mm</strong><span>{provincia ? 'suma de lluvia de 3 zonas' : 'lluvia observada'}</span></div>
@@ -260,6 +269,8 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
             series={g.series} unidad={g.unidad} tipo={g.tipo} />)}
         </div>
       </section>)}
+      {!publico && !provincia && <RosaVientos filas={serie} nombre={estacion?.nombre || ''} />}
+      {!publico && <GraficoPersonalizado datos={periodos} provincia={provincia} zona={estacion?.zona || ''} desde={desde} hasta={hasta} />}
       {!publico && analisis.ciclo?.some(m => m.mesesTemp >= 10 || m.mesesLluvia >= 10) && <section className="historico-observatorio__comparacion">
         <h3>Ciclo anual medio del período elegido</h3>
         <p className="historico-observatorio__nota">Promedio por mes calendario calculado con los meses que alcanzan 90% de cobertura. Es descriptivo del rango seleccionado.</p>
@@ -277,7 +288,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
         <p>Referencias: <a href="https://www.climdex.org/learn/indices/" target="_blank" rel="noreferrer">índices Climdex / ETCCDI</a> y <a href="https://wmo.int/wmo-climatological-normals" target="_blank" rel="noreferrer">normales climatológicas de la OMM</a>.</p>
       </details>}
       {!publico && <section className="historico-observatorio__periodos">
-        <h3>Resumen por {nombreEscala}</h3>
+        <div className="historico-observatorio__tabla-header"><h3>Resumen por {nombreEscala}</h3><BotonTablaPdf titulo={`Resumen por ${nombreEscala} · ${estacion?.zona} · ${desde} a ${hasta}`} columnas={columnasPeriodos} filas={filasPeriodos} disabled={!filasPeriodos.length} /></div>
         <div className="historico-tabla-scroll"><table className="historico-tabla">
           <thead><tr><th>Período</th><th>Cob. temp.</th><th>Cob. lluvia</th><th>Máx. media °C</th><th>Mín. media °C</th><th>{provincia ? 'Suma 3 zonas (mm)' : 'Lluvia mm'}</th>
             {!provincia && <><th>Días ≥ 1 mm</th><th>R10</th><th>R20</th><th>Rx1 mm</th><th>CDD</th><th>CWD</th></>}</tr></thead>
@@ -290,6 +301,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
       <div className="historico-observatorio__tabla-header"><h3>Observaciones diarias</h3><div>
         <span>{serie.length.toLocaleString('es-AR')} filas · 50 por página</span>
         {!publico && <button type="button" className="btn" disabled={!serie.length} onClick={descargarCsv}>Descargar CSV del rango</button>}
+        <BotonTablaPdf titulo={`Observaciones diarias · ${estacion?.zona} · ${desde} a ${hasta}`} columnas={columnas.map(([, nombre]) => nombre)} filas={serie.map(f => columnas.map(([campo]) => campo === 'fecha' ? f.fecha : formatoNumero(f[campo])))} disabled={!serie.length} />
       </div></div>
       <div className="historico-tabla-scroll"><table className="historico-tabla">
         <thead><tr>{columnas.map(([, nombre]) => <th key={nombre} scope="col">{nombre}</th>)}</tr></thead>
@@ -301,7 +313,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
         <span>Página {pagina + 1} de {paginas}</span>
         <button type="button" className="btn" disabled={pagina >= paginas - 1} onClick={() => setPagina(p => p + 1)}>Más antiguos</button>
       </div>}
-      <p className="historico-observatorio__credito">Gráficos: TradingView Lightweight Charts™ · Copyright © 2025 TradingView, Inc. <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">TradingView</a></p>
+      <p className="historico-observatorio__credito">Gráficos adaptados de <a href="https://rosencharts.com/" target="_blank" rel="noreferrer">Rosen Charts</a>.</p>
     </>}
   </section>;
 }
