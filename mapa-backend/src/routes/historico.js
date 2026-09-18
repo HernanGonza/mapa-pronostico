@@ -6,6 +6,7 @@ const { TIPOS_EVENTO, SEVERIDADES } = require("../lib/catalogoEventos");
 const { loadDepartamentos } = require("../lib/departamentos");
 const eventos = require("../lib/eventosClimaticosStore");
 const registros = require("../lib/registrosClimaticosStore");
+const estacionesHistoricas = require("../lib/historicoEstacionesStore");
 const importador = require("../lib/importadorClimatico");
 
 const router = express.Router();
@@ -99,6 +100,24 @@ router.post("/eventos-climaticos/:id/despublicar", requireAuth, requireRole(...S
 });
 
 // --- Registros climáticos (serie histórica por estación) -------------------
+
+router.get('/estaciones-historicas', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store').json({ estaciones: await estacionesHistoricas.obtenerResumen() });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo consultar el histórico de estaciones.' });
+  }
+});
+
+router.get('/estaciones-historicas/:id/serie', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store').json({ serie: await estacionesHistoricas.obtenerSerie(req.params.id, req.query.desde, req.query.hasta) });
+  } catch (e) {
+    console.error(e);
+    res.status(status(e)).json({ error: status(e) === 500 ? 'No se pudo consultar la serie.' : e.message });
+  }
+});
 
 router.get("/registros-climaticos/estaciones", async (req, res) => {
   try {

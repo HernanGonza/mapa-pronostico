@@ -308,6 +308,13 @@ export async function despublicarEventoClimatico(id) {
 export async function getEstacionesClimaticas() {
   return handleJson(await fetch(`${API_URL}/api/registros-climaticos/estaciones`, { cache: "no-store" }));
 }
+export async function getEstacionesHistoricas() {
+  return handleJson(await fetch(`${API_URL}/api/estaciones-historicas`, { cache: 'no-store' }));
+}
+export async function getSerieEstacionHistorica(id, desde, hasta) {
+  const q = new URLSearchParams({ ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}) });
+  return handleJson(await fetch(`${API_URL}/api/estaciones-historicas/${encodeURIComponent(id)}/serie?${q}`, { cache: 'no-store' }));
+}
 export async function getSerieClimatica(estacion, desde, hasta) {
   const q = new URLSearchParams({ estacion, ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}) });
   return handleJson(await fetch(`${API_URL}/api/registros-climaticos/serie?${q}`, { cache: "no-store" }));

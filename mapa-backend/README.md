@@ -107,6 +107,24 @@ texto plano.
 `CORS_ORIGIN` (env, coma-separado) restringe orígenes en producción; sin
 la variable se permite cualquiera.
 
+## Histórico de estaciones meteorológicas
+
+El panel `/panel/historico` consulta `alerta_temprana.estaciones_historicas` y
+`alerta_temprana.observaciones_historicas`. La primera identifica las zonas
+Norte (Iguazú Aero), Centro (Bernardo de Irigoyen Aero) y Sur (Posadas Aero).
+La segunda guarda una fila por estación y fecha con las 12 variables diarias
+de las planillas; los valores `\N` se guardan como `NULL`.
+
+Para repetir una carga a partir de los tres Excel originales, ponerlos en una
+carpeta y ejecutar desde `mapa-backend`:
+
+```bash
+node scripts/importar-estaciones-historicas.js /ruta/a/la/carpeta
+```
+
+El importador crea las tablas si faltan y actualiza fechas existentes sin
+duplicarlas. No almacena los archivos Excel en la base ni en el servidor.
+
 ## Estructura
 
 ```

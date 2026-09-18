@@ -94,9 +94,11 @@ function ClimaHistorico({ puedeEscribir, setError, setMensaje }) {
   }
 
   return (
-    <div className="historico-grid historico-grid--clima">
+    <div className="historico-stack">
+      <HistoricoEstaciones setError={setError} />
+      <div className="historico-grid historico-grid--clima">
       <div className="historico-card historico-card--chart">
-        <h2>Serie histórica por estación</h2>
+        <h2>Registros del pronóstico diario</h2>
         <div className="historico-filtros">
           <label className="field"><span>Estación</span>
             <select value={estacion} onChange={(e) => setEstacion(e.target.value)}>
@@ -117,8 +119,94 @@ function ClimaHistorico({ puedeEscribir, setError, setMensaje }) {
           <CargaManualClimatica onCargado={() => { recargarEstaciones(); api.getSerieClimatica(estacion, desde, hasta).then((r) => setSerie(r.serie)).catch(() => {}); }} setError={setError} setMensaje={setMensaje} />
         </div>
       )}
+      </div>
     </div>
   );
+}
+
+function HistoricoEstaciones({ setError }) {
+  const [estaciones, setEstaciones] = useState([]);
+  const [id, setId] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [serie, setSerie] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [pagina, setPagina] = useState(0);
+
+  useEffect(() => {
+    api.getEstacionesHistoricas().then(({ estaciones: items }) => {
+      setEstaciones(items);
+      if (items.length) setId(items[0].id);
+    }).catch(e => setError(e.message));
+  }, [setError]);
+
+  const seleccion = estaciones.find(e => e.id === id);
+  useEffect(() => setPagina(0), [id, desde, hasta]);
+  useEffect(() => {
+    if (!seleccion?.hasta) return;
+    const fin = seleccion.hasta;
+    setHasta(fin);
+    setDesde(`${Number(fin.slice(0, 4)) - 1}${fin.slice(4)}`);
+  }, [seleccion?.id, seleccion?.hasta]);
+
+  useEffect(() => {
+    if (!id || !desde || !hasta) return;
+    let vigente = true;
+    setCargando(true);
+    api.getSerieEstacionHistorica(id, desde, hasta)
+      .then(r => { if (vigente) setSerie(r.serie); })
+      .catch(e => { if (vigente) setError(e.message); })
+      .finally(() => { if (vigente) setCargando(false); });
+    return () => { vigente = false; };
+  }, [id, desde, hasta, setError]);
+
+  const lluviaMensual = useMemo(() => {
+    const meses = new Map();
+    for (const fila of serie) {
+      if (fila.precipitacion == null) continue;
+      const mes = fila.fecha.slice(0, 7);
+      meses.set(mes, (meses.get(mes) || 0) + fila.precipitacion);
+    }
+    return [...meses].map(([mes, mm]) => ({ mes, mm: Math.round(mm * 10) / 10 }));
+  }, [serie]);
+  const maxLluvia = Math.max(1, ...lluviaMensual.map(x => x.mm));
+  const porPagina = 50;
+  const totalPaginas = Math.max(1, Math.ceil(serie.length / porPagina));
+  const filasPagina = serie.slice().reverse().slice(pagina * porPagina, (pagina + 1) * porPagina);
+
+  return <div className="historico-card">
+    <h2>Histórico meteorológico de Misiones</h2>
+    <p className="admin-panel__hint">Observaciones diarias del SMN para las zonas norte, centro y sur.</p>
+    <div className="historico-filtros">
+      <label className="field"><span>Zona y estación</span><select value={id} onChange={e => setId(e.target.value)}>
+        {estaciones.map(e => <option key={e.id} value={e.id}>{e.zona} · {e.nombre}</option>)}
+      </select></label>
+      <label className="field"><span>Desde</span><input type="date" value={desde} min={seleccion?.desde || undefined} max={hasta || undefined} onChange={e => setDesde(e.target.value)} /></label>
+      <label className="field"><span>Hasta</span><input type="date" value={hasta} min={desde || undefined} max={seleccion?.hasta || undefined} onChange={e => setHasta(e.target.value)} /></label>
+    </div>
+    {seleccion && <p className="admin-panel__hint">{seleccion.dias.toLocaleString('es-AR')} días cargados · {seleccion.desde} al {seleccion.hasta}</p>}
+    {cargando ? <p role="status">Cargando observaciones…</p> : <>
+      <h3>Temperaturas máxima y mínima (°C)</h3>
+      <SerieClimaticaChart serie={serie.map(f => ({ fecha: f.fecha, tmax: f.temperatura_maxima, tmin: f.temperatura_minima }))} />
+      <h3>Precipitación mensual (mm)</h3>
+      {lluviaMensual.length ? <div className="historico-lluvias">{lluviaMensual.map(x =>
+        <div key={x.mes} className="historico-lluvias__item" title={`${x.mes}: ${x.mm} mm`}>
+          <span>{x.mm}</span><div style={{ height: `${Math.max(2, x.mm / maxLluvia * 100)}%` }} /><small>{x.mes}</small>
+        </div>)}</div> : <p className="admin-panel__hint">Sin datos de precipitación en este período.</p>}
+      <h3>Observaciones diarias</h3>
+      <div className="historico-tabla-scroll"><table className="historico-tabla">
+        <thead><tr><th>Fecha</th><th>Máx. °C</th><th>Mín. °C</th><th>Media °C</th><th>Rocío °C</th><th>Presión hPa</th><th>Lluvia mm</th><th>Humedad %</th><th>Heliofanía h</th><th>Nubosidad</th><th>Viento máx. dir.</th><th>Viento máx. m/s</th><th>Viento medio m/s</th></tr></thead>
+        <tbody>{filasPagina.map(f => <tr key={f.fecha}>
+          <td>{f.fecha}</td>{['temperatura_maxima','temperatura_minima','temperatura_media','punto_rocio','presion_estacion','precipitacion','humedad_relativa','heliofania','nubosidad','viento_maximo_direccion','viento_maximo_intensidad','viento_medio_intensidad'].map(k => <td key={k}>{f[k] ?? '—'}</td>)}
+        </tr>)}</tbody>
+      </table></div>
+      {serie.length > porPagina && <div className="historico-paginacion">
+        <button type="button" className="btn" disabled={pagina === 0} onClick={() => setPagina(p => p - 1)}>Más recientes</button>
+        <span>Página {pagina + 1} de {totalPaginas}</span>
+        <button type="button" className="btn" disabled={pagina >= totalPaginas - 1} onClick={() => setPagina(p => p + 1)}>Más antiguos</button>
+      </div>}
+    </>}
+  </div>;
 }
 
 function ImportadorClimatico({ onImportado, setError, setMensaje }) {
