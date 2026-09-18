@@ -1309,11 +1309,55 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .historico-chart-wrap { position: relative; }
 .historico-chart { width: 100%; height: 420px; }
 .historico-tabla-scroll { overflow-x: auto; }
-.historico-lluvias { display: flex; align-items: end; gap: 6px; height: 180px; overflow-x: auto; padding: 8px 2px 0; border-bottom: 1px solid var(--border); }
-.historico-lluvias__item { flex: 1 0 48px; height: 100%; min-width: 48px; display: flex; flex-direction: column; align-items: center; justify-content: end; font-size: 11px; color: var(--text-muted); }
-.historico-lluvias__item > div { width: 70%; min-height: 2px; background: #2585ad; border-radius: 4px 4px 0 0; }
-.historico-lluvias__item small { padding: 4px 0; white-space: nowrap; }
 .historico-paginacion { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
+.historico-observatorio { min-width: 0; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.historico-observatorio__cabecera { display: flex; justify-content: space-between; align-items: start; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #185f9a; }
+.historico-observatorio__cabecera h2 { margin: 0 0 5px; font-size: clamp(22px, 2.3vw, 30px); line-height: 1.15; color: var(--text); }
+.historico-observatorio__cabecera p { margin: 0; color: var(--text-muted); line-height: 1.45; }
+.historico-observatorio__cobertura { flex: none; text-align: right; font-size: 13px; font-weight: 700; }
+.historico-observatorio__cobertura small { display: block; margin-top: 3px; color: var(--text-muted); font-weight: 400; }
+.historico-observatorio__controles { display: grid; grid-template-columns: minmax(210px, 1.3fr) repeat(2, minmax(150px, .8fr)) auto; align-items: end; gap: 12px; margin: 20px 0; }
+.historico-observatorio__atajos { display: flex; flex-wrap: wrap; gap: 4px; }
+.historico-observatorio__atajos button { border: 1px solid var(--border); border-radius: 5px; padding: 9px 10px; color: var(--text); background: var(--surface-2); cursor: pointer; }
+.historico-observatorio__atajos button:hover, .historico-observatorio__atajos button:focus-visible { border-color: #185f9a; }
+.historico-observatorio__resumen { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--border); margin: 20px 0 12px; }
+.historico-observatorio__resumen > div { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-right: 1px solid var(--border); }
+.historico-observatorio__resumen > div:last-child { border-right: 0; }
+.historico-observatorio__resumen strong { font-size: 21px; line-height: 1.1; font-variant-numeric: tabular-nums; color: #185f9a; }
+.historico-observatorio__resumen span { font-size: 12px; color: var(--text-muted); }
+.historico-observatorio__nota { max-width: 95ch; margin: 0 0 20px; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.historico-observatorio__graficos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.historico-observatorio__grupo > h3 { margin: 22px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); font-size: 17px; }
+.historico-metrica { min-width: 0; padding: 14px 16px 6px; border: 1px solid var(--border); border-radius: 7px; }
+.historico-metrica__header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.historico-metrica__header h3 { margin: 0; font-size: 14px; }
+.historico-metrica__header > span { flex: none; font-size: 11px; color: var(--text-muted); }
+.historico-metrica__leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; min-height: 25px; margin: 8px 0; font-size: 11px; color: var(--text-muted); }
+.historico-metrica__leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+.historico-metrica__leyenda i { display: inline-block; width: 11px; height: 3px; border-radius: 2px; }
+.historico-metrica__grafico { width: 100%; height: 230px; }
+.historico-metrica__vacio { display: grid; place-items: center; height: 230px; color: var(--text-muted); font-size: 12px; }
+.historico-metrica__detalle { min-height: 15px; margin: 3px 0 0; color: var(--text-muted); font-size: 11px; }
+.historico-observatorio__metodo { padding: 12px 0; border-block: 1px solid var(--border); font-size: 13px; line-height: 1.5; }
+.historico-observatorio__metodo summary { cursor: pointer; font-weight: 700; }
+.historico-observatorio__comparacion { padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--border); }
+.historico-observatorio__comparacion > h3, .historico-observatorio__periodos > h3 { margin: 0 0 8px; font-size: 17px; }
+.historico-observatorio__periodos { margin-top: 20px; }
+.historico-observatorio__periodos .historico-tabla-scroll { max-height: 420px; overflow: auto; }
+.historico-observatorio__periodos .historico-tabla th { position: sticky; top: 0; z-index: 1; }
+.historico-observatorio__tabla-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.historico-observatorio__tabla-header h3 { margin: 0 0 10px; font-size: 16px; }
+.historico-observatorio__tabla-header span { color: var(--text-muted); font-size: 12px; }
+.historico-observatorio__tabla-header > div { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.historico-observatorio__credito { margin: 18px 0 0; color: var(--text-muted); font-size: 11px; }
+.historico-observatorio .historico-tabla th { white-space: nowrap; background: var(--surface-2); }
+.historico-observatorio .historico-tabla td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.historico-observatorio--publico { border: 0; border-radius: 0; }
+.historico-observatorio--publico .historico-observatorio__graficos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .historico-observatorio__controles { grid-template-columns: repeat(3, 1fr); } .historico-observatorio__atajos { grid-column: 1 / -1; } }
+@media (max-width: 1100px) { .historico-observatorio--publico .historico-observatorio__graficos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .historico-observatorio__graficos, .historico-observatorio--publico .historico-observatorio__graficos { grid-template-columns: 1fr; } .historico-observatorio__resumen { grid-template-columns: repeat(2, 1fr); } .historico-observatorio__resumen > div:nth-child(2) { border-right: 0; } .historico-observatorio__resumen > div:nth-child(-n+2) { border-bottom: 1px solid var(--border); } .historico-observatorio__cabecera { flex-direction: column; gap: 8px; } .historico-observatorio__cobertura { text-align: left; } }
+@media (max-width: 560px) { .historico-observatorio { padding: 16px; } .historico-observatorio__controles { grid-template-columns: 1fr 1fr; } .historico-observatorio__controles .field:first-child { grid-column: 1 / -1; } .historico-paginacion { justify-content: space-between; flex-wrap: wrap; } }
 .historico-seccion { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .historico-seccion summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
 .historico-seccion .historico-filtros, .historico-seccion .field { margin-top: 12px; }
@@ -1349,13 +1393,15 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .historico-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .historico-tabla th, .historico-tabla td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 
-.historico-compartir { max-width: 480px; margin-top: 32px; }
+.historico-compartir { margin-top: 32px; }
+.historico-compartir__vista { display: block; width: 100%; height: 900px; margin-top: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 
-.historico-embed { height: 100%; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); color: var(--text); }
+.historico-embed { min-height: 100%; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); color: var(--text); }
 .historico-embed__clima, .historico-embed__eventos { padding: 16px 20px; }
 .historico-embed__eventos { border-top: 1px solid var(--border); }
 .historico-embed__encabezado { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .historico-embed__encabezado h2, .historico-embed__eventos h2 { margin: 0; font-size: 15px; }
+.historico-embed__encabezado p { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; }
 .historico-embed__lista { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
 .historico-embed__lista li { display: flex; gap: 10px; font-size: 12.5px; }
 .historico-embed__lista img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }

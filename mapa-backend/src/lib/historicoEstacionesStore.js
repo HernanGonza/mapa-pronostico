@@ -58,9 +58,23 @@ async function obtenerSerie(estacionId, desde, hasta) {
     FROM observaciones_historicas WHERE estacion_id=$1
     AND fecha >= COALESCE($2::date, '-infinity'::date)
     AND fecha <= COALESCE($3::date, 'infinity'::date)
-    ORDER BY fecha LIMIT 25000`, [estacionId, desde || null, hasta || null]);
+    ORDER BY fecha`, [estacionId, desde || null, hasta || null]);
   return rows.map(r => Object.fromEntries(Object.entries(r).map(([k,v]) =>
     [k, k === 'fecha' ? v.toISOString().slice(0,10) : v == null ? null : Number(v)])));
 }
 
-module.exports = { ESTACIONES, init, obtenerResumen, obtenerSerie };
+async function obtenerComparacion(desde, hasta) {
+  if (desde && !/^\d{4}-\d{2}-\d{2}$/.test(desde) || hasta && !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    throw Object.assign(new Error('Fecha inválida.'), { status: 400 });
+  }
+  await init();
+  const { rows } = await store.getPool().query(`SELECT estacion_id, extract(year FROM fecha)::int AS anio,
+    count(temperatura_media)::int AS dias_temp, avg(temperatura_media) AS temperatura,
+    count(precipitacion)::int AS dias_lluvia, sum(precipitacion) AS lluvia
+    FROM observaciones_historicas WHERE fecha >= COALESCE($1::date, '-infinity'::date)
+    AND fecha <= COALESCE($2::date, 'infinity'::date)
+    GROUP BY estacion_id, anio ORDER BY anio, estacion_id`, [desde || null, hasta || null]);
+  return rows.map(r => ({ ...r, temperatura: r.temperatura == null ? null : Number(r.temperatura), lluvia: r.lluvia == null ? null : Number(r.lluvia) }));
+}
+
+module.exports = { ESTACIONES, init, obtenerResumen, obtenerSerie, obtenerComparacion };

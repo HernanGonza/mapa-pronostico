@@ -110,6 +110,15 @@ router.get('/estaciones-historicas', async (req, res) => {
   }
 });
 
+router.get('/estaciones-historicas/comparacion', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store').json({ anuales: await estacionesHistoricas.obtenerComparacion(req.query.desde, req.query.hasta) });
+  } catch (e) {
+    console.error(e);
+    res.status(status(e)).json({ error: status(e) === 500 ? 'No se pudo consultar la comparación.' : e.message });
+  }
+});
+
 router.get('/estaciones-historicas/:id/serie', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store').json({ serie: await estacionesHistoricas.obtenerSerie(req.params.id, req.query.desde, req.query.hasta) });
