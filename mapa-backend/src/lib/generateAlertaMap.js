@@ -18,6 +18,10 @@ const FONDOS = {
   tormenta: { feed: 'fondo historias.png', historias: 'fondo historias (2).png' },
 };
 const TAMANOS = ['feed', 'historias'];
+// Antes 140 (pensado para 1-3 líneas cortadas a mano); con el ajuste
+// automático de la pill (auto-wrap + letra que se achica) soporta párrafos
+// más largos, tipo el texto de un aviso completo del SMN.
+const MAX_PERIODO = 600;
 // Coordenadas calibradas a mano sobre los fondos nuevos, reproduciendo la
 // ubicación de cada elemento en las plantillas viejas (medida sobre
 // "Alerta metorológica {feed,historias} {1,2}.png"): período arriba (igual
@@ -113,6 +117,19 @@ function errorDeTitulo(titulo) {
   return typeof titulo !== 'string' || !titulo.trim() || titulo.length > 60 || /[\r\n]/.test(titulo)
     ? 'Escribí un título de hasta 60 caracteres, en una sola línea.' : null;
 }
+// Tamaño de letra del período (pill blanca), ajustable a mano desde el
+// panel: tamanoPeriodo es el tamaño de la variante de 1 línea, el de 2-3
+// líneas se escala en la misma proporción (48/64) que tenía el valor fijo
+// original.
+const TAMANO_PERIODO_PREDETERMINADO = 64;
+const TAMANO_PERIODO_MIN = 30, TAMANO_PERIODO_MAX = 100;
+// Piso al que se puede achicar la letra del período cuando el texto es
+// largo y no entra en la pill ni con auto-wrap (ver generateAlertaMap).
+const FUENTE_PERIODO_MIN = 22;
+function errorDeTamanoPeriodo(tamanoPeriodo) {
+  return typeof tamanoPeriodo !== 'number' || !Number.isFinite(tamanoPeriodo) || tamanoPeriodo < TAMANO_PERIODO_MIN || tamanoPeriodo > TAMANO_PERIODO_MAX
+    ? `El tamaño de letra del período tiene que estar entre ${TAMANO_PERIODO_MIN} y ${TAMANO_PERIODO_MAX}.` : null;
+}
 // El encabezado original forma parte del PNG. Un panel opaco lo sustituye
 // por completo cuando se elige otro título, sin tocar el pie institucional.
 function dibujarTitulo(ctx, titulo, tamano, width) {
@@ -125,9 +142,9 @@ function dibujarTitulo(ctx, titulo, tamano, width) {
   ctx.fillText(titulo.trim().toLocaleUpperCase('es-AR'), width / 2, h * 0.72, width - 380);
   ctx.restore();
 }
-async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='tormenta',tamano='feed',iconos:iconosElegidos=[],titulo=TITULO_PREDETERMINADO}) {
+async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='tormenta',tamano='feed',iconos:iconosElegidos=[],titulo=TITULO_PREDETERMINADO,tamanoPeriodo=TAMANO_PERIODO_PREDETERMINADO}) {
   const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTitulo(titulo);if(error)throw new Error(error);
-  if(!['tormenta','nubes'].includes(fondo)||!TAMANOS.includes(tamano)||typeof periodo!=='string'||!periodo.trim()||periodo.length>140)throw new Error('Período, fondo o tamaño inválido.');
+  if(!['tormenta','nubes'].includes(fondo)||!TAMANOS.includes(tamano)||typeof periodo!=='string'||!periodo.trim()||periodo.length>MAX_PERIODO)throw new Error('Período, fondo o tamaño inválido.');
   const layout = LAYOUTS[tamano];
   const [fondos, symbols] = await Promise.all([loadFondos(), loadSymbols()]);
   const fondoImg = fondos[`${fondo}:${tamano}`];
@@ -159,15 +176,26 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
     lineas.forEach((linea,j)=>ctx.fillText(linea, x0, y0+j*NIVELES_TEXTO.lineH*nivEscala));
   });
 
-  // Período (igual que antes: pill blanca + texto centrado, 1 a 3 líneas
-  // que el operador corta con Enter).
+  // Período: pill blanca con ajuste automático — el operador puede seguir
+  // cortando párrafos a mano con Enter, pero cada párrafo se envuelve solo
+  // (ajustarLineas) según el ancho disponible, y si el texto es largo la
+  // letra se va achicando (desde tamanoPeriodo hasta FUENTE_PERIODO_MIN)
+  // hasta que todas las líneas entren en el alto de la caja.
   const p = layout.periodo;
   ctx.fillStyle='#fff';pill(ctx,p.x,p.y,p.w,p.h,p.r);ctx.fill();
-  const lineasPeriodo=periodo.trim().split('\n').map(l=>l.trim()).filter(Boolean);
-  const tamanoFuente=lineasPeriodo.length>1?40:52, lineHPeriodo=tamanoFuente*1.15;
-  ctx.fillStyle='#171717';ctx.font=`bold ${tamanoFuente}px AlertaPlaca`;ctx.textAlign='center';ctx.textBaseline='middle';
+  const parrafosPeriodo=periodo.trim().split('\n').map(l=>l.trim()).filter(Boolean);
+  const anchoPeriodo=p.w-140, altoPeriodo=p.h-60;
+  let tamanoFuente=tamanoPeriodo, lineasPeriodo, lineHPeriodo;
+  for(;;){
+    ctx.font=`bold ${tamanoFuente}px AlertaPlaca`;
+    lineasPeriodo=parrafosPeriodo.flatMap(parrafo=>ajustarLineas(ctx,parrafo,anchoPeriodo));
+    lineHPeriodo=tamanoFuente*1.15;
+    if(lineasPeriodo.length*lineHPeriodo<=altoPeriodo||tamanoFuente<=FUENTE_PERIODO_MIN)break;
+    tamanoFuente-=2;
+  }
+  ctx.fillStyle='#171717';ctx.textAlign='center';ctx.textBaseline='middle';
   const cx=p.x+p.w/2, cy=p.y+p.h/2, offset=(lineasPeriodo.length-1)*lineHPeriodo/2;
-  lineasPeriodo.forEach((linea,i)=>ctx.fillText(linea,cx,cy-offset+i*lineHPeriodo,p.w-140));
+  lineasPeriodo.forEach((linea,i)=>ctx.fillText(linea,cx,cy-offset+i*lineHPeriodo,anchoPeriodo));
   ctx.textAlign='left';ctx.textBaseline='alphabetic';
 
   // Fenómenos elegidos: de cada fila nueva (icono + texto + franja gris de
@@ -274,4 +302,4 @@ async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'fe
   } finally { await browser.close(); }
 }
 
-module.exports={generateAlertaMap,generateRecomendaciones,errorDeRecomendaciones,errorDeTitulo,TITULO_PREDETERMINADO,MAX_RECOMENDACIONES,TAMANOS};
+module.exports={generateAlertaMap,generateRecomendaciones,errorDeRecomendaciones,errorDeTitulo,TITULO_PREDETERMINADO,MAX_RECOMENDACIONES,TAMANOS,errorDeTamanoPeriodo,TAMANO_PERIODO_PREDETERMINADO,TAMANO_PERIODO_MIN,TAMANO_PERIODO_MAX,MAX_PERIODO};

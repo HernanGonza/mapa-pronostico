@@ -5,7 +5,10 @@ const { categorias, iconos, errorDeZonas, normalizarZonas, errorDeIconos, normal
 const s = require('../lib/alertasMeteorologicasStore');
 const placas = require('../lib/placasMeteoStore');
 const router = express.Router();
-router.get('/alertas-meteorologicas/catalogo', (req,res)=>res.json({departamentos:loadDepartamentos(),categorias,iconos}));
+router.get('/alertas-meteorologicas/catalogo', (req,res)=>{
+  const { TAMANO_PERIODO_PREDETERMINADO, TAMANO_PERIODO_MIN, TAMANO_PERIODO_MAX, MAX_PERIODO } = require('../lib/generateAlertaMap');
+  res.json({departamentos:loadDepartamentos(),categorias,iconos,tamanoPeriodo:{predeterminado:TAMANO_PERIODO_PREDETERMINADO,min:TAMANO_PERIODO_MIN,max:TAMANO_PERIODO_MAX},maxPeriodo:MAX_PERIODO});
+});
 router.get('/alertas-meteorologicas/geojson',(req,res)=>{res.set('Cache-Control','public,max-age=604800');res.sendFile(DEPARTAMENTOS_GEOJSON_PATH);});
 router.get('/alertas-meteorologicas/actual',async(req,res)=>{
   try {res.set('Cache-Control','no-store').json(await s.actual()||{});}catch(e){console.error(e);res.status(503).json({error:'No se pudo leer la publicación.'});}
@@ -20,16 +23,17 @@ router.post('/alertas-meteorologicas/publicar',requireAuth,express.json(),async(
 // registro de "se generó una placa"). Sube las dos al bucket de Storage
 // y graba quién/cuándo/con qué parámetros en alertas_meteo_placas.
 router.post('/alertas-meteorologicas/placa',requireAuth,express.json(),async(req,res)=>{
-  const {zonas,periodo,fondo,titulo,iconos:iconosElegidos=[]}=req.body||{};
-  const { errorDeTitulo, TITULO_PREDETERMINADO } = require('../lib/generateAlertaMap');
-  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTitulo(titulo === undefined ? TITULO_PREDETERMINADO : titulo);
-  if(error||typeof periodo!=='string'||!periodo.trim()||periodo.length>140||!['tormenta','nubes'].includes(fondo))return res.status(400).json({error:error||'Revisá período y fondo.'});
+  const {zonas,periodo,fondo,titulo,iconos:iconosElegidos=[],tamanoPeriodo}=req.body||{};
+  const { errorDeTitulo, TITULO_PREDETERMINADO, errorDeTamanoPeriodo, TAMANO_PERIODO_PREDETERMINADO, MAX_PERIODO } = require('../lib/generateAlertaMap');
+  const tamanoPeriodoFinal = tamanoPeriodo === undefined ? TAMANO_PERIODO_PREDETERMINADO : tamanoPeriodo;
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTitulo(titulo === undefined ? TITULO_PREDETERMINADO : titulo)||errorDeTamanoPeriodo(tamanoPeriodoFinal);
+  if(error||typeof periodo!=='string'||!periodo.trim()||periodo.length>MAX_PERIODO||!['tormenta','nubes'].includes(fondo))return res.status(400).json({error:error||'Revisá período y fondo.'});
   try {
     const {generateAlertaMap}=require('../lib/generateAlertaMap');
     const zonasNorm=normalizarZonas(zonas),iconosNorm=normalizarIconos(iconosElegidos);
     const [feedPng,historiasPng]=await Promise.all([
-      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'feed',iconos:iconosNorm}),
-      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'historias',iconos:iconosNorm}),
+      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'feed',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
+      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'historias',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
     ]);
     const placa=await placas.crear({zonas:zonasNorm,iconos:iconosNorm,periodo,fondo,usuarioId:req.usuario.usuarioId,feedPng,historiasPng});
     res.set('Cache-Control','no-store').json(placa);
