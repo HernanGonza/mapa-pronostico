@@ -1180,6 +1180,10 @@ input[type="file"] {
 .cuencas-tarjeta__valor { display: block; font-size: 20px; font-weight: 700; color: var(--heading); margin-top: 6px; }
 .cuencas-tarjeta__valor small { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 .cuencas-tarjeta__detalle { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+.cuencas-tarjetas-embed { padding: 16px; background: var(--surface); }
+.cuencas-tarjetas-embed .cuencas-tarjetas { flex-direction: row; flex-wrap: wrap; margin: 0; }
+.cuencas-tarjetas-embed .cuencas-tarjeta { flex: 1 1 200px; }
+.cuencas-tarjetas-embed__fecha { margin: 10px 0 0; font-size: 11px; color: var(--text-muted); }
 .risk-review { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; font-size: 12px; }
 .risk-review ul { padding-left: 18px; line-height: 1.7; }
 .risk-share { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 18px; }

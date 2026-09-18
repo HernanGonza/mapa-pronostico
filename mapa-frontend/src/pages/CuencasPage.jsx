@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import MonitorCuencas from "../components/MonitorCuencas";
 import CuencasMap from "../components/CuencasMap";
+import EmbedShare from "../components/EmbedShare";
 import { getCuencas, actualizarCuencas } from "../api";
 import { tiempoRelativo } from "../lib/tiempoRelativo";
 
@@ -53,6 +54,12 @@ export default function CuencasPage() {
       </div>
       <MonitorCuencas tarjetas={data?.tarjetas} />
       <p className="admin-panel__hint">Tocá una tarjeta para abrir el Monitor Hidrológico oficial en una pestaña nueva.</p>
+      <EmbedShare path="/embed/cuencas-tarjetas" title="Monitor de cuencas · tarjetas · Misiones" height={260}
+        heading="Tarjetas para el sitio web" hint="Las 3 tarjetas (Paraná, Uruguay, Iguazú) solas, sin el mapa. Se actualizan solas cada 5 minutos."
+        linkLabel="Enlace a las tarjetas" openLabel="Abrir tarjetas ↗" />
+      <EmbedShare path="/embed/cuencas-mapa" title="Monitor de cuencas · mapa · Misiones" height={640}
+        heading="Mapa para el sitio web" hint="El mapa de represas y puertos solo, sin las tarjetas. Se actualiza solo cada 5 minutos."
+        linkLabel="Enlace al mapa" openLabel="Abrir mapa ↗" />
     </section>
     <div className="admin-map-area">
       {data?.puertos ? <CuencasMap represas={data.represas} puertos={data.puertos} titulo="Monitor de cuencas" />

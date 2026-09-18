@@ -26,6 +26,8 @@ const PronosticoExtendidoPage = lazy(() => import("./pages/PronosticoExtendidoPa
 const EmbedPronosticoExtendidoPage = lazy(() => import("./pages/EmbedPronosticoExtendidoPage"));
 const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 const CuencasPage = lazy(() => import("./pages/CuencasPage"));
+const EmbedCuencasMapaPage = lazy(() => import("./pages/EmbedCuencasMapaPage"));
+const EmbedCuencasTarjetasPage = lazy(() => import("./pages/EmbedCuencasTarjetasPage"));
 
 const RecuperarPasswordPage = lazy(() => import("./pages/RecuperarPasswordPage"));
 
@@ -91,6 +93,8 @@ export default function App() {
           <Route path="/embed/pronostico-3-dias" element={<EmbedPronosticoExtendidoPage />} />
           <Route path="/embed/avisos-corto-plazo" element={<EmbedAvisosCortoPlazoPage />} />
           <Route path="/embed/historico" element={<EmbedHistoricoPage />} />
+          <Route path="/embed/cuencas-mapa" element={<EmbedCuencasMapaPage />} />
+          <Route path="/embed/cuencas-tarjetas" element={<EmbedCuencasTarjetasPage />} />
 
           <Route path="*" element={<Navigate to="/panel" replace />} />
         </Routes>
