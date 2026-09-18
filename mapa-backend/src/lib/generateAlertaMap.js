@@ -164,7 +164,7 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   const p = layout.periodo;
   ctx.fillStyle='#fff';pill(ctx,p.x,p.y,p.w,p.h,p.r);ctx.fill();
   const lineasPeriodo=periodo.trim().split('\n').map(l=>l.trim()).filter(Boolean);
-  const tamanoFuente=lineasPeriodo.length>1?36:44, lineHPeriodo=tamanoFuente*1.15;
+  const tamanoFuente=lineasPeriodo.length>1?40:52, lineHPeriodo=tamanoFuente*1.15;
   ctx.fillStyle='#171717';ctx.font=`bold ${tamanoFuente}px AlertaPlaca`;ctx.textAlign='center';ctx.textBaseline='middle';
   const cx=p.x+p.w/2, cy=p.y+p.h/2, offset=(lineasPeriodo.length-1)*lineHPeriodo/2;
   lineasPeriodo.forEach((linea,i)=>ctx.fillText(linea,cx,cy-offset+i*lineHPeriodo,p.w-140));

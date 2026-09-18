@@ -3,10 +3,10 @@ const { loadDepartamentos } = require('./departamentos');
 // tienen que ser EXACTAMENTE estos, así el mapa (departamentos) coincide
 // pixel a pixel con el cuadro de referencias de la placa.
 const categorias = [
-  {nombre:'Verde',color:'#7AD5B0',accion:'Tranquilidad',descripcion:'No se esperan fenómenos meteorológicos que impliquen riesgos.'},
-  {nombre:'Amarillo',color:'#F7DC8A',accion:'Informate',descripcion:'Posibles fenómenos meteorológicos con capacidad de daño y riesgo de interrupción momentánea de actividades cotidianas.'},
-  {nombre:'Naranja',color:'#F4953D',accion:'Preparate',descripcion:'Se esperan fenómenos meteorológicos peligrosos para la sociedad, la vida, los bienes y el medio ambiente.'},
-  {nombre:'Rojo',color:'#DB5461',accion:'Seguí instrucciones oficiales',descripcion:'Se esperan fenómenos meteorológicos excepcionales con potencial de provocar emergencias o desastres.'},
+  {nombre:'Verde',color:'#22C382',accion:'Tranquilidad',descripcion:'No se esperan fenómenos meteorológicos que impliquen riesgos.'},
+  {nombre:'Amarillo',color:'#FDE743',accion:'Informate',descripcion:'Posibles fenómenos meteorológicos con capacidad de daño y riesgo de interrupción momentánea de actividades cotidianas.'},
+  {nombre:'Naranja',color:'#F9881F',accion:'Preparate',descripcion:'Se esperan fenómenos meteorológicos peligrosos para la sociedad, la vida, los bienes y el medio ambiente.'},
+  {nombre:'Rojo',color:'#F3162C',accion:'Seguí instrucciones oficiales',descripcion:'Se esperan fenómenos meteorológicos excepcionales con potencial de provocar emergencias o desastres.'},
 ];
 // ids = nombre de archivo en data/alertas/ (sin extensión).
 const iconos = [{id:'tormentas',nombre:'Tormentas'},{id:'tormentas-severas',nombre:'Tormentas severas'},{id:'vientos-fuertes',nombre:'Vientos fuertes'},{id:'granizo',nombre:'Granizo'},{id:'inundacion',nombre:'Inundación'},{id:'lluvias-intensas',nombre:'Lluvias intensas'}];

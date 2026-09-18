@@ -1172,6 +1172,14 @@ input[type="file"] {
 .smn-alarma .btn { background: #fff; color: #8b3fc4; border: 0; font-weight: 700; }
 @keyframes smn-alarma-pulso { 0%, 100% { box-shadow: 0 0 0 0 #8b3fc466; } 50% { box-shadow: 0 0 0 8px #8b3fc400; } }
 @media (prefers-reduced-motion: reduce) { .smn-alarma { animation: none; } }
+.cuencas-tarjetas { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 6px; }
+.cuencas-tarjeta { display: block; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface); text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; }
+.cuencas-tarjeta:hover { border-color: var(--accent); box-shadow: 0 2px 10px #0002; }
+.cuencas-tarjeta strong { display: block; font-size: 13.5px; color: var(--heading); }
+.cuencas-tarjeta__subtitulo { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.cuencas-tarjeta__valor { display: block; font-size: 20px; font-weight: 700; color: var(--heading); margin-top: 6px; }
+.cuencas-tarjeta__valor small { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.cuencas-tarjeta__detalle { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
 .risk-review { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; font-size: 12px; }
 .risk-review ul { padding-left: 18px; line-height: 1.7; }
 .risk-share { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 18px; }

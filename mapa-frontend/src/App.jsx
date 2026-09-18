@@ -25,6 +25,7 @@ const InundacionesPage = lazy(() => import("./pages/InundacionesPage"));
 const PronosticoExtendidoPage = lazy(() => import("./pages/PronosticoExtendidoPage"));
 const EmbedPronosticoExtendidoPage = lazy(() => import("./pages/EmbedPronosticoExtendidoPage"));
 const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
+const CuencasPage = lazy(() => import("./pages/CuencasPage"));
 
 const RecuperarPasswordPage = lazy(() => import("./pages/RecuperarPasswordPage"));
 
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="/panel/alertas-automaticas" element={<RutaProtegida><AlertasAutomaticasPage /></RutaProtegida>} />
           <Route path="/panel/avisos-corto-plazo" element={<RutaProtegida><AvisosCortoPlazoPage /></RutaProtegida>} />
           <Route path="/panel/inundaciones" element={<RutaProtegida><InundacionesPage /></RutaProtegida>} />
+          <Route path="/panel/cuencas" element={<RutaProtegida><CuencasPage /></RutaProtegida>} />
           <Route path="/panel/pronostico-3-dias" element={<RutaProtegida><PronosticoExtendidoPage /></RutaProtegida>} />
           <Route path="/panel/usuarios" element={<RutaProtegida><UsuariosPage /></RutaProtegida>} />
 

@@ -68,6 +68,7 @@ app.use("/api", alertasMeteorologicasRouter);
 app.use("/api", avisosCortoPlazoRouter);
 app.use("/api", historicoRouter);
 app.use("/api", require("./routes/smn"));
+app.use("/api", require("./routes/cuencas"));
 
 // Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.
 store
@@ -78,6 +79,9 @@ store
       console.log(`Servidor escuchando en http://localhost:${PORT}`);
       if (process.env.SMN_SYNC_ENABLED !== "false") {
         import("./lib/smn/service.mjs").then(({ iniciar }) => iniciar()).catch(err => console.error("[SMN inicio]", err.message));
+      }
+      if (process.env.CUENCAS_SYNC_ENABLED !== "false") {
+        require("./lib/cuencas/service").iniciar();
       }
       console.log(
         process.env.DATABASE_URL

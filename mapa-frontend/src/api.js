@@ -341,3 +341,6 @@ export async function importarCsvClimatico(archivo, mapeo) {
   form.append("mapeo", JSON.stringify(mapeo));
   return handleJson(await fetch(`${API_URL}/api/registros-climaticos/importar`, { method: "POST", body: form, ...CON_SESION }));
 }
+
+export async function getCuencas() { return handleJson(await fetch(`${API_URL}/api/cuencas`, { cache: 'no-store' })); }
+export async function actualizarCuencas() { return handleJson(await fetch(`${API_URL}/api/cuencas/actualizar`, { method: 'POST', cache: 'no-store' })); }

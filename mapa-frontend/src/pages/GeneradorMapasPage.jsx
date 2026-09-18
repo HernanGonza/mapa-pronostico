@@ -44,6 +44,11 @@ const OPCIONES = [
     titulo: "Inundaciones",
     descripcion: "Placas de alerta por inundación.",
   },
+  {
+    to: "/panel/cuencas",
+    titulo: "Monitor de cuencas",
+    descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones).",
+  },
 ];
 
 export default function GeneradorMapasPage() {
@@ -66,7 +71,7 @@ export default function GeneradorMapasPage() {
       <div className="panel-botonera">
         {OPCIONES.map((op) => (
           <Link key={op.to} to={op.to} className="panel-boton">
-            {["/panel/alertas-automaticas", "/panel/inundaciones"].includes(op.to) && <span className="panel-boton__state">En desarrollo</span>}
+            {["/panel/alertas-automaticas", "/panel/inundaciones", "/panel/cuencas"].includes(op.to) && <span className="panel-boton__state">En desarrollo</span>}
             <h2>{op.titulo}</h2>
             <p>{op.descripcion}</p>
           </Link>
