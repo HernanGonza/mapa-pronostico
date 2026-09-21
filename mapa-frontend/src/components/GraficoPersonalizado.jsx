@@ -4,6 +4,7 @@ import RosenScatterChart from './RosenScatterChart';
 import BotonPdf from './BotonPdf';
 import BotonTablaPdf from './BotonTablaPdf';
 import Grafico3D from './Grafico3D';
+import PaginadorSerie, { useVentana } from './PaginadorSerie';
 
 const VARIABLES = [
   { campo: 'tmax', nombre: 'Temperatura máxima media', unidad: '°C', color: '#dd6175' },
@@ -24,7 +25,7 @@ const VARIABLES = [
   { campo: 'presion', nombre: 'Presión en estación', unidad: 'hPa', color: '#548561' },
 ];
 
-export default function GraficoPersonalizado({ datos, provincia, zona, desde, hasta }) {
+export default function GraficoPersonalizado({ datos, provincia, zona, desde, hasta, ventana }) {
   const ref = useRef(null);
   const disponibles = useMemo(() => VARIABLES.filter(v => !provincia || ['tmax', 'tmin', 'tmedia', 'lluvia'].includes(v.campo)), [provincia]);
   const [tipo, setTipo] = useState('linea');
@@ -38,6 +39,7 @@ export default function GraficoPersonalizado({ datos, provincia, zona, desde, ha
   const segundo = disponibles.find(v => v.campo === campoSegundo && v.unidad === variableX.unidad);
   const tresD = tipo === 'dispersion3d';
   const disperso = tipo === 'dispersion' || tipo === 'burbujas' || tresD;
+  const v = useVentana(datos, disperso ? 0 : ventana);
   const columnas = disperso ? [variableX, variableY, ...(['burbujas', 'dispersion3d'].includes(tipo) ? [variableTamano] : [])] : [variableX, ...(tipo !== 'barra' && segundo ? [segundo] : [])];
   const filas = datos.map(d => [d.clave || d.fecha, ...columnas.map(v => Number.isFinite(d[v.campo]) ? d[v.campo] : '')]);
   const titulo = `Gráfico personalizado · ${zona} · ${desde} a ${hasta}`;
@@ -55,8 +57,9 @@ export default function GraficoPersonalizado({ datos, provincia, zona, desde, ha
     <div ref={ref} className="historico-metrica historico-personalizado__resultado">
       <div className="historico-metrica__header"><h3>{tresD ? `${variableX.nombre}, ${variableY.nombre} y ${variableTamano.nombre}` : disperso ? `${variableY.nombre} y ${variableX.nombre}` : columnas.map(v => v.nombre).join(' y ')}</h3>{!tresD && <BotonPdf elementoRef={ref} titulo={titulo} />}</div>
       {!disperso && <div className="historico-metrica__leyenda">{columnas.map(v => <span key={v.campo}><i style={{ background: v.color }} />{v.nombre} ({v.unidad})</span>)}</div>}
+      {!disperso && <PaginadorSerie v={v} nombre="el gráfico personalizado" />}
       {tresD ? <Grafico3D datos={datos} x={variableX} y={variableY} z={variableTamano} titulo={titulo} /> : disperso ? <RosenScatterChart datos={datos} xCampo={variableX.campo} yCampo={variableY.campo} tamanoCampo={tipo === 'burbujas' ? variableTamano.campo : null} xNombre={`${variableX.nombre} (${variableX.unidad})`} yNombre={`${variableY.nombre} (${variableY.unidad})`} tamanoNombre={variableTamano.nombre} /> :
-        <RosenSeriesChart datos={datos} series={columnas.map(v => ({ campo: v.campo, nombre: v.nombre, color: v.color }))} vista={tipo} unidad={variableX.unidad} height={280} />}
+        <RosenSeriesChart datos={v.visibles} series={columnas.map(v => ({ campo: v.campo, nombre: v.nombre, color: v.color }))} vista={tipo} unidad={variableX.unidad} height={280} />}
     </div>
   </section>;
 }

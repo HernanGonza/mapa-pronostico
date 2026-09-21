@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
 import RosenSeriesChart from './RosenSeriesChart';
 import BotonPdf from './BotonPdf';
+import PaginadorSerie, { useVentana } from './PaginadorSerie';
 
-export default function HistoricoMetricChart({ titulo, subtitulo, datos, series, unidad = '', tipo = 'linea', ciclo = false }) {
+export default function HistoricoMetricChart({ titulo, subtitulo, datos, series, unidad = '', tipo = 'linea', ciclo = false, ventana }) {
   const exportRef = useRef(null);
+  const v = useVentana(datos, ciclo ? 0 : ventana);
   const clave = `historico-grafico:${titulo}:${subtitulo}:${series.map(s => s.campo).join(',')}`;
   const opciones = series.length === 1 ? ['linea', 'barra', 'area', 'puntos'] : ['linea', 'area', 'puntos'];
   const [vista, setVista] = useState(() => {
@@ -18,8 +20,9 @@ export default function HistoricoMetricChart({ titulo, subtitulo, datos, series,
       }} aria-label={`Tipo de gráfico para ${titulo}`}>
         {opciones.map(opcion => <option key={opcion} value={opcion}>{({ linea: 'Líneas', barra: 'Barras', area: 'Área', puntos: 'Puntos' })[opcion]}</option>)}
       </select>
-    </label><BotonPdf elementoRef={exportRef} titulo={`${titulo} · ${subtitulo}`} /></div></div>
+    </label><BotonPdf elementoRef={exportRef} titulo={`${titulo} · ${subtitulo}${v.activa ? ` · ${v.tramo}` : ''}`} /></div></div>
     <div className="historico-metrica__leyenda">{series.map(s => <span key={s.campo}><i style={{ background: s.color }} />{s.nombre}</span>)}</div>
-    <RosenSeriesChart datos={datos} series={series} vista={vista} unidad={unidad} ciclo={ciclo} />
+    <PaginadorSerie v={v} nombre={titulo} />
+    <RosenSeriesChart datos={v.visibles} series={series} vista={vista} unidad={unidad} ciclo={ciclo} />
   </section>;
 }
