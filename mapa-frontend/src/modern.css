@@ -1,0 +1,160 @@
+/*
+ * Capa visual moderna. Se carga DESPUÉS de styles.css: sólo refina lo que ya
+ * existe (no cambia estructura) y reutiliza los tokens de theme.css, así el
+ * tema oscuro y la paleta del Brandbook siguen mandando.
+ * Rendimiento: sólo se anima transform/opacity (compositor), nada de filter
+ * ni de propiedades que disparen layout; prefers-reduced-motion ya está
+ * cubierto globalmente en theme.css.
+ */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ok-solid: #2f7d4f;
+  --danger-solid: #b32d3a;
+  --info-solid: #2c6cb0;
+  --temp-max: #d1492e;
+  --temp-min: #2f74c0;
+  --radius-lg: 18px;
+  --shadow-card: 0 1px 2px rgba(33, 19, 13, 0.06), 0 8px 24px rgba(33, 19, 13, 0.07);
+  --shadow-card-hover: 0 2px 4px rgba(33, 19, 13, 0.08), 0 16px 40px rgba(33, 19, 13, 0.14);
+}
+:root[data-theme="dark"] {
+  --temp-max: #ff9b82;
+  --temp-min: #8fbcf0;
+  --shadow-card: 0 1px 2px #0004, 0 8px 24px #0004;
+  --shadow-card-hover: 0 2px 4px #0005, 0 16px 40px #0006;
+}
+
+/* --- Entrada suave de cada pantalla --- */
+@keyframes entrada { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+main, .admin-layout > .admin-panel, .admin-layout > .admin-map-area { animation: entrada 0.5s var(--ease-out) both; }
+
+/* --- Botones --- */
+.btn { transition: background 0.15s, border-color 0.15s, box-shadow 0.2s var(--ease-out), transform 0.2s var(--ease-out); }
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(33, 19, 13, 0.12); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(0.98); box-shadow: none; }
+.btn--primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); }
+.btn--primary:hover:not(:disabled) { background: linear-gradient(180deg, var(--accent), var(--accent-hover)); }
+
+/* --- Cabecera --- */
+.brand-header { box-shadow: 0 1px 0 var(--border), 0 6px 20px rgba(33, 19, 13, 0.04); }
+.theme-toggle svg { display: block; }
+
+/* --- Panel principal: tarjetas con foco de luz --- */
+.panel-intro h1 { letter-spacing: -0.02em; }
+.panel-botonera { max-width: 860px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 620px) { .panel-botonera { grid-template-columns: 1fr; } }
+.panel-boton {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: flex; flex-direction: column; gap: 4px; min-height: 200px; padding: 22px;
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), border-color 0.2s;
+  animation: entrada 0.6s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+}
+.panel-boton::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 0.3s;
+  background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+}
+.panel-boton:hover { transform: translateY(-4px); box-shadow: var(--shadow-card-hover); }
+.panel-boton:hover::before, .panel-boton:focus-visible::before { opacity: 1; }
+.panel-boton:focus-visible { outline: none; box-shadow: var(--focus-ring), var(--shadow-card-hover); }
+.panel-boton__icono {
+  display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 10px; border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent);
+  transition: transform 0.35s var(--ease-out);
+}
+.panel-boton:hover .panel-boton__icono { transform: scale(1.08) rotate(-4deg); }
+.panel-boton h2 { font-size: 17px; letter-spacing: -0.01em; }
+.panel-boton__flecha { margin-top: auto; align-self: flex-end; color: var(--text-muted); transition: transform 0.3s var(--ease-out), color 0.2s; }
+.panel-boton:hover .panel-boton__flecha { color: var(--accent); transform: translate(2px, -2px); }
+.panel-boton__state { position: absolute; top: 16px; right: 16px; }
+
+/* --- Portada --- */
+.landing { position: relative; overflow: hidden; background: linear-gradient(180deg, var(--verde-800) 0%, var(--verde-900) 100%); }
+.landing__aurora { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.landing__aurora i { position: absolute; width: 70vmax; height: 70vmax; border-radius: 50%; opacity: 0.55; will-change: transform; animation: aurora 22s ease-in-out infinite alternate; }
+.landing__aurora i:nth-child(1) { top: -30vmax; left: -20vmax; background: radial-gradient(closest-side, rgba(202, 212, 160, 0.34), transparent); }
+.landing__aurora i:nth-child(2) { bottom: -35vmax; right: -25vmax; background: radial-gradient(closest-side, rgba(201, 52, 108, 0.22), transparent); animation-duration: 28s; animation-delay: -6s; }
+.landing__aurora i:nth-child(3) { top: 20vmax; left: 30vw; width: 50vmax; height: 50vmax; background: radial-gradient(closest-side, rgba(51, 113, 198, 0.2), transparent); animation-duration: 34s; animation-delay: -12s; }
+@keyframes aurora { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(8vmax, 5vmax, 0) scale(1.15); } }
+.landing__hero { position: relative; z-index: 1; gap: 12px; padding: 56px 24px 32px; }
+.landing__icono { width: clamp(96px, 16vw, 148px); height: auto; margin-bottom: 4px; animation: flotar 6s ease-in-out infinite; }
+@keyframes flotar { 50% { transform: translateY(-6px); } }
+.landing__etiqueta { padding: 5px 14px; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--sage-200); font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.landing__hero h1 { max-width: 20ch; font-size: clamp(30px, 5.4vw, 52px); line-height: 1.05; letter-spacing: -0.025em; }
+.landing__cta { min-height: 48px; padding: 12px 26px; border-radius: 999px; font-size: 15px; background: var(--sage-200); border-color: var(--sage-200); color: var(--verde-900); }
+.landing__cta:hover:not(:disabled) { background: #fff; border-color: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
+.landing__hoy { width: min(920px, 100%); margin-top: 30px; }
+.landing__hoy h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
+.landing__hoy ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.landing__hoy li {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--radius); background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(6px); animation: entrada 0.6s var(--ease-out) both; animation-delay: calc(var(--i) * 60ms + 200ms);
+}
+.landing__loc { font-size: 13.5px; font-weight: 600; text-align: center; }
+.landing__temps { display: flex; gap: 8px; font-size: 22px; font-variant-numeric: tabular-nums; }
+.landing__hoy small { color: rgba(255, 255, 255, 0.66); font-size: 11.5px; text-align: center; }
+.temp-max { color: #ff9b82; }
+.temp-min { color: #8fbcf0; }
+.landing__footer { position: relative; z-index: 1; }
+
+/* --- Tarjetas de estadísticas y gráficos del histórico --- */
+.historico-observatorio__resumen { gap: 12px; border-block: 0; margin: 20px 0 14px; }
+.historico-observatorio__resumen > div { padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-card); }
+.historico-observatorio__resumen > div:last-child { border: 1px solid var(--border); }
+.historico-observatorio__resumen strong { font-size: 26px; letter-spacing: -0.02em; }
+.historico-metrica { border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-card); transition: box-shadow 0.3s var(--ease-out); }
+.historico-metrica:hover { box-shadow: var(--shadow-card-hover); }
+@media (max-width: 760px) { .historico-observatorio__resumen > div { border: 1px solid var(--border) !important; } }
+
+/* --- Avisos (Notyf) y confirmaciones (SweetAlert2) con la identidad del sistema --- */
+.notyf { font-family: var(--font); }
+.notyf__toast.toast-eco { max-width: 420px; padding: 4px 8px; border-radius: 12px; color: #fff; box-shadow: var(--shadow-pop); font-size: 14px; line-height: 1.4; }
+.toast-eco--ok { background: var(--ok-solid); }
+.toast-eco--error { background: var(--danger-solid); }
+.toast-eco--info { background: var(--info-solid); }
+.notyf__dismiss-btn { background: rgba(255, 255, 255, 0.25); }
+.swal2-container { font-family: var(--font); }
+.swal-eco { padding: 24px 22px 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-2); }
+.swal-eco__titulo { color: var(--heading); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.swal-eco .swal2-html-container { color: var(--text-muted); font-size: 14.5px; line-height: 1.5; }
+.swal-eco__acciones { gap: 10px; }
+.swal-eco .swal2-icon { transform: scale(0.8); margin-block: 0 4px; }
+
+/* --- Formularios: foco visible y consistente --- */
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--rosa-600); }
+
+/* --- Selector de fechas (Duet) con la identidad del sistema --- */
+.campo-fecha duet-date-picker {
+  --duet-color-primary: var(--accent);
+  --duet-color-text: var(--text);
+  --duet-color-text-active: var(--accent-contrast);
+  --duet-color-placeholder: var(--text-faint);
+  --duet-color-button: var(--surface-2);
+  --duet-color-surface: var(--surface);
+  --duet-color-overlay: rgba(0, 0, 0, 0.5);
+  --duet-color-border: var(--border-strong);
+  --duet-font: var(--font);
+  --duet-radius: var(--radius-sm);
+  --duet-color-focus: var(--rosa-600);
+  --duet-z-index: 30;
+  display: block;
+}
+.campo-fecha > label { display: contents; }
+.campo-fecha .duet-date__input { min-height: 40px; }
+.campo-fecha > label > span { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+/* --- Zona de archivos (FilePond) --- */
+.campo-archivos .filepond--root { margin-bottom: 4px; font-family: var(--font); }
+.campo-archivos .filepond--panel-root { background: var(--surface-2); border: 1.5px dashed var(--border-strong); border-radius: var(--radius); }
+.campo-archivos .filepond--drop-label { color: var(--text-muted); font-size: 13.5px; cursor: pointer; }
+.campo-archivos .filepond--drop-label label { cursor: pointer; }
+.campo-archivos .filepond--label-action { color: var(--accent); text-decoration-color: var(--accent); font-weight: 600; }
+.campo-archivos .filepond--root:hover .filepond--panel-root { border-color: var(--accent); }
+.campo-archivos .filepond--item-panel { background: var(--accent); }
+.campo-archivos .filepond--file { color: var(--accent-contrast); }
+.campo-archivos > small { display: block; margin-top: 2px; color: var(--text-faint); font-size: 12px; }
+.campo-archivos > span { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+/* El texto oculto (lectores de pantalla) de Duet se posicionaba fuera del panel y generaba scroll horizontal. */
+.campo-fecha { position: relative; }
+.campo-fecha .duet-date__vhidden { left: 0; top: 0; max-width: 100%; }

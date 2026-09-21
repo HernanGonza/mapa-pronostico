@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNotificacion } from "../lib/useNotificacion";
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import PlacaPreview from "../components/PlacaPreview";
@@ -7,6 +8,7 @@ import PolygonDrawMap from "../components/PolygonDrawMap";
 import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
 import * as api from "../api";
+import { confirmar } from "../lib/ui";
 
 const EMOJIS = [["⚠️", "Advertencia"], ["⛈️", "Tormenta"], ["🌧️", "Lluvia"], ["💨", "Viento"], ["🏠", "Casa"], ["🚫", "Prohibido"], ["✅", "Recomendación"], ["📞", "Teléfono"]];
 
@@ -20,6 +22,7 @@ export default function AvisosCortoPlazoPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+  useNotificacion(mensaje);
   const [historial, setHistorial] = useState(null);
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const [municipios, setMunicipios] = useState(null);
@@ -54,6 +57,7 @@ export default function AvisosCortoPlazoPage() {
   // base) se puede publicar, no solo el que se acaba de generar.
   async function publicarAviso(id) {
     if (id == null) return;
+    if (!(await confirmar({ titulo: "¿Publicar en el mapa público?", texto: "El mapa público pasará a mostrar este aviso en lugar del anterior.", confirmar: "Publicar" }))) return;
     setPublicando(id); setError(""); setMensaje("");
     try {
       const nuevo = await api.publicarAvisoCortoPlazo(id);
@@ -86,7 +90,6 @@ export default function AvisosCortoPlazoPage() {
           {publicado ? `«${publicado.titulo}»` : null}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
-        {mensaje && <p className="risk-message" role="status">{mensaje}</p>}
         <label className="field"><span>Título de la placa</span><input value={titulo} maxLength={60} disabled={busy} onChange={(e) => { setTitulo(e.target.value); setImagenes(null); }} /></label>
         <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={(e) => { setFondo(e.target.value); setImagenes(null); }}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
         <label className="field"><span>Texto del aviso</span><textarea ref={textoRef} value={texto} rows={10} maxLength={2400} disabled={busy} placeholder="Escribí acá el aviso a muy corto plazo…" onChange={(e) => { setTexto(e.target.value); setImagenes(null); }} /></label>

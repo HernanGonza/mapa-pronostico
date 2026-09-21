@@ -9,16 +9,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@duetds/date-picker": "^1.4.0",
     "d3": "^7.9.0",
     "d3-interpolate-path": "^2.3.0",
+    "filepond": "^4.32.12",
     "html-to-image": "^1.11.11",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "lucide": "^1.47.0",
     "maplibre-gl": "^5.24.0",
+    "morphicons": "^1.7.1",
+    "motion": "^13.4.0",
+    "notyf": "^3.10.0",
     "plotly.js-gl3d-dist-min": "^4.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
+    "sweetalert2": "^11.26.25",
     "tippy.js": "^6.3.7"
   },
   "devDependencies": {

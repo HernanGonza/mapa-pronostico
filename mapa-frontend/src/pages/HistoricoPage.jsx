@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import CampoArchivos from "../components/CampoArchivos";
+import CampoFecha from "../components/CampoFecha";
+import { useNotificacion } from "../lib/useNotificacion";
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import EmbedShare from "../components/EmbedShare";
@@ -34,6 +37,7 @@ export default function HistoricoPage() {
   const [catalogo, setCatalogo] = useState(null);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+  useNotificacion(mensaje);
 
   useEffect(() => { api.getCatalogoEventos().then(setCatalogo).catch(() => {}); }, []);
 
@@ -57,7 +61,6 @@ export default function HistoricoPage() {
       </nav>
       <main id="contenido-principal" tabIndex={-1} className="historico-body">
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
-        {mensaje && <p className="risk-message" role="status">{mensaje}</p>}
 
         {pestana === "clima" && <ClimaHistorico puedeEscribir={puedeEscribir} setError={setError} setMensaje={setMensaje} />}
         {pestana === "eventos" && <Eventos puedeEscribir={puedeEscribir} catalogo={catalogo} setError={setError} setMensaje={setMensaje} />}
@@ -110,8 +113,8 @@ function ClimaHistorico({ puedeEscribir, setError, setMensaje }) {
               {estaciones.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
           </label>
-          <label className="field"><span>Desde</span><input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} /></label>
-          <label className="field"><span>Hasta</span><input type="date" value={hasta} min={desde} max={hoyIso()} onChange={(e) => setHasta(e.target.value)} /></label>
+          <CampoFecha label="Desde" value={desde} max={hasta} onChange={setDesde} />
+          <CampoFecha label="Hasta" value={hasta} min={desde} max={hoyIso()} onChange={setHasta} />
         </div>
         {cargandoSerie ? <p role="status">Cargando serie…</p> : <SerieClimaticaChart serie={serie || []} />}
       </div>
@@ -175,7 +178,7 @@ function ImportadorClimatico({ onImportado, setError, setMensaje }) {
         Subí una planilla exportada como CSV. Como cada fuente vieja trae sus propias columnas, elegís acá
         a mano qué columna del archivo corresponde a cada dato antes de importar.
       </p>
-      <label className="field"><span>Archivo CSV</span><input ref={inputRef} type="file" accept=".csv,text/csv" disabled={busy} onChange={elegirArchivo} /></label>
+      <CampoArchivos ref={inputRef} label="Archivo CSV" accept=".csv,text/csv" disabled={busy} onChange={elegirArchivo} />
       {columnas && (
         <>
           <div className="historico-filtros">
@@ -246,7 +249,7 @@ function CargaManualClimatica({ onCargado, setError, setMensaje }) {
       <p className="admin-panel__hint">Para completar un día/estación que no viene en ningún archivo (PDF, dato de memoria, etc.).</p>
       <div className="historico-filtros">
         <label className="field"><span>Estación</span><input value={form.estacion} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, estacion: e.target.value }))} /></label>
-        <label className="field"><span>Fecha</span><input type="date" value={form.fecha} max={hoyIso()} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))} /></label>
+        <CampoFecha label="Fecha" value={form.fecha} max={hoyIso()} disabled={busy} onChange={(v) => setForm((f) => ({ ...f, fecha: v }))} />
         <label className="field"><span>TMIN</span><input type="number" value={form.tmin} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, tmin: e.target.value }))} /></label>
         <label className="field"><span>TMAX</span><input type="number" value={form.tmax} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, tmax: e.target.value }))} /></label>
         <label className="field"><span>Precipitación (mm, opcional)</span><input type="number" value={form.precipitacion} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, precipitacion: e.target.value }))} /></label>
@@ -430,8 +433,8 @@ function FormularioEvento({ catalogo, setError, setMensaje, onCreado }) {
           {(catalogo?.severidades || []).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
-      <label className="field"><span>Fecha de inicio</span><input type="date" value={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={campo("fechaInicio")} /></label>
-      <label className="field"><span>Fecha de fin (opcional)</span><input type="date" value={form.fechaFin} min={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={campo("fechaFin")} /></label>
+      <CampoFecha label="Fecha de inicio" value={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={(v) => campo("fechaInicio")({ target: { value: v } })} />
+      <CampoFecha label="Fecha de fin (opcional)" value={form.fechaFin} min={form.fechaInicio} max={hoyIso()} disabled={busy} onChange={(v) => campo("fechaFin")({ target: { value: v } })} />
       <label className="field"><span>Departamento (opcional)</span>
         <select value={form.departamento} onChange={campo("departamento")} disabled={busy}>
           <option value="">Sin especificar</option>
@@ -452,10 +455,7 @@ function FormularioEvento({ catalogo, setError, setMensaje, onCreado }) {
         )}
       </div>
 
-      <label className="field historico-form-evento__full"><span>Imágenes (opcional, hasta {MAX_IMAGENES})</span>
-        <input type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={busy || imagenes.length >= MAX_IMAGENES} onChange={agregarImagenes} />
-        <small>PNG, JPG o WebP, hasta 5 MB cada una.</small>
-      </label>
+      <CampoArchivos className="historico-form-evento__full" label={`Imágenes (opcional, hasta ${MAX_IMAGENES})`} ayuda="PNG, JPG o WebP, hasta 5 MB cada una." accept="image/png,image/jpeg,image/webp" multiple limpiarAlElegir disabled={busy || imagenes.length >= MAX_IMAGENES} onChange={agregarImagenes} />
       {imagenes.length > 0 && (
         <div className="evento-form__imagenes historico-form-evento__full">
           {imagenes.map((img, i) => (

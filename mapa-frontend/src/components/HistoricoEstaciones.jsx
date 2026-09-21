@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import CampoFecha from './CampoFecha';
 import { getComparacionEstacionesHistoricas, getEstacionesHistoricas, getSerieEstacionHistorica } from '../api';
 import HistoricoMetricChart from './HistoricoMetricChart';
+import Numero from './Numero';
 import RosaVientos from './RosaVientos';
 import BotonTablaPdf from './BotonTablaPdf';
 import GraficoPersonalizado from './GraficoPersonalizado';
@@ -245,8 +247,8 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
       <label className="field"><span>Zona</span><select value={id} onChange={e => setId(e.target.value)}>
         {estaciones.map(e => <option key={e.id} value={e.id}>{e.zona} · {e.nombre}</option>)}
       </select></label>
-      <label className="field"><span>Desde</span><input type="date" value={desde} min={estacion?.desde || undefined} max={hasta || undefined} onChange={e => setDesde(e.target.value)} /></label>
-      <label className="field"><span>Hasta</span><input type="date" value={hasta} min={desde || undefined} max={new Date().toISOString().slice(0, 10)} onChange={e => setHasta(e.target.value)} /></label>
+      <CampoFecha label="Desde" value={desde} min={estacion?.desde || undefined} max={hasta || undefined} onChange={setDesde} />
+      <CampoFecha label="Hasta" value={hasta} min={desde || undefined} max={new Date().toISOString().slice(0, 10)} onChange={setHasta} />
       <div className="historico-observatorio__atajos" aria-label="Períodos rápidos">
         <button type="button" onClick={() => rango(1)}>1 año</button>
         <button type="button" onClick={() => rango(10)}>10 años</button>
@@ -259,9 +261,9 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     {cargando && <p role="status">Actualizando el período…</p>}
     {rangoCargado && <>
       <div className="historico-observatorio__resumen">
-        <div><strong>{serie.length.toLocaleString('es-AR')}</strong><span>días con registro</span></div>
-        <div><strong>{formatoNumero(lluviaObservada)} mm</strong><span>{provincia ? 'suma de lluvia de las zonas' : 'lluvia observada'}</span></div>
-        <div><strong>{diasLluvia.toLocaleString('es-AR')}</strong><span>{provincia ? 'días con lluvia en alguna zona' : 'días con ≥ 1 mm'}</span></div>
+        <div><strong><Numero valor={serie.length} /></strong><span>días con registro</span></div>
+        <div><strong><Numero valor={lluviaObservada} decimales={1} sufijo=" mm" /></strong><span>{provincia ? 'suma de lluvia de las zonas' : 'lluvia observada'}</span></div>
+        <div><strong><Numero valor={diasLluvia} /></strong><span>{provincia ? 'días con lluvia en alguna zona' : 'días con ≥ 1 mm'}</span></div>
         <div><strong>{nombreEscala}</strong><span>escala de los gráficos</span></div>
       </div>
       <p className="historico-observatorio__nota">Los gráficos cambian automáticamente entre días, meses y años según el rango. Los acumulados y promedios de un período solo se trazan con al menos {coberturaMinima * 100}% de días válidos para esa variable; la tabla conserva cada observación disponible.</p>

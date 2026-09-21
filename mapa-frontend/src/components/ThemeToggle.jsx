@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Sun, Moon } from "lucide";
+import Icono from "./Icono";
 
 const STORAGE_KEY = "ecologia-theme-v1";
 function applyTheme(theme) {
@@ -27,7 +29,7 @@ export default function ThemeToggle() {
   return <button type="button" className="btn theme-toggle" onClick={toggle}
     aria-label="Tema oscuro" aria-pressed={theme === "dark"}
     title={theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}>
-    <span aria-hidden="true">{theme === "dark" ? "☾" : "☀"}</span>
+    <Icono icono={theme === "dark" ? Moon : Sun} size={18} />
     <span>{theme === "dark" ? "Oscuro" : "Claro"}</span>
   </button>;
 }

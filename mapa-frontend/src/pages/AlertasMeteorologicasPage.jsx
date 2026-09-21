@@ -1,4 +1,6 @@
 import PlacaPreview from "../components/PlacaPreview";
+import CampoArchivos from "../components/CampoArchivos";
+import { useNotificacion } from "../lib/useNotificacion";
 import PublicationStatus from "../components/PublicationStatus";
 import PublicationReview from "../components/PublicationReview";
 import { useEffect, useRef, useState } from 'react';
@@ -14,6 +16,7 @@ export default function AlertasMeteorologicasPage() {
   const [tamanoPeriodo,setTamanoPeriodo]=useState(64);
   const [iconos,setIconos]=useState([]),[imagenes,setImagenes]=useState(null),[vista,setVista]=useState('mapa');
   const [confirmando,setConfirmando]=useState(false),[mensaje,setMensaje]=useState('');
+  useNotificacion(mensaje);
   const [recomendaciones,setRecomendaciones]=useState(''),[imagenesRecomendaciones,setImagenesRecomendaciones]=useState(null);
   const [titulo,setTitulo]=useState('Alerta meteorológica');
   const [imagenRecomendaciones,setImagenRecomendaciones]=useState(null);
@@ -95,7 +98,6 @@ export default function AlertasMeteorologicasPage() {
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Asigná el color y uno o varios fenómenos a cada departamento.</p></div>
       {error&&<div className="risk-message risk-message--error" role="alert">{error}</div>}
-      {mensaje&&<p className="risk-message" role="status">{mensaje}</p>}
       {!catalogo?<p>Cargando departamentos…</p>:<>
         <PublicationStatus changed={cambios} published={publicado} />
         <div className="risk-zones">{catalogo.departamentos.map(d=>{const z=zonas.find(x=>x.id===String(d.id));return <div className="risk-zone" key={d.id} style={{display:'block'}}>
@@ -131,7 +133,7 @@ export default function AlertasMeteorologicasPage() {
           <h2 id="recomendaciones-titulo">Recomendaciones <small>Opcional</small></h2>
           <p>Texto e imagen opcional sobre el fondo elegido: {fondo==='tormenta'?'Tormenta':'Nubes'}. Podés pegar emojis y usar Enter para separar párrafos.</p>
           <label className="field"><span>Texto de recomendaciones</span><textarea ref={textoRef} value={recomendaciones} rows={12} maxLength={2400} disabled={busy} placeholder="Escribí aquí las recomendaciones para la población…" onChange={e=>{setRecomendaciones(e.target.value);setImagenesRecomendaciones(null);}}/></label>
-          <label className="field"><span>Imagen para las recomendaciones (opcional)</span><input ref={imagenRef} type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={cargarImagen}/><small>PNG, JPG o WebP, hasta 5 MB y 25 megapíxeles. Se coloca arriba del texto sin recortarla.</small></label>
+          <CampoArchivos ref={imagenRef} label="Imagen para las recomendaciones (opcional)" ayuda="PNG, JPG o WebP, hasta 5 MB y 25 megapíxeles. Se coloca arriba del texto sin recortarla." accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={cargarImagen} />
           {imagenRecomendaciones&&<div className="meteo-imagen-preview"><img src={imagenRecomendaciones} alt="Imagen elegida para las recomendaciones"/><button className="btn" type="button" disabled={busy} onClick={()=>{setImagenRecomendaciones(null);setImagenesRecomendaciones(null);if(imagenRef.current)imagenRef.current.value='';}}>Quitar imagen</button></div>}
           <div className="meteo-emojis" role="group" aria-label="Insertar icono en el texto">
             {[['⚠️','Advertencia'],['⛈️','Tormenta'],['🌧️','Lluvia'],['💨','Viento'],['🏠','Casa'],['🚫','Prohibido'],['✅','Recomendación'],['📞','Teléfono'],['🔌','Electricidad']].map(([icono,nombre])=><button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={()=>insertarIcono(icono)}>{icono}</button>)}

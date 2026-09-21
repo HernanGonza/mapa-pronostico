@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
+import { confirmar } from "../lib/ui";
 
 const DESTINOS = [
   ["facebook", "Facebook"],
@@ -55,6 +56,15 @@ export default function PublicarEnRedes({ feedUrl, historiasUrl, epigrafe: epigr
   const puede = !busy && elegidosD.length > 0 && elegidosF.length > 0 && !excedeInstagram;
 
   async function publicar(forzar = false) {
+    const lista = new Intl.ListFormat("es", { style: "long", type: "conjunction" });
+    const donde = lista.format(elegidosD.map((id) => NOMBRE[id]));
+    const que = lista.format(elegidosF.map((id) => NOMBRE[id].toLowerCase()));
+    // Con `forzar` la persona ya decidió repetir tras el aviso de duplicado: no se le pregunta otra vez.
+    const ok = forzar || await confirmar({
+      titulo: "¿Publicar ahora?", texto: `Se va a publicar ${que} en ${donde}. Desde el sistema no se puede deshacer: para borrarlo hay que hacerlo a mano en cada red.`,
+      confirmar: "Publicar", peligro: true, target: dialogo.current,
+    });
+    if (!ok) return;
     setBusy(true); setError(""); setRepetidas(null); setResultados(null);
     try {
       const r = await api.publicarEnRedes({ feedUrl, historiasUrl, epigrafe, destinos: elegidosD, formatos: elegidosF, forzar });

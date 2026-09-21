@@ -1,4 +1,6 @@
 import PublicationStatus from "../components/PublicationStatus";
+import CampoArchivos from "../components/CampoArchivos";
+import CampoFecha from "../components/CampoFecha";
 import PublicationReview from "../components/PublicationReview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -239,7 +241,7 @@ export default function AdminPage() {
         <div className="editor-heading"><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
         <PublicationStatus changed={sucio} published={publicado} />
         <h2>1 · Subir el .docx del día</h2>
-        <label className="field"><span>Fecha del pronóstico</span><input type="date" disabled={cargando} value={fechaPronostico} onChange={e => { setFechaPronostico(e.target.value); setConfirmando(false); setMensajeOk(null); }} /></label>
+        <CampoFecha label="Fecha del pronóstico" disabled={cargando} value={fechaPronostico} onChange={v => { setFechaPronostico(v); setConfirmando(false); setMensajeOk(null); }} />
         <p className="admin-panel__hint">
           Así lo genera Alerta Temprana. El mapa se arma solo con esos datos —
           no hace falta cargar nada a mano.
@@ -248,15 +250,7 @@ export default function AdminPage() {
         {error && <div className="alert alert--error" role="alert">{error}</div>}
         {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
 
-        <label className="field">
-          <span>Archivo .docx del pronóstico</span>
-          <input
-            type="file"
-            accept=".docx"
-            onChange={onSubirDocx}
-            disabled={cargando}
-          />
-        </label>
+        <CampoArchivos label="Archivo .docx del pronóstico" accept=".docx" onChange={onSubirDocx} disabled={cargando} />
 
         {extendido && (
           <div className="alert alert--ok" role="status">

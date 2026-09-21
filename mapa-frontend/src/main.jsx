@@ -4,6 +4,7 @@ import App from "./App";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./theme.css";
 import "./styles.css";
+import "./modern.css";
 
 // Sin StrictMode: el doble montaje que hace en desarrollo rompe la
 // inicialización de MapLibre GL (crea el mapa, lo destruye y lo vuelve a
