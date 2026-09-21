@@ -41,14 +41,14 @@ export default function AlertasIncendiosPage() {
 
   return (
     <div className="admin-layout">
-      <BrandHeader subtitulo="Puntos de calor · NASA FIRMS">
+      <BrandHeader subtitulo="Focos de calor · NASA FIRMS">
         <Link to="/panel/mapas" className="btn-link">
           ← Panel
         </Link>
       </BrandHeader>
 
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
-        <div className="editor-heading"><span className="editor-eyebrow">DETECCIONES SATELITALES · NASA FIRMS</span><h1>Puntos de calor</h1><p>Anomalías térmicas detectadas por satélite. Un punto no confirma por sí solo un incendio; puede corresponder a otras fuentes de calor. Los datos recibidos se actualizan automáticamente en el mapa.</p></div>
+        <div className="editor-heading"><span className="editor-eyebrow">DETECCIONES SATELITALES · NASA FIRMS</span><h1>Focos de calor</h1><p>Anomalías térmicas detectadas por satélite. Un punto no confirma por sí solo un incendio; puede corresponder a otras fuentes de calor. Los datos recibidos se actualizan automáticamente en el mapa.</p></div>
         <h2>Recepción automática</h2>
         <p className="admin-panel__hint">{cargando ? "Consultando detecciones…" : actual ? "Mapa público actualizado con la última tanda recibida." : "Esperando la primera tanda de detecciones."}</p>
         {(error || errorCarga) && <div className="alert alert--error">{error || errorCarga}</div>}
@@ -59,7 +59,7 @@ export default function AlertasIncendiosPage() {
             <p className="admin-panel__hint">
               Recibida y publicada <b>{relativo}</b> · {fechaLarga(actual.recuperadoEn)}
               <br />
-              {focos.length} punto(s) con coordenadas reconocidas.
+              {focos.length} foco(s) con coordenadas reconocidas.
             </p>
 
             <div className="admin-actions">
@@ -69,14 +69,14 @@ export default function AlertasIncendiosPage() {
             </div>
           </>
         )}
-        <EmbedShare path="/embed/alertas-incendios" title="Puntos de calor de Misiones" />
+        <EmbedShare path="/embed/alertas-incendios" title="Focos de calor de Misiones" />
       </div>
 
       <div className="admin-map-area">
         <PointsMap
           ref={mapaRef}
           puntos={puntos}
-          titulo="Puntos de calor"
+          titulo="Focos de calor"
           enableCapture
         />
       </div>

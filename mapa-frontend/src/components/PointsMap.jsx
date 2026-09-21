@@ -9,7 +9,7 @@ import maplibregl from "maplibre-gl";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { getMunicipiosGeojson } from "../api";
-import { agregarMunicipios, crearIndiceMunicipios } from "../lib/alertasIncendio";
+import { agregarMunicipios, crearIndiceMunicipios, describirConfianza, INTENSIDADES } from "../lib/alertasIncendio";
 import { CICLO_MS, pulsoDeFoco } from "../lib/pulsoFocos";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
@@ -26,13 +26,13 @@ const ETIQUETAS = {
   frp: "Potencia (FRP, MW)",
   vinculadoAANP: "¿Área protegida?",
   anpNombre: "Área protegida",
-  Intensidad: "Categoría visual",
+  Intensidad: "Intensidad",
 };
 
 /**
  * Mapa de puntos sobre los mismos municipios y fondo que BaseMap, para
  * datasets que no son "un valor por municipio" — hoy,
- * puntos de calor. Si en el futuro riesgo-incendios también pinta
+ * focos de calor. Si en el futuro riesgo-incendios también pinta
  * puntos/celdas en vez de un choropleth por municipio, se reutiliza.
  *
  * No comparte código con BaseMap a propósito: esa lógica está ligada al
@@ -47,6 +47,7 @@ const PointsMap = forwardRef(function PointsMap(
   const mapRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
   const [activo, setActivo] = useState(null);
+  const confianza = describirConfianza(activo?.confidence);
 
   const puntosRef = useRef(puntos);
   puntosRef.current = puntos;
@@ -117,7 +118,7 @@ const PointsMap = forwardRef(function PointsMap(
     map.addControl(
       new maplibregl.AttributionControl({
         compact: true,
-        customAttribution: "Puntos de calor: NASA FIRMS · Municipios: Ministerio de Ecología y RNR",
+        customAttribution: "Focos de calor: NASA FIRMS · Municipios: Ministerio de Ecología y RNR",
       }),
       "bottom-right"
     );
@@ -222,8 +223,8 @@ const PointsMap = forwardRef(function PointsMap(
       )}
 
       <div className="heat-map-note">
-        <strong>¿Qué indica un punto de calor?</strong>
-        <span>Es una anomalía térmica detectada por satélite. Marca aproximadamente el centro del píxel observado; por sí sola no confirma un incendio.</span>
+        <strong>¿Qué indica un foco de calor?</strong>
+        <span>Es una anomalía térmica detectada por satélite. Marca aproximadamente el centro del píxel observado; por sí sola no confirma un incendio. La <b>intensidad</b> (1 a 5) sale de la potencia del fuego; la <b>confianza</b> (baja, media o alta) dice qué tan seguro está el satélite de que es fuego activo.</span>
         <a href="https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_MODIS_Firehotspots.html" target="_blank" rel="noopener noreferrer">Cómo interpreta NASA FIRMS estos datos ↗</a>
       </div>
 
@@ -236,17 +237,24 @@ const PointsMap = forwardRef(function PointsMap(
           <div className="info-card__hero">
             <span className="info-card__pulse" aria-hidden="true" />
             <div>
-              <span className="info-card__eyebrow">Punto de calor detectado</span>
+              <span className="info-card__eyebrow">Foco de calor detectado</span>
               <h3 className="info-card__nombre">{activo.municipio || "Municipio por determinar"}</h3>
             </div>
           </div>
           {activo.Intensidad != null && <div className="info-card__level">
-            <span>Categoría visual</span><strong>{activo.Intensidad}<small> / 5</small></strong>
+            <span>Intensidad</span><strong>{activo.Intensidad}<small> / 5 · {INTENSIDADES[activo.Intensidad] || ""}</small></strong>
           </div>}
-          <p className="heat-map-note__popup">La categoría representa el dato térmico recibido; no mide riesgo de incendio.</p>
+          {confianza && <div className={`info-card__level info-card__confianza info-card__confianza--${confianza.nivel}`}>
+            <span>Confianza</span><strong>{confianza.etiqueta}{confianza.valor != null && <small> · {confianza.valor} %</small>}</strong>
+          </div>}
+          <p className="heat-map-note__popup">
+            {activo.Intensidad != null && <>La intensidad se calcula con la potencia radiativa del fuego (FRP). </>}
+            {confianza ? <>{confianza.detalle} </> : null}
+            No mide riesgo de incendio.
+          </p>
           <ul className="info-card__props">
             {Object.entries(activo)
-              .filter(([k, v]) => v != null && v !== "" && !["municipio", "Intensidad"].includes(k) && !(k === "anpNombre" && !activo.vinculadoAANP))
+              .filter(([k, v]) => v != null && v !== "" && !["municipio", "Intensidad", "confidence"].includes(k) && !(k === "anpNombre" && !activo.vinculadoAANP))
               .map(([k, v]) => (
                 <li key={k}>
                   <b>{ETIQUETAS[k] || k}:</b>{" "}

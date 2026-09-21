@@ -53,6 +53,37 @@ export function intensidadDeFrp(frp) {
   return 5;
 }
 
+// Escala de intensidad (1-5) según la potencia radiativa del foco (FRP, en MW); ver intensidadDeFrp.
+export const INTENSIDADES = { 1: "Baja", 2: "Moderada", 3: "Alta", 4: "Muy alta", 5: "Extrema" };
+
+/**
+ * Interpreta el campo `confidence` de NASA FIRMS: qué tan seguro está el satélite de que el píxel es un
+ * fuego activo (y no un reflejo del sol u otra fuente de calor). Depende del sensor:
+ *  - VIIRS (el habitual acá): categórica — "l" baja, "n" nominal, "h" alta.
+ *  - MODIS: porcentaje de 0 a 100 — baja < 30, nominal 30-79, alta ≥ 80.
+ * Devuelve { nivel: "baja"|"media"|"alta", etiqueta, valor, detalle } o null si no se reconoce.
+ */
+const DETALLE_CONFIANZA = {
+  baja: "Poca certeza: puede ser un reflejo del sol o una fuente de calor que no es un incendio.",
+  media: "Anomalía térmica clara: es probable que sea un fuego activo.",
+  alta: "Muy probable que sea un fuego activo.",
+};
+export function describirConfianza(valor) {
+  if (valor == null || valor === "") return null;
+  const texto = String(valor).trim().toLowerCase();
+  let nivel = null, porcentaje = null;
+  if (/^(l|low|baja)$/.test(texto)) nivel = "baja";
+  else if (/^(n|nominal|m|media|normal)$/.test(texto)) nivel = "media";
+  else if (/^(h|high|alta)$/.test(texto)) nivel = "alta";
+  else if (/^\d+(\.\d+)?%?$/.test(texto)) {
+    porcentaje = Number(texto.replace("%", ""));
+    if (porcentaje < 0 || porcentaje > 100) return null;
+    nivel = porcentaje >= 80 ? "alta" : porcentaje >= 30 ? "media" : "baja";
+  }
+  if (!nivel) return null;
+  return { nivel, etiqueta: { baja: "Baja", media: "Media", alta: "Alta" }[nivel], valor: porcentaje, detalle: DETALLE_CONFIANZA[nivel] };
+}
+
 export function extraerFocos(datos) {
   const lista = Array.isArray(datos)
     ? datos

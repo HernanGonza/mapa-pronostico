@@ -1,5 +1,5 @@
 /**
- * Curva del pulso de los puntos de calor: un aro que sale del punto y se expande de adentro hacia afuera.
+ * Curva del pulso de los focos de calor: un aro que sale del punto y se expande de adentro hacia afuera.
  * `fase` va de 0 a 1 en cada ciclo y, al reiniciar, vuelve a 0. Para que el reinicio no se note:
  *  - la opacidad SUBE suave al principio y BAJA suave al final (smoothstep: llega a 0 con pendiente 0
  *    en los dos extremos), así el aro nace y muere transparente en vez de "aparecer" de golpe;

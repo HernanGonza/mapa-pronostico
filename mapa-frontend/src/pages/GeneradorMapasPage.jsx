@@ -27,7 +27,7 @@ const OPCIONES = [
   {
     to: "/panel/alertas-incendios",
     icono: Radar,
-    titulo: "Puntos de calor",
+    titulo: "Focos de calor",
     descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS).",
   },
   {

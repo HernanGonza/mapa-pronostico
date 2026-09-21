@@ -376,3 +376,11 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .paso-fenomeno__nombre { display: grid; gap: 5px; }
 .paso-subrayado { display: block; width: 100%; max-width: 160px; height: 5px; border-radius: 2px; }
 @media (max-width: 620px) { .paso-fenomeno { grid-template-columns: 1fr; } .paso-fenomeno--cabecera { display: none; } }
+
+/* Tarjeta de un foco de calor: la confianza con su nivel */
+.info-card__confianza strong { font-size: 18px; }
+.info-card__confianza strong::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.info-card__confianza--baja strong { color: #a5452a; }
+.info-card__confianza--media strong { color: #8a6a0f; }
+.info-card__confianza--alta strong { color: #23694a; }
+.info-card__level small { font-weight: 600; }
