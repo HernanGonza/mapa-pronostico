@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { area, line, scaleLinear, scaleUtc } from 'd3';
 import AnimatedPath from './AnimatedPath';
 
 // Adaptación de Rosen Charts para series meteorológicas y datos faltantes.
 // Fuente: https://rosencharts.com/r/line-charts.json
-function useAncho(ref) {
+// Devuelve [ref, ancho]. `ref` es un callback ref: si el nodo medido se desmonta y vuelve a montarse
+// (p. ej. al paginar), el observer se re-engancha solo en vez de quedar pegado a un nodo muerto.
+function useAncho() {
+  const [nodo, setNodo] = useState(null);
   const [ancho, setAncho] = useState(620);
   useEffect(() => {
-    if (!ref.current) return undefined;
-    const observer = new ResizeObserver(([entry]) => setAncho(Math.max(250, Math.round(entry.contentRect.width))));
-    observer.observe(ref.current);
+    if (!nodo) return undefined;
+    const medir = () => setAncho(Math.max(250, Math.round(nodo.getBoundingClientRect().width)));
+    medir();
+    const observer = new ResizeObserver(medir);
+    observer.observe(nodo);
     return () => observer.disconnect();
-  }, [ref]);
-  return ancho;
+  }, [nodo]);
+  return [setNodo, ancho];
 }
 
 const numero = value => Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 });
@@ -23,8 +28,7 @@ const soloMes = date => new Intl.DateTimeFormat('es-AR', { month: 'short', timeZ
 const mesLargo = fecha => new Intl.DateTimeFormat('es-AR', { month: 'long', timeZone: 'UTC' }).format(new Date(`${fecha}T00:00:00Z`));
 
 export default function RosenSeriesChart({ datos, series, vista = 'linea', unidad = '', height = 230, ciclo = false }) {
-  const ref = useRef(null);
-  const ancho = useAncho(ref);
+  const [ref, ancho] = useAncho();
   const [indiceActivo, setIndiceActivo] = useState(null);
   const filas = useMemo(() => datos.map(d => ({ ...d, instante: Date.parse(`${d.fecha}T00:00:00Z`) }))
     .filter(d => Number.isFinite(d.instante)).sort((a, b) => a.instante - b.instante), [datos]);
@@ -35,18 +39,22 @@ export default function RosenSeriesChart({ datos, series, vista = 'linea', unida
   const h = Math.max(1, height - margen.arriba - margen.abajo);
   const inicio = filas[0]?.instante ?? Date.now();
   const fin = filas.at(-1)?.instante ?? inicio + 86400000;
-  const x = scaleUtc().domain(inicio === fin ? [new Date(inicio - 43200000), new Date(fin + 43200000)] : [new Date(inicio), new Date(fin)]).range([0, w]);
+  const barra = Math.max(1, Math.min(36, w / Math.max(filas.length, 1) * 0.74));
+  // Las barras se centran en su fecha: sin este margen la primera/última se salen del área y tapan el eje vertical.
+  const margenBarras = vista === 'barra' ? barra / 2 + 2 : 0;
+  const x = scaleUtc().domain(inicio === fin ? [new Date(inicio - 43200000), new Date(fin + 43200000)] : [new Date(inicio), new Date(fin)]).range([margenBarras, w - margenBarras]);
   const minimo = Math.min(0, ...valores);
   const maximo = Math.max(0, ...valores);
   const y = scaleLinear().domain(minimo === maximo ? [minimo - 1, maximo + 1] : [minimo, maximo]).nice(4).range([h, 0]);
   const ticksX = ciclo ? filas.map(d => new Date(d.instante)).filter((_, i) => w >= 480 || i % 2 === 0) : x.ticks(Math.min(6, Math.max(2, Math.floor(w / 95))));
   const ticksY = y.ticks(4);
-  const barra = Math.max(1, Math.min(36, w / Math.max(filas.length, 1) * 0.74));
   const activo = indiceActivo == null ? null : filas[indiceActivo];
 
-  if (!hayDatos) return <p className="historico-metrica__vacio">Sin cobertura suficiente en este período.</p>;
-
+  // El contenedor medido por useAncho tiene que existir SIEMPRE: si se desmontara al no haber datos
+  // (p. ej. un tramo sin cobertura al paginar), el observer quedaría pegado a un nodo muerto y el
+  // gráfico volvería a dibujarse con un ancho viejo (chico).
   return <div ref={ref} className="rosen-chart">
+    {!hayDatos ? <p className="historico-metrica__vacio">Sin cobertura suficiente en este período.</p> : <>
     <svg width="100%" height={height} viewBox={`0 0 ${ancho} ${height}`} role="img" aria-label={`Gráfico de ${vista} con ${filas.length} períodos`}>
       <g transform={`translate(${margen.izquierda},${margen.arriba})`}>
         {ticksY.map(t => <g key={t} transform={`translate(0,${y(t)})`}>
@@ -76,5 +84,6 @@ export default function RosenSeriesChart({ datos, series, vista = 'linea', unida
       </g>
     </svg>
     <p className="historico-metrica__detalle">{activo ? `${ciclo ? mesLargo(activo.fecha) : activo.fecha} · ${series.filter(s => Number.isFinite(activo[s.campo])).map(s => `${s.nombre}: ${numero(activo[s.campo])} ${unidad}`).join(' · ')}` : 'Pasá el cursor sobre el gráfico para ver valores.'}</p>
+    </>}
   </div>;
 }

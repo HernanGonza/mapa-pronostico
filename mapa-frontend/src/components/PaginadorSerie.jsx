@@ -13,11 +13,13 @@ export function useVentana(datos, ventana) {
   const firma = `${datos.length}|${rotulo(datos[0])}|${rotulo(datos.at(-1))}`;
   useEffect(() => { setPagina(Infinity); }, [firma]); // dato nuevo (otro rango/estación) → vuelve a lo reciente
   const total = ventana ? Math.max(1, Math.ceil(datos.length / ventana)) : 1;
+  // Tramos parejos (42 períodos con ventana 20 → 3 de 14, no 20+20+2), alineados al final.
+  const tam = Math.ceil(datos.length / total);
   const activa = total > 1 && !todo;
   const actual = Math.min(pagina, total - 1);
-  const fin = datos.length - (total - 1 - actual) * (ventana || 0);
-  const visibles = activa ? datos.slice(Math.max(0, fin - ventana), fin) : datos;
-  return { visibles, total, activa, actual, todo, ventana, setPagina, setTodo, tramo: `${rotulo(visibles[0])} – ${rotulo(visibles.at(-1))}` };
+  const fin = datos.length - (total - 1 - actual) * tam;
+  const visibles = activa ? datos.slice(Math.max(0, fin - tam), fin) : datos;
+  return { visibles, total, activa, actual, todo, ventana: tam, setPagina, setTodo, tramo: `${rotulo(visibles[0])} – ${rotulo(visibles.at(-1))}` };
 }
 
 export default function PaginadorSerie({ v, nombre }) {
