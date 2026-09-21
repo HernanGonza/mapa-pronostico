@@ -10,6 +10,7 @@ import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { getMunicipiosGeojson } from "../api";
 import { agregarMunicipios, crearIndiceMunicipios } from "../lib/alertasIncendio";
+import { CICLO_MS, pulsoDeFoco } from "../lib/pulsoFocos";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -147,7 +148,8 @@ const PointsMap = forwardRef(function PointsMap(
       const color = ['match', ['get', 'Intensidad'], 1, COLORES_INTENSIDAD[1], 2, COLORES_INTENSIDAD[2], 3, COLORES_INTENSIDAD[3], 4, COLORES_INTENSIDAD[4], 5, COLORES_INTENSIDAD[5], COLORES_INTENSIDAD[0]];
       map.addLayer({id: 'focos-eco', type: 'circle', source: 'focos', paint: {
         'circle-radius': 9,
-        'circle-color': color, 'circle-opacity': 0.35,
+        // Con animación nace transparente (el pulso lo hace aparecer suave); con movimiento reducido queda fijo y visible.
+        'circle-color': color, 'circle-opacity': window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.35 : 0,
       }});
       map.addLayer({id: 'focos-punto', type: 'circle', source: 'focos', paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 9],
@@ -161,10 +163,10 @@ const PointsMap = forwardRef(function PointsMap(
       animacionRef.current = null;
       if (tiempo - ultimoCuadro >= 32 && !document.hidden && puntosRef.current?.features?.length && map.getLayer('focos-eco')) {
         ultimoCuadro = tiempo;
-        const fase = (tiempo % 1800) / 1800;
+        const { radio, opacidad } = pulsoDeFoco((tiempo % CICLO_MS) / CICLO_MS);
         const escala = Math.max(0.65, Math.min(1.5, map.getZoom() / 7));
-        map.setPaintProperty('focos-eco', 'circle-radius', (9 + fase * 17) * escala);
-        map.setPaintProperty('focos-eco', 'circle-opacity', 0.42 * (1 - fase));
+        map.setPaintProperty('focos-eco', 'circle-radius', radio * escala);
+        map.setPaintProperty('focos-eco', 'circle-opacity', opacidad);
       }
       if (!document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && puntosRef.current?.features?.length) animacionRef.current = requestAnimationFrame(animar);
     };
