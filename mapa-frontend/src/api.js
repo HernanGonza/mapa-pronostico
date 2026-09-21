@@ -344,3 +344,24 @@ export async function importarCsvClimatico(archivo, mapeo) {
 
 export async function getCuencas() { return handleJson(await fetch(`${API_URL}/api/cuencas`, { cache: 'no-store' })); }
 export async function actualizarCuencas() { return handleJson(await fetch(`${API_URL}/api/cuencas/actualizar`, { method: 'POST', cache: 'no-store' })); }
+
+// --- Publicar placas en redes (Facebook / Instagram / Telegram) ---
+export async function getRedesEstado() {
+  return handleJson(await fetch(`${API_URL}/api/redes/estado`, { cache: "no-store", ...CON_SESION }));
+}
+export async function getRedesPublicaciones(feedUrl, historiasUrl) {
+  const q = new URLSearchParams({ feedUrl, historiasUrl });
+  return handleJson(await fetch(`${API_URL}/api/redes/publicaciones?${q}`, { cache: "no-store", ...CON_SESION }));
+}
+// Un 409 trae `yaPublicado` (la placa ya salió): se relanza el error con ese detalle.
+export async function publicarEnRedes(payload) {
+  const res = await fetch(`${API_URL}/api/redes/publicar`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload), ...CON_SESION,
+  });
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}));
+    throw Object.assign(new Error(body.error || "Ya publicada."), { yaPublicado: body.yaPublicado || [] });
+  }
+  return handleJson(res);
+}

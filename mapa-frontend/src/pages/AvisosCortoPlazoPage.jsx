@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import PlacaPreview from "../components/PlacaPreview";
+import PublicarEnRedes from "../components/PublicarEnRedes";
 import PolygonDrawMap from "../components/PolygonDrawMap";
 import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
@@ -107,6 +108,7 @@ export default function AvisosCortoPlazoPage() {
                   {h.generadoPorEmail && <> · {h.generadoPorEmail}</>}
                   <br /><a href={h.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={h.historiasUrl} target="_blank" rel="noreferrer">historias</a>
                   <br />
+                  <PublicarEnRedes feedUrl={h.feedUrl} historiasUrl={h.historiasUrl} epigrafe={`${h.titulo}\n\n${h.texto}`} />{" "}
                   {publicado?.id != null && publicado.id === h.id ? (
                     <span className="avisos-historial__publicado">Publicado en el mapa público</span>
                   ) : (
@@ -121,7 +123,7 @@ export default function AvisosCortoPlazoPage() {
         )}
         <EmbedShare path="/embed/avisos-corto-plazo" title="Aviso a muy corto plazo · Misiones" />
       </section>
-      <PlacaPreview vista={vista} onVista={setVista} titulo="aviso a muy corto plazo" imagenes={undefined} recomendaciones={imagenes} labelRecomendaciones="Placa generada">
+      <PlacaPreview vista={vista} onVista={setVista} titulo="aviso a muy corto plazo" imagenes={undefined} recomendaciones={imagenes} labelRecomendaciones="Placa generada" epigrafe={`${titulo}\n\n${texto}`}>
         <PolygonDrawMap ref={mapaRef} puntos={puntos} onChange={cambiarPuntos} municipios={municipios} />
       </PlacaPreview>
     </div>

@@ -112,7 +112,7 @@ export default function CuencasMap({ represas, puertos, titulo }) {
       </div>
       <small>Datos re-servidos desde sig.misiones.gob.ar · seleccioná un punto para ver el detalle.</small>
     </div></div>
-    {activo && <div className="municipio-popover" role="dialog" aria-label={activo.nombre}>
+    {activo && <div className="map-info"><div className="municipio-popover" role="dialog" aria-label={activo.nombre}>
       <button className="municipio-popover__close" onClick={() => setActivo(null)} aria-label="Cerrar">✕</button>
       <h3>{activo.nombre}</h3>
       {activo.tipo === "represa" ? <>
@@ -125,6 +125,6 @@ export default function CuencasMap({ represas, puertos, titulo }) {
         {activo.nivelAlerta != null && <p>Nivel de alerta: {activo.nivelAlerta} m{activo.nivelEvacuacion != null ? ` · evacuación: ${activo.nivelEvacuacion} m` : ""}</p>}
         <p>Dato de {fecha(activo.fecha)}</p>
       </>}
-    </div>}
+    </div></div>}
   </div>;
 }

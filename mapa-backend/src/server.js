@@ -14,6 +14,7 @@ const incendiosRouter = require("./routes/incendios");
 const riesgoIncendiosRouter = require("./routes/riesgoIncendios");
 const alertasMeteorologicasRouter = require("./routes/alertasMeteorologicas");
 const avisosCortoPlazoRouter = require("./routes/avisosCortoPlazo");
+const redesRouter = require("./routes/redes");
 const historicoRouter = require("./routes/historico");
 const store = require("./lib/store");
 
@@ -66,6 +67,7 @@ app.use("/api", incendiosRouter);
 app.use("/api", riesgoIncendiosRouter);
 app.use("/api", alertasMeteorologicasRouter);
 app.use("/api", avisosCortoPlazoRouter);
+app.use("/api", redesRouter);
 app.use("/api", historicoRouter);
 app.use("/api", require("./routes/smn"));
 app.use("/api", require("./routes/cuencas"));

@@ -26,6 +26,15 @@ services:
       # al webhook de incendios — ver .env.example.
       ALERTAS_INCENDIOS_TOKEN: ${ALERTAS_INCENDIOS_TOKEN:-}
       SMN_SCOPE: ${SMN_SCOPE:-misiones}
+      # Publicación de placas en redes desde el panel — ver docs/redes-sociales.md.
+      # Sin estas variables el destino aparece como "sin configurar".
+      META_PAGE_ID: ${META_PAGE_ID:-}
+      META_PAGE_ACCESS_TOKEN: ${META_PAGE_ACCESS_TOKEN:-}
+      META_IG_USER_ID: ${META_IG_USER_ID:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      WHATSAPP_NUMERO: ${WHATSAPP_NUMERO:-}
     volumes:
       # Token JWT del SMN (lib/smn/token.mjs) — sin este volumen, cada
       # redeploy fuerza abrir Chromium de nuevo para renovarlo.
