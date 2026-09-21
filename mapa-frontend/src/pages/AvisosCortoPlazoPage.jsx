@@ -8,7 +8,8 @@ import PolygonDrawMap from "../components/PolygonDrawMap";
 import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
 import * as api from "../api";
-import { confirmar } from "../lib/ui";
+import { confirmar, notificar } from "../lib/ui";
+import { crearAvisoPorPasos } from "../lib/asistenteAviso";
 
 const EMOJIS = [["⚠️", "Advertencia"], ["⛈️", "Tormenta"], ["🌧️", "Lluvia"], ["💨", "Viento"], ["🏠", "Casa"], ["🚫", "Prohibido"], ["✅", "Recomendación"], ["📞", "Teléfono"]];
 
@@ -39,17 +40,29 @@ export default function AvisosCortoPlazoPage() {
 
   function cambiarPuntos(nuevos) { setPuntos(nuevos); setImagenes(null); }
 
+  // Genera la placa con estos valores (lanza si falla). Lo usan el formulario clásico y el asistente paso a paso.
+  async function generarPlaca(valores) {
+    const imagen = mapaRef.current?.capturePng() || null;
+    const placa = await api.generarAvisoCortoPlazo({ poligono: puntos, ...valores, imagen });
+    setTitulo(valores.titulo); setTexto(valores.texto); setFondo(valores.fondo);
+    setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
+    setVista("recomendaciones");
+    setHistorial((h) => [{ ...placa, poligono: puntos, ...valores }, ...(h || [])]);
+    setHistorialAbierto(true);
+    return placa;
+  }
+
   async function generar() {
     setBusy(true); setError(""); setMensaje("");
-    try {
-      const imagen = mapaRef.current?.capturePng() || null;
-      const placa = await api.generarAvisoCortoPlazo({ poligono: puntos, titulo, texto, fondo, imagen });
-      setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
-      setVista("recomendaciones");
-      setHistorial((h) => [{ ...placa, poligono: puntos, titulo, texto, fondo }, ...(h || [])]);
-      setHistorialAbierto(true);
-    } catch (e) { setError(e.message); }
+    try { await generarPlaca({ titulo, texto, fondo }); }
+    catch (e) { setError(e.message); }
     finally { setBusy(false); }
+  }
+
+  async function crearPorPasos() {
+    if (puntos.length < 3) { notificar("error", "Primero dibujá la zona afectada en el mapa (al menos 3 puntos)."); return; }
+    setError(""); setMensaje("");
+    await crearAvisoPorPasos({ inicial: { titulo, texto, fondo }, puntos: puntos.length, generar: generarPlaca });
   }
 
   // Publicar es independiente de la sesión: cualquier aviso ya generado
@@ -90,6 +103,8 @@ export default function AvisosCortoPlazoPage() {
           {publicado ? `«${publicado.titulo}»` : null}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
+        <button type="button" className="btn btn--block btn--primary asistente-cta" disabled={busy} onClick={crearPorPasos}>Crear placa paso a paso</button>
+        <p className="admin-panel__hint">O completá el formulario de abajo, si preferís verlo todo junto.</p>
         <label className="field"><span>Título de la placa</span><input value={titulo} maxLength={60} disabled={busy} onChange={(e) => { setTitulo(e.target.value); setImagenes(null); }} /></label>
         <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={(e) => { setFondo(e.target.value); setImagenes(null); }}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
         <label className="field"><span>Texto del aviso</span><textarea ref={textoRef} value={texto} rows={10} maxLength={2400} disabled={busy} placeholder="Escribí acá el aviso a muy corto plazo…" onChange={(e) => { setTexto(e.target.value); setImagenes(null); }} /></label>

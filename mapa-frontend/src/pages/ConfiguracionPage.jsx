@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
+import { Users } from "lucide";
+import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
 
 export default function ConfiguracionPage() {
@@ -16,10 +18,7 @@ export default function ConfiguracionPage() {
         <div className="panel-intro"><h1>Configuración</h1><p>Administración del sistema.</p></div>
         {esSuperadmin ? (
           <div className="panel-botonera">
-            <Link to="/panel/usuarios" className="panel-boton">
-              <h2>Usuarios</h2>
-              <p>Creá cuentas y asigná permisos de acceso al panel.</p>
-            </Link>
+            <PanelBoton op={{ to: "/panel/usuarios", icono: Users, titulo: "Usuarios", descripcion: "Creá cuentas y asigná permisos de acceso al panel." }} indice={0} />
           </div>
         ) : (
           <p className="admin-panel__hint">Tu cuenta no tiene opciones de configuración disponibles.</p>

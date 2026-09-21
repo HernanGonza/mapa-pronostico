@@ -47,3 +47,7 @@ export async function confirmar({ titulo, texto, html, confirmar = "Confirmar", 
   });
   return r.isConfirmed;
 }
+
+// --- Utilidades compartidas por los modales ---
+export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+export const lista = (items) => new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(items);
