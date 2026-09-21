@@ -1,13 +1,11 @@
 import PublicationStatus from "../components/PublicationStatus";
-import CampoArchivos from "../components/CampoArchivos";
-import CampoFecha from "../components/CampoFecha";
-import PublicationReview from "../components/PublicationReview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PlacaPreview from "../components/PlacaPreview";
 import BaseMap from "../components/BaseMap";
 import { colorPronostico, infoPronostico, LeyendaPronostico } from "../components/PronosticoMapContent";
 import EmbedShare from "../components/EmbedShare";
+import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos, filaInvalida } from "../lib/asistentesPronostico";
 import BrandHeader from "../components/BrandHeader";
 import {
   parseDocx,
@@ -86,7 +84,6 @@ export default function AdminPage() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const [mensajeOk, setMensajeOk] = useState(null);
-  const [confirmando, setConfirmando] = useState(false);
   const [fechaPronostico, setFechaPronostico] = useState(new Date().toISOString().slice(0, 10));
   const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
@@ -141,65 +138,25 @@ export default function AdminPage() {
   const fechaCambiada = !!filas && fechaPronostico !== (publicado?.fechaPronostico || "");
   const sucio = !!filas && (!publicado || !!cambios?.length || fechaCambiada);
 
-  async function onSubirDocx(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    setCargando(true);
-    setError(null);
-    setMensajeOk(null);
-    setConfirmando(false);
-    try {
-      const { filas: nuevasFilas, extendido: nuevoExtendido } = await parseDocx(file);
-      setFilas(nuevasFilas);
-      setExtendido(nuevoExtendido || null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setCargando(false);
-      e.target.value = "";
-    }
-  }
-
-  function actualizarCelda(index, campo, valor) {
-    setConfirmando(false);
-    setMensajeOk(null);
-    setFilas((prev) => {
-      const copia = [...prev];
-      copia[index] = { ...copia[index], [campo]: valor };
-      return copia;
-    });
-  }
-
-  async function onPublicar() {
-    setCargando(true);
-    setError(null);
-    setMensajeOk(null);
-    try {
-      const payload = await publicar(filas, fechaPronostico, extendido);
-      setPublicado(payload);
-      setConfirmando(false);
-      setMensajeOk("Publicado. El mapa público ya muestra esta versión.");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  async function onGenerarPlaca() {
-    setCargando(true);
-    setError(null);
-    try {
-      const placa = await generarPronosticoPlaca(filas, fechaPronostico);
+  // --- Asistentes (todo dentro de un modal, paso a paso) ---
+  const cargar = () => cargarPronostico({
+    filas, fecha: fechaPronostico, parse: parseDocx,
+    aplicar: ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e || extendido || null); setError(null); },
+  });
+  const crearPlaca = () => crearPlacaPronostico({
+    epigrafe: `Previsión del tiempo · ${fechaPronostico.split("-").reverse().join("/")}`,
+    vistaPrevia: () => generarPronosticoPlaca(filas, fechaPronostico, { vistaPrevia: true }),
+    guardar: async (token) => {
+      const placa = await generarPronosticoPlaca(filas, fechaPronostico, { confirmarToken: token });
       setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
       setVista("placa");
-      setMensajeOk("Placa generada. Revisala en la vista previa y descargala desde ahí.");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setCargando(false);
-    }
-  }
+      return placa;
+    },
+  });
+  const revisarYPublicar = () => publicarPronosticoPorPasos({
+    cantidad: filas.length, sinPublicar: !publicado, fecha: fechaPronostico, fechaCambiada, cambios,
+    publicar: async () => { setPublicado(await publicar(filas, fechaPronostico, extendido)); setMensajeOk("Publicado. El mapa público ya muestra esta versión."); },
+  });
 
   async function onCapturarDesdeElMapa() {
     if (!mapaRef.current) return;
@@ -240,134 +197,20 @@ export default function AdminPage() {
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading"><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
         <PublicationStatus changed={sucio} published={publicado} />
-        <h2>1 · Subir el .docx del día</h2>
-        <CampoFecha label="Fecha del pronóstico" disabled={cargando} value={fechaPronostico} onChange={v => { setFechaPronostico(v); setConfirmando(false); setMensajeOk(null); }} />
-        <p className="admin-panel__hint">
-          Así lo genera Alerta Temprana. El mapa se arma solo con esos datos —
-          no hace falta cargar nada a mano.
-        </p>
-
         {error && <div className="alert alert--error" role="alert">{error}</div>}
         {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
-
-        <CampoArchivos label="Archivo .docx del pronóstico" accept=".docx" onChange={onSubirDocx} disabled={cargando} />
-
+        <div className="admin-acciones">
+          <button className="btn btn--primary btn--block" onClick={cargar}>{filas ? "Cargar o corregir el pronóstico" : "Cargar el pronóstico del día"}</button>
+          <button className="btn btn--block" disabled={!filas || hayInvalidos} onClick={crearPlaca}>Crear placa para redes</button>
+          <button className="btn btn--block" disabled={!filas || hayInvalidos || !fechaPronostico || !sucio} onClick={revisarYPublicar}>Revisar y publicar</button>
+          <button className="btn btn--ghost btn--block" disabled={!filas} onClick={onCapturarDesdeElMapa}>Capturar mapa actual</button>
+        </div>
+        <p className="admin-panel__hint">{!filas ? "Subí el .docx que manda Alerta Temprana y corregí los datos si hace falta. El mapa se arma solo." : hayInvalidos ? "Hay datos por corregir: abrí «Cargar o corregir el pronóstico»." : sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>
         {extendido && (
           <div className="alert alert--ok" role="status">
-            Este .docx también trae pronóstico extendido (sábado y domingo, por zona). Ahora podés ir a la pantalla del{" "}
+            Este .docx también trae pronóstico extendido (sábado y domingo, por zona). Lo corregís en la pantalla del{" "}
             <Link to="/panel/pronostico-3-dias">pronóstico de 3 días</Link>.
           </div>
-        )}
-
-        {filas && (
-          <>
-            <h2>2 · Revisar y corregir</h2>
-            <p className="admin-panel__hint">
-              Estos son los 13 puntos que reporta el .docx. El resto de los
-              municipios toma el dato del más cercano de estos 13. Corregí acá
-              si hace falta antes de publicar.
-            </p>
-
-            {hayInvalidos && (
-              <div className="alert alert--warn">
-                Hay temperaturas fuera de rango, mínimas mayores que máximas
-                o condiciones sin reconocer. Corregilas para poder publicar.
-              </div>
-            )}
-
-            <table className="tabla-localidades">
-              <thead>
-                <tr>
-                  <th>Localidad</th>
-                  <th>Mín</th>
-                  <th>Máx</th>
-                  <th>Condición</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((row, i) => (
-                  <tr
-                    key={row.LOCALIDAD + i}
-                    className={esTormenta(row.CONDICION) ? "row--tormenta" : ""}
-                  >
-                    <td className="col-loc">{row.LOCALIDAD}</td>
-                    {CAMPOS.map(([campo]) => (
-                      <td key={campo}>
-                        <input
-                          disabled={cargando}
-                          type="number"
-                          aria-label={`${campo === "TMIN" ? "Mínima" : "Máxima"} de ${row.LOCALIDAD}`}
-                          value={row[campo]}
-                          className={tempInvalida(row[campo]) ? "is-invalid" : ""}
-                          onChange={(e) =>
-                            actualizarCelda(i, campo, e.target.value)
-                          }
-                        />
-                      </td>
-                    ))}
-                    <td>
-                      <div className="cond-cell">
-                        <span
-                          className="cond-swatch"
-                          style={{ background: colorPorCondicion(row.CONDICION) }}
-                        />
-                        <select
-                          aria-label={`Condición de ${row.LOCALIDAD}`}
-                          disabled={cargando}
-                          value={condicionCanonica(row.CONDICION) || ""}
-                          className={
-                            esCondicionConocida(row.CONDICION) ? "" : "is-invalid"
-                          }
-                          onChange={(e) =>
-                            actualizarCelda(i, "CONDICION", e.target.value)
-                          }
-                        >
-                          {!esCondicionConocida(row.CONDICION) && (
-                            <option value="">
-                              {row.CONDICION || "(elegir)"} — sin reconocer
-                            </option>
-                          )}
-                          {CONDICIONES_CANONICAS.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <h2 style={{ marginTop: 22 }}>3 · Publicar</h2>
-
-            {confirmando && <PublicationReview busy={cargando} onConfirm={onPublicar} onCancel={() => setConfirmando(false)}>
-              {!publicado && <p>Se publicará el primer pronóstico con {filas.length} localidades.</p>}
-              {fechaCambiada && <p>Fecha del pronóstico: {fechaPronostico}.</p>}
-              {!!cambios?.length && <ul className="diff-list">
-                {cambios.map((c, k) => <li key={k}><b>{c.localidad}</b> · {c.campo}: {c.de} → {c.a}</li>)}
-              </ul>}
-            </PublicationReview>}
-            <div className="admin-actions">
-              {!confirmando && <button className="btn btn--primary btn--block" onClick={() => setConfirmando(true)} disabled={cargando || hayInvalidos || !fechaPronostico || !sucio}>Revisar y publicar</button>}
-
-              <button
-                className="btn btn--block"
-                onClick={onGenerarPlaca}
-                disabled={cargando || hayInvalidos}
-              >
-                {cargando ? "Procesando…" : "Generar placa para redes"}
-              </button>
-              <button
-                className="btn btn--block"
-                onClick={onCapturarDesdeElMapa}
-                disabled={cargando}
-              >
-                Capturar mapa actual
-              </button>
-            </div>
-          </>
         )}
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>

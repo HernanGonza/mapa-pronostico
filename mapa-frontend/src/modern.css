@@ -316,3 +316,56 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 
 /* Desplazamiento fino en todo el sistema */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.paso-previa__cargando { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 160px; margin: 0; color: var(--text-muted); text-align: center; }
+.paso-previa__spinner { width: 20px; height: 20px; border: 3px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: girar 0.8s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.paso-previa__error { color: var(--danger); font-weight: 600; }
+.paso-previa__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.paso-previa__grid figure { margin: 0; text-align: center; }
+.paso-previa__grid figcaption { margin-top: 6px; color: var(--text-muted); font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.paso-previa__marco { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
+.paso-previa__marco img { display: block; width: 100%; max-height: 300px; object-fit: contain; }
+.paso-previa__pantalla { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--border-strong); border-radius: 9px; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text); cursor: pointer; backdrop-filter: blur(4px); transition: transform 0.2s var(--ease-out), background 0.15s; }
+.paso-previa__pantalla:hover { transform: scale(1.08); background: var(--surface); }
+.paso-previa__pantalla:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.paso-previa__marco img:fullscreen { background: #000; object-fit: contain; max-height: none; }
+.paso-descargas { display: flex; flex-wrap: wrap; gap: 8px; }
+.paso-input[type="date"] { max-width: 260px; }
+@media (max-width: 560px) { .paso-previa__grid { grid-template-columns: 1fr; } }
+.paso-previa [hidden] { display: none !important; }
+.paso-previa__marco img { max-height: 210px; }
+
+/* --- Pasos de mapas por departamento --- */
+.paso-select { width: 100%; padding: 9px 34px 9px 12px; border: 1.5px solid var(--border-strong); border-radius: 10px; background-color: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
+.paso-todos { display: flex; align-items: center; gap: 10px; }
+.paso-todos span { flex: none; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+.paso-todos select { max-width: 260px; }
+.paso-niveles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 8px 12px; max-height: 300px; overflow: auto; padding: 2px; }
+.paso-nivel { display: grid; gap: 4px; }
+.paso-nivel span { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.paso-nivel i { width: 12px; height: 12px; flex: none; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2); transition: background 0.2s; }
+.paso-fenomenos { display: grid; gap: 8px; max-height: 300px; overflow: auto; }
+.paso-fenomeno { display: grid; grid-template-columns: 1fr 150px; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.paso-fenomeno label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.paso-cambios { margin: 0; padding-left: 18px; max-height: 240px; overflow: auto; line-height: 1.7; }
+.paso-rango { width: 100%; accent-color: var(--accent); }
+.paso-rango-valor { color: var(--text-muted); font-size: 13px; }
+.paso-imagen { display: grid; gap: 10px; }
+.paso-imagen img { max-width: 220px; max-height: 150px; object-fit: contain; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+
+/* Acciones del panel lateral (abren un asistente en modal) */
+.admin-acciones { display: grid; gap: 10px; margin: 6px 0 14px; }
+.admin-acciones .btn { min-height: 48px; font-size: 14.5px; }
+
+/* --- Asistente del pronóstico --- */
+.paso-etiqueta { display: grid; gap: 6px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+.paso-docx-estado { margin: 0; color: var(--text-muted); font-size: 13.5px; }
+.paso-tabla { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.paso-localidades { width: 100%; }
+.paso-localidades th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; background: var(--surface-2); text-align: left; }
+.paso-localidades td { padding: 5px 8px; border-top: 1px solid var(--border); font-size: 13.5px; }
+.paso-localidades td:first-child { font-weight: 600; white-space: nowrap; }
+.paso-celda { width: 72px; padding: 7px 8px; border: 1.5px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.paso-celda.is-invalid { border-color: var(--danger); background: var(--danger-soft); }
+.paso-localidades .paso-select { min-width: 190px; padding: 7px 30px 7px 10px; }
+.paso p { margin: 0; }

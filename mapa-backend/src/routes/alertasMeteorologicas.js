@@ -31,12 +31,13 @@ router.post('/alertas-meteorologicas/placa',requireAuth,express.json(),async(req
   try {
     const {generateAlertaMap}=require('../lib/generateAlertaMap');
     const zonasNorm=normalizarZonas(zonas),iconosNorm=normalizarIconos(iconosElegidos);
-    const [feedPng,historiasPng]=await Promise.all([
-      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'feed',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
-      generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'historias',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
-    ]);
-    const placa=await placas.crear({zonas:zonasNorm,iconos:iconosNorm,periodo,fondo,usuarioId:req.usuario.usuarioId,feedPng,historiasPng});
-    res.set('Cache-Control','no-store').json(placa);
+    await require('../lib/placasPendientes').resolver(req,res,{
+      generar:async()=>{const [feedPng,historiasPng]=await Promise.all([
+        generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'feed',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
+        generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'historias',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
+      ]);return {feedPng,historiasPng};},
+      guardar:(pngs)=>placas.crear({zonas:zonasNorm,iconos:iconosNorm,periodo,fondo,usuarioId:req.usuario.usuarioId,...pngs}),
+    });
   }catch(e){console.error(e);res.status(500).json({error:'No se pudo generar la placa.'});}
 });
 router.post('/alertas-meteorologicas/recomendaciones',requireAuth,express.json({limit:'8mb'}),async(req,res)=>{
@@ -45,9 +46,10 @@ router.post('/alertas-meteorologicas/recomendaciones',requireAuth,express.json({
   const error = errorDeRecomendaciones(texto, fondo, imagen, titulo);
   if (error) return res.status(400).json({ error });
   try {
-    const feedPng = await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'feed' });
-    const historiasPng = await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'historias' });
-    res.set('Cache-Control','no-store').json(await placas.crearRecomendaciones({ feedPng, historiasPng, fondo }));
+    await require('../lib/placasPendientes').resolver(req,res,{
+      generar:async()=>({feedPng:await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'feed' }),historiasPng:await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'historias' })}),
+      guardar:(pngs)=>placas.crearRecomendaciones({ ...pngs, fondo }),
+    });
   } catch (e) {
     console.error(e);
     res.status([400,503].includes(e.status) ? e.status : 500).json({ error: [400,503].includes(e.status) ? e.message : 'No se pudieron generar o guardar las recomendaciones. Revisá el registro del backend.' });

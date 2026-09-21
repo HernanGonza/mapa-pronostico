@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
-import PublicationReview from "../components/PublicationReview";
+import { publicarExtendidoPorPasos } from "../lib/asistentesPronostico";
+import { useNotificacion } from "../lib/useNotificacion";
 import PronosticoExtendidoView from "../components/PronosticoExtendidoView";
 import PronosticoExtendidoEditor, { extendidoVacio, hayInvalidosExtendido } from "../components/PronosticoExtendidoEditor";
 import { getActual, publicar } from "../api";
@@ -15,8 +16,8 @@ export default function PronosticoExtendidoPage() {
   const [error, setError] = useState("");
   const [mensajeOk, setMensajeOk] = useState(null);
   const [cargando, setCargando] = useState(true);
-  const [publicando, setPublicando] = useState(false);
-  const [confirmando, setConfirmando] = useState(false);
+  const publicando = false;
+  useNotificacion(mensajeOk);
 
   useEffect(() => {
     getActual()
@@ -32,21 +33,17 @@ export default function PronosticoExtendidoPage() {
   function onChangeExtendido(nuevo) {
     setExtendido(nuevo);
     setDirty(true);
-    setConfirmando(false);
     setMensajeOk(null);
   }
 
-  async function onPublicar() {
-    setPublicando(true); setError(""); setMensajeOk(null);
-    try {
-      const payload = await publicar(actual.filas, actual.fechaPronostico, extendido);
-      setActual(payload);
-      setDirty(false);
-      setConfirmando(false);
-      setMensajeOk("Publicado. El mapa público ya muestra esta versión.");
-    } catch (e) { setError(e.message); }
-    finally { setPublicando(false); }
+  async function publicarAhora() {
+    setError(""); setMensajeOk(null);
+    const payload = await publicar(actual.filas, actual.fechaPronostico, extendido);
+    setActual(payload);
+    setDirty(false);
+    setMensajeOk("Publicado. El mapa público ya muestra esta versión.");
   }
+  const revisarYPublicar = () => publicarExtendidoPorPasos({ publicar: publicarAhora });
 
   const invalido = extendido ? hayInvalidosExtendido(extendido) : true;
 
@@ -65,7 +62,6 @@ export default function PronosticoExtendidoPage() {
           </p>
         </div>
         {error && <div className="alert alert--error" role="alert">{error}</div>}
-        {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
         {cargando ? (
           <p>Cargando…</p>
         ) : !actual ? (
@@ -84,17 +80,8 @@ export default function PronosticoExtendidoPage() {
               </div>
             )}
 
-            {confirmando && (
-              <PublicationReview busy={publicando} onConfirm={onPublicar} onCancel={() => setConfirmando(false)}>
-                <p>Se actualizará el pronóstico de 3 días del mapa público.</p>
-              </PublicationReview>
-            )}
-            <div className="admin-actions">
-              {!confirmando && (
-                <button type="button" className="btn btn--primary btn--block" disabled={publicando || invalido || !dirty} onClick={() => setConfirmando(true)}>
-                  Revisar y publicar
-                </button>
-              )}
+            <div className="admin-acciones">
+              <button type="button" className="btn btn--primary btn--block" disabled={publicando || invalido || !dirty} onClick={revisarYPublicar}>Revisar y publicar</button>
             </div>
 
             <h2 style={{ marginTop: 22 }}>Vista previa</h2>

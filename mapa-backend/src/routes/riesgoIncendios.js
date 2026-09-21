@@ -97,12 +97,13 @@ router.post("/riesgo-incendios/placa", requireAuth, express.json(), async (req, 
   if (error || !fechaValida(fecha)) return res.status(400).json({ error: error || "Fecha de informe inválida." });
   try {
     const zonasNorm = normalizarZonas(zonas);
-    const [historiasPng, feedPng] = await Promise.all([
-      generateRiesgoMap({ zonas: zonasNorm, fecha }),
-      generateRiesgoMapFeed({ zonas: zonasNorm, fecha }),
-    ]);
-    const placa = await placas.crear({ fecha, usuarioId: req.usuario.usuarioId, feedPng, historiasPng });
-    res.set("Cache-Control", "no-store").json(placa);
+    await require("../lib/placasPendientes").resolver(req, res, {
+      generar: async () => {
+        const [historiasPng, feedPng] = await Promise.all([generateRiesgoMap({ zonas: zonasNorm, fecha }), generateRiesgoMapFeed({ zonas: zonasNorm, fecha })]);
+        return { feedPng, historiasPng };
+      },
+      guardar: (pngs) => placas.crear({ fecha, usuarioId: req.usuario.usuarioId, ...pngs }),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "No se pudo generar la placa." });

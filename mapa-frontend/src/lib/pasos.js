@@ -1,4 +1,5 @@
 import { esc } from "./ui";
+import { API_URL } from "../config";
 
 /**
  * Asistente paso a paso ("tipo Typeform") sobre un único modal SweetAlert2: una pregunta por pantalla,
@@ -45,6 +46,7 @@ export async function asistente({ pasos, estado: inicial = {}, enviar, textoEnvi
     const { p, L, html } = cuerpo(retroceso);
     Swal.resetValidationMessage();
     Swal.update({ title: p.pregunta, html, confirmButtonText: idx === L.length - 1 ? textoEnviar : "Siguiente →", showDenyButton: idx > 0, denyButtonText: "← Atrás", showCloseButton: true });
+    Swal.getConfirmButton().disabled = false; // un paso anterior (vista previa) pudo dejarlo deshabilitado
     activar(p);
   }
   function mostrarResultado(r) {
@@ -103,4 +105,81 @@ export async function asistente({ pasos, estado: inicial = {}, enviar, textoEnvi
   await alCerrar;
   if (luego) await luego();
   return datos === null ? null : { datos };
+}
+
+// ===================================================================================================
+// Piezas compartidas por los asistentes que crean placas
+// ===================================================================================================
+
+/** Las vistas previas vienen con una URL relativa del propio backend (/api/placas/pendientes/…). */
+export const urlPlaca = (u) => (typeof u === "string" && u.startsWith("/api/") ? `${API_URL}${u}` : u);
+
+export const ICONOS_TEXTO = [["⚠️", "Advertencia"], ["⛈️", "Tormenta"], ["🌧️", "Lluvia"], ["💨", "Viento"], ["🏠", "Casa"], ["🚫", "Prohibido"], ["✅", "Recomendación"], ["📞", "Teléfono"], ["🔌", "Electricidad"]];
+
+/** Área de texto con contador y botones para insertar íconos donde está el cursor. */
+export function htmlAreaConIconos({ id, valor = "", max = 2400, placeholder = "", filas = 7 }) {
+  return `<textarea class="paso-texto" id="${id}" maxlength="${max}" rows="${filas}" placeholder="${esc(placeholder)}" data-foco>${esc(valor)}</textarea>
+    <p class="paso-contador-texto" id="${id}-contador"></p>
+    <div class="paso-iconos" role="group" aria-label="Insertar ícono en el texto">${ICONOS_TEXTO.map(([i, n]) => `<button type="button" data-icono="${i}" aria-label="Insertar ${n}" title="${n}">${i}</button>`).join("")}</div>`;
+}
+export function activarAreaConIconos(popup, id, max = 2400) {
+  const area = popup.querySelector(`#${id}`), cont = popup.querySelector(`#${id}-contador`);
+  const act = () => { cont.textContent = `${area.value.length}/${max} caracteres`; };
+  area.addEventListener("input", act); act();
+  popup.querySelector(".paso-iconos").addEventListener("click", (e) => {
+    const icono = e.target.closest("[data-icono]")?.dataset.icono;
+    if (!icono) return;
+    const ini = area.selectionStart ?? area.value.length, fin = area.selectionEnd ?? ini;
+    const nuevo = area.value.slice(0, ini) + icono + area.value.slice(fin);
+    if (nuevo.length > max) return;
+    area.value = nuevo; area.focus(); area.setSelectionRange(ini + icono.length, ini + icono.length); act();
+  });
+}
+
+const ICONO_PANTALLA_COMPLETA = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+const nombreDe = { feed: "Feed", historias: "Historias" };
+
+/**
+ * Paso "vista previa": genera la placa (sin guardarla), la muestra con un cuadradito para verla en pantalla
+ * completa (API Fullscreen del navegador) y deja confirmar. Si la persona vuelve y cambia algo, se regenera.
+ *  clave(estado)   → texto que cambia cuando cambia lo que se ve en la placa.
+ *  generar(estado) → Promise<{ token, feedUrl, historiasUrl }> (URLs de vista previa).
+ * Deja en el estado: `vista` (lo devuelto por generar) y `vistaClave`.
+ */
+export function pasoVistaPrevia({ pregunta = "Así queda la placa", ayuda = "Revisala y, si está bien, confirmá para generarla.", clave, generar }) {
+  return {
+    pregunta, ayuda,
+    html: () => `<div class="paso-previa"><p class="paso-previa__cargando" role="status"><span class="paso-previa__spinner" aria-hidden="true"></span>Generando la vista previa…</p><div class="paso-previa__grid" hidden></div></div>`,
+    alMostrar: async (popup, estado) => {
+      const caja = popup.querySelector(".paso-previa"), cargando = caja.querySelector(".paso-previa__cargando"), grid = caja.querySelector(".paso-previa__grid");
+      const boton = Swal_getConfirm(popup);
+      const mostrar = (vista) => {
+        cargando.hidden = true; grid.hidden = false;
+        grid.innerHTML = ["feed", "historias"].map((f) => `<figure><div class="paso-previa__marco"><img src="${esc(urlPlaca(vista[`${f}Url`]))}" alt="Vista previa ${nombreDe[f]}"><button type="button" class="paso-previa__pantalla" data-pantalla aria-label="Ver ${nombreDe[f].toLowerCase()} en pantalla completa" title="Pantalla completa">${ICONO_PANTALLA_COMPLETA}</button></div><figcaption>${nombreDe[f]}</figcaption></figure>`).join("");
+        grid.addEventListener("click", (e) => { e.target.closest("[data-pantalla]")?.closest(".paso-previa__marco")?.querySelector("img")?.requestFullscreen?.().catch(() => {}); });
+        if (boton) boton.disabled = false;
+      };
+      const k = clave(estado);
+      if (estado.vista && estado.vistaClave === k) { mostrar(estado.vista); return; }
+      if (boton) boton.disabled = true;
+      estado.vista = null; estado.vistaClave = null;
+      try {
+        const vista = await generar(estado);
+        if (!popup.contains(caja)) return; // la persona ya salió de este paso
+        estado.vista = vista; estado.vistaClave = k; mostrar(vista);
+      } catch (e) {
+        if (!popup.contains(caja)) return;
+        cargando.innerHTML = `<span class="paso-previa__error">✗ ${esc(e.message)}</span> Volvé al paso anterior y probá de nuevo.`;
+      }
+    },
+    validar: (s) => (s.vista && s.vistaClave === clave(s) ? null : "Esperá a que termine la vista previa."),
+  };
+}
+const Swal_getConfirm = (popup) => popup.querySelector(".swal2-confirm");
+
+/** Resultado de crear una placa: miniaturas y descarga de cada formato. */
+export function htmlPlacaLista(placa) {
+  const descarga = (url, nombre, etiqueta) => `<a class="btn" href="${esc(url)}?download=${encodeURIComponent(nombre || "placa.png")}">${etiqueta}</a>`;
+  return `<div class="paso-miniaturas"><img src="${esc(placa.feedUrl)}" alt="Placa de feed"><img src="${esc(placa.historiasUrl)}" alt="Placa de historias"></div>
+    <div class="paso-descargas">${descarga(placa.feedUrl, placa.feedNombre, "Descargar feed")}${descarga(placa.historiasUrl, placa.historiasNombre, "Descargar historias")}</div>`;
 }

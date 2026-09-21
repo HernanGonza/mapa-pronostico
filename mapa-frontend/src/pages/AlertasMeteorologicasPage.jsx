@@ -1,151 +1,90 @@
 import PlacaPreview from "../components/PlacaPreview";
-import CampoArchivos from "../components/CampoArchivos";
 import { useNotificacion } from "../lib/useNotificacion";
 import PublicationStatus from "../components/PublicationStatus";
-import PublicationReview from "../components/PublicationReview";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BrandHeader from '../components/BrandHeader';
 import EmbedShare from '../components/EmbedShare';
 import RiesgoMap from '../components/RiesgoMap';
+import { editarMapaAlertas, crearPlacaMapaAlertas, crearPlacaRecomendaciones, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
 import * as api from '../api';
 
+const comoImagenes = (p) => ({ feed: p.feedUrl, historias: p.historiasUrl, feedNombre: p.feedNombre, historiasNombre: p.historiasNombre });
+
 export default function AlertasMeteorologicasPage() {
-  const [catalogo,setCatalogo]=useState(null),[geo,setGeo]=useState(null),[zonas,setZonas]=useState([]),[publicado,setPublicado]=useState(null);
-  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[periodo,setPeriodo]=useState('Próximas 24 horas'),[fondo,setFondo]=useState('tormenta');
-  const [tamanoPeriodo,setTamanoPeriodo]=useState(64);
-  const [iconos,setIconos]=useState([]),[imagenes,setImagenes]=useState(null),[vista,setVista]=useState('mapa');
-  const [confirmando,setConfirmando]=useState(false),[mensaje,setMensaje]=useState('');
+  const [catalogo, setCatalogo] = useState(null), [geo, setGeo] = useState(null), [zonas, setZonas] = useState([]), [publicado, setPublicado] = useState(null);
+  const [error, setError] = useState(''), [mensaje, setMensaje] = useState('');
   useNotificacion(mensaje);
-  const [recomendaciones,setRecomendaciones]=useState(''),[imagenesRecomendaciones,setImagenesRecomendaciones]=useState(null);
-  const [titulo,setTitulo]=useState('Alerta meteorológica');
-  const [imagenRecomendaciones,setImagenRecomendaciones]=useState(null);
-  const [generando,setGenerando]=useState(false);
-  const textoRef=useRef(null);
-  const imagenRef=useRef(null);
-  const peticionPlacaRef=useRef(0);
-  useEffect(()=>{
-    let alive=true;
-    Promise.all([api.getAlertasMeteorologicasCatalogo(),api.getAlertasMeteorologicasGeojson(),api.getAlertasMeteorologicasActual()]).then(([c,g,p])=>{
-      if(!alive)return;setCatalogo(c);setGeo(g);setPublicado(p);
-      setZonas(c.departamentos.map(d=>{const z=p?.zonas?.find(x=>String(x.id)===String(d.id));return {id:String(d.id),categoria:z?.categoria==='Gris'?'Verde':z?.categoria||'Verde'};}));
-      setIconos(p?.iconos||[]);
-      if(c.tamanoPeriodo?.predeterminado)setTamanoPeriodo(c.tamanoPeriodo.predeterminado);
-    }).catch(e=>{if(alive)setError(e.message);});
-    return()=>{alive=false;};
-  },[]);
-  function change(id,patch){setZonas(z=>z.map(x=>x.id===id?{...x,...patch}:x));setConfirmando(false);setMensaje('');}
-  function agregarIcono(id){if(!id)return;setIconos(l=>[...l,{id,categoria:'Rojo'}]);setConfirmando(false);setMensaje('');}
-  function cambiarIcono(id,patch){setIconos(l=>l.map(i=>i.id===id?{...i,...patch}:i));setConfirmando(false);setMensaje('');}
-  function quitarIcono(id){setIconos(l=>l.filter(i=>i.id!==id));setConfirmando(false);setMensaje('');}
-  async function guardar(){setBusy(true);setError('');try{setPublicado(await api.publicarAlertasMeteorologicas(zonas,iconos));setConfirmando(false);setMensaje('Publicado. El mapa público ya muestra este mapa.');}catch(e){setError(e.message);}finally{setBusy(false);}}
-  // Vista previa de la placa: se regenera sola (con debounce) cada vez que
-  // cambia algo relevante, en vez de depender de que el operador apriete un
-  // botón. peticionPlacaRef descarta respuestas que ya quedaron viejas (si
-  // se sigue escribiendo mientras una generación anterior todavía viaja).
-  async function generarImagenes(){
-    const id=++peticionPlacaRef.current;
-    setGenerando(true);
-    try{
-      const placa=await api.generarPlaca({zonas,periodo,fondo,iconos,titulo,tamanoPeriodo});
-      if(id!==peticionPlacaRef.current)return;
-      setImagenes({feed:placa.feedUrl,historias:placa.historiasUrl,feedNombre:placa.feedNombre,historiasNombre:placa.historiasNombre});
-    }catch(e){if(id===peticionPlacaRef.current)setError(e.message);}
-    finally{if(id===peticionPlacaRef.current)setGenerando(false);}
-  }
-  async function generar(){setError('');await generarImagenes();setVista('placa');}
-  useEffect(()=>{
-    if(!catalogo||!geo||!periodo.trim()||!titulo.trim())return;
-    const t=setTimeout(()=>{generarImagenes();},700);
-    return()=>clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[catalogo,geo,periodo,titulo,fondo,tamanoPeriodo,zonas,iconos]);
-  async function generarTexto(){setBusy(true);setError('');try{
-    const placa=await api.generarRecomendaciones({texto:recomendaciones,fondo,titulo,imagen:imagenRecomendaciones});
-    setImagenesRecomendaciones({feed:placa.feedUrl,historias:placa.historiasUrl,feedNombre:placa.feedNombre,historiasNombre:placa.historiasNombre});setVista('recomendaciones');
-  }catch(e){setError(e.message);}finally{setBusy(false);}}
-  async function cargarImagen(event) {
-    const archivo=event.target.files?.[0];
-    if(!archivo)return;
-    setError('');
-    if(!['image/png','image/jpeg','image/webp'].includes(archivo.type)||archivo.size>5*1024*1024){
-      setError('Elegí una imagen PNG, JPG o WebP de hasta 5 MB.');event.target.value='';return;
-    }
-    setBusy(true);
-    try {
-      const data=await new Promise((resolve,reject)=>{
-        const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('No se pudo leer la imagen.'));reader.readAsDataURL(archivo);
-      });
-      const img=new Image();img.src=data;await img.decode();
-      if(img.naturalWidth*img.naturalHeight>25000000)throw new Error('La imagen supera los 25 megapíxeles. Elegí una más pequeña.');
-      setImagenRecomendaciones(data);setImagenesRecomendaciones(null);
-    }catch(e){setError(e.message||'No se pudo leer la imagen.');if(imagenRef.current)imagenRef.current.value='';}
-    finally{setBusy(false);}
-  }
-  function insertarIcono(icono){
-    const campo=textoRef.current, inicio=campo?.selectionStart??recomendaciones.length, fin=campo?.selectionEnd??inicio;
-    const nuevo=recomendaciones.slice(0,inicio)+icono+recomendaciones.slice(fin);
-    if(nuevo.length>2400)return;
-    setRecomendaciones(nuevo);setImagenesRecomendaciones(null);
-    requestAnimationFrame(()=>{campo?.focus();campo?.setSelectionRange(inicio+icono.length,inicio+icono.length);});
-  }
-  const zonasCambiadas=zonas.filter(z=>z.categoria!==(publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'));
-  const iconosCambiaron=JSON.stringify(iconos)!==JSON.stringify(publicado?.iconos||[]);
-  const cambios=zonasCambiadas.length>0||iconosCambiaron;
-  const puedePublicar=!!catalogo&&(!publicado||cambios);
+  // Valores con los que arrancan los asistentes (se actualizan con lo último que se generó).
+  const [periodo, setPeriodo] = useState('Próximas 24 horas'), [fondo, setFondo] = useState('tormenta'), [titulo, setTitulo] = useState('Alerta meteorológica'), [tamanoPeriodo, setTamanoPeriodo] = useState(64);
+  const [recomendaciones, setRecomendaciones] = useState('');
+  const [iconos, setIconos] = useState([]), [imagenes, setImagenes] = useState(null), [imagenesRecomendaciones, setImagenesRecomendaciones] = useState(null), [vista, setVista] = useState('mapa');
+
+  useEffect(() => {
+    let vivo = true;
+    Promise.all([api.getAlertasMeteorologicasCatalogo(), api.getAlertasMeteorologicasGeojson(), api.getAlertasMeteorologicasActual()]).then(([c, g, p]) => {
+      if (!vivo) return;
+      setCatalogo(c); setGeo(g); setPublicado(p);
+      setZonas(c.departamentos.map(d => { const z = p?.zonas?.find(x => String(x.id) === String(d.id)); return { id: String(d.id), categoria: z?.categoria === 'Gris' ? 'Verde' : z?.categoria || 'Verde' }; }));
+      setIconos(p?.iconos || []);
+      if (c.tamanoPeriodo?.predeterminado) setTamanoPeriodo(c.tamanoPeriodo.predeterminado);
+    }).catch(e => { if (vivo) setError(e.message); });
+    return () => { vivo = false; };
+  }, []);
+
+  const antes = (id) => publicado?.zonas?.find(p => String(p.id) === String(id))?.categoria || 'Verde';
+  const zonasCambiadas = zonas.filter(z => z.categoria !== antes(z.id));
+  const iconosCambiaron = JSON.stringify(iconos) !== JSON.stringify(publicado?.iconos || []);
+  const cambios = zonasCambiadas.length > 0 || iconosCambiaron;
+  const puedePublicar = !!catalogo && (!publicado || cambios);
+  const detalle = zonasCambiadas.map(z => ({ nombre: catalogo?.departamentos.find(d => String(d.id) === String(z.id))?.nombre || String(z.id), antes: antes(z.id), despues: z.categoria }));
+
+  const editarMapa = () => editarMapaAlertas({ catalogo, zonas, iconos, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
+  const crearPlacaMapa = () => crearPlacaMapaAlertas({
+    catalogo, zonas, iconos, inicial: { titulo, periodo, fondo, tamanoPeriodo },
+    vistaPrevia: (c) => api.generarPlaca({ ...c, vistaPrevia: true }),
+    guardar: async (c, token) => {
+      const placa = await api.generarPlaca({ ...c, confirmarToken: token });
+      setTitulo(c.titulo); setPeriodo(c.periodo); setFondo(c.fondo); setTamanoPeriodo(c.tamanoPeriodo);
+      setImagenes(comoImagenes(placa)); setVista('placa');
+      return placa;
+    },
+  });
+  const crearRecomendaciones = () => crearPlacaRecomendaciones({
+    inicial: { titulo, fondo, texto: recomendaciones, imagen: null },
+    vistaPrevia: (c) => api.generarRecomendaciones({ ...c, vistaPrevia: true }),
+    guardar: async (c, token) => {
+      const placa = await api.generarRecomendaciones({ ...c, imagen: null, confirmarToken: token });
+      setTitulo(c.titulo); setFondo(c.fondo); setRecomendaciones(c.texto);
+      setImagenesRecomendaciones(comoImagenes(placa)); setVista('recomendaciones');
+      return placa;
+    },
+  });
+  const revisarYPublicar = () => publicarAlertasPorPasos({
+    cambios: detalle, sinPublicar: !publicado, iconosCambiaron,
+    publicar: async () => { setPublicado(await api.publicarAlertasMeteorologicas(zonas, iconos)); setMensaje('Publicado. El mapa público ya muestra este mapa.'); },
+  });
+
   return <div className="admin-layout risk-layout meteo-layout">
     <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
-      <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Asigná el color y uno o varios fenómenos a cada departamento.</p></div>
-      {error&&<div className="risk-message risk-message--error" role="alert">{error}</div>}
-      {!catalogo?<p>Cargando departamentos…</p>:<>
+      <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Asigná el color y los fenómenos de cada departamento con el asistente; el mapa muestra el borrador.</p></div>
+      {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
+      {!catalogo ? <p>Cargando departamentos…</p> : <>
         <PublicationStatus changed={cambios} published={publicado} />
-        <div className="risk-zones">{catalogo.departamentos.map(d=>{const z=zonas.find(x=>x.id===String(d.id));return <div className="risk-zone" key={d.id} style={{display:'block'}}>
-          <strong>{d.nombre}</strong>
-          <select aria-label={`Nivel de alerta de ${d.nombre}`} value={z.categoria} disabled={busy} onChange={e=>change(z.id,{categoria:e.target.value})} style={{marginTop:8}}>{catalogo.categorias.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre} · {c.accion}</option>)}</select>
-        </div>;})}</div>
-        <details><summary>Qué significa cada nivel</summary>{catalogo.categorias.map(c=><p key={c.nombre}><strong>{c.nombre} · {c.accion}</strong><br/>{c.descripcion}</p>)}</details>
-        <div className="field">
-          <span>Fenómenos de la placa</span>
-          <select aria-label="Agregar fenómeno" value="" disabled={busy||iconos.length===catalogo.iconos.length} onChange={e=>agregarIcono(e.target.value)}><option value="">+ Icono</option>{catalogo.iconos.filter(i=>!iconos.some(x=>x.id===i.id)).map(i=><option key={i.id} value={i.id}>{i.nombre}</option>)}</select>
-          {iconos.map(elegido=>{const info=catalogo.iconos.find(i=>i.id===elegido.id);return <div key={elegido.id} style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
-            <span style={{flex:1}}>{info?.nombre}</span>
-            <select aria-label={`Color de ${info?.nombre}`} value={elegido.categoria} disabled={busy} onChange={e=>cambiarIcono(elegido.id,{categoria:e.target.value})}>{catalogo.categorias.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}</select>
-            <button type="button" disabled={busy} onClick={()=>quitarIcono(elegido.id)} className="btn" aria-label={`Quitar ${info?.nombre || "fenómeno"}`}>×</button>
-          </div>;})}
+        <div className="admin-acciones">
+          <button className="btn btn--primary btn--block" onClick={editarMapa}>Editar mapa</button>
+          <button className="btn btn--block" onClick={crearPlacaMapa}>Crear placa del mapa</button>
+          <button className="btn btn--block" onClick={crearRecomendaciones}>Crear placa de recomendaciones</button>
+          <button className="btn btn--block" disabled={!puedePublicar} onClick={revisarYPublicar}>Revisar y publicar</button>
         </div>
-        <h2>Revisar y publicar el mapa</h2>
-        {confirmando&&<PublicationReview busy={busy} onConfirm={guardar} onCancel={()=>setConfirmando(false)}>
-          {!publicado&&<p>Se publicará el primer mapa con los niveles seleccionados.</p>}
-          {zonasCambiadas.length>0&&<><p>Se actualizarán {zonasCambiadas.length} departamentos en el mapa público.</p>
-            <ul>{zonasCambiadas.map(z=><li key={z.id}><b>{catalogo.departamentos.find(d=>String(d.id)===String(z.id))?.nombre}</b>: {publicado?.zonas?.find(p=>String(p.id)===String(z.id))?.categoria||'Verde'} → {z.categoria}</li>)}</ul></>}
-          {iconosCambiaron&&<p>Cambiaron los fenómenos/iconos de la placa.</p>}
-        </PublicationReview>}
-        {!confirmando&&<button className="btn btn--primary btn--block" disabled={busy||!puedePublicar} onClick={()=>setConfirmando(true)}>Revisar y publicar</button>}
-        <p>El mapa público muestra lo último que publicaste acá. La placa usa los colores e iconos seleccionados.</p>
-        <h2>Placas para redes</h2>
-        <label className="field"><span>Título de las placas</span><input value={titulo} maxLength={60} disabled={busy} placeholder="Ej.: Aviso" onChange={e=>{setTitulo(e.target.value);setImagenesRecomendaciones(null);}}/><small>Se aplica a la placa del mapa y a las recomendaciones.</small></label>
-        <label className="field"><span>Período de la placa</span><textarea value={periodo} rows={6} maxLength={catalogo?.maxPeriodo??600} disabled={busy} onChange={e=>setPeriodo(e.target.value)}/><small>La letra se achica sola si el texto es largo; no hace falta cortar líneas a mano.</small></label>
-        <label className="field"><span>Tamaño de letra del período <small>{tamanoPeriodo}px</small></span><input type="range" min={catalogo?.tamanoPeriodo?.min??30} max={catalogo?.tamanoPeriodo?.max??100} value={tamanoPeriodo} disabled={busy} onChange={e=>setTamanoPeriodo(Number(e.target.value))}/></label>
-        <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={e=>{setFondo(e.target.value);setImagenesRecomendaciones(null);}}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
-        <button className="btn btn--block" disabled={busy||!periodo.trim()||!titulo.trim()} onClick={generar}>{busy?'Procesando…':generando?'Actualizando vista previa…':'Ver placa para redes'}</button>
-        <section className="meteo-recomendaciones" aria-labelledby="recomendaciones-titulo">
-          <h2 id="recomendaciones-titulo">Recomendaciones <small>Opcional</small></h2>
-          <p>Texto e imagen opcional sobre el fondo elegido: {fondo==='tormenta'?'Tormenta':'Nubes'}. Podés pegar emojis y usar Enter para separar párrafos.</p>
-          <label className="field"><span>Texto de recomendaciones</span><textarea ref={textoRef} value={recomendaciones} rows={12} maxLength={2400} disabled={busy} placeholder="Escribí aquí las recomendaciones para la población…" onChange={e=>{setRecomendaciones(e.target.value);setImagenesRecomendaciones(null);}}/></label>
-          <CampoArchivos ref={imagenRef} label="Imagen para las recomendaciones (opcional)" ayuda="PNG, JPG o WebP, hasta 5 MB y 25 megapíxeles. Se coloca arriba del texto sin recortarla." accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={cargarImagen} />
-          {imagenRecomendaciones&&<div className="meteo-imagen-preview"><img src={imagenRecomendaciones} alt="Imagen elegida para las recomendaciones"/><button className="btn" type="button" disabled={busy} onClick={()=>{setImagenRecomendaciones(null);setImagenesRecomendaciones(null);if(imagenRef.current)imagenRef.current.value='';}}>Quitar imagen</button></div>}
-          <div className="meteo-emojis" role="group" aria-label="Insertar icono en el texto">
-            {[['⚠️','Advertencia'],['⛈️','Tormenta'],['🌧️','Lluvia'],['💨','Viento'],['🏠','Casa'],['🚫','Prohibido'],['✅','Recomendación'],['📞','Teléfono'],['🔌','Electricidad']].map(([icono,nombre])=><button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={()=>insertarIcono(icono)}>{icono}</button>)}
-          </div>
-          <p className="meteo-count">{recomendaciones.length}/2400 caracteres</p>
-          <button type="button" className="btn btn--block" disabled={busy||!recomendaciones.trim()||!titulo.trim()} onClick={generarTexto}>{busy?'Procesando…':'Generar placa de recomendaciones'}</button>
-        </section>
-        <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones"/>
+        <p className="admin-panel__hint">La placa del mapa usa los niveles y fenómenos que ves a la derecha. El mapa público muestra lo último que publicaste.</p>
+        <details><summary>Qué significa cada nivel</summary>{catalogo.categorias.map(c => <p key={c.nombre}><strong>{c.nombre} · {c.accion}</strong><br />{c.descripcion}</p>)}</details>
+        <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />
       </>}
     </section>
     <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenes} recomendaciones={imagenesRecomendaciones}>
-      {catalogo&&geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn}/> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
+      {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
     </PlacaPreview>
   </div>;
 }

@@ -112,10 +112,10 @@ export async function publicar(filas, fechaPronostico, extendido) {
  * Pide al back que genere el PNG (server-side, con canvas) y devuelve un
  * Blob listo para descargar. Usa el último publicado si no se pasan filas.
  */
-export async function generarPronosticoPlaca(filas, fechaPronostico) {
+export async function generarPronosticoPlaca(filas, fechaPronostico, extra = {}) {
   return handleJson(await fetch(`${API_URL}/api/pronostico/placa`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(filas ? { filas, fechaPronostico } : { fechaPronostico }), ...CON_SESION,
+    body: JSON.stringify({ ...(filas ? { filas, fechaPronostico } : { fechaPronostico }), ...extra }), ...CON_SESION,
   }));
 }
 export async function renderPngEnBack(filas) {
@@ -216,10 +216,10 @@ export async function publicarRiesgo(zonas) {
   }));
 }
 
-export async function generarRiesgoPlaca(zonas, fecha) {
+export async function generarRiesgoPlaca(zonas, fecha, extra = {}) {
   return handleJson(await fetch(`${API_URL}/api/riesgo-incendios/placa`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ zonas, fecha }), ...CON_SESION,
+    body: JSON.stringify({ zonas, fecha, ...extra }), ...CON_SESION,
   }));
 }
 export async function renderRiesgoPng(zonas, fecha) {

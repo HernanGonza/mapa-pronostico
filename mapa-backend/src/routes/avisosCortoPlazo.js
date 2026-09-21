@@ -2,6 +2,7 @@ const express = require("express");
 const requireAuth = require("../middleware/requireAuth");
 const { errorDePoligono, normalizarPoligono } = require("../lib/avisosCortoPlazo");
 const avisos = require("../lib/avisosCortoPlazoStore");
+const pendientes = require("../lib/placasPendientes");
 
 const router = express.Router();
 const TITULO_PREDETERMINADO = "Aviso a muy corto plazo";
@@ -19,20 +20,16 @@ router.post("/avisos-corto-plazo/generar", requireAuth, express.json({ limit: "8
   if (error) return res.status(400).json({ error });
   try {
     const poligonoNorm = normalizarPoligono(poligono);
-    const [feedPng, historiasPng] = await Promise.all([
-      generateRecomendaciones({ texto, fondo, titulo: tituloFinal, imagen: imagen || null, tamano: "feed" }),
-      generateRecomendaciones({ texto, fondo, titulo: tituloFinal, imagen: imagen || null, tamano: "historias" }),
-    ]);
-    const placa = await avisos.crear({
-      poligono: poligonoNorm,
-      titulo: tituloFinal,
-      texto,
-      fondo,
-      usuarioId: req.usuario.usuarioId,
-      feedPng,
-      historiasPng,
+    await pendientes.resolver(req, res, {
+      generar: async () => {
+        const [feedPng, historiasPng] = await Promise.all([
+          generateRecomendaciones({ texto, fondo, titulo: tituloFinal, imagen: imagen || null, tamano: "feed" }),
+          generateRecomendaciones({ texto, fondo, titulo: tituloFinal, imagen: imagen || null, tamano: "historias" }),
+        ]);
+        return { feedPng, historiasPng };
+      },
+      guardar: (pngs) => avisos.crear({ poligono: poligonoNorm, titulo: tituloFinal, texto, fondo, usuarioId: req.usuario.usuarioId, ...pngs }),
     });
-    res.set("Cache-Control", "no-store").json(placa);
   } catch (e) {
     console.error(e);
     const status = [400, 503].includes(e.status) ? e.status : 500;

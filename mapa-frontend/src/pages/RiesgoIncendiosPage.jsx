@@ -1,12 +1,11 @@
 import PublicationStatus from "../components/PublicationStatus";
-import CampoFecha from "../components/CampoFecha";
 import { useNotificacion } from "../lib/useNotificacion";
-import PublicationReview from "../components/PublicationReview";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
 import PlacaPreview from "../components/PlacaPreview";
+import { editarNivelesRiesgo, crearPlacaRiesgo, publicarRiesgoPorPasos } from "../lib/asistentesRiesgo";
 import RiesgoMap from "../components/RiesgoMap";
 import { getRiesgoCatalogo, getDepartamentosGeojson, getRiesgoActual, publicarRiesgo, generarRiesgoPlaca } from "../api";
 
@@ -19,23 +18,12 @@ export default function RiesgoIncendiosPage() {
   const [mensaje, setMensaje] = useState("");
   useNotificacion(mensaje);
   const [ocupado, setOcupado] = useState(false);
-  const [confirmando, setConfirmando] = useState(false);
   const [intento, setIntento] = useState(0);
   const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
   const mapaRef = useRef(null);
   const [fecha, setFecha] = useState(() => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date()));
   useEffect(() => { setImagenes(null); }, [zonas, fecha]);
-  async function exportarInstitucional() {
-    setOcupado(true); setError("");
-    try {
-      const placa = await generarRiesgoPlaca(zonas, fecha);
-      setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
-      setVista("placa");
-      setMensaje("Placa generada. Revisala en la vista previa y descargala desde ahí.");
-    } catch (e) { setError(e.message); }
-    finally { setOcupado(false); }
-  }
   useEffect(() => {
     let cancelado = false;
     setError("");
@@ -56,19 +44,25 @@ export default function RiesgoIncendiosPage() {
     window.addEventListener("beforeunload", aviso);
     return () => window.removeEventListener("beforeunload", aviso);
   }, [sucio]);
-  function cambiar(id, categoria) {
-    setZonas(prev => prev.map(z => z.id === id ? { ...z, categoria } : z));
-    setConfirmando(false); setMensaje("");
-  }
   async function guardar() {
-    setOcupado(true); setError("");
-    try {
-      const nuevo = await publicarRiesgo(zonas);
-      setPublicado(nuevo); setZonas(nuevo.zonas); setConfirmando(false);
-      setMensaje("Publicado. El mapa público ya muestra estas categorías.");
-    } catch (e) { setError(e.message); }
-    finally { setOcupado(false); }
+    const nuevo = await publicarRiesgo(zonas);
+    setPublicado(nuevo); setZonas(nuevo.zonas);
   }
+  const nombreDe = (id) => catalogo?.departamentos.find(d => String(d.id) === String(id))?.nombre || String(id);
+  const detalleCambios = cambios.map(z => ({ nombre: nombreDe(z.id), antes: publicado?.zonas.find(p => String(p.id) === String(z.id))?.categoria || "Sin asignar", despues: z.categoria }));
+  const editarNiveles = () => editarNivelesRiesgo({ catalogo, zonas, aplicar: setZonas });
+  const crearPlaca = () => crearPlacaRiesgo({
+    catalogo, zonas, fecha,
+    vistaPrevia: (zs, f) => generarRiesgoPlaca(zs, f, { vistaPrevia: true }),
+    guardar: async (zs, f, token) => {
+      const placa = await generarRiesgoPlaca(zs, f, { confirmarToken: token });
+      setZonas(zs); setFecha(f);
+      setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
+      setVista("placa");
+      return placa;
+    },
+  });
+  const revisarYPublicar = () => publicarRiesgoPorPasos({ cambios: detalleCambios, sinPublicar: !publicado, publicar: async () => { await guardar(); setMensaje("Publicado. El mapa público ya muestra estas categorías."); } });
   async function exportar() {
     setOcupado(true); setError("");
     try {
@@ -88,24 +82,13 @@ export default function RiesgoIncendiosPage() {
       {error && <div className="risk-message risk-message--error" role="alert">{error}{!catalogo && <button className="btn" onClick={() => setIntento(i => i + 1)}>Reintentar</button>}</div>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
         <PublicationStatus changed={sucio} published={publicado}>{completos} / {zonas.length} departamentos</PublicationStatus>
-        <div className="risk-zones">{catalogo.departamentos.map(d => {
-          const categoria = zonas.find(z => String(z.id) === String(d.id))?.categoria || "";
-          const color = catalogo.categorias.find(c => c.nombre === categoria)?.color || "#d5dbd5";
-          return <label className="risk-zone" key={d.id}><span><i style={{ background: color }} />{d.nombre}</span>
-            <select aria-label={`Riesgo de ${d.nombre}`} value={categoria} disabled={ocupado} onChange={e => cambiar(d.id, e.target.value)}>
-              <option value="">Elegir nivel…</option>{catalogo.categorias.map(c => <option key={c.nombre}>{c.nombre}</option>)}
-            </select></label>;
-        })}</div>
-        {confirmando && <PublicationReview busy={ocupado} onConfirm={guardar} onCancel={() => setConfirmando(false)}><p>Se actualizarán {cambios.length} departamentos en el mapa público.</p>
-          <ul>{cambios.map(z => <li key={z.id}><b>{catalogo.departamentos.find(d => String(d.id) === String(z.id))?.nombre}</b>: {publicado?.zonas.find(p => String(p.id) === String(z.id))?.categoria || "Sin asignar"} → {z.categoria}</li>)}</ul>
-        </PublicationReview>}
-        <div className="admin-actions">
-          <CampoFecha label="Fecha de la imagen institucional" value={fecha} onChange={setFecha} disabled={ocupado} />
-          {!confirmando && <button className="btn btn--primary btn--block" disabled={ocupado || completos !== zonas.length || !sucio} onClick={() => setConfirmando(true)}>Revisar y publicar</button>}
-          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length || !fecha} onClick={exportarInstitucional}>{ocupado ? "Procesando…" : "Generar placa para redes"}</button>
-          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length} onClick={exportar}>Capturar mapa actual</button>
-          {sucio && <p className="admin-panel__hint">La descarga reflejará el borrador visible. Publicá para actualizar el mapa del sitio.</p>}
+        <div className="admin-acciones">
+          <button className="btn btn--primary btn--block" disabled={ocupado} onClick={editarNiveles}>Editar niveles</button>
+          <button className="btn btn--block" disabled={ocupado} onClick={crearPlaca}>Crear placa para redes</button>
+          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length || !sucio} onClick={revisarYPublicar}>Revisar y publicar</button>
+          <button className="btn btn--ghost btn--block" disabled={ocupado || completos !== zonas.length} onClick={exportar}>{ocupado ? "Procesando…" : "Capturar mapa actual"}</button>
         </div>
+        <p className="admin-panel__hint">{sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>
       </>}
         <EmbedShare path="/embed/riesgo-incendios" title="Riesgo de incendios forestales de Misiones" />
     </section>

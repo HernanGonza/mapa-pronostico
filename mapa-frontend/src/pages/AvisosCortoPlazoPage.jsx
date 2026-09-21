@@ -11,7 +11,6 @@ import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
 import { crearAvisoPorPasos } from "../lib/asistenteAviso";
 
-const EMOJIS = [["⚠️", "Advertencia"], ["⛈️", "Tormenta"], ["🌧️", "Lluvia"], ["💨", "Viento"], ["🏠", "Casa"], ["🚫", "Prohibido"], ["✅", "Recomendación"], ["📞", "Teléfono"]];
 
 export default function AvisosCortoPlazoPage() {
   const [puntos, setPuntos] = useState([]);
@@ -20,7 +19,6 @@ export default function AvisosCortoPlazoPage() {
   const [fondo, setFondo] = useState("tormenta");
   const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   useNotificacion(mensaje);
@@ -29,7 +27,6 @@ export default function AvisosCortoPlazoPage() {
   const [municipios, setMunicipios] = useState(null);
   const [publicando, setPublicando] = useState(null); // id del aviso que se está publicando
   const [publicado, setPublicado] = useState(null); // último aviso publicado (mapa público)
-  const textoRef = useRef(null);
   const mapaRef = useRef(null);
 
   useEffect(() => {
@@ -40,10 +37,10 @@ export default function AvisosCortoPlazoPage() {
 
   function cambiarPuntos(nuevos) { setPuntos(nuevos); setImagenes(null); }
 
-  // Genera la placa con estos valores (lanza si falla). Lo usan el formulario clásico y el asistente paso a paso.
-  async function generarPlaca(valores) {
-    const imagen = mapaRef.current?.capturePng() || null;
-    const placa = await api.generarAvisoCortoPlazo({ poligono: puntos, ...valores, imagen });
+  // La vista previa NO guarda nada; recién al confirmar en el asistente se guarda (la misma imagen).
+  const vistaPrevia = (valores) => api.generarAvisoCortoPlazo({ poligono: puntos, ...valores, imagen: mapaRef.current?.capturePng() || null, vistaPrevia: true });
+  async function guardarPlaca(valores, token) {
+    const placa = await api.generarAvisoCortoPlazo({ poligono: puntos, ...valores, confirmarToken: token });
     setTitulo(valores.titulo); setTexto(valores.texto); setFondo(valores.fondo);
     setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
     setVista("recomendaciones");
@@ -52,17 +49,10 @@ export default function AvisosCortoPlazoPage() {
     return placa;
   }
 
-  async function generar() {
-    setBusy(true); setError(""); setMensaje("");
-    try { await generarPlaca({ titulo, texto, fondo }); }
-    catch (e) { setError(e.message); }
-    finally { setBusy(false); }
-  }
-
-  async function crearPorPasos() {
+  async function crearPlaca() {
     if (puntos.length < 3) { notificar("error", "Primero dibujá la zona afectada en el mapa (al menos 3 puntos)."); return; }
     setError(""); setMensaje("");
-    await crearAvisoPorPasos({ inicial: { titulo, texto, fondo }, puntos: puntos.length, generar: generarPlaca });
+    await crearAvisoPorPasos({ inicial: { titulo, texto, fondo }, vistaPrevia, guardar: guardarPlaca });
   }
 
   // Publicar es independiente de la sesión: cualquier aviso ya generado
@@ -80,15 +70,6 @@ export default function AvisosCortoPlazoPage() {
     finally { setPublicando(null); }
   }
 
-  function insertarIcono(icono) {
-    const campo = textoRef.current, inicio = campo?.selectionStart ?? texto.length, fin = campo?.selectionEnd ?? inicio;
-    const nuevo = texto.slice(0, inicio) + icono + texto.slice(fin);
-    if (nuevo.length > 2400) return;
-    setTexto(nuevo); setImagenes(null);
-    requestAnimationFrame(() => { campo?.focus(); campo?.setSelectionRange(inicio + icono.length, inicio + icono.length); });
-  }
-
-  const puedeGenerar = puntos.length >= 3 && texto.trim() && titulo.trim();
   const hayCambiosSinPublicar = !!historial?.length && historial[0].id != null && historial[0].id !== publicado?.id;
 
   return (
@@ -103,18 +84,8 @@ export default function AvisosCortoPlazoPage() {
           {publicado ? `«${publicado.titulo}»` : null}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
-        <button type="button" className="btn btn--block btn--primary asistente-cta" disabled={busy} onClick={crearPorPasos}>Crear placa paso a paso</button>
-        <p className="admin-panel__hint">O completá el formulario de abajo, si preferís verlo todo junto.</p>
-        <label className="field"><span>Título de la placa</span><input value={titulo} maxLength={60} disabled={busy} onChange={(e) => { setTitulo(e.target.value); setImagenes(null); }} /></label>
-        <label className="field"><span>Fondo</span><select value={fondo} disabled={busy} onChange={(e) => { setFondo(e.target.value); setImagenes(null); }}><option value="tormenta">Tormenta</option><option value="nubes">Nubes</option></select></label>
-        <label className="field"><span>Texto del aviso</span><textarea ref={textoRef} value={texto} rows={10} maxLength={2400} disabled={busy} placeholder="Escribí acá el aviso a muy corto plazo…" onChange={(e) => { setTexto(e.target.value); setImagenes(null); }} /></label>
-        <div className="meteo-emojis" role="group" aria-label="Insertar icono en el texto">
-          {EMOJIS.map(([icono, nombre]) => <button key={nombre} type="button" className="btn" aria-label={`Insertar ${nombre}`} title={nombre} disabled={busy} onClick={() => insertarIcono(icono)}>{icono}</button>)}
-        </div>
-        <p className="meteo-count">{texto.length}/2400 caracteres</p>
-        <button type="button" className="btn btn--block btn--primary" disabled={busy || !puedeGenerar} onClick={generar}>
-          {busy ? "Procesando…" : puntos.length < 3 ? "Dibujá al menos 3 puntos en el mapa" : "Generar placa para redes"}
-        </button>
+        <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crearPlaca}>Crear placa</button>
+        <p className="admin-panel__hint">Dibujá la zona afectada en el mapa y tocá «Crear placa»: te guío paso a paso, con vista previa antes de generarla.</p>
 
         {historial && historial.length > 0 && (
           <details className="avisos-historial" open={historialAbierto} onToggle={(e) => setHistorialAbierto(e.target.open)}>

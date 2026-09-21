@@ -189,13 +189,17 @@ router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) =
     if (errorFilas) return res.status(400).json({ error: errorFilas });
     const placas = require("../lib/pronosticoPlacasStore");
     const fecha = nowInArgentina();
-    const outputPath = path.join(os.tmpdir(), `mapa_prono_feed_${Date.now()}.png`);
-    await generateForecastMap({ forecastRows: filas, outputPath, date: fecha });
-    const feedBuffer = fs.readFileSync(outputPath);
-    fs.unlink(outputPath, () => {});
-    const historiasBuffer = await generateForecastMapHistorias({ forecastRows: filas, date: fecha });
-    const placa = await placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, feedPng: feedBuffer, historiasPng: historiasBuffer });
-    res.set("Cache-Control", "no-store").json(placa);
+    await require("../lib/placasPendientes").resolver(req, res, {
+      generar: async () => {
+        const outputPath = path.join(os.tmpdir(), `mapa_prono_feed_${Date.now()}.png`);
+        await generateForecastMap({ forecastRows: filas, outputPath, date: fecha });
+        const feedPng = fs.readFileSync(outputPath);
+        fs.unlink(outputPath, () => {});
+        const historiasPng = await generateForecastMapHistorias({ forecastRows: filas, date: fecha });
+        return { feedPng, historiasPng };
+      },
+      guardar: (pngs) => placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, ...pngs }),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "No se pudo generar la placa." });
