@@ -41,10 +41,11 @@ export default function AlertasMeteorologicasPage() {
 
   const editarMapa = () => editarMapaAlertas({ catalogo, zonas, iconos, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
   const crearPlacaMapa = () => crearPlacaMapaAlertas({
-    catalogo, zonas, iconos, inicial: { titulo, periodo, fondo, tamanoPeriodo },
+    catalogo, inicial: { zonas, iconos, titulo, periodo, fondo, tamanoPeriodo },
     vistaPrevia: (c) => api.generarPlaca({ ...c, vistaPrevia: true }),
     guardar: async (c, token) => {
       const placa = await api.generarPlaca({ ...c, confirmarToken: token });
+      setZonas(c.zonas); setIconos(c.iconos); // el mapa de la página refleja lo que salió en la placa
       setTitulo(c.titulo); setPeriodo(c.periodo); setFondo(c.fondo); setTamanoPeriodo(c.tamanoPeriodo);
       setImagenes(comoImagenes(placa)); setVista('placa');
       return placa;

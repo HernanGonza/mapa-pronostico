@@ -14,15 +14,18 @@ function LeyendaFenomenos({ iconos, catalogo }) {
   const seleccionados = iconos.flatMap(elegido => {
     const icono = catalogo.iconos?.find(i => i.id === elegido.id);
     const categoria = catalogo.categorias.find(c => c.nombre === elegido.categoria);
-    return icono && categoria ? [{ ...icono, categoria }] : [];
+    const categoria2 = catalogo.categorias.find(c => c.nombre === elegido.categoria2);
+    return icono && categoria ? [{ ...icono, categoria, categoria2 }] : [];
   });
   if (!seleccionados.length) return null;
   return <div className="risk-legend weather-legend">
     <strong>Fenómenos meteorológicos</strong>
     <ul>{seleccionados.map(icono => <li key={icono.id}>
       <span className="weather-legend__icon" aria-hidden="true"><img src={`/iconos/alertas/${icono.id}.png`} alt="" /></span>
-      <span className="weather-legend__label" style={{ borderBottomColor: icono.categoria.color }}>
-        {icono.nombre}<span className="weather-legend__level"> · {icono.categoria.nombre}</span>
+      <span className="weather-legend__label" style={icono.categoria2
+        ? { borderImage: `linear-gradient(90deg, ${icono.categoria.color} 50%, ${icono.categoria2.color} 50%) 1` } // dos mitades
+        : { borderBottomColor: icono.categoria.color }}>
+        {icono.nombre}<span className="weather-legend__level"> · {icono.categoria.nombre}{icono.categoria2 ? ` / ${icono.categoria2.nombre}` : ""}</span>
       </span>
     </li>)}</ul>
   </div>;

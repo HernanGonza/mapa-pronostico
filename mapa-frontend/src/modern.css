@@ -369,3 +369,10 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .paso-celda.is-invalid { border-color: var(--danger); background: var(--danger-soft); }
 .paso-localidades .paso-select { min-width: 190px; padding: 7px 30px 7px 10px; }
 .paso p { margin: 0; }
+
+/* Fenómenos con subrayado de uno o dos colores */
+.paso-fenomeno { grid-template-columns: 1.2fr 130px 150px; }
+.paso-fenomeno--cabecera { padding: 0 12px; border: 0; background: none; color: var(--text-muted); font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.paso-fenomeno__nombre { display: grid; gap: 5px; }
+.paso-subrayado { display: block; width: 100%; max-width: 160px; height: 5px; border-radius: 2px; }
+@media (max-width: 620px) { .paso-fenomeno { grid-template-columns: 1fr; } .paso-fenomeno--cabecera { display: none; } }

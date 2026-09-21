@@ -234,7 +234,10 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
     const tx=x+iw+gap, baseline=y+ih/2+Math.round(13*escalaFuente);
     ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px AlertaPlaca`;ctx.fillText(icon.nombre,tx,baseline);
     const tw=ctx.measureText(icon.nombre).width;
-    ctx.fillStyle=color;ctx.fillRect(tx,baseline+Math.round(12*escalaFuente),tw,Math.max(4,Math.round(7*escalaFuente)));
+    // Subrayado: un color, o dos mitades (categoria2) si se eligió un segundo color.
+    const uy=baseline+Math.round(12*escalaFuente), uh=Math.max(4,Math.round(7*escalaFuente)), color2=elegido.categoria2?colorPorCategoria.get(elegido.categoria2):null;
+    if(color2){const mitad=Math.round(tw/2);ctx.fillStyle=color;ctx.fillRect(tx,uy,mitad,uh);ctx.fillStyle=color2;ctx.fillRect(tx+mitad,uy,tw-mitad,uh);}
+    else{ctx.fillStyle=color;ctx.fillRect(tx,uy,tw,uh);}
   });
   return canvas.toBuffer('image/png');
 }

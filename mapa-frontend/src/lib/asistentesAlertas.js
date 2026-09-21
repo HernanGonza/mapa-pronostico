@@ -6,7 +6,7 @@ import { publicarEnRedes } from "./publicarEnRedes";
 /**
  * Asistentes de "Alertas meteorológicas" (todo dentro de un modal, paso a paso):
  *  - editarMapaAlertas:        nivel de cada departamento → fenómenos → se aplica al mapa (borrador).
- *  - crearPlacaMapaAlertas:    título → período → tamaño de letra → fondo → vista previa → confirmar.
+ *  - crearPlacaMapaAlertas:    niveles → fenómenos (con 1 o 2 colores) → título → período → tamaño → fondo → vista previa → confirmar.
  *  - crearPlacaRecomendaciones: título → fondo → texto (íconos) → imagen opcional → vista previa → confirmar.
  *  - publicarAlertasPorPasos:  revisar los cambios → publicar en el mapa público.
  */
@@ -41,11 +41,13 @@ export function editarMapaAlertas({ catalogo, zonas, iconos, aplicar }) {
   });
 }
 
-export function crearPlacaMapaAlertas({ catalogo, zonas, iconos, inicial, vistaPrevia, guardar }) {
+export function crearPlacaMapaAlertas({ catalogo, inicial, vistaPrevia, guardar }) {
   const rango = catalogo.tamanoPeriodo || { min: 30, max: 100, predeterminado: 64 };
   const maxPeriodo = catalogo.maxPeriodo ?? 600;
-  const cuerpo = (s) => ({ zonas, iconos, periodo: s.periodo, fondo: s.fondo, titulo: s.titulo, tamanoPeriodo: s.tamanoPeriodo });
+  const cuerpo = (s) => ({ zonas: s.zonas, iconos: s.iconos, periodo: s.periodo, fondo: s.fondo, titulo: s.titulo, tamanoPeriodo: s.tamanoPeriodo });
   const pasos = [
+    pasoNiveles({ catalogo, idComoTexto: true, permitirVacio: false, etiqueta: (c) => `${c.nombre} · ${c.accion}`, ayuda: "El color de alerta de cada departamento en la placa." }),
+    pasoFenomenos({ catalogo }),
     pasoTitulo("Se aplica a la placa del mapa. Hasta 60 caracteres."),
     { pregunta: "¿Qué período cubre?", ayuda: "Por ejemplo: «Próximas 24 horas». La letra se achica sola si el texto es largo.",
       html: (s) => `<textarea class="paso-texto" id="paso-periodo" maxlength="${maxPeriodo}" rows="4" data-foco>${esc(s.periodo)}</textarea>`,

@@ -45,7 +45,8 @@ async function init() {
          fenomeno_id    text NOT NULL,
          categoria      text NOT NULL,
          PRIMARY KEY (publicacion_id, fenomeno_id)
-       )`
+       );
+       ALTER TABLE alertas_meteo_publicacion_fenomenos ADD COLUMN IF NOT EXISTS categoria2 text`
     )
     .then(() => console.log("[alertasMeteorologicasStore] Postgres listo (publicaciones normalizadas)"))
     .catch((e) => {
@@ -75,8 +76,8 @@ async function publicar(zonas, iconos, usuarioId = null) {
       }
       for (const i of iconos) {
         await client.query(
-          `INSERT INTO alertas_meteo_publicacion_fenomenos (publicacion_id, fenomeno_id, categoria) VALUES ($1,$2,$3)`,
-          [id, i.id, i.categoria]
+          `INSERT INTO alertas_meteo_publicacion_fenomenos (publicacion_id, fenomeno_id, categoria, categoria2) VALUES ($1,$2,$3,$4)`,
+          [id, i.id, i.categoria, i.categoria2 || null]
         );
       }
       await client.query("COMMIT");
@@ -109,11 +110,12 @@ async function actual() {
         [id]
       ),
       p.query(
-        `SELECT fenomeno_id AS id, categoria FROM alertas_meteo_publicacion_fenomenos WHERE publicacion_id = $1`,
+        `SELECT fenomeno_id AS id, categoria, categoria2 FROM alertas_meteo_publicacion_fenomenos WHERE publicacion_id = $1`,
         [id]
       ),
     ]);
-    return { publicadoEn: publicado_en.toISOString(), zonas, iconos };
+    // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
+    return { publicadoEn: publicado_en.toISOString(), zonas, iconos: iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)) };
   }
   if (!fs.existsSync(FILE)) return null;
   const x = JSON.parse(fs.readFileSync(FILE));

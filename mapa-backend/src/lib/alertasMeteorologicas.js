@@ -20,13 +20,18 @@ function errorDeZonas(zonas) {
 }
 const normalizarZonas = zonas => zonas.map(z => ({id:String(z.id),categoria:z.categoria}));
 // Selección global de fenómenos para la placa (no por departamento): cada
-// uno con el color (uno de los 4 niveles) que se usa para el subrayado.
+// uno con el color (uno de los 4 niveles) que se usa para el subrayado y,
+// opcionalmente, un SEGUNDO color (`categoria2`): el subrayado se parte en
+// dos mitades, por ejemplo mitad amarillo y mitad naranja.
 function errorDeIconos(iconos_) {
   if (!Array.isArray(iconos_) || iconos_.length > iconos.length || new Set(iconos_.map(i => i?.id)).size !== iconos_.length) return 'Los iconos seleccionados no son válidos.';
+  const valida = nombre => categorias.some(c => c.nombre === nombre);
   for (const i of iconos_) {
-    if (!i || !iconos.some(c => c.id === i.id) || !categorias.some(c => c.nombre === i.categoria)) return 'Icono o color inválido.';
+    if (!i || !iconos.some(c => c.id === i.id) || !valida(i.categoria)) return 'Icono o color inválido.';
+    if (i.categoria2 != null && i.categoria2 !== '' && !valida(i.categoria2)) return 'El segundo color del icono es inválido.';
   }
   return null;
 }
-const normalizarIconos = iconos_ => iconos_.map(i => ({id:i.id,categoria:i.categoria}));
+// El segundo color sólo se conserva si existe y es distinto del primero (si no, sería el mismo subrayado).
+const normalizarIconos = iconos_ => iconos_.map(i => ({ id: i.id, categoria: i.categoria, ...(i.categoria2 && i.categoria2 !== i.categoria ? { categoria2: i.categoria2 } : {}) }));
 module.exports = { categorias, iconos, errorDeZonas, normalizarZonas, errorDeIconos, normalizarIconos };

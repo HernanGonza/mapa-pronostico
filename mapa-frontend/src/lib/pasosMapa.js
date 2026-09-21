@@ -27,16 +27,35 @@ export function pasoNiveles({ catalogo, pregunta = "Nivel de cada departamento",
   };
 }
 
-/** Fenómenos de la placa de alertas: cada uno con su color (categoría). */
+/**
+ * Fenómenos de la placa de alertas: cada uno con su color de subrayado y, opcionalmente, un SEGUNDO color
+ * (el subrayado se parte en dos mitades, p. ej. mitad amarillo y mitad naranja). Muestra el resultado en vivo.
+ */
 export function pasoFenomenos({ catalogo }) {
+  const color = (nombre) => catalogo.categorias.find((c) => c.nombre === nombre)?.color || "#888";
+  const opcionesColor = (sel, vacio) => `${vacio ? `<option value="">${vacio}</option>` : ""}${catalogo.categorias.map((c) => `<option value="${esc(c.nombre)}" ${c.nombre === sel ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}`;
+  const subrayado = (c1, c2) => (c2 && c2 !== c1 ? `linear-gradient(90deg, ${color(c1)} 50%, ${color(c2)} 50%)` : color(c1));
   return {
-    pregunta: "¿Qué fenómenos se esperan?", ayuda: "Marcá los que apliquen y elegí el color de cada uno. Podés no elegir ninguno.",
-    html: (s) => `<div class="paso-fenomenos">${catalogo.iconos.map((ic, i) => {
-      const elegido = s.iconos.find((x) => x.id === ic.id);
-      return `<div class="paso-fenomeno"><label><input type="checkbox" data-fen="${i}" ${elegido ? "checked" : ""}> <span>${esc(ic.nombre)}</span></label>
-        <select class="paso-select" data-color="${i}" aria-label="Color de ${esc(ic.nombre)}">${catalogo.categorias.map((c) => `<option value="${esc(c.nombre)}" ${c.nombre === (elegido?.categoria || "Rojo") ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></div>`;
+    pregunta: "¿Qué fenómenos se esperan?", ayuda: "Marcá los que apliquen. Cada uno se subraya con un color; si querés, sumá un segundo color y el subrayado se parte en dos mitades.",
+    html: (s) => `<div class="paso-fenomenos"><div class="paso-fenomeno paso-fenomeno--cabecera" aria-hidden="true"><span>Fenómeno</span><span>Color</span><span>Segundo color</span></div>${catalogo.iconos.map((ic, i) => {
+      const el = s.iconos.find((x) => x.id === ic.id);
+      return `<div class="paso-fenomeno"><div class="paso-fenomeno__nombre"><label><input type="checkbox" data-fen="${i}" ${el ? "checked" : ""}> <span>${esc(ic.nombre)}</span></label><i class="paso-subrayado" data-sub="${i}" style="background:${subrayado(el?.categoria || "Rojo", el?.categoria2)}"></i></div>
+        <select class="paso-select" data-color="${i}" aria-label="Color de ${esc(ic.nombre)}">${opcionesColor(el?.categoria || "Rojo")}</select>
+        <select class="paso-select" data-color2="${i}" aria-label="Segundo color de ${esc(ic.nombre)} (opcional)">${opcionesColor(el?.categoria2 || "", "Ninguno")}</select></div>`;
     }).join("")}</div>`,
-    leer: (popup) => ({ iconos: catalogo.iconos.map((ic, i) => popup.querySelector(`input[data-fen="${i}"]`).checked ? { id: ic.id, categoria: popup.querySelector(`select[data-color="${i}"]`).value } : null).filter(Boolean) }),
+    alMostrar: (popup) => {
+      catalogo.iconos.forEach((_, i) => {
+        const c1 = popup.querySelector(`[data-color="${i}"]`), c2 = popup.querySelector(`[data-color2="${i}"]`), marca = popup.querySelector(`[data-sub="${i}"]`), fila = popup.querySelector(`[data-fen="${i}"]`);
+        const pintar = () => { marca.style.background = subrayado(c1.value, c2.value); };
+        // Tocar un color marca el fenómeno como elegido: es lo que la persona quiere.
+        [c1, c2].forEach((sel) => sel.addEventListener("change", () => { pintar(); if (sel.value) fila.checked = true; }));
+      });
+    },
+    leer: (popup) => ({ iconos: catalogo.iconos.map((ic, i) => {
+      if (!popup.querySelector(`input[data-fen="${i}"]`).checked) return null;
+      const categoria = popup.querySelector(`select[data-color="${i}"]`).value, categoria2 = popup.querySelector(`select[data-color2="${i}"]`).value;
+      return { id: ic.id, categoria, ...(categoria2 && categoria2 !== categoria ? { categoria2 } : {}) };
+    }).filter(Boolean) }),
   };
 }
 
