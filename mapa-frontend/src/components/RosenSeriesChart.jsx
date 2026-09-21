@@ -18,7 +18,11 @@ function useAncho(ref) {
 const numero = value => Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 });
 const fechaCorta = date => new Intl.DateTimeFormat('es-AR', { year: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
 
-export default function RosenSeriesChart({ datos, series, vista = 'linea', unidad = '', height = 230 }) {
+// Ciclo anual (12 meses promedio, sin año real): el eje y el detalle muestran sólo el mes.
+const soloMes = date => new Intl.DateTimeFormat('es-AR', { month: 'short', timeZone: 'UTC' }).format(date).replace('.', '');
+const mesLargo = fecha => new Intl.DateTimeFormat('es-AR', { month: 'long', timeZone: 'UTC' }).format(new Date(`${fecha}T00:00:00Z`));
+
+export default function RosenSeriesChart({ datos, series, vista = 'linea', unidad = '', height = 230, ciclo = false }) {
   const ref = useRef(null);
   const ancho = useAncho(ref);
   const [indiceActivo, setIndiceActivo] = useState(null);
@@ -35,7 +39,7 @@ export default function RosenSeriesChart({ datos, series, vista = 'linea', unida
   const minimo = Math.min(0, ...valores);
   const maximo = Math.max(0, ...valores);
   const y = scaleLinear().domain(minimo === maximo ? [minimo - 1, maximo + 1] : [minimo, maximo]).nice(4).range([h, 0]);
-  const ticksX = x.ticks(Math.min(6, Math.max(2, Math.floor(w / 95))));
+  const ticksX = ciclo ? filas.map(d => new Date(d.instante)).filter((_, i) => w >= 480 || i % 2 === 0) : x.ticks(Math.min(6, Math.max(2, Math.floor(w / 95))));
   const ticksY = y.ticks(4);
   const barra = Math.max(1, Math.min(36, w / Math.max(filas.length, 1) * 0.74));
   const activo = indiceActivo == null ? null : filas[indiceActivo];
@@ -49,7 +53,7 @@ export default function RosenSeriesChart({ datos, series, vista = 'linea', unida
           <line x2={w} className="rosen-chart__grid" />
           <text x={-8} dy="0.35em" textAnchor="end" className="rosen-chart__axis">{numero(t)}</text>
         </g>)}
-        {ticksX.map(t => <text key={+t} x={x(t)} y={h + 21} textAnchor="middle" className="rosen-chart__axis">{fechaCorta(t)}</text>)}
+        {ticksX.map(t => <text key={+t} x={x(t)} y={h + 21} textAnchor="middle" className="rosen-chart__axis">{ciclo ? soloMes(t) : fechaCorta(t)}</text>)}
         {series.map(s => {
           const definida = d => Number.isFinite(d[s.campo]);
           const trayectoria = line().defined(definida).x(d => x(new Date(d.instante))).y(d => y(d[s.campo]))(filas);
@@ -71,6 +75,6 @@ export default function RosenSeriesChart({ datos, series, vista = 'linea', unida
         }} />
       </g>
     </svg>
-    <p className="historico-metrica__detalle">{activo ? `${activo.fecha} · ${series.filter(s => Number.isFinite(activo[s.campo])).map(s => `${s.nombre}: ${numero(activo[s.campo])} ${unidad}`).join(' · ')}` : 'Pasá el cursor sobre el gráfico para ver valores.'}</p>
+    <p className="historico-metrica__detalle">{activo ? `${ciclo ? mesLargo(activo.fecha) : activo.fecha} · ${series.filter(s => Number.isFinite(activo[s.campo])).map(s => `${s.nombre}: ${numero(activo[s.campo])} ${unidad}`).join(' · ')}` : 'Pasá el cursor sobre el gráfico para ver valores.'}</p>
   </div>;
 }

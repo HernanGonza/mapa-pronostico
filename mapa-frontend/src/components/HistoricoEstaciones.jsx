@@ -295,8 +295,8 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
         <h3>Ciclo anual medio del período elegido</h3>
         <p className="historico-observatorio__nota">Promedio por mes calendario calculado con los meses que alcanzan 90% de cobertura. Es descriptivo del rango seleccionado.</p>
         <div className="historico-observatorio__graficos">
-          <HistoricoMetricChart titulo="Temperatura media por mes" subtitulo="Promedio del rango" datos={analisis.ciclo.filter(m => m.mesesTemp >= 10)} series={[{ campo: 'tmedia', nombre: 'Media', color: ROJO }]} unidad="°C" />
-          <HistoricoMetricChart titulo="Lluvia media por mes" subtitulo="Promedio del rango" datos={analisis.ciclo.filter(m => m.mesesLluvia >= 10)} series={[{ campo: 'lluvia', nombre: 'Acumulado medio', color: LLUVIA }]} unidad="mm" tipo="barra" />
+          <HistoricoMetricChart titulo="Temperatura media por mes" subtitulo="Promedio del rango" datos={analisis.ciclo.filter(m => m.mesesTemp >= 10)} series={[{ campo: 'tmedia', nombre: 'Media', color: ROJO }]} unidad="°C" ciclo />
+          <HistoricoMetricChart titulo="Lluvia media por mes" subtitulo="Promedio del rango" datos={analisis.ciclo.filter(m => m.mesesLluvia >= 10)} series={[{ campo: 'lluvia', nombre: 'Acumulado medio', color: LLUVIA }]} unidad="mm" tipo="barra" ciclo />
         </div>
       </section>}
       {!publico && <ComparacionZonas desde={desde} hasta={hasta} />}

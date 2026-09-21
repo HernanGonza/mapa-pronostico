@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import RosenSeriesChart from './RosenSeriesChart';
 import BotonPdf from './BotonPdf';
 
-export default function HistoricoMetricChart({ titulo, subtitulo, datos, series, unidad = '', tipo = 'linea' }) {
+export default function HistoricoMetricChart({ titulo, subtitulo, datos, series, unidad = '', tipo = 'linea', ciclo = false }) {
   const exportRef = useRef(null);
   const clave = `historico-grafico:${titulo}:${subtitulo}:${series.map(s => s.campo).join(',')}`;
   const opciones = series.length === 1 ? ['linea', 'barra', 'area', 'puntos'] : ['linea', 'area', 'puntos'];
@@ -20,6 +20,6 @@ export default function HistoricoMetricChart({ titulo, subtitulo, datos, series,
       </select>
     </label><BotonPdf elementoRef={exportRef} titulo={`${titulo} · ${subtitulo}`} /></div></div>
     <div className="historico-metrica__leyenda">{series.map(s => <span key={s.campo}><i style={{ background: s.color }} />{s.nombre}</span>)}</div>
-    <RosenSeriesChart datos={datos} series={series} vista={vista} unidad={unidad} />
+    <RosenSeriesChart datos={datos} series={series} vista={vista} unidad={unidad} ciclo={ciclo} />
   </section>;
 }
