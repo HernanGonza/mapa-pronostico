@@ -203,13 +203,13 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
   const filas = useMemo(() => serie.slice().reverse().slice(pagina * 50, (pagina + 1) * 50), [serie, pagina]);
   const columnasBase = publico ? CAMPOS_DIARIOS.filter(([campo]) => ['fecha', 'temperatura_maxima', 'temperatura_minima', 'precipitacion'].includes(campo)) : CAMPOS_DIARIOS;
   const columnas = provincia ? CAMPOS_DIARIOS.filter(([campo]) => ['fecha', 'temperatura_maxima', 'temperatura_minima', 'temperatura_media', 'precipitacion'].includes(campo)).map(([campo, nombre]) => [campo,
-    campo === 'precipitacion' ? 'Lluvia suma 3 zonas (mm)' : campo === 'fecha' ? nombre : `${nombre} (media de 3)`]) : columnasBase;
+    campo === 'precipitacion' ? 'Lluvia suma de las zonas (mm)' : campo === 'fecha' ? nombre : `${nombre} (media de las zonas)`]) : columnasBase;
   const gruposGraficos = publico ? [['', provincia ? GRAFICOS_PUBLICOS.slice(0, 2) : GRAFICOS_PUBLICOS]] : [
     ['Temperatura', provincia ? [GRAFICOS_TECNICOS[0], GRAFICOS_TECNICOS[7]] : [GRAFICOS_TECNICOS[0], GRAFICOS_TECNICOS[3], GRAFICOS_TECNICOS[7]]],
     ['Precipitación', provincia ? [GRAFICOS_TECNICOS[1]] : GRAFICOS_TECNICOS.slice(1, 3).concat(GRAFICOS_TECNICOS.slice(4, 7))],
     ...(!provincia ? [['Otras variables atmosféricas', GRAFICOS_TECNICOS.slice(8)]] : []),
   ];
-  const columnasPeriodos = ['Período', 'Cob. temp.', 'Cob. lluvia', 'Máx. media °C', 'Mín. media °C', provincia ? 'Suma 3 zonas (mm)' : 'Lluvia mm',
+  const columnasPeriodos = ['Período', 'Cob. temp.', 'Cob. lluvia', 'Máx. media °C', 'Mín. media °C', provincia ? 'Suma de las zonas (mm)' : 'Lluvia mm',
     ...(!provincia ? ['Días ≥ 1 mm', 'R10', 'R20', 'Rx1 mm', 'CDD', 'CWD'] : [])];
   const filasPeriodos = periodos.map(p => [p.clave, `${formatoNumero(p.coberturaTemp)}%`, `${formatoNumero(p.coberturaLluvia)}%`,
     p.tmax, p.tmin, p.lluvia, ...(!provincia ? [p.diasLluvia, p.r10, p.r20, p.rx1, p.cdd, p.cwd] : [])].map((v, i) => i < 3 ? v : formatoNumero(v)));
@@ -260,16 +260,16 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     {rangoCargado && <>
       <div className="historico-observatorio__resumen">
         <div><strong>{serie.length.toLocaleString('es-AR')}</strong><span>días con registro</span></div>
-        <div><strong>{formatoNumero(lluviaObservada)} mm</strong><span>{provincia ? 'suma de lluvia de 3 zonas' : 'lluvia observada'}</span></div>
+        <div><strong>{formatoNumero(lluviaObservada)} mm</strong><span>{provincia ? 'suma de lluvia de las zonas' : 'lluvia observada'}</span></div>
         <div><strong>{diasLluvia.toLocaleString('es-AR')}</strong><span>{provincia ? 'días con lluvia en alguna zona' : 'días con ≥ 1 mm'}</span></div>
         <div><strong>{nombreEscala}</strong><span>escala de los gráficos</span></div>
       </div>
       <p className="historico-observatorio__nota">Los gráficos cambian automáticamente entre días, meses y años según el rango. Los acumulados y promedios de un período solo se trazan con al menos {coberturaMinima * 100}% de días válidos para esa variable; la tabla conserva cada observación disponible.</p>
-      {provincia && <p className="historico-observatorio__aviso">“Toda la provincia” suma la precipitación de Iguazú, Bernardo de Irigoyen y Posadas cuando las tres informaron ese día. Las temperaturas son el promedio simple de las tres estaciones. La suma en mm compara estos tres puntos de observación; no representa la lluvia areal ni el volumen de agua caído sobre toda Misiones. La serie conjunta comienza en 1984.</p>}
+      {provincia && <p className="historico-observatorio__aviso">“Toda la provincia” suma la precipitación y promedia las temperaturas de las estaciones que existían en cada fecha, siempre que todas hayan informado ese día: Iguazú y Posadas desde 1961, y Bernardo de Irigoyen desde 1984. Antes de 1984 la serie combina solo esas dos estaciones, así que los totales de lluvia de antes y después de 1984 no son directamente comparables. La suma en mm compara puntos de observación; no representa la lluvia areal ni el volumen de agua caído sobre toda Misiones.</p>}
       {gruposGraficos.map(([grupo, graficos]) => <section className="historico-observatorio__grupo" key={grupo || 'publico'}>
         {grupo && <h3>{grupo}</h3>}
         <div className="historico-observatorio__graficos">
-          {graficos.map(g => <HistoricoMetricChart key={g.titulo} titulo={provincia && g.series[0]?.campo === 'lluvia' ? 'Suma de lluvia de las 3 zonas' : g.titulo} subtitulo={`Por ${nombreEscala}`} datos={periodos} ventana={ventana}
+          {graficos.map(g => <HistoricoMetricChart key={g.titulo} titulo={provincia && g.series[0]?.campo === 'lluvia' ? 'Suma de lluvia de las zonas' : g.titulo} subtitulo={`Por ${nombreEscala}`} datos={periodos} ventana={ventana}
             series={g.series} unidad={g.unidad} tipo={g.tipo} />)}
         </div>
       </section>)}
@@ -294,7 +294,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
       {!publico && <section className="historico-observatorio__periodos">
         <div className="historico-observatorio__tabla-header"><h3>Resumen por {nombreEscala}</h3><BotonTablaPdf titulo={`Resumen por ${nombreEscala} · ${estacion?.zona} · ${desde} a ${hasta}`} columnas={columnasPeriodos} filas={filasPeriodos} disabled={!filasPeriodos.length} /></div>
         <div className="historico-tabla-scroll"><table className="historico-tabla">
-          <thead><tr><th>Período</th><th>Cob. temp.</th><th>Cob. lluvia</th><th>Máx. media °C</th><th>Mín. media °C</th><th>{provincia ? 'Suma 3 zonas (mm)' : 'Lluvia mm'}</th>
+          <thead><tr><th>Período</th><th>Cob. temp.</th><th>Cob. lluvia</th><th>Máx. media °C</th><th>Mín. media °C</th><th>{provincia ? 'Suma de las zonas (mm)' : 'Lluvia mm'}</th>
             {!provincia && <><th>Días ≥ 1 mm</th><th>R10</th><th>R20</th><th>Rx1 mm</th><th>CDD</th><th>CWD</th></>}</tr></thead>
           <tbody>{periodos.map(p => <tr key={p.clave}>{[
             p.clave, `${formatoNumero(p.coberturaTemp)}%`, `${formatoNumero(p.coberturaLluvia)}%`,
