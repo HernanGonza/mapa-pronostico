@@ -135,6 +135,9 @@ function AnomaliasHistoricas({ estacionId, anuales }) {
   </section>;
 }
 
+// Cuántos períodos entran por "página" de los gráficos (después se pagina con flechas).
+const VENTANA_GRAFICOS = { dia: 90, mes: 36, anio: 20 };
+
 export default function HistoricoEstaciones({ publico = false, onError = sinError }) {
   const [estaciones, setEstaciones] = useState([]);
   const [id, setId] = useState('');
@@ -145,6 +148,9 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
   const [rangoCargado, setRangoCargado] = useState(null);
   const [error, setError] = useState('');
   const [pagina, setPagina] = useState(0);
+  // Paginación de los gráficos de series: Infinity = "la última" (la más reciente); se acota al usar.
+  const [paginaGraficos, setPaginaGraficos] = useState(Infinity);
+  const [todoJunto, setTodoJunto] = useState(false);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -176,7 +182,7 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
     setDesde(publico ? restarAnios(estacion.hasta, 10) : estacion.desde);
   }, [estacion?.id, publico]);
 
-  useEffect(() => setPagina(0), [id, desde, hasta]);
+  useEffect(() => { setPagina(0); setPaginaGraficos(Infinity); }, [id, desde, hasta]);
   useEffect(() => {
     if (!id || !desde || !hasta || desde > hasta) return;
     let activo = true;
@@ -193,6 +199,14 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
   const provincia = (rangoCargado?.id || id) === 'toda_provincia';
   const periodos = analisis.periodos;
   const nombreEscala = { dia: 'día', mes: 'mes', anio: 'año' }[analisis.escala];
+  const ventana = VENTANA_GRAFICOS[analisis.escala];
+  const totalPaginasGraficos = Math.max(1, Math.ceil(periodos.length / ventana));
+  const hayPaginacion = totalPaginasGraficos > 1 && !todoJunto;
+  const paginaG = Math.min(paginaGraficos, totalPaginasGraficos - 1);
+  // Las páginas se cuentan desde lo más antiguo pero se alinean al final: la última siempre está completa.
+  const finVentana = periodos.length - (totalPaginasGraficos - 1 - paginaG) * ventana;
+  const periodosGraficos = hayPaginacion ? periodos.slice(Math.max(0, finVentana - ventana), finVentana) : periodos;
+  const tramoGraficos = `${periodosGraficos[0]?.clave} – ${periodosGraficos.at(-1)?.clave}`;
   const lluviaObservada = useMemo(() => serie.reduce((s, f) => s + (f.precipitacion ?? 0), 0), [serie]);
   const diasLluvia = useMemo(() => serie.filter(f => f.precipitacion >= 1).length, [serie]);
   const paginas = Math.max(1, Math.ceil(serie.length / 50));
@@ -262,10 +276,16 @@ export default function HistoricoEstaciones({ publico = false, onError = sinErro
       </div>
       <p className="historico-observatorio__nota">Los gráficos cambian automáticamente entre días, meses y años según el rango. Los acumulados y promedios de un período solo se trazan con al menos {coberturaMinima * 100}% de días válidos para esa variable; la tabla conserva cada observación disponible.</p>
       {provincia && <p className="historico-observatorio__aviso">“Toda la provincia” suma la precipitación de Iguazú, Bernardo de Irigoyen y Posadas cuando las tres informaron ese día. Las temperaturas son el promedio simple de las tres estaciones. La suma en mm compara estos tres puntos de observación; no representa la lluvia areal ni el volumen de agua caído sobre toda Misiones. La serie conjunta comienza en 1984.</p>}
+      {totalPaginasGraficos > 1 && <nav className="historico-paginador" aria-label="Navegar los gráficos por períodos">
+        <button type="button" className="btn" disabled={!hayPaginacion || paginaG === 0} onClick={() => setPaginaGraficos(paginaG - 1)} aria-label="Ver el tramo anterior (más antiguo)">← Anterior</button>
+        <span aria-live="polite">{todoJunto ? `Todo el período (${periodos[0]?.clave} – ${periodos.at(-1)?.clave})` : <>{tramoGraficos} · tramo {paginaG + 1} de {totalPaginasGraficos}</>}</span>
+        <button type="button" className="btn" disabled={!hayPaginacion || paginaG >= totalPaginasGraficos - 1} onClick={() => setPaginaGraficos(paginaG + 1)} aria-label="Ver el tramo siguiente (más reciente)">Siguiente →</button>
+        <button type="button" className="btn btn--ghost" aria-pressed={todoJunto} onClick={() => setTodoJunto(!todoJunto)}>{todoJunto ? `Paginar de a ${ventana}` : 'Ver todo junto'}</button>
+      </nav>}
       {gruposGraficos.map(([grupo, graficos]) => <section className="historico-observatorio__grupo" key={grupo || 'publico'}>
         {grupo && <h3>{grupo}</h3>}
         <div className="historico-observatorio__graficos">
-          {graficos.map(g => <HistoricoMetricChart key={g.titulo} titulo={provincia && g.series[0]?.campo === 'lluvia' ? 'Suma de lluvia de las 3 zonas' : g.titulo} subtitulo={`Por ${nombreEscala}`} datos={periodos}
+          {graficos.map(g => <HistoricoMetricChart key={g.titulo} titulo={provincia && g.series[0]?.campo === 'lluvia' ? 'Suma de lluvia de las 3 zonas' : g.titulo} subtitulo={`Por ${nombreEscala}${hayPaginacion ? ` · ${tramoGraficos}` : ''}`} datos={periodosGraficos}
             series={g.series} unidad={g.unidad} tipo={g.tipo} />)}
         </div>
       </section>)}
