@@ -3,32 +3,34 @@ const requireAuth = require("../middleware/requireAuth");
 const { errorDePoligono, normalizarPoligono } = require("../lib/avisosCortoPlazo");
 const avisos = require("../lib/avisosCortoPlazoStore");
 const pendientes = require("../lib/placasPendientes");
+const { generateAvisoCortoPlazoMap, errorDeAvisoCortoPlazoMap, TITULO } = require("../lib/generateAvisoCortoPlazoMap");
 
 const router = express.Router();
-const TITULO_PREDETERMINADO = "Aviso a muy corto plazo";
 
-// Genera feed + historias con el mismo motor de texto libre que
-// "Recomendaciones" (generateAlertaMap.generateRecomendaciones) — el mapa
-// dibujado (municipios + polígono) viaja como captura PNG (`imagen`) y
-// queda arriba del texto en la placa, igual que la imagen opcional de
-// recomendaciones. También se persiste todo en la base (polígono incluido).
+// Genera feed + historias con el polígono real del CAP del SMN (o dibujado
+// a mano si el SMN no trajo polígono), ya sobre el mapa con la capa de
+// municipios — la captura viaja como PNG (`imagen`) y se dibuja en un
+// recuadro fijo de la placa (ver generateAvisoCortoPlazoMap). El título es
+// siempre el mismo (ya viene impreso en los fondos), no es editable. Se
+// persiste todo en la base (polígono incluido).
 router.post("/avisos-corto-plazo/generar", requireAuth, express.json({ limit: "8mb" }), async (req, res) => {
-  const { poligono, titulo, texto, fondo, imagen } = req.body || {};
-  const { generateRecomendaciones, errorDeRecomendaciones } = require("../lib/generateAlertaMap");
-  const tituloFinal = !titulo ? TITULO_PREDETERMINADO : titulo;
-  const error = errorDePoligono(poligono) || errorDeRecomendaciones(texto, fondo, imagen || null, tituloFinal);
+  const { poligono, texto, fondo, imagen, confirmarToken } = req.body || {};
+  // Al confirmar (confirmarToken) no se vuelve a generar ni se manda `imagen`
+  // de nuevo (placasPendientes.resolver persiste la vista previa ya hecha) —
+  // sólo hace falta validar el polígono, que se guarda siempre en la base.
+  const error = errorDePoligono(poligono) || (confirmarToken ? null : errorDeAvisoCortoPlazoMap(texto, fondo, imagen));
   if (error) return res.status(400).json({ error });
   try {
     const poligonoNorm = normalizarPoligono(poligono);
     await pendientes.resolver(req, res, {
       generar: async () => {
         const [feedPng, historiasPng] = await Promise.all([
-          generateRecomendaciones({ texto, fondo, titulo: tituloFinal, imagen: imagen || null, tamano: "feed" }),
-          generateRecomendaciones({ texto, fondo, titulo: tituloFinal, imagen: imagen || null, tamano: "historias" }),
+          generateAvisoCortoPlazoMap({ texto, fondo, imagen, tamano: "feed" }),
+          generateAvisoCortoPlazoMap({ texto, fondo, imagen, tamano: "historias" }),
         ]);
         return { feedPng, historiasPng };
       },
-      guardar: (pngs) => avisos.crear({ poligono: poligonoNorm, titulo: tituloFinal, texto, fondo, usuarioId: req.usuario.usuarioId, ...pngs }),
+      guardar: (pngs) => avisos.crear({ poligono: poligonoNorm, titulo: TITULO, texto, fondo, usuarioId: req.usuario.usuarioId, ...pngs }),
     });
   } catch (e) {
     console.error(e);

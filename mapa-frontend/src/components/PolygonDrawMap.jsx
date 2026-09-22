@@ -21,13 +21,16 @@ function geojsonDePuntos(puntos) {
 
 /**
  * Mapa para dibujar a mano el polígono de referencia de un aviso a muy
- * corto plazo: click agrega un vértice, arrastrar un vértice existente lo
- * mueve. Sobre los límites municipales (`municipios`, GeoJSON) para que el
- * polígono tenga referencia geográfica real. El polígono viaja al backend
- * para guardarse y, vía `capturePng`, también se usa como imagen de fondo
- * de la placa generada (ver AvisosCortoPlazoPage).
+ * corto plazo (o mostrar el que ya vino del CAP del SMN): click agrega un
+ * vértice, arrastrar un vértice existente lo mueve. Sobre los límites
+ * municipales (`municipios`, GeoJSON) para que el polígono tenga
+ * referencia geográfica real. El polígono viaja al backend para guardarse
+ * y, vía `capturePng`, también se usa como imagen de fondo de la placa
+ * generada (ver AvisosCortoPlazoPage). `colorPoligono` es el violeta propio
+ * del SMN/ACP (#8b3fc4, ver alertas automáticas) en avisos a muy corto
+ * plazo; en otros usos (HistoricoPage) queda el rosa/magenta de siempre.
  */
-const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, municipios, readOnly = false }, ref) {
+const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, municipios, readOnly = false, colorPoligono = "#c9346c" }, ref) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
@@ -38,6 +41,8 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
   onChangeRef.current = onChange;
   const municipiosRef = useRef(municipios);
   municipiosRef.current = municipios;
+  const colorPoligonoRef = useRef(colorPoligono);
+  colorPoligonoRef.current = colorPoligono;
   const arrastrandoRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
@@ -85,10 +90,11 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
           layout: { "text-field": ["get", "nombre"], "text-font": ["Noto Sans Regular"], "text-size": 10.5, "text-max-width": 8 },
           paint: { "text-color": "#5a6b5d", "text-halo-color": "#ffffff", "text-halo-width": 1.2 } });
       }
+      const color = colorPoligonoRef.current;
       map.addSource("poligono-dibujo", { type: "geojson", data: geojsonDePuntos(puntosRef.current) });
-      map.addLayer({ id: "poligono-relleno", type: "fill", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": "#c9346c", "fill-opacity": 0.22 } });
-      map.addLayer({ id: "poligono-linea", type: "line", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#c9346c", "line-width": 3 } });
-      map.addLayer({ id: "poligono-puntos", type: "circle", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 6, "circle-color": "#fff", "circle-stroke-color": "#c9346c", "circle-stroke-width": 2 } });
+      map.addLayer({ id: "poligono-relleno", type: "fill", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.22 } });
+      map.addLayer({ id: "poligono-linea", type: "line", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": color, "line-width": 3 } });
+      map.addLayer({ id: "poligono-puntos", type: "circle", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 6, "circle-color": "#fff", "circle-stroke-color": color, "circle-stroke-width": 2 } });
       setListo(true);
     });
 

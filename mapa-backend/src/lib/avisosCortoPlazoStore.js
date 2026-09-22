@@ -4,13 +4,12 @@ const auth = require("./auth");
 const { subirArchivo, urlPublica } = require("./storage");
 
 /**
- * Historial de "avisos a muy corto plazo": el operador dibuja un polígono
- * de referencia sobre el mapa (no se publica en ningún lado, es sólo para
- * escribir el texto con precisión) y genera una placa de texto libre con
- * el mismo motor que "Recomendaciones" de alertas meteorológicas
- * (generateAlertaMap.generateRecomendaciones). A diferencia de esa,
- * ACÁ SÍ se guarda todo en la base (polígono incluido) — a pedido:
- * "se tiene que guardar toda la info en la db".
+ * Historial de "avisos a muy corto plazo": el operador elige un aviso
+ * vigente del CAP del SMN (polígono + texto reales) o, si el SMN no trajo
+ * polígono para ese aviso, lo dibuja a mano — y genera la placa con
+ * generateAvisoCortoPlazoMap (mapa con el polígono + texto del aviso, sin
+ * caja). Todo se guarda en la base (polígono incluido) — a pedido: "se
+ * tiene que guardar toda la info en la db".
  */
 
 let initPromise;

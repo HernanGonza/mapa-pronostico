@@ -1,0 +1,142 @@
+const path = require('path');
+const { createCanvas, loadImage, registerFont } = require('canvas');
+
+/**
+ * Placa de "Aviso a muy corto plazo" (SMN, ~15 min de anticipación).
+ *
+ * Antes se usaba generateAlertaMap.generateRecomendaciones (texto libre +
+ * una captura de pantalla del mapa dibujado a mano, en un área flexible).
+ * Ahora el mapa siempre trae el polígono real del CAP del SMN (dibujado en
+ * el frontend sobre PolygonDrawMap, con la capa de municipios — ver
+ * AvisosCortoPlazoPage) y la placa toma como modelo generateAlertaMap.js,
+ * pero sin la caja "NIVEL DE ALERTA" (no hay departamentos coloreados) ni
+ * la fila de fenómenos/íconos, y sin la pill blanca del período: el texto
+ * del aviso va directo sobre el fondo, con sombra, ocupando todo ese
+ * espacio en vez de una caja.
+ *
+ * El título "AVISO A MUY CORTO PLAZO" ya viene dibujado en los 4 fondos
+ * (data/alertas/aviso-corto-plazo/*.png) — a diferencia de Alerta
+ * Meteorológica, acá no es editable, así que no hace falta redibujarlo.
+ */
+const DIR = path.join(__dirname, '../../data/alertas');
+const ASSETS_DIR = path.join(DIR, 'aviso-corto-plazo');
+// Familia propia (mismo archivo .ttf que generateAlertaMap.js, registrado
+// bajo otro nombre) para no depender de que ese módulo se haya cargado antes.
+registerFont(path.join(DIR, 'OakSans-Bold.ttf'), { family: 'AvisoCortoPlazoPlaca', weight: 'bold' });
+
+const TITULO = 'Aviso a muy corto plazo';
+const FONDOS = {
+  nubes: { feed: 'feed-nubes.png', historias: 'historias-nubes.png' },
+  tormenta: { feed: 'feed-tormenta.png', historias: 'historias-tormenta.png' },
+};
+const TAMANOS = ['feed', 'historias'];
+
+// Recuadros calibrados a ojo sobre cada fondo: debajo del título ("AVISO A
+// MUY CORTO PLAZO", ya impreso en la imagen) y arriba de "Emergencias 911…
+// / Fuente Servicio Meteorológico Nacional" (texto fijo del fondo, que va
+// SOBRE la foto, antes de la franja blanca de los 3 logos). Si se
+// reemplazan los fondos por otros con el título o ese pie en otra
+// posición, hay que volver a medir estos valores a mano.
+const LAYOUTS = {
+  feed: {
+    mapa: { x: 90, y: 190, w: 942, h: 546 },
+    texto: { x: 90, y: 768, w: 942, h: 332 },
+  },
+  historias: {
+    mapa: { x: 75, y: 210, w: 791, h: 714 },
+    texto: { x: 75, y: 964, w: 791, h: 436 },
+  },
+};
+
+let fondosPromise;
+function loadFondos() {
+  if (!fondosPromise) {
+    fondosPromise = Promise.all(
+      TAMANOS.flatMap((tamano) => Object.keys(FONDOS).map(async (fondo) => [`${fondo}:${tamano}`, await loadImage(path.join(ASSETS_DIR, FONDOS[fondo][tamano]))]))
+    ).then(Object.fromEntries);
+  }
+  return fondosPromise;
+}
+
+// Mismo criterio simple de ajuste de líneas que generateAlertaMap.js (corta
+// palabra por palabra según el ancho disponible, con `ctx.font` ya seteado).
+function ajustarLineas(ctx, texto, maxWidth) {
+  const palabras = texto.split(' '), lineas = []; let actual = '';
+  for (const palabra of palabras) {
+    const prueba = actual ? `${actual} ${palabra}` : palabra;
+    if (ctx.measureText(prueba).width > maxWidth && actual) { lineas.push(actual); actual = palabra; }
+    else actual = prueba;
+  }
+  if (actual) lineas.push(actual);
+  return lineas;
+}
+
+/** Dibuja `imagen` (captura del mapa, cualquier proporción) centrada dentro
+ * de `recuadro` sin deformarla — mismo criterio que dibujarMapaEnRecuadro
+ * (misionesVectorMap.js), pero para una imagen cualquiera en vez del SVG
+ * fijo de departamentos. */
+function dibujarImagenEnRecuadro(ctx, imagen, recuadro) {
+  const aspect = imagen.width / imagen.height;
+  let w = recuadro.w, h = Math.round(w / aspect);
+  if (h > recuadro.h) { h = recuadro.h; w = Math.round(h * aspect); }
+  const x = recuadro.x + (recuadro.w - w) / 2, y = recuadro.y + (recuadro.h - h) / 2;
+  ctx.drawImage(imagen, x, y, w, h);
+}
+
+const MAX_TEXTO = 2400;
+const MAX_IMAGEN_BYTES = 5 * 1024 * 1024;
+function errorDeAvisoCortoPlazoMap(texto, fondo, imagen) {
+  if (
+    typeof imagen !== 'string' ||
+    imagen.length > Math.ceil(MAX_IMAGEN_BYTES / 3) * 4 + 40 ||
+    !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(imagen) ||
+    Buffer.byteLength(imagen.slice(imagen.indexOf(',') + 1), 'base64') > MAX_IMAGEN_BYTES
+  ) return 'Falta el mapa con el polígono (o la imagen no es válida): elegí un aviso o dibujá el área y probá de nuevo.';
+  if (typeof texto !== 'string' || !texto.trim() || texto.length > MAX_TEXTO) return `Escribí el aviso (hasta ${MAX_TEXTO} caracteres).`;
+  if (!Object.hasOwn(FONDOS, fondo)) return 'Elegí un fondo válido.';
+  return null;
+}
+
+// Letra grande por defecto (como el período de Alerta Meteorológica) que se
+// va achicando sola hasta que el texto completo entra en la caja.
+const FUENTE_TEXTO_MAX = { feed: 56, historias: 64 };
+const FUENTE_TEXTO_MIN = 26;
+
+async function generateAvisoCortoPlazoMap({ texto, fondo = 'tormenta', tamano = 'feed', imagen }) {
+  const error = errorDeAvisoCortoPlazoMap(texto, fondo, imagen);
+  if (error || !TAMANOS.includes(tamano)) throw Object.assign(new Error(error || 'Tamaño inválido.'), { status: 400 });
+  const [fondos, mapaImg] = await Promise.all([
+    loadFondos(),
+    loadImage(Buffer.from(imagen.slice(imagen.indexOf(',') + 1), 'base64')),
+  ]);
+  const fondoImg = fondos[`${fondo}:${tamano}`];
+  const canvas = createCanvas(fondoImg.width, fondoImg.height), ctx = canvas.getContext('2d');
+  ctx.drawImage(fondoImg, 0, 0);
+
+  const layout = LAYOUTS[tamano];
+  dibujarImagenEnRecuadro(ctx, mapaImg, layout.mapa);
+
+  // Texto del aviso: sin caja, directo sobre la foto (sombra para que se
+  // lea igual sobre cielo claro u oscuro), centrado en el recuadro que
+  // antes ocupaba la pill blanca del período.
+  const t = layout.texto;
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const parrafos = texto.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+  let tamanoFuente = FUENTE_TEXTO_MAX[tamano], lineas, lineH;
+  for (;;) {
+    ctx.font = `bold ${tamanoFuente}px AvisoCortoPlazoPlaca`;
+    lineas = parrafos.flatMap((p) => ajustarLineas(ctx, p, t.w));
+    lineH = tamanoFuente * 1.35;
+    if (lineas.length * lineH <= t.h || tamanoFuente <= FUENTE_TEXTO_MIN) break;
+    tamanoFuente -= 2;
+  }
+  const cx = t.x + t.w / 2, cy = t.y + t.h / 2, offset = ((lineas.length - 1) * lineH) / 2;
+  lineas.forEach((linea, i) => ctx.fillText(linea, cx, cy - offset + i * lineH, t.w));
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+  return canvas.toBuffer('image/png');
+}
+
+module.exports = { generateAvisoCortoPlazoMap, errorDeAvisoCortoPlazoMap, TITULO, MAX_TEXTO, TAMANOS };

@@ -40,7 +40,7 @@ export default function EmbedAvisosCortoPlazoPage() {
     <div className="aviso-embed">
       {error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra el último aviso recibido.</div>}
       <div className="aviso-embed__mapa">
-        <PolygonDrawMap puntos={actual.poligono} onChange={() => {}} municipios={municipios} readOnly />
+        <PolygonDrawMap puntos={actual.poligono} onChange={() => {}} municipios={municipios} readOnly colorPoligono="#8b3fc4" />
       </div>
       <div className="aviso-embed__info">
         <h2>{actual.titulo}</h2>
