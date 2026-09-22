@@ -69,6 +69,7 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
       pitchWithRotate: false,
       touchPitch: false,
       attributionControl: false,
+      cooperativeGestures: readOnly,
       canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     map.touchZoomRotate?.disableRotation();

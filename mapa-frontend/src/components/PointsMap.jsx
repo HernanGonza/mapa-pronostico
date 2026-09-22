@@ -40,7 +40,7 @@ const ETIQUETAS = {
  * arriesga esa ruta sin necesidad.
  */
 const PointsMap = forwardRef(function PointsMap(
-  { puntos, titulo, enableCapture = false },
+  { puntos, titulo, enableCapture = false, embed = false },
   ref
 ) {
   const mapContainerRef = useRef(null);
@@ -111,6 +111,7 @@ const PointsMap = forwardRef(function PointsMap(
       pitchWithRotate: false,
       touchPitch: false,
       attributionControl: false,
+      cooperativeGestures: embed,
       canvasContextAttributes: { preserveDrawingBuffer: enableCapture },
     });
     map.touchZoomRotate?.disableRotation();
@@ -183,6 +184,10 @@ const PointsMap = forwardRef(function PointsMap(
     map.on('mouseenter', 'focos-punto', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'focos-punto', () => { map.getCanvas().style.cursor = ''; });
     map.on('click', 'focos-punto', e => setActivo(e.features?.[0]?.properties || null));
+    if (embed) {
+      map.on('mouseleave', 'focos-punto', () => setActivo(null));
+      map.on('mouseleave', () => setActivo(null));
+    }
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(mapContainerRef.current);
     // Los listeners ya están instalados cuando empieza la carga del estilo.

@@ -61,7 +61,7 @@ export default function EmbedPage() {
   }
 
   return (
-    <BaseMap
+    <BaseMap embed
       poligonos={municipiosGeojson}
       datos={municipios}
       colorDe={colorPronostico}

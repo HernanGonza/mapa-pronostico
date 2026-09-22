@@ -59,7 +59,7 @@ export default function PronosticoExtendidoView({ extendido, publicadoEn }) {
           <div className="extendido__zonas">
             {dias[abierto].zonas.map((z) => (
               <div className="extendido__zona" key={z.zona}>
-                <WeatherIcon condicion={z.condicion} size={48} />
+                <span className="extendido__icono"><WeatherIcon condicion={z.condicion} size={64} /></span>
                 <strong>{z.zona}</strong>
                 <span className="extendido__temp">
                   <b>{z.tmax}°</b> / {z.tmin}°
@@ -69,7 +69,10 @@ export default function PronosticoExtendidoView({ extendido, publicadoEn }) {
             ))}
           </div>
           {dias[abierto].informe && (
-            <p className="extendido__informe">{dias[abierto].informe}</p>
+            <section className="extendido__informe" aria-label="Panorama del día">
+              <h3>Panorama del día</h3>
+              {dias[abierto].informe.trim().split(/\n\s*\n/).filter(Boolean).map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
+            </section>
           )}
         </div>
       )}

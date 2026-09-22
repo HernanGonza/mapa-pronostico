@@ -29,7 +29,7 @@ function featureCollection(puntos, tipo) {
  * (ver mapa-backend/src/lib/cuencas). No hay municipios/departamentos acá:
  * la cuenca cruza varias provincias y países.
  */
-export default function CuencasMap({ represas, puertos, titulo }) {
+export default function CuencasMap({ represas, puertos, titulo, embed = false }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
@@ -46,6 +46,7 @@ export default function CuencasMap({ represas, puertos, titulo }) {
       center: CENTRO, zoom: ZOOM_INICIAL,
       dragRotate: false, pitchWithRotate: false, touchPitch: false,
       attributionControl: false,
+      cooperativeGestures: embed,
     });
     map.touchZoomRotate?.disableRotation();
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -88,7 +89,9 @@ export default function CuencasMap({ represas, puertos, titulo }) {
       map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
       map.on("click", layer, e => setActivo(e.features?.[0]?.properties || null));
+      if (embed) map.on("mouseleave", layer, () => setActivo(null));
     });
+    if (embed) map.on("mouseleave", () => setActivo(null));
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(mapContainerRef.current);
     map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });

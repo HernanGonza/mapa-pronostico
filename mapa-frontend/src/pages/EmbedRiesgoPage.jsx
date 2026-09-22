@@ -22,6 +22,6 @@ export default function EmbedRiesgoPage() {
   }, []);
   if (!data?.actual) return <div className="base-map base-map--fallback"><div><strong>Riesgo de incendios forestales · Misiones</strong><p>{error || (cargando ? "Cargando mapa…" : "Todavía no hay un reporte publicado.")}</p></div></div>;
   return <div className="embed-risk">{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra el último reporte recibido.</div>}
-    <RiesgoMap geo={data.geo} zonas={data.actual.zonas} catalogo={data.catalogo} publicadoEn={data.actual.publicadoEn} />
+    <RiesgoMap embed geo={data.geo} zonas={data.actual.zonas} catalogo={data.catalogo} publicadoEn={data.actual.publicadoEn} />
   </div>;
 }

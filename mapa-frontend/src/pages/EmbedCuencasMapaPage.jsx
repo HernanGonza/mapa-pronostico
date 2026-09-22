@@ -23,6 +23,6 @@ export default function EmbedCuencasMapaPage() {
   }, []);
   if (!data?.puertos) return <div className="base-map base-map--fallback"><div><strong>Monitor de cuencas · Misiones</strong><p>{error || (cargando ? "Cargando mapa…" : "Todavía no hay datos disponibles.")}</p></div></div>;
   return <div className="embed-risk">{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestran los últimos datos recibidos.</div>}
-    <CuencasMap represas={data.represas} puertos={data.puertos} titulo="Monitor de cuencas" />
+    <CuencasMap embed represas={data.represas} puertos={data.puertos} titulo="Monitor de cuencas" />
   </div>;
 }

@@ -10,7 +10,7 @@ const SIN_DATO = "#d5dbd5";
 const BaseMap = forwardRef(function BaseMap({
   poligonos, datos = [], colorDe, renderInfo, campoEtiqueta = "nombre",
   leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false,
-  regionLabel = 'Misiones',
+  regionLabel = 'Misiones', embed = false,
 }, ref) {
   const containerRef = useRef(null);
   const rootRef = useRef(null);
@@ -30,7 +30,7 @@ const BaseMap = forwardRef(function BaseMap({
     if (!webglOk || !containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current, style: null,
-      center: [-54.8, -27], zoom: 7.4, interactive,
+      center: [-54.8, -27], zoom: 7.4, interactive, cooperativeGestures: embed,
       dragRotate: false, pitchWithRotate: false, touchPitch: false,
       canvasContextAttributes: { preserveDrawingBuffer: enableCapture },
       attributionControl: false,
@@ -91,6 +91,14 @@ const BaseMap = forwardRef(function BaseMap({
     });
     map.on("mouseenter", "zonas-fill", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "zonas-fill", () => { map.getCanvas().style.cursor = ""; });
+    if (embed) {
+      map.on("mousemove", e => {
+        if (!map.getLayer("zonas-fill") || !actual.current.selected) return;
+        const hit = map.queryRenderedFeatures(e.point, { layers: ["zonas-fill"] })[0];
+        if (String(hit?.properties?.id) !== actual.current.selected) setSelected(null);
+      });
+      map.on("mouseleave", () => setSelected(null));
+    }
     const ro = new ResizeObserver(() => { map.resize(); fitRef.current?.(); });
     ro.observe(containerRef.current);
     map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
