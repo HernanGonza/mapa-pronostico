@@ -27,7 +27,22 @@ const ESTACIONES = {
 const CODIGOS = { temperatura: 14, humedad: 18, viento: 4, precipitacion: 20 };
 // Valores centinela de "sin dato" que usa SNIH (aparecen en vez de null).
 const SIN_DATO = new Set([-999, -9999]);
-const limpiar = (v) => (typeof v === "number" && Number.isFinite(v) && !SIN_DATO.has(v) ? v : null);
+// Límites de lo físicamente plausible en Misiones, por variable — no sólo
+// los centinelas -999/-9999: una estación de otra red (INTA) reportó una
+// vez 0% de humedad por un sensor roto, y ese único valor imposible
+// bastó para distorsionar el FFMC varias semanas (el cálculo es
+// recursivo). Mismo criterio de "mejor sin dato ese día que un dato roto"
+// para las 4 variables de acá.
+const LIMITES = {
+  temperatura: (v) => v > -10 && v < 50,
+  humedad: (v) => v >= 1 && v <= 100,
+  viento: (v) => v >= 0 && v < 200,
+  precipitacion: (v) => v >= 0 && v < 500,
+};
+function limpiar(v, variable) {
+  if (typeof v !== "number" || !Number.isFinite(v) || SIN_DATO.has(v)) return null;
+  return !variable || LIMITES[variable](v) ? v : null;
+}
 
 async function pedir(path, body) {
   const controller = new AbortController();
@@ -55,10 +70,10 @@ async function climaActual(estacionId) {
   const { Mediciones } = await pedir("MuestraDatos.aspx/LeerDatosActuales", { estacion: estacionId });
   const porCodigo = new Map((Mediciones || []).map((m) => [m.Codigo, m.Valor]));
   return {
-    temperatura: limpiar(porCodigo.get(CODIGOS.temperatura)),
-    humedad: limpiar(porCodigo.get(CODIGOS.humedad)),
-    viento: limpiar(porCodigo.get(CODIGOS.viento)),
-    precipitacion: limpiar(porCodigo.get(CODIGOS.precipitacion)),
+    temperatura: limpiar(porCodigo.get(CODIGOS.temperatura), "temperatura"),
+    humedad: limpiar(porCodigo.get(CODIGOS.humedad), "humedad"),
+    viento: limpiar(porCodigo.get(CODIGOS.viento), "viento"),
+    precipitacion: limpiar(porCodigo.get(CODIGOS.precipitacion), "precipitacion"),
   };
 }
 
@@ -66,7 +81,7 @@ async function climaActual(estacionId) {
  * pedido HTTP para todo el rango — el formato de fecha que acepta este
  * webservice es "YYYY-MM-DD" (con "DD-MM-YYYY", que es lo que usa su
  * propio frontend, tira error 500; probablemente un bug de ese lado). */
-async function serieHistorica(estacionId, codigo, desdeISO, hastaISO) {
+async function serieHistorica(estacionId, codigo, variable, desdeISO, hastaISO) {
   const { Mediciones } = await pedir("MuestraDatos.aspx/LeerUltimosRegistros", {
     fechaDesde: desdeISO,
     fechaHasta: hastaISO,
@@ -74,7 +89,7 @@ async function serieHistorica(estacionId, codigo, desdeISO, hastaISO) {
     codigo: String(codigo),
   });
   return (Mediciones || [])
-    .map((m) => ({ ms: Number(/\d+/.exec(m.FechaHora)?.[0]), valor: limpiar(m.Mediciones?.[0]?.Valor) }))
+    .map((m) => ({ ms: Number(/\d+/.exec(m.FechaHora)?.[0]), valor: limpiar(m.Mediciones?.[0]?.Valor, variable) }))
     .filter((r) => Number.isFinite(r.ms));
 }
 
@@ -90,9 +105,12 @@ async function serieHistorica(estacionId, codigo, desdeISO, hastaISO) {
  * `null` en la variable que ese día no tuvo ninguna lectura válida.
  */
 async function climaPorDia(estacionId, desdeISO, hastaISO) {
-  const [temps, humedades, vientos, precips] = await Promise.all(
-    [CODIGOS.temperatura, CODIGOS.humedad, CODIGOS.viento, CODIGOS.precipitacion].map((c) => serieHistorica(estacionId, c, desdeISO, hastaISO))
-  );
+  const [temps, humedades, vientos, precips] = await Promise.all([
+    serieHistorica(estacionId, CODIGOS.temperatura, "temperatura", desdeISO, hastaISO),
+    serieHistorica(estacionId, CODIGOS.humedad, "humedad", desdeISO, hastaISO),
+    serieHistorica(estacionId, CODIGOS.viento, "viento", desdeISO, hastaISO),
+    serieHistorica(estacionId, CODIGOS.precipitacion, "precipitacion", desdeISO, hastaISO),
+  ]);
   const porDia = new Map();
   const fechaDe = (ms) => new Date(ms).toISOString().slice(0, 10);
   for (const serie of [temps, humedades, vientos, precips]) {

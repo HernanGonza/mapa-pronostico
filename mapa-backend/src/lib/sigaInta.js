@@ -50,12 +50,31 @@ const aFechaCorta = (fechaISO) => {
  * salteando los días sin dato de temperatura u humedad (la estación
  * puede no haber reportado ese día).
  */
+// Límites de lo físicamente plausible en Misiones — sirven para descartar
+// lecturas rotas del sensor, que esta red reporta como 0 en vez de dejar
+// el campo vacío (se detectó a mano: una estación marcó 0% de humedad dos
+// días seguidos — imposible en este clima subtropical — y ese 0 evaporó
+// tanto el FFMC que quedó "atascado" en ALTO/MUY ALTO varias semanas,
+// porque el código es recursivo y una lectura mala arrastra a las
+// siguientes). 0% de humedad puntual es sensor roto, no clima real.
+const HUMEDAD_MIN = 1, HUMEDAD_MAX = 100;
+const TEMPERATURA_MIN = -10, TEMPERATURA_MAX = 50;
+const PRECIPITACION_MAX = 500;
+
+function plausible(f) {
+  return (
+    f.tempAbrigo150 != null && f.tempAbrigo150 > TEMPERATURA_MIN && f.tempAbrigo150 < TEMPERATURA_MAX &&
+    f.HMedia != null && f.HMedia >= HUMEDAD_MIN && f.HMedia <= HUMEDAD_MAX &&
+    (f.precDiaCrono == null || (f.precDiaCrono >= 0 && f.precDiaCrono < PRECIPITACION_MAX))
+  );
+}
+
 async function climaEnRango(estacionId, desdeISO, hastaISO) {
   const url = `${BASE}?param_type=diario&param_value=${estacionId}/${aFechaCorta(desdeISO)}/${aFechaCorta(hastaISO)}`;
   const filas = await pedir(url);
   const porFecha = new Map();
   for (const f of filas || []) {
-    if (f.tempAbrigo150 == null || f.HMedia == null) continue;
+    if (!plausible(f)) continue; // sensor roto ese día: se salta, no se inventa un valor — cae a Open-Meteo (ver climaPorDepartamento.js).
     porFecha.set(String(f.fechaHora).slice(0, 10), {
       temperatura: f.tempAbrigo150,
       humedad: f.HMedia,
