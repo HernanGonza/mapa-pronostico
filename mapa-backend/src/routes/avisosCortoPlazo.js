@@ -8,25 +8,22 @@ const { generateAvisoCortoPlazoMap, errorDeAvisoCortoPlazoMap, TITULO } = requir
 const router = express.Router();
 
 // Genera feed + historias con el polígono real del CAP del SMN (o dibujado
-// a mano si el SMN no trajo polígono), ya sobre el mapa con la capa de
-// municipios — la captura viaja como PNG (`imagen`) y se dibuja en un
-// recuadro fijo de la placa (ver generateAvisoCortoPlazoMap). El título es
-// siempre el mismo (ya viene impreso en los fondos), no es editable. Se
-// persiste todo en la base (polígono incluido).
-router.post("/avisos-corto-plazo/generar", requireAuth, express.json({ limit: "8mb" }), async (req, res) => {
-  const { poligono, texto, fondo, imagen, confirmarToken } = req.body || {};
-  // Al confirmar (confirmarToken) no se vuelve a generar ni se manda `imagen`
-  // de nuevo (placasPendientes.resolver persiste la vista previa ya hecha) —
-  // sólo hace falta validar el polígono, que se guarda siempre en la base.
-  const error = errorDePoligono(poligono) || (confirmarToken ? null : errorDeAvisoCortoPlazoMap(texto, fondo, imagen));
+// a mano si el SMN no trajo polígono): el mapa se dibuja entero en el
+// backend, sobre el mismo mapa vectorial que usa Alerta Meteorológica, con
+// el polígono encima (ver generateAvisoCortoPlazoMap) — no una captura de
+// pantalla. El título es siempre el mismo (ya viene impreso en los
+// fondos), no es editable. Se persiste todo en la base (polígono incluido).
+router.post("/avisos-corto-plazo/generar", requireAuth, express.json({ limit: "256kb" }), async (req, res) => {
+  const { poligono, texto, fondo, confirmarToken } = req.body || {};
+  const error = errorDePoligono(poligono) || (confirmarToken ? null : errorDeAvisoCortoPlazoMap(texto, fondo));
   if (error) return res.status(400).json({ error });
   try {
     const poligonoNorm = normalizarPoligono(poligono);
     await pendientes.resolver(req, res, {
       generar: async () => {
         const [feedPng, historiasPng] = await Promise.all([
-          generateAvisoCortoPlazoMap({ texto, fondo, imagen, tamano: "feed" }),
-          generateAvisoCortoPlazoMap({ texto, fondo, imagen, tamano: "historias" }),
+          generateAvisoCortoPlazoMap({ texto, fondo, poligono: poligonoNorm, tamano: "feed" }),
+          generateAvisoCortoPlazoMap({ texto, fondo, poligono: poligonoNorm, tamano: "historias" }),
         ]);
         return { feedPng, historiasPng };
       },
@@ -76,7 +73,7 @@ router.get("/avisos-corto-plazo/actual", async (req, res) => {
 });
 
 router.use((err, req, res, next) => {
-  if (err.type === "entity.too.large") return res.status(413).json({ error: "La captura del mapa es demasiado grande." });
+  if (err.type === "entity.too.large") return res.status(413).json({ error: "El pedido es demasiado grande." });
   if (err.type === "entity.parse.failed") return res.status(400).json({ error: "El contenido enviado no es válido." });
   next(err);
 });

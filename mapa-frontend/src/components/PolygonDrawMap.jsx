@@ -24,11 +24,13 @@ function geojsonDePuntos(puntos) {
  * corto plazo (o mostrar el que ya vino del CAP del SMN): click agrega un
  * vértice, arrastrar un vértice existente lo mueve. Sobre los límites
  * municipales (`municipios`, GeoJSON) para que el polígono tenga
- * referencia geográfica real. El polígono viaja al backend para guardarse
- * y, vía `capturePng`, también se usa como imagen de fondo de la placa
- * generada (ver AvisosCortoPlazoPage). `colorPoligono` es el violeta propio
- * del SMN/ACP (#8b3fc4, ver alertas automáticas) en avisos a muy corto
- * plazo; en otros usos (HistoricoPage) queda el rosa/magenta de siempre.
+ * referencia geográfica real. El polígono viaja al backend como
+ * coordenadas (no como captura de pantalla): la placa se dibuja entera en
+ * el servidor, sobre el mapa vectorial de Alerta Meteorológica (ver
+ * generateAvisoCortoPlazoMap) — este mapa es sólo para que el operador
+ * elija/dibuje el área. `colorPoligono` es el violeta propio del SMN/ACP
+ * (#8b3fc4, ver alertas automáticas) en avisos a muy corto plazo; en otros
+ * usos (HistoricoPage) queda el rosa/magenta de siempre.
  */
 const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, municipios, readOnly = false, colorPoligono = "#c9346c" }, ref) {
   const mapContainerRef = useRef(null);

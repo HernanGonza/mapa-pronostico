@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNotificacion } from "../lib/useNotificacion";
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
@@ -55,7 +55,6 @@ export default function AvisosCortoPlazoPage() {
   const [avisosAcp, setAvisosAcp] = useState([]);
   const [publicando, setPublicando] = useState(null); // id del aviso que se está publicando
   const [publicado, setPublicado] = useState(null); // último aviso publicado (mapa público)
-  const mapaRef = useRef(null);
 
   useEffect(() => {
     api.getAvisosCortoPlazoHistorial().then((r) => setHistorial(r.historial)).catch(() => setHistorial([]));
@@ -79,8 +78,8 @@ export default function AvisosCortoPlazoPage() {
 
   function cambiarPuntos(nuevos) { setPuntos(nuevos); setImagenes(null); }
 
-  // La vista previa NO guarda nada; recién al confirmar en el asistente se guarda (la misma imagen).
-  const vistaPrevia = (valores) => api.generarAvisoCortoPlazo({ ...valores, imagen: mapaRef.current?.capturePng() || null, vistaPrevia: true });
+  // La vista previa NO guarda nada; recién al confirmar en el asistente se guarda la misma placa.
+  const vistaPrevia = (valores) => api.generarAvisoCortoPlazo({ ...valores, vistaPrevia: true });
   async function guardarPlaca(valores, token) {
     const placa = await api.generarAvisoCortoPlazo({ ...valores, confirmarToken: token });
     setPuntos(valores.poligono); setTexto(valores.texto); setFondo(valores.fondo);
@@ -165,7 +164,7 @@ export default function AvisosCortoPlazoPage() {
         <EmbedShare path="/embed/avisos-corto-plazo" title="Aviso a muy corto plazo · Misiones" />
       </section>
       <PlacaPreview vista={vista} onVista={setVista} titulo="aviso a muy corto plazo" imagenes={undefined} recomendaciones={imagenes} labelRecomendaciones="Placa generada" epigrafe={`${TITULO}\n\n${texto}`}>
-        <PolygonDrawMap ref={mapaRef} puntos={puntos} onChange={cambiarPuntos} municipios={municipios} colorPoligono={COLOR_ACP} />
+        <PolygonDrawMap puntos={puntos} onChange={cambiarPuntos} municipios={municipios} colorPoligono={COLOR_ACP} />
       </PlacaPreview>
     </div>
   );
