@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import maplibregl from "maplibre-gl";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
+import { MAP_LOCALE_ES } from "../lib/mapLocale";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -70,6 +71,7 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
       touchPitch: false,
       attributionControl: false,
       cooperativeGestures: readOnly,
+      locale: MAP_LOCALE_ES,
       canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     map.touchZoomRotate?.disableRotation();

@@ -4,6 +4,7 @@ import { toPng } from "html-to-image";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
+import { MAP_LOCALE_ES } from "../lib/mapLocale";
 
 const SIN_DATO = "#d5dbd5";
 
@@ -30,7 +31,7 @@ const BaseMap = forwardRef(function BaseMap({
     if (!webglOk || !containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current, style: null,
-      center: [-54.8, -27], zoom: 7.4, interactive, cooperativeGestures: embed,
+      center: [-54.8, -27], zoom: 7.4, interactive, cooperativeGestures: embed, locale: MAP_LOCALE_ES,
       dragRotate: false, pitchWithRotate: false, touchPitch: false,
       canvasContextAttributes: { preserveDrawingBuffer: enableCapture },
       attributionControl: false,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
+import { MAP_LOCALE_ES } from "../lib/mapLocale";
 
 const CENTRO = [-54.3, -27.5];
 const ZOOM_INICIAL = 5.6;
@@ -47,6 +48,7 @@ export default function CuencasMap({ represas, puertos, titulo, embed = false })
       dragRotate: false, pitchWithRotate: false, touchPitch: false,
       attributionControl: false,
       cooperativeGestures: embed,
+      locale: MAP_LOCALE_ES,
     });
     map.touchZoomRotate?.disableRotation();
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");

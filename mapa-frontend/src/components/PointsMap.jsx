@@ -11,6 +11,7 @@ import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { getMunicipiosGeojson } from "../api";
 import { agregarMunicipios, crearIndiceMunicipios, describirConfianza, INTENSIDADES } from "../lib/alertasIncendio";
 import { CICLO_MS, pulsoDeFoco } from "../lib/pulsoFocos";
+import { MAP_LOCALE_ES } from "../lib/mapLocale";
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -112,6 +113,7 @@ const PointsMap = forwardRef(function PointsMap(
       touchPitch: false,
       attributionControl: false,
       cooperativeGestures: embed,
+      locale: MAP_LOCALE_ES,
       canvasContextAttributes: { preserveDrawingBuffer: enableCapture },
     });
     map.touchZoomRotate?.disableRotation();
