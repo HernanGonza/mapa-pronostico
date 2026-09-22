@@ -217,7 +217,7 @@ const PointsMap = forwardRef(function PointsMap(
   }
 
   return (
-    <div className="base-map">
+    <div className={`base-map${embed ? " base-map--embed" : ""}`}>
       <div ref={mapContainerRef} className="base-map__canvas-container" />
 
       {titulo && (

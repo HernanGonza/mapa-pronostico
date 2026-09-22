@@ -105,7 +105,7 @@ export default function CuencasMap({ represas, puertos, titulo, embed = false })
 
   if (!webglOk) return <div className="base-map base-map--fallback">Tu navegador necesita WebGL activo para mostrar el mapa.</div>;
 
-  return <div className="base-map">
+  return <div className={`base-map${embed ? " base-map--embed" : ""}`}>
     <div ref={mapContainerRef} className="base-map__canvas-container" />
     {titulo && <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
       <div><strong>{titulo}</strong></div></div>}
