@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const { createCanvas, loadImage } = require("canvas");
-const { DEPARTAMENTOS_GEOJSON_PATH } = require("./departamentos");
+const { loadCentroides } = require("./departamentos");
 
 /**
  * Mapa vectorial de los 17 departamentos de Misiones (MAPA MISIONES.svg,
@@ -82,23 +82,9 @@ async function dibujarMapaEnRecuadro(ctx, coloresPorDepto, recuadro) {
 // (medido por escaneo de píxeles, coloreando cada departamento solo). Con
 // 17 puntos el ajuste queda sobredeterminado y tolera bien que el dibujo
 // no sea geométricamente exacto.
-const departamentosGeojson = JSON.parse(fs.readFileSync(DEPARTAMENTOS_GEOJSON_PATH, "utf8"));
-
-/** Centroide de un anillo simple (shoelace) — geometry.coordinates[0] de un Polygon GeoJSON. */
-function centroideAnillo(anillo) {
-  let area = 0, cx = 0, cy = 0;
-  for (let i = 0; i < anillo.length - 1; i++) {
-    const [x0, y0] = anillo[i], [x1, y1] = anillo[i + 1];
-    const cruzado = x0 * y1 - x1 * y0;
-    area += cruzado;
-    cx += (x0 + x1) * cruzado;
-    cy += (y0 + y1) * cruzado;
-  }
-  area /= 2;
-  return area === 0 ? { x: anillo[0][0], y: anillo[0][1] } : { x: cx / (6 * area), y: cy / (6 * area) };
-}
-// {x: lng, y: lat} por depto — geometry siempre Polygon (verificado a mano).
-const centroideGeoPorDepto = new Map(departamentosGeojson.features.map((f) => [String(f.properties.id), centroideAnillo(f.geometry.coordinates[0])]));
+// {x: lng, y: lat} por depto — mismo centroide real que usa el cálculo de
+// riesgo de incendios (departamentos.js:loadCentroides), no uno propio.
+const centroideGeoPorDepto = new Map([...loadCentroides()].map(([id, c]) => [id, { x: c.lng, y: c.lat }]));
 
 // Resolución de trabajo para medir el centroide de cada depto en el SVG:
 // no es la resolución final del mapa (esa la define quien llama a

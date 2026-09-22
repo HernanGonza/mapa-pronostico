@@ -197,7 +197,8 @@ export function escucharAlertasIncendio(onActualizar) {
   return () => eventos.close();
 }
 
-// --- Riesgo por departamento (categoría manual de ECOSOTAT) --------------
+// --- Riesgo por departamento (índice FWI de ECOSOTAT, calculado solo; la
+// categoría PUBLICADA la sigue confirmando una persona) -------------------
 export async function getRiesgoCatalogo() {
   return getEstatico(`${API_URL}/api/riesgo-incendios/catalogo`);
 }
@@ -206,6 +207,14 @@ export async function getDepartamentosGeojson() {
 }
 export async function getRiesgoActual() {
   const res = await fetch(`${API_URL}/api/riesgo-incendios/actual`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  return handleJson(res);
+}
+/** Último cálculo automático del índice FWI (uno por departamento) — para
+ * prellenar el editor en vez de arrancar en blanco. `null` si todavía no
+ * corrió ninguna vez. */
+export async function getRiesgoAutomatico() {
+  const res = await fetch(`${API_URL}/api/riesgo-incendios/automatico`, { cache: "no-store", ...CON_SESION });
   if (res.status === 404) return null;
   return handleJson(res);
 }

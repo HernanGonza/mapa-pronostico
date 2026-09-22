@@ -7,13 +7,14 @@ import BrandHeader from "../components/BrandHeader";
 import PlacaPreview from "../components/PlacaPreview";
 import { editarNivelesRiesgo, crearPlacaRiesgo, publicarRiesgoPorPasos } from "../lib/asistentesRiesgo";
 import RiesgoMap from "../components/RiesgoMap";
-import { getRiesgoCatalogo, getDepartamentosGeojson, getRiesgoActual, publicarRiesgo, generarRiesgoPlaca } from "../api";
+import { getRiesgoCatalogo, getDepartamentosGeojson, getRiesgoActual, getRiesgoAutomatico, publicarRiesgo, generarRiesgoPlaca } from "../api";
 
 export default function RiesgoIncendiosPage() {
   const [catalogo, setCatalogo] = useState(null);
   const [geo, setGeo] = useState(null);
   const [zonas, setZonas] = useState([]);
   const [publicado, setPublicado] = useState(null);
+  const [automatico, setAutomatico] = useState(null);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   useNotificacion(mensaje);
@@ -27,11 +28,19 @@ export default function RiesgoIncendiosPage() {
   useEffect(() => {
     let cancelado = false;
     setError("");
-    Promise.all([getRiesgoCatalogo(), getDepartamentosGeojson(), getRiesgoActual()])
-      .then(([cat, geometria, actual]) => {
+    Promise.all([getRiesgoCatalogo(), getDepartamentosGeojson(), getRiesgoActual(), getRiesgoAutomatico().catch(() => null)])
+      .then(([cat, geometria, actual, calculado]) => {
         if (cancelado) return;
-        setCatalogo(cat); setGeo(geometria); setPublicado(actual);
-        setZonas(cat.departamentos.map(d => ({ id: d.id, categoria: actual?.zonas.find(z => String(z.id) === String(d.id))?.categoria || "" })));
+        setCatalogo(cat); setGeo(geometria); setPublicado(actual); setAutomatico(calculado);
+        // El borrador arranca con la sugerencia del cálculo automático (índice
+        // FWI, ver riesgoIncendiosIndiceService.js) y si no hay, con lo ya
+        // publicado — pero sigue siendo sólo eso, una sugerencia: "Editar
+        // niveles" permite corregir cualquier departamento a mano, y nada se
+        // publica solo (ver "Revisar y publicar").
+        const categoriaDe = (id) =>
+          calculado?.zonas.find(z => String(z.id) === String(id))?.categoria ||
+          actual?.zonas.find(z => String(z.id) === String(id))?.categoria || "";
+        setZonas(cat.departamentos.map(d => ({ id: d.id, categoria: categoriaDe(d.id) })));
       }).catch(e => { if (!cancelado) setError(e.message); });
     return () => { cancelado = true; };
   }, [intento]);
@@ -81,6 +90,9 @@ export default function RiesgoIncendiosPage() {
         <p>Elegí el nivel de cada zona. Los cambios se ven en el mapa antes de publicar.</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}{!catalogo && <button className="btn" onClick={() => setIntento(i => i + 1)}>Reintentar</button>}</div>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
+        {automatico
+          ? <p className="admin-panel__hint">Niveles sugeridos automáticamente el {new Date(automatico.fecha).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" })} a partir del índice de riesgo de incendios (FWI) — revisalos en «Editar niveles» antes de publicar.</p>
+          : <p className="admin-panel__hint">Todavía no hay un cálculo automático disponible: elegí los niveles a mano en «Editar niveles».</p>}
         <PublicationStatus changed={sucio} published={publicado}>{completos} / {zonas.length} departamentos</PublicationStatus>
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" disabled={ocupado} onClick={editarNiveles}>Editar niveles</button>

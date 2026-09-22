@@ -87,6 +87,9 @@ store
       if (process.env.CUENCAS_SYNC_ENABLED !== "false") {
         require("./lib/cuencas/service").iniciar();
       }
+      if (process.env.RIESGO_INCENDIOS_SYNC_ENABLED !== "false" && process.env.DATABASE_URL) {
+        require("./lib/riesgoIncendiosIndiceService").iniciar();
+      }
       console.log(
         process.env.DATABASE_URL
           ? "[store] persistencia: Postgres"

@@ -14,6 +14,30 @@ router.get("/riesgo-incendios/catalogo", (req, res) => {
 });
 
 /**
+ * GET /api/riesgo-incendios/automatico
+ * Último cálculo del índice FWI (uno por departamento, corre solo cada
+ * hora — ver riesgoIncendiosIndiceService.js), para que el panel pueda
+ * prellenar "Editar niveles" en vez de arrancar en blanco. Sigue haciendo
+ * falta "Revisar y publicar" a mano: esto es sólo una sugerencia.
+ */
+router.get("/riesgo-incendios/automatico", requireAuth, async (req, res) => {
+  try {
+    const indiceStore = require("../lib/riesgoIncendiosIndiceStore");
+    const fecha = await indiceStore.obtenerUltimaFecha();
+    if (!fecha) return res.status(404).json({ error: "Todavía no hay un cálculo automático de riesgo de incendios." });
+    const filas = await indiceStore.obtenerTodos(fecha);
+    res.set("Cache-Control", "no-store").json({
+      fecha,
+      zonas: filas.map((f) => ({ id: f.departamentoId, categoria: f.categoria })),
+      detalle: filas,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo leer el cálculo automático de riesgo de incendios." });
+  }
+});
+
+/**
  * GET /api/departamentos
  * Los 17 departamentos de Misiones (id + nombre), sin categoría — para
  * armar la tabla del panel antes de que haya nada publicado.
