@@ -23,6 +23,27 @@ function porDia(extendido) {
   return dias;
 }
 
+function parrafosDelInforme(informe) {
+  return informe.trim().split(/\n\s*\n|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])/).filter(Boolean);
+}
+
+function InformeDelDia({ informe }) {
+  const parrafos = parrafosDelInforme(informe);
+  return <section className="extendido__informe" aria-label="Panorama del día">
+    <h3>Panorama del día</h3>
+    <div className="extendido__informe-completo">
+      {parrafos.map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
+    </div>
+    <div className="extendido__informe-movil">
+      <p>{parrafos[0]?.trim()}</p>
+      {parrafos.length > 1 && <details>
+        <summary>Leer el informe completo</summary>
+        {parrafos.slice(1).map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
+      </details>}
+    </div>
+  </section>;
+}
+
 export default function PronosticoExtendidoView({ extendido, publicadoEn }) {
   const [abierto, setAbierto] = useState(0);
   const dias = porDia(extendido);
@@ -68,12 +89,7 @@ export default function PronosticoExtendidoView({ extendido, publicadoEn }) {
               </div>
             ))}
           </div>
-          {dias[abierto].informe && (
-            <section className="extendido__informe" aria-label="Panorama del día">
-              <h3>Panorama del día</h3>
-              {dias[abierto].informe.trim().split(/\n\s*\n/).filter(Boolean).map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
-            </section>
-          )}
+          {dias[abierto].informe && <InformeDelDia informe={dias[abierto].informe} />}
         </div>
       )}
     </div>
