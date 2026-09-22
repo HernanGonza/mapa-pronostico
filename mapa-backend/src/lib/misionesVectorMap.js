@@ -182,24 +182,59 @@ async function calibrarProyeccion() {
   return proyeccionPromise;
 }
 
+// División política de los 79 municipios (mismo dataset que usa el mapa
+// interactivo, `municipios.geojson`): "MAPA MISIONES.svg" sólo trae los 17
+// departamentos, no hay un SVG por municipio — pero con la proyección ya
+// calibrada no hace falta: se proyectan los límites reales de
+// municipios.geojson igual que el polígono del aviso, y se dibujan como
+// líneas finas encima del mapa. Sin esta referencia el polígono del SMN
+// queda flotando sobre una silueta lisa, sin forma de ubicar qué localidad
+// está adentro.
+const MUNICIPIOS_GEOJSON_PATH = path.join(__dirname, "..", "..", "data", "municipios.geojson");
+const municipiosGeojson = JSON.parse(fs.readFileSync(MUNICIPIOS_GEOJSON_PATH, "utf8"));
+
+function proyectarPunto(proyeccion, caja, escalaX, escalaY, [lng, lat]) {
+  const xSvg = proyeccion.ax * lng + proyeccion.bx * lat + proyeccion.cx;
+  const ySvg = proyeccion.ay * lng + proyeccion.by * lat + proyeccion.cy;
+  return [caja.x + xSvg * escalaX, caja.y + ySvg * escalaY];
+}
+
+function dibujarAnilloProyectado(ctx, proyeccion, caja, escalaX, escalaY, anillo) {
+  ctx.beginPath();
+  anillo.forEach((punto, i) => {
+    const [px, py] = proyectarPunto(proyeccion, caja, escalaX, escalaY, punto);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  });
+  ctx.closePath();
+}
+
+function dibujarMunicipios(ctx, proyeccion, caja, escalaX, escalaY) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(38,58,49,0.6)";
+  ctx.lineWidth = Math.max(1, caja.w * 0.0013);
+  for (const feature of municipiosGeojson.features) {
+    const poligonos = feature.geometry.type === "MultiPolygon" ? feature.geometry.coordinates : [feature.geometry.coordinates];
+    for (const anillos of poligonos) for (const anillo of anillos) {
+      dibujarAnilloProyectado(ctx, proyeccion, caja, escalaX, escalaY, anillo);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 /**
- * Dibuja el mapa de departamentos en `recuadro` (como dibujarMapaEnRecuadro)
- * y, encima, un polígono geográfico cualquiera (anillo de [lng,lat], se
- * cierra solo) — ej. el área de un aviso del SMN — proyectado con el ajuste
+ * Dibuja el mapa de departamentos en `recuadro` (como dibujarMapaEnRecuadro),
+ * la división de municipios encima (referencia geográfica) y, encima de
+ * todo, un polígono geográfico cualquiera (anillo de [lng,lat], se cierra
+ * solo) — ej. el área de un aviso del SMN — proyectado con el ajuste
  * calibrado más arriba. `colorPoligono` es un color CSS (ej. el violeta de
  * ACP); se dibuja con relleno semitransparente y borde sólido.
  */
 async function dibujarMapaConPoligono(ctx, coloresPorDepto, poligonoLngLat, colorPoligono, recuadro) {
   const [caja, proyeccion] = await Promise.all([dibujarMapaEnRecuadro(ctx, coloresPorDepto, recuadro), calibrarProyeccion()]);
   const escalaX = caja.w / MAPA_VIEWBOX.w, escalaY = caja.h / MAPA_VIEWBOX.h;
-  ctx.beginPath();
-  poligonoLngLat.forEach(([lng, lat], i) => {
-    const xSvg = proyeccion.ax * lng + proyeccion.bx * lat + proyeccion.cx;
-    const ySvg = proyeccion.ay * lng + proyeccion.by * lat + proyeccion.cy;
-    const px = caja.x + xSvg * escalaX, py = caja.y + ySvg * escalaY;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  });
-  ctx.closePath();
+  dibujarMunicipios(ctx, proyeccion, caja, escalaX, escalaY);
+  dibujarAnilloProyectado(ctx, proyeccion, caja, escalaX, escalaY, poligonoLngLat);
   ctx.fillStyle = colorPoligono; ctx.globalAlpha = 0.3; ctx.fill();
   ctx.globalAlpha = 1; ctx.strokeStyle = colorPoligono; ctx.lineWidth = Math.max(3, caja.w * 0.008);
   ctx.stroke();

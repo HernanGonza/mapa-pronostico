@@ -46,21 +46,20 @@ const COLORES_DEPARTAMENTOS = new Map(ZONAS.map(([, depto]) => [depto, COLOR_DEP
 // la placa, generada enteramente en el backend.
 const COLOR_POLIGONO = '#8b3fc4';
 
-// Recuadros calibrados a ojo sobre cada fondo: debajo del título ("AVISO A
-// MUY CORTO PLAZO", ya impreso en la imagen) y arriba de "Emergencias 911…
-// / Fuente Servicio Meteorológico Nacional" (texto fijo del fondo, que va
-// SOBRE la foto, antes de la franja blanca de los 3 logos). Si se
-// reemplazan los fondos por otros con el título o ese pie en otra
-// posición, hay que volver a medir estos valores a mano.
+// Zona de contenido calibrada a ojo sobre cada fondo: debajo del título
+// ("AVISO A MUY CORTO PLAZO", ya impreso en la imagen, con aire de sobra)
+// y arriba de "Emergencias 911… / Fuente Servicio Meteorológico Nacional"
+// (texto fijo del fondo, que va SOBRE la foto, antes de la franja blanca
+// de los 3 logos). Si se reemplazan los fondos por otros con el título o
+// ese pie en otra posición, hay que volver a medir estos valores a mano.
+//
+// El mapa y el texto se reparten esa zona de forma dinámica (ver
+// generateAvisoCortoPlazoMap): el texto mide primero cuánto necesita y el
+// mapa ocupa lo que sobra, entre mapaMinH y mapaMaxH — con un aviso corto
+// el mapa queda grande, con uno largo se achica para no pisar el texto.
 const LAYOUTS = {
-  feed: {
-    mapa: { x: 90, y: 190, w: 942, h: 546 },
-    texto: { x: 90, y: 768, w: 942, h: 332 },
-  },
-  historias: {
-    mapa: { x: 75, y: 210, w: 791, h: 714 },
-    texto: { x: 75, y: 964, w: 791, h: 436 },
-  },
+  feed: { contentTop: 260, contentBottom: 1100, x: 90, w: 942, gap: 40, mapaMinH: 380, mapaMaxH: 650 },
+  historias: { contentTop: 320, contentBottom: 1400, x: 75, w: 791, gap: 50, mapaMinH: 500, mapaMaxH: 850 },
 };
 
 let fondosPromise;
@@ -106,27 +105,38 @@ async function generateAvisoCortoPlazoMap({ texto, fondo = 'tormenta', tamano = 
   const canvas = createCanvas(fondoImg.width, fondoImg.height), ctx = canvas.getContext('2d');
   ctx.drawImage(fondoImg, 0, 0);
 
-  const layout = LAYOUTS[tamano];
-  await dibujarMapaConPoligono(ctx, COLORES_DEPARTAMENTOS, poligono, COLOR_POLIGONO, layout.mapa);
+  const L = LAYOUTS[tamano];
+  const alturaDisponible = L.contentBottom - L.contentTop;
+
+  // 1) El texto mide primero cuánto necesita: letra grande por defecto,
+  // que se achica hasta entrar en lo que le queda al mapa en su tamaño
+  // mínimo. Así el mapa (calculado después) se achica o se agranda según
+  // el aviso sea largo o corto, en vez de pisarse con el texto.
+  const parrafos = texto.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+  let tamanoFuente = FUENTE_TEXTO_MAX[tamano], lineas, lineH, textoAltura;
+  for (;;) {
+    ctx.font = `bold ${tamanoFuente}px AvisoCortoPlazoPlaca`;
+    lineas = parrafos.flatMap((p) => ajustarLineas(ctx, p, L.w));
+    lineH = tamanoFuente * 1.35;
+    textoAltura = lineas.length * lineH;
+    if (textoAltura <= alturaDisponible - L.mapaMinH - L.gap || tamanoFuente <= FUENTE_TEXTO_MIN) break;
+    tamanoFuente -= 2;
+  }
+
+  // 2) El mapa ocupa lo que sobra (más grande con avisos cortos, más chico
+  // con avisos largos), sin pasarse de un rango prolijo.
+  const mapaAltura = Math.max(L.mapaMinH, Math.min(L.mapaMaxH, alturaDisponible - textoAltura - L.gap));
+  await dibujarMapaConPoligono(ctx, COLORES_DEPARTAMENTOS, poligono, COLOR_POLIGONO, { x: L.x, y: L.contentTop, w: L.w, h: mapaAltura });
 
   // Texto del aviso: sin caja, directo sobre la foto (sombra para que se
-  // lea igual sobre cielo claro u oscuro), centrado en el recuadro que
-  // antes ocupaba la pill blanca del período.
-  const t = layout.texto;
+  // lea igual sobre cielo claro u oscuro), centrado en lo que le quedó
+  // libre debajo del mapa.
+  const textoY = L.contentTop + mapaAltura + L.gap, textoZonaH = L.contentBottom - textoY;
   ctx.fillStyle = '#fff';
   ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const parrafos = texto.trim().split('\n').map((l) => l.trim()).filter(Boolean);
-  let tamanoFuente = FUENTE_TEXTO_MAX[tamano], lineas, lineH;
-  for (;;) {
-    ctx.font = `bold ${tamanoFuente}px AvisoCortoPlazoPlaca`;
-    lineas = parrafos.flatMap((p) => ajustarLineas(ctx, p, t.w));
-    lineH = tamanoFuente * 1.35;
-    if (lineas.length * lineH <= t.h || tamanoFuente <= FUENTE_TEXTO_MIN) break;
-    tamanoFuente -= 2;
-  }
-  const cx = t.x + t.w / 2, cy = t.y + t.h / 2, offset = ((lineas.length - 1) * lineH) / 2;
-  lineas.forEach((linea, i) => ctx.fillText(linea, cx, cy - offset + i * lineH, t.w));
+  const cx = L.x + L.w / 2, cy = textoY + textoZonaH / 2, offset = ((lineas.length - 1) * lineH) / 2;
+  lineas.forEach((linea, i) => ctx.fillText(linea, cx, cy - offset + i * lineH, L.w));
   ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
   return canvas.toBuffer('image/png');
