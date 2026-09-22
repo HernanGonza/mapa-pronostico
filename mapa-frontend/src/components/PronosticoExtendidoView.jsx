@@ -27,25 +27,21 @@ function parrafosDelInforme(informe) {
   return informe.trim().split(/\n\s*\n|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])/).filter(Boolean);
 }
 
-function InformeDelDia({ informe }) {
+function InformeDelDia({ informe, embebido, dia }) {
   const parrafos = parrafosDelInforme(informe);
   return <section className="extendido__informe" aria-label="Panorama del día">
     <h3>Panorama del día</h3>
-    <div className="extendido__informe-completo">
-      {parrafos.map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
-    </div>
-    <div className="extendido__informe-movil">
+    {embebido ? <div className="extendido__informe-resumen">
       <p>{parrafos[0]?.trim()}</p>
-      {parrafos.length > 1 && <details>
-        <summary>Leer el informe completo</summary>
-        {parrafos.slice(1).map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
-      </details>}
-    </div>
+      {parrafos.length > 1 && <a href={`/embed/pronostico-3-dias?completo=1&dia=${dia}`} target="_blank" rel="noopener noreferrer">Leer el informe completo ↗</a>}
+    </div> : <div className="extendido__informe-completo">
+      {parrafos.map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
+    </div>}
   </section>;
 }
 
-export default function PronosticoExtendidoView({ extendido, publicadoEn }) {
-  const [abierto, setAbierto] = useState(0);
+export default function PronosticoExtendidoView({ extendido, publicadoEn, embebido = false, diaInicial = 0 }) {
+  const [abierto, setAbierto] = useState(diaInicial);
   const dias = porDia(extendido);
 
   if (!dias.length) {
@@ -89,7 +85,7 @@ export default function PronosticoExtendidoView({ extendido, publicadoEn }) {
               </div>
             ))}
           </div>
-          {dias[abierto].informe && <InformeDelDia informe={dias[abierto].informe} />}
+          {dias[abierto].informe && <InformeDelDia informe={dias[abierto].informe} embebido={embebido} dia={abierto} />}
         </div>
       )}
     </div>

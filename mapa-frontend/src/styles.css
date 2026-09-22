@@ -203,7 +203,6 @@
   line-height: 1.6;
   white-space: pre-wrap;
 }
-.extendido__informe-movil { display: none; }
 
 /* El iframe presenta el pronóstico como una pieza editorial compacta. */
 .embed-risk .extendido {
@@ -258,7 +257,11 @@
 .embed-risk .extendido__informe p:last-child { margin-bottom: 0; }
 .embed-risk .extendido__informe-completo { display: grid; gap: 7px; }
 .embed-risk .extendido__informe-completo p { margin: 0; }
-.embed-risk .extendido__informe-movil { display: none; }
+.embed-risk .extendido__informe-resumen { font-size: 14px; }
+.embed-risk .extendido__informe-resumen p { margin-bottom: 8px; }
+.embed-risk .extendido__informe-resumen a { color: var(--verde-700); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+html:has(.embed-risk--pronostico:not(.embed-risk--informe-completo)),
+body:has(.embed-risk--pronostico:not(.embed-risk--informe-completo)) { overflow: hidden; }
 @media (max-width: 640px) {
   .embed-risk .extendido { padding: 14px 12px; }
   .embed-risk .extendido__head { gap: 3px; margin-bottom: 10px; }
@@ -276,11 +279,8 @@
   .embed-risk .extendido__temp b { font-size: 16px; }
   .embed-risk .extendido__informe { padding: 12px 14px; }
   .embed-risk .extendido__informe h3 { margin-bottom: 6px; font-size: 15px; }
-  .embed-risk .extendido__informe-completo { display: none; }
-  .embed-risk .extendido__informe-movil { display: block; font-size: 12px; }
-  .embed-risk .extendido__informe-movil p { line-height: 1.45; margin-bottom: 7px; }
-  .embed-risk .extendido__informe-movil summary { color: var(--verde-700); cursor: pointer; font-weight: 700; }
-  .embed-risk .extendido__informe-movil details p:first-of-type { margin-top: 9px; }
+  .embed-risk .extendido__informe-resumen { font-size: 12px; }
+  .embed-risk .extendido__informe-resumen p { line-height: 1.45; margin-bottom: 7px; }
 }
 
 .extendido-editor { display: grid; gap: 18px; margin: 16px 0; }
