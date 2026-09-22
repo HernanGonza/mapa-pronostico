@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import WeatherIcon from "./WeatherIcon";
 import { fechaLarga, tiempoRelativo } from "../lib/tiempoRelativo";
 
@@ -27,21 +27,60 @@ function parrafosDelInforme(informe) {
   return informe.trim().split(/\n\s*\n|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])/).filter(Boolean);
 }
 
-function InformeDelDia({ informe, embebido, dia }) {
+function paginasDelInforme(informe, limite = 320) {
+  const paginas = [];
+  let pagina = "";
+  for (const palabra of informe.trim().split(/\s+/)) {
+    if (pagina && pagina.length + palabra.length + 1 > limite) {
+      paginas.push(pagina);
+      pagina = palabra;
+    } else pagina += `${pagina ? " " : ""}${palabra}`;
+  }
+  if (pagina) paginas.push(pagina);
+  return paginas;
+}
+
+function InformeDelDia({ informe, embebido }) {
   const parrafos = parrafosDelInforme(informe);
+  const paginas = paginasDelInforme(informe);
+  const primeraFrase = parrafos[0]?.trim() || "";
+  const resumen = primeraFrase.length > 190 ? `${primeraFrase.slice(0, 190).replace(/\s+\S*$/, "")}…` : primeraFrase;
+  const [abierto, setAbierto] = useState(false);
+  const [pagina, setPagina] = useState(0);
+  const cerrarRef = useRef(null);
+  useEffect(() => { setAbierto(false); setPagina(0); }, [informe]);
+  useEffect(() => {
+    if (!abierto) return;
+    cerrarRef.current?.focus();
+    const alTeclado = e => { if (e.key === "Escape") setAbierto(false); };
+    window.addEventListener("keydown", alTeclado);
+    return () => window.removeEventListener("keydown", alTeclado);
+  }, [abierto]);
   return <section className="extendido__informe" aria-label="Panorama del día">
     <h3>Panorama del día</h3>
     {embebido ? <div className="extendido__informe-resumen">
-      <p>{parrafos[0]?.trim()}</p>
-      {parrafos.length > 1 && <a href={`/embed/pronostico-3-dias?completo=1&dia=${dia}`} target="_blank" rel="noopener noreferrer">Leer el informe completo ↗</a>}
+      <p>{resumen}</p>
+      {informe.trim().length > resumen.length && <button type="button" onClick={() => setAbierto(true)}>Leer el informe completo</button>}
     </div> : <div className="extendido__informe-completo">
       {parrafos.map((parrafo, i) => <p key={i}>{parrafo.trim()}</p>)}
+    </div>}
+    {abierto && <div className="extendido__popover-fondo" onMouseDown={e => { if (e.target === e.currentTarget) setAbierto(false); }}>
+      <div className="extendido__popover" role="dialog" aria-modal="true" aria-label="Informe completo del día">
+        <button ref={cerrarRef} type="button" className="extendido__popover-cerrar" onClick={() => setAbierto(false)} aria-label="Cerrar informe">✕</button>
+        <h3>Panorama del día</h3>
+        <p>{paginas[pagina]}</p>
+        {paginas.length > 1 && <div className="extendido__popover-paginas">
+          <button type="button" disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>Anterior</button>
+          <span>{pagina + 1} de {paginas.length}</span>
+          <button type="button" disabled={pagina === paginas.length - 1} onClick={() => setPagina(pagina + 1)}>Siguiente</button>
+        </div>}
+      </div>
     </div>}
   </section>;
 }
 
-export default function PronosticoExtendidoView({ extendido, publicadoEn, embebido = false, diaInicial = 0 }) {
-  const [abierto, setAbierto] = useState(diaInicial);
+export default function PronosticoExtendidoView({ extendido, publicadoEn, embebido = false }) {
+  const [abierto, setAbierto] = useState(0);
   const dias = porDia(extendido);
 
   if (!dias.length) {
@@ -85,7 +124,7 @@ export default function PronosticoExtendidoView({ extendido, publicadoEn, embebi
               </div>
             ))}
           </div>
-          {dias[abierto].informe && <InformeDelDia informe={dias[abierto].informe} embebido={embebido} dia={abierto} />}
+          {dias[abierto].informe && <InformeDelDia informe={dias[abierto].informe} embebido={embebido} />}
         </div>
       )}
     </div>

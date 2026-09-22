@@ -259,9 +259,16 @@
 .embed-risk .extendido__informe-completo p { margin: 0; }
 .embed-risk .extendido__informe-resumen { font-size: 14px; }
 .embed-risk .extendido__informe-resumen p { margin-bottom: 8px; }
-.embed-risk .extendido__informe-resumen a { color: var(--verde-700); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
-html:has(.embed-risk--pronostico:not(.embed-risk--informe-completo)),
-body:has(.embed-risk--pronostico:not(.embed-risk--informe-completo)) { overflow: hidden; }
+.embed-risk .extendido__informe-resumen button { border: 0; padding: 0; background: none; color: var(--verde-700); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+html:has(.embed-risk--pronostico), body:has(.embed-risk--pronostico) { overflow: hidden; }
+.embed-risk .extendido__popover-fondo { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: #142b20b8; }
+.embed-risk .extendido__popover { position: relative; width: min(100%, 620px); max-height: calc(100vh - 32px); padding: 24px; border-radius: 16px; background: #fff; color: var(--verde-900); box-shadow: 0 16px 48px #10231855; }
+.embed-risk .extendido__popover h3 { margin: 0 36px 12px 0; font-size: 20px; }
+.embed-risk .extendido__popover p { margin: 0; font-size: 14px; line-height: 1.6; }
+.embed-risk .extendido__popover-cerrar { position: absolute; top: 14px; right: 14px; border: 0; background: transparent; color: var(--verde-900); cursor: pointer; }
+.embed-risk .extendido__popover-paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; font-size: 12px; }
+.embed-risk .extendido__popover-paginas button { padding: 6px 10px; border: 1px solid var(--verde-600); border-radius: 7px; background: #fff; color: var(--verde-700); cursor: pointer; }
+.embed-risk .extendido__popover-paginas button:disabled { opacity: .4; cursor: default; }
 @media (max-width: 640px) {
   .embed-risk .extendido { padding: 14px 12px; }
   .embed-risk .extendido__head { gap: 3px; margin-bottom: 10px; }
@@ -281,6 +288,9 @@ body:has(.embed-risk--pronostico:not(.embed-risk--informe-completo)) { overflow:
   .embed-risk .extendido__informe h3 { margin-bottom: 6px; font-size: 15px; }
   .embed-risk .extendido__informe-resumen { font-size: 12px; }
   .embed-risk .extendido__informe-resumen p { line-height: 1.45; margin-bottom: 7px; }
+  .embed-risk .extendido__popover { padding: 18px; }
+  .embed-risk .extendido__popover h3 { font-size: 17px; }
+  .embed-risk .extendido__popover p { font-size: 12px; line-height: 1.5; }
 }
 
 .extendido-editor { display: grid; gap: 18px; margin: 16px 0; }
