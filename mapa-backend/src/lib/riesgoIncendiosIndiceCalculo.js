@@ -37,12 +37,15 @@ const fechaISODe = (d) => d.toISOString().slice(0, 10);
  * Open-Meteo).
  */
 async function calcularDepartamento(departamentoId, fechaISO, clima) {
+  for (const campo of ["temperatura", "humedad", "viento", "precipitacion"]) {
+    if (!Number.isFinite(clima[campo])) throw new Error(`Clima incompleto o inválido para ${fechaISO}: ${campo}.`);
+  }
   const ayer = await indiceStore.obtenerUltimo(departamentoId, fechaISO);
   const { FFMC, DMC, DC, ISI, BUI, FWI } = fwi.calcularDia({
     F0: ayer ? ayer.ffmc : SEMILLA.ffmc,
     DMC0: ayer ? ayer.dmc : SEMILLA.dmc,
     DC0: ayer ? ayer.dc : SEMILLA.dc,
-    r0: clima.precipitacion || 0,
+    r0: clima.precipitacion,
     H: clima.humedad,
     T: clima.temperatura,
     W: clima.viento,

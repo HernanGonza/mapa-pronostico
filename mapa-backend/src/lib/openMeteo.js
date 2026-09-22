@@ -11,14 +11,29 @@
  * falta que haya una estación cerca de cada uno).
  *
  * Un valor por variable y por día: T/H/W instantáneos a HORA_REFERENCIA
- * (9h local, mismo criterio horario que usaba ECOSOTAT), lluvia = suma del
- * día calendario completo (0-24h locales) — no es exactamente la ventana
- * "9h de ayer a 9h de hoy" que arma el Java sumando dos mitades, pero es
- * la misma idea (un total de 24h) y es lo que separa limpio la API.
+ * (9h local, mismo criterio horario que usaba ECOSOTAT), lluvia = suma de
+ * las 24 horas anteriores a las 9h locales.
  */
 const HORA_REFERENCIA = 9;
-const VARIABLES_HORARIAS = "temperature_2m,relative_humidity_2m,wind_speed_10m";
+const VARIABLES_HORARIAS = "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation";
 const TIMEOUT_MS = 15000;
+
+// El FWI de ECOSOTAT usa la lluvia de las 24 h anteriores a la
+// observación de las 09:00, no la lluvia de 00:00 a 24:00 del mismo día.
+function lluviaHastaLas9(data, fecha) {
+  const horas = data.hourly?.time || [];
+  const lluvia = data.hourly?.precipitation || [];
+  const inicio = `${fecha}T09:00`;
+  const desde = `${fechaAnterior(fecha)}T09:00`;
+  let total = 0, cantidad = 0;
+  for (let i = 0; i < horas.length; i++) {
+    if (horas[i] > desde && horas[i] <= inicio && lluvia[i] != null) { total += lluvia[i]; cantidad++; }
+  }
+  return cantidad === 24 ? total : null;
+}
+function fechaAnterior(fecha) {
+  return new Date(Date.parse(`${fecha}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+}
 
 async function pedir(url) {
   const controller = new AbortController();
@@ -47,19 +62,19 @@ async function climaHistorico(lat, lng, fechaISO) {
 /** Clima de TODO un rango de días pasados — un solo pedido HTTP (no uno
  * por día), pensado para el backfill. Devuelve un Map fecha -> clima. */
 async function climaHistoricoEnRango(lat, lng, desdeISO, hastaISO) {
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${desdeISO}&end_date=${hastaISO}&hourly=${VARIABLES_HORARIAS}&daily=precipitation_sum&timezone=America%2FArgentina%2FBuenos_Aires`;
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${fechaAnterior(desdeISO)}&end_date=${hastaISO}&hourly=${VARIABLES_HORARIAS}&daily=precipitation_sum&timezone=America%2FArgentina%2FBuenos_Aires`;
   const data = await pedir(url);
   const dias = data.daily?.time || [];
   const resultado = new Map();
   dias.forEach((fecha, i) => {
     const temperatura = data.hourly.temperature_2m[i * 24 + HORA_REFERENCIA];
-    if (temperatura == null) return; // día sin dato horario todavía (muy reciente) — se salta, no rompe el rango.
+    if (fecha < desdeISO || temperatura == null || lluviaHastaLas9(data, fecha) == null) return; // día extra o incompleto.
     resultado.set(fecha, {
       fecha,
       temperatura,
       humedad: data.hourly.relative_humidity_2m[i * 24 + HORA_REFERENCIA],
       viento: data.hourly.wind_speed_10m[i * 24 + HORA_REFERENCIA],
-      precipitacion: data.daily.precipitation_sum[i] ?? 0,
+      precipitacion: lluviaHastaLas9(data, fecha),
     });
   });
   return resultado;
@@ -78,8 +93,8 @@ async function climaReciente(lat, lng, diasPasados = 2) {
     temperatura: data.hourly.temperature_2m[i * 24 + HORA_REFERENCIA],
     humedad: data.hourly.relative_humidity_2m[i * 24 + HORA_REFERENCIA],
     viento: data.hourly.wind_speed_10m[i * 24 + HORA_REFERENCIA],
-    precipitacion: data.daily.precipitation_sum[i] ?? 0,
-  }));
+    precipitacion: lluviaHastaLas9(data, fecha),
+  })).filter((dia) => dia.precipitacion != null);
 }
 
-module.exports = { climaHistorico, climaHistoricoEnRango, climaReciente, HORA_REFERENCIA };
+module.exports = { climaHistorico, climaHistoricoEnRango, climaReciente, lluviaHastaLas9, HORA_REFERENCIA };

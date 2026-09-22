@@ -98,29 +98,29 @@ async function serieHistorica(estacionId, codigo, variable, desdeISO, hastaISO) 
  * (uno por variable, cada uno trae todo el rango), agrupados por día:
  * temperatura/humedad/viento = la lectura más cercana a las 9h ART de ese
  * día (instantáneas, mismo criterio horario que el resto del proyecto);
- * precipitación = la suma de las lecturas de ese día calendario (son
- * incrementos de ~10 minutos, no un acumulado corriente — sumar es
- * correcto, verificado a mano contra un día de lluvia real).
+ * precipitación = la suma de las lecturas entre las 09:00 ART de ayer y
+ * las 09:00 ART de hoy (son incrementos de ~10 minutos).
  * Devuelve un Map fecha -> {temperatura,humedad,viento,precipitacion}, con
  * `null` en la variable que ese día no tuvo ninguna lectura válida.
  */
 async function climaPorDia(estacionId, desdeISO, hastaISO) {
+  const desdeLluvia = new Date(Date.parse(`${desdeISO}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
   const [temps, humedades, vientos, precips] = await Promise.all([
     serieHistorica(estacionId, CODIGOS.temperatura, "temperatura", desdeISO, hastaISO),
     serieHistorica(estacionId, CODIGOS.humedad, "humedad", desdeISO, hastaISO),
     serieHistorica(estacionId, CODIGOS.viento, "viento", desdeISO, hastaISO),
-    serieHistorica(estacionId, CODIGOS.precipitacion, "precipitacion", desdeISO, hastaISO),
+    serieHistorica(estacionId, CODIGOS.precipitacion, "precipitacion", desdeLluvia, hastaISO),
   ]);
   const porDia = new Map();
-  const fechaDe = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const fechaDe = (ms) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
   for (const serie of [temps, humedades, vientos, precips]) {
     for (const r of serie) {
       const f = fechaDe(r.ms);
-      if (!porDia.has(f)) porDia.set(f, { temps: [], humedades: [], vientos: [], precips: [] });
+      if (f >= desdeISO && f <= hastaISO && !porDia.has(f)) porDia.set(f, { temps: [], humedades: [], vientos: [], precips: [] });
     }
   }
   const asignar = (serie, clave) => {
-    for (const r of serie) porDia.get(fechaDe(r.ms))[clave].push(r);
+    for (const r of serie) porDia.get(fechaDe(r.ms))?.[clave].push(r);
   };
   asignar(temps, "temps");
   asignar(humedades, "humedades");
@@ -134,8 +134,9 @@ async function climaPorDia(estacionId, desdeISO, hastaISO) {
     if (!validas.length) return null;
     return validas.reduce((a, b) => (Math.abs(b.ms - objetivo) < Math.abs(a.ms - objetivo) ? b : a)).valor;
   };
-  const sumaDia = (serie) => {
-    const validas = serie.filter((r) => r.valor != null);
+  const sumaDia = (fecha) => {
+    const fin = Date.parse(`${fecha}T12:00:00Z`);
+    const validas = precips.filter((r) => r.valor != null && r.ms > fin - 86400000 && r.ms <= fin);
     return validas.length ? validas.reduce((acc, r) => acc + r.valor, 0) : null;
   };
 
@@ -145,7 +146,7 @@ async function climaPorDia(estacionId, desdeISO, hastaISO) {
       temperatura: cercanoA9(fecha, s.temps),
       humedad: cercanoA9(fecha, s.humedades),
       viento: cercanoA9(fecha, s.vientos),
-      precipitacion: sumaDia(s.precips),
+      precipitacion: sumaDia(fecha),
     });
   }
   return resultado;

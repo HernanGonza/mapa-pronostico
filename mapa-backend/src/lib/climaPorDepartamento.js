@@ -34,11 +34,13 @@ function combinar(real, respaldo, fuenteEstacion) {
  * más reciente de la estación asignada (no la serie histórica, que puede
  * ir un paso atrás) + Open-Meteo para completar lo que falte. */
 async function climaDeHoy(departamentoId, centroide) {
+  const horaART = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
+  if (horaART < 9) throw new Error("El dato de las 09:00 ART aún no está disponible para el cálculo de hoy.");
   const { fuente, estacion } = asignacionDe(departamentoId);
   const fecha = fechaHoyART();
   let real = null;
   try {
-    if (fuente === "sinarame") real = await sinarame.climaActual(estacion.id);
+    if (fuente === "sinarame") real = await sinarame.climaDeUnDia(estacion.id, fecha);
     else if (fuente === "inta") real = await sigaInta.climaDeUnDia(estacion.id, fecha);
   } catch {
     real = null; // la estación falló hoy — no frena el cálculo, se completa todo con Open-Meteo.

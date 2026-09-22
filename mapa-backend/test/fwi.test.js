@@ -31,6 +31,13 @@ test("calcularDia encadena los 6 códigos sin tirar excepciones con valores típ
   }
 });
 
+test("calcularDia reproduce el ISI de la pantalla principal de ECOSOTAT", () => {
+  const entrada = { F0: 85, DMC0: 20, DC0: 100, r0: 4, H: 72, T: 21, W: 12, mes: 9 };
+  const dia = fwi.calcularDia(entrada);
+  assert.equal(dia.ISI, fwi.calcularISI(dia.FFMC, entrada.r0, entrada.H, entrada.T, entrada.W));
+  assert.notEqual(dia.ISI, fwi.calcularISI(entrada.F0, entrada.r0, entrada.H, entrada.T, entrada.W));
+});
+
 test("calcularDMC y calcularDC rechazan un mes fuera de 1-12", () => {
   assert.throws(() => fwi.calcularDMC(20, 0, 0, 20, 40));
   assert.throws(() => fwi.calcularDMC(20, 0, 13, 20, 40));

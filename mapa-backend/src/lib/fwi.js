@@ -160,7 +160,11 @@ function calcularDia({ F0, DMC0, DC0, r0, H, T, W, mes }) {
   const FFMC = calcularFFMC(F0, r0, H, T, W);
   const DMC = calcularDMC(DMC0, r0, mes, T, H);
   const DC = calcularDC(DC0, r0, mes, T);
-  const ISI = calcularISI(F0, r0, H, T, W);
+  // La pantalla de producción de ECOSOTAT pasa el FFMC recién calculado
+  // a calcular_isi(), que vuelve a calcular m con el clima de hoy.
+  // Aunque difiera de la formulación canadiense habitual, la sugerencia
+  // automática debe reproducir el resultado que ven los técnicos.
+  const ISI = calcularISI(FFMC, r0, H, T, W);
   const BUI = calcularBUI(DMC, DC);
   const FWI = calcularFWI(BUI, ISI);
   return { FFMC, DMC, DC, ISI, BUI, FWI };
