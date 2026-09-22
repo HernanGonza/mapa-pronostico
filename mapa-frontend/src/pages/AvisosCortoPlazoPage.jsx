@@ -97,7 +97,10 @@ export default function AvisosCortoPlazoPage() {
       return;
     }
     setError(""); setMensaje("");
-    await crearAvisoPorPasos({ inicial: { texto, fondo }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, vistaPrevia, guardar: guardarPlaca });
+    // `poligono` va en el estado inicial (no sólo en el paso "elegir aviso"):
+    // si no hay avisos del SMN vigentes, ese paso se salta entero y el único
+    // origen del polígono es lo ya dibujado a mano en el mapa de la página.
+    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, vistaPrevia, guardar: guardarPlaca });
   }
 
   // Publicar es independiente de la sesión: cualquier aviso ya generado
