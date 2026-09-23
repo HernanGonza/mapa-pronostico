@@ -19,6 +19,8 @@ export default function MonitorCuencas({ tarjetas, desactualizado = false }) {
           <span className="cuencas-tarjeta__subtitulo">{t.subtitulo}</span>
           <span className="cuencas-tarjeta__valor">{fmt(t.valor)} <small>m³/s</small></span>
           <p className="cuencas-tarjeta__fecha">Medición: {fecha(t.fecha)}{!t.vigente && t.fecha ? ' · Atrasada' : ''}</p>
+          {t.componentes?.map(c => <p key={c.nombre} className="cuencas-tarjeta__fecha">{c.nombre}: {fmt(c.valor)} m³/s · {fecha(c.fecha)}</p>)}
+          {t.referenciaAlerta && <p className="cuencas-tarjeta__nota">Referencia para alertas: {t.referenciaAlerta.nombre}, {fmt(t.referenciaAlerta.valor)} m³/s · {fecha(t.referenciaAlerta.fecha)}{!t.referenciaAlerta.vigente ? ' · Sin dato reciente' : ''}</p>}
           {t.error && <p className="cuencas-tarjeta__nota">No se pudo renovar esta lectura.</p>}
           {t.localidades?.length > 0 && <ul className="cuencas-localidades">{t.localidades.map(l => <li key={l.id}>
             <div><strong>{l.nombre}</strong><span>{fmt(l.valor, 2)} m</span></div>

@@ -62,4 +62,16 @@ function tendencia(rows) {
   const rate = (last.valor - prev.valor) / hours;
   return { tendencia: rate >= 0.005 ? 'Sube' : rate <= -0.005 ? 'Baja' : 'Estable', variacion: rate };
 }
-module.exports = { numero, fecha, csv, serie, vigente, tendencia };
+// La portada SIG usa la última fila ONS y la primera de CHAPECO_USINA.
+// Preservar ese orden y su redondeo, independientemente de la serie de alertas.
+function lecturaPortada(text, tipo, ahora = Date.now()) {
+  const rows = csv(text);
+  const r = tipo === 'usina' ? rows[0] : rows.at(-1);
+  if (!r) throw new Error('Sin lectura de portada');
+  const parts = tipo === 'usina'
+    ? [numero(r.volumen_afluente ?? r.volume_afluente), numero(r.volumen_chapeco ?? r.volume_chapeco)]
+    : [numero(r.val_vazaodefluente)];
+  if (parts.some(v => v === null || v < 0)) throw new Error('Lectura de portada inválida');
+  return { valor: Math.round(parts.reduce((a, b) => a + b, 0)), fecha: fecha(r.din_instante || r.fecha_hora, ahora) };
+}
+module.exports = { lecturaPortada, numero, fecha, csv, serie, vigente, tendencia };

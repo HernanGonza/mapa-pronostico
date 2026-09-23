@@ -1,4 +1,4 @@
-const { serie, vigente, tendencia } = require('./datos');
+const { serie, vigente, tendencia, lecturaPortada } = require('./datos');
 const BASE = 'https://sig.misiones.gob.ar/mapas/datos';
 const REPRESAS = [
   { id: 'itaipu', nombre: 'Itaipú', coords: [-25.4078, -54.5892], csv: 'ITAIPU.csv' },
@@ -50,7 +50,8 @@ async function actualizarAhora({ logger = console } = {}) {
       try {
         const text = await descargar(`${BASE}/${f.csv}?v=${Date.now()}`);
         const datos = f.tipo === 'json' ? puertos(text) : serie(text, f.tipo);
-        cache.set(f.id, { datos, consultadoEn: intentoEn, intentoEn, error: null });
+        const portada = ['ons', 'usina'].includes(f.tipo) ? lecturaPortada(text, f.tipo) : null;
+        cache.set(f.id, { datos, portada, consultadoEn: intentoEn, intentoEn, error: null });
       } catch (e) {
         cache.set(f.id, { ...cache.get(f.id), intentoEn, error: `${f.csv}: ${e.message}` });
         logger.warn?.(`[cuencas] ${f.csv}: ${e.message}`);
@@ -66,6 +67,23 @@ function lectura(id, ahora) {
   return { valor: last?.valor ?? null, fecha: last?.fecha ?? null,
     vigente: vigente(last, 3, ahora), error: source?.error || null,
     ...tendencia(source?.datos) };
+}
+function portada(id, ahora) {
+  const source = cache.get(id);
+  const last = source?.portada;
+  return { valor: last?.valor ?? null, fecha: last?.fecha ?? null,
+    vigente: vigente(last, 3, ahora), error: source?.error || null };
+}
+function valoresPortada(ahora) {
+  const itaipu = portada('itaipu', ahora), caxias = portada('caxias', ahora);
+  const completos = itaipu.valor !== null && caxias.valor !== null;
+  return {
+    parana: { valor: completos ? itaipu.valor + caxias.valor : null,
+      fecha: completos && itaipu.fecha && caxias.fecha ? [itaipu.fecha, caxias.fecha].sort()[0] : null,
+      vigente: itaipu.vigente && caxias.vigente, error: itaipu.error || caxias.error,
+      componentes: [{ nombre: 'Itaipú', ...itaipu }, { nombre: 'Salto Caxias', ...caxias }] },
+    uruguay: portada('usina', ahora), iguazu: caxias,
+  };
 }
 function situacionLocal(config, ahora) {
   const l = lectura(config.id, ahora);
@@ -88,10 +106,11 @@ function obtenerActual(ahora = Date.now()) {
   const represas = REPRESAS.map(r => ({ ...r, ...lectura(r.id, ahora) }));
   const localidades = ESTACIONES.map(r => situacionLocal(r, ahora));
   const tarjetas = {};
+  const principales = valoresPortada(ahora);
   for (const [id, rio, fuenteId, subtitulo] of [
-    ['parana', 'Río Paraná', 'itaipu', 'Defluente de Itaipú'],
-    ['uruguay', 'Río Uruguay', 'usina', 'Salida de Chapecó + aporte del río Chapecó'],
-    ['iguazu', 'Río Iguazú', 'capanema', 'Defluente de Capanema'],
+    ['parana', 'Río Paraná', 'itaipu', 'Defluente Itaipú + Salto Caxias'],
+    ['uruguay', 'Río Uruguay', 'usina', 'Defluente Foz do Chapecó'],
+    ['iguazu', 'Río Iguazú', 'capanema', 'Defluente Salto Caxias'],
   ]) {
     const l = lectura(fuenteId, ahora);
     const sitios = localidades.filter(r => r.rio === id);
@@ -104,11 +123,11 @@ function obtenerActual(ahora = Date.now()) {
     if (alertas[0] && orden.indexOf(alertas[0].estado.codigo) > orden.indexOf(s.codigo)) s = alertas[0].estado;
     const coberturaIncompleta = !l.vigente || sitios.some(r => !r.vigente || r.estado.codigo === 'sin_datos');
     if (s.codigo === 'normal' && coberturaIncompleta) s = estado('sin_datos', 'Caudal bajo el umbral; situación local sin confirmar');
-    tarjetas[id] = { rio, subtitulo, ...l, estado: s, localidades: sitios, coberturaIncompleta,
+    tarjetas[id] = { rio, subtitulo, ...principales[id], referenciaAlerta: { ...l, nombre: id === 'parana' ? 'Itaipú' : id === 'iguazu' ? 'Capanema' : 'Salida de Chapecó + aporte del río Chapecó' }, estado: s, localidades: sitios, coberturaIncompleta,
       criterio: 'Caudal: vigilancia ≥ 13.000, alerta ≥ 16.000 y emergencia ≥ 20.000 m³/s. Clasificación de este sitio con referencias del SIG; no equivale a una orden de evacuación.',
       detalle: id === 'parana' ? 'Referencia de alerta: Itaipú. La portada SIG suma Itaipú + Caxias.'
         : id === 'iguazu' ? 'Referencia de alerta: Capanema. La portada SIG muestra Caxias.'
-        : 'Cálculo del detalle SIG: turbinado + vertido + aporte del río Chapecó.' };
+        : 'Valor principal como en la portada SIG: afluente + aporte del río Chapecó. Para las alertas del detalle: turbinado + vertido + aporte del río Chapecó.' };
   }
   const fuentes = FUENTES.map(f => ({ id: f.id, archivo: f.csv, consultadoEn: cache.get(f.id)?.consultadoEn ?? null,
     error: cache.get(f.id)?.error ?? null }));

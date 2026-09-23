@@ -29,7 +29,7 @@ test('fallas parciales conservan solo su fuente y los datos envejecen sin nueva 
   global.fetch = async url => {
     if (fail && url.includes('SAN_JAVIER')) throw new Error('fuente caída');
     let text = `din_instante;val_vazaodefluente\n${local};${caudal}`;
-    if (url.includes('USINA')) text = `fecha_hora,volumen_turbinado,volumen_vertido,volumen_chapeco\n${day.slice(0, 5)} ${day.slice(11)},1000,2000,500`;
+    if (url.includes('USINA')) text = `fecha_hora,volumen_afluente,volumen_turbinado,volumen_vertido,volumen_chapeco\n${day.slice(0, 5)} ${day.slice(11)},8000,1000,2000,500`;
     else if (url.includes('SNIH') || url.includes('SOBERBIO') || url.includes('JAVIER')) text = `Fecha;Nivel\n${day};4`;
     else if (url.includes('.json')) text = JSON.stringify({ features: [{ geometry: { coordinates: [-54, -27] }, properties: { nombre: 'Puerto', valor: 4, fecha: new Date().toISOString() } }] });
     return { ok: true, text: async () => text };
@@ -38,6 +38,9 @@ test('fallas parciales conservan solo su fuente y los datos envejecen sin nueva 
     await service.actualizarAhora({ logger: { warn() {} } });
     let result = service.obtenerActual();
     assert.equal(result.tarjetas.iguazu.estado.codigo, 'vigilancia');
+    assert.equal(result.tarjetas.parana.valor, 28000);
+    assert.equal(result.tarjetas.uruguay.valor, 8500);
+    assert.equal(result.tarjetas.uruguay.referenciaAlerta.valor, 3500);
     for (const [value, expected] of [[12999, 'normal'], [13000, 'vigilancia'], [16000, 'alerta'], [20000, 'emergencia']]) {
       caudal = value;
       await service.actualizarAhora({ logger: { warn() {} } });
@@ -54,4 +57,15 @@ test('fallas parciales conservan solo su fuente y los datos envejecen sin nueva 
     assert.equal(result.tarjetas.iguazu.estado.codigo, 'sin_datos');
     assert.equal(result.tarjetas.uruguay.estado.codigo, 'sin_datos');
   } finally { global.fetch = original; }
+});
+test('portada mantiene filas y redondeos SIG sin confundir afluente con salida', () => {
+  const { lecturaPortada } = require('../src/lib/cuencas/datos');
+  const ons = v => `din_instante;val_vazaodefluente\n2026-09-23 06:00:00;9999\n2026-09-23 07:00:00;${v}`;
+  const a = lecturaPortada(ons(12173.4), 'ons', NOW);
+  const b = lecturaPortada(ons(5155.4), 'ons', NOW);
+  assert.equal(a.valor + b.valor, 17328); // SIG redondea cada represa antes de sumar.
+  const text = 'fecha_hora,volumen_afluente,volumen_turbinado,volumen_vertido,volumen_chapeco\n23/09 06:00,8571.75,1825.34,7162.80,871\n23/09 05:00,200,50,70,20';
+  assert.equal(lecturaPortada(text, 'usina', NOW).valor, 9443);
+  assert.equal(Math.round(serie(text, 'usina', NOW)[0].valor), 9859);
+  assert.throws(() => lecturaPortada('fecha_hora,volumen_afluente,volumen_chapeco\n23/09 06:00,,871', 'usina', NOW));
 });
