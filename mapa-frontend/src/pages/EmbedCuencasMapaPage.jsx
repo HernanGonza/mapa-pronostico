@@ -18,11 +18,11 @@ export default function EmbedCuencasMapaPage() {
       } catch (e) { if (!cancelado) setError(e.message); }
       finally { if (!cancelado) setCargando(false); }
     }
-    cargar(); const timer = setInterval(cargar, 5 * 60 * 1000);
+    cargar(); const timer = setInterval(cargar, 60 * 1000);
     return () => { cancelado = true; clearInterval(timer); };
   }, []);
-  if (!data?.puertos) return <div className="base-map base-map--fallback"><div><strong>Monitor de cuencas · Misiones</strong><p>{error || (cargando ? "Cargando mapa…" : "Todavía no hay datos disponibles.")}</p></div></div>;
-  return <div className="embed-risk">{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestran los últimos datos recibidos.</div>}
+  if (!data?.puertos) return <div className="base-map base-map--fallback cuencas-claro"><div><strong>Monitor de cuencas · Misiones</strong><p>{error || (cargando ? "Cargando mapa…" : "Todavía no hay datos disponibles.")}</p></div></div>;
+  return <div className="embed-risk cuencas-claro">{(error || data.error || data.desactualizado) && <div className="embed-warning" role="status">No se pudo actualizar. Se muestran los últimos datos recibidos.</div>}
     <CuencasMap embed represas={data.represas} puertos={data.puertos} titulo="Monitor de cuencas" />
   </div>;
 }

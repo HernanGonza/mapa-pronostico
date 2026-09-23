@@ -19,13 +19,13 @@ export default function EmbedCuencasTarjetasPage() {
       } catch (e) { if (!cancelado) setError(e.message); }
       finally { if (!cancelado) setCargando(false); }
     }
-    cargar(); const timer = setInterval(cargar, 5 * 60 * 1000);
+    cargar(); const timer = setInterval(cargar, 60 * 1000);
     return () => { cancelado = true; clearInterval(timer); };
   }, []);
-  if (!data?.tarjetas) return <main className="cuencas-tarjetas-embed"><p role="status">{error || (cargando ? "Cargando…" : "Todavía no hay datos disponibles.")}</p></main>;
-  return <main className="cuencas-tarjetas-embed">
-    {error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestran los últimos datos recibidos.</div>}
-    <MonitorCuencas tarjetas={data.tarjetas} />
-    {data.consultadoEn && <p className="cuencas-tarjetas-embed__fecha">Actualizado {tiempoRelativo(data.consultadoEn)}</p>}
+  if (!data?.tarjetas) return <main className="cuencas-tarjetas-embed cuencas-claro"><p role="status">{error || (cargando ? "Cargando…" : "Todavía no hay datos disponibles.")}</p></main>;
+  return <main className="cuencas-tarjetas-embed cuencas-claro">
+    {(error || data.error || data.desactualizado) && <div className="embed-warning" role="status">{data.error || "Actualización pendiente. Se muestran los últimos datos recibidos."}</div>}
+    <MonitorCuencas tarjetas={data.tarjetas} desactualizado={Boolean(error || data.desactualizado)} />
+    {data.consultadoEn && <p className="cuencas-tarjetas-embed__fecha">Última consulta {tiempoRelativo(data.consultadoEn)}</p>}
   </main>;
 }

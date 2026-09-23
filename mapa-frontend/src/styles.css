@@ -1588,3 +1588,45 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .historico-paginador { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 2px; font-size: 12px; }
 .historico-paginador > span { min-width: 15ch; font-weight: 600; text-align: center; white-space: nowrap; }
 .historico-paginador .btn { width: auto; padding: 2px 10px; font-size: 12px; line-height: 1.5; }
+
+/* Cuencas: la situación y la fecha acompañan siempre a la medición. */
+.cuencas-tarjeta { border-top: 4px solid #64748b; }
+.cuencas-tarjeta--normal { border-top-color: #237346; }
+.cuencas-tarjeta--vigilancia { border-top-color: #9a6b00; }
+.cuencas-tarjeta--alerta { border-top-color: #b94716; }
+.cuencas-tarjeta--evacuacion, .cuencas-tarjeta--emergencia { border-top-color: #b42332; }
+.cuencas-tarjeta__cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.cuencas-tarjeta__cabecera h2 { margin: 0; font-size: 18px; color: var(--heading); }
+.cuencas-estado { display: inline-block; width: fit-content; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 5px; background: #e7ecf1; color: #344250; }
+.cuencas-estado--normal { background: #e1f3e7; color: #19582f; }
+.cuencas-estado--vigilancia { background: #fff1c4; color: #715000; }
+.cuencas-estado--alerta { background: #ffeadc; color: #91330d; }
+.cuencas-estado--evacuacion, .cuencas-estado--emergencia { background: #ffe1e5; color: #992030; }
+.cuencas-tarjeta__motivo { font-size: 14px; line-height: 1.5; margin: 12px 0; }
+.cuencas-tarjeta__fecha, .cuencas-tarjeta__nota { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin: 6px 0; }
+.cuencas-tarjeta__subtitulo { font-size: 12px; }
+.cuencas-localidades { list-style: none; padding: 0; margin: 14px 0; }
+.cuencas-localidades li { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; border-top: 1px solid var(--border); padding: 10px 0; font-size: 12px; }
+.cuencas-localidades li > div { display: flex; justify-content: space-between; width: 100%; gap: 8px; font-size: 14px; }
+.cuencas-localidades time { color: var(--text-muted); }
+.cuencas-criterios { font-size: 12px; line-height: 1.5; margin: 12px 0; }
+.cuencas-criterios summary { cursor: pointer; }
+.cuencas-tarjeta__enlace { display: inline-block; font-size: 13px; margin-top: 8px; color: var(--heading); text-underline-offset: 3px; }
+.cuencas-tarjeta :is(a, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.cuencas-avisos { border-left: 4px solid #b94716; padding: 8px 12px; background: var(--surface); margin-bottom: 12px; font-size: 13px; line-height: 1.5; }
+.cuencas-avisos p { margin: 5px 0; }
+.cuencas-tarjetas-embed .cuencas-tarjeta { min-width: 0; flex-basis: 240px; }
+@media (prefers-reduced-motion: reduce) { .cuencas-tarjeta { transition: none; } }
+/* El monitor permanece claro, incluso dentro de un panel oscuro. */
+.cuencas-claro {
+  color-scheme: only light;
+  --bg: #faf4eb; --surface: #fff; --surface-2: #f6f1e6; --surface-3: #efe7d6;
+  --border: #e4dac6; --border-strong: #d3c6ab;
+  --text: #21130d; --text-muted: #6b6152; --text-faint: #756a58;
+  --heading: #3e6c51; --accent: #3e6c51; --accent-hover: #2f5540; --accent-contrast: #fff;
+  --danger: #b32d3a; --danger-soft: #f6e1e2; --warn: #9a6a12; --warn-soft: #f6ecd7;
+  --map-bg: #f4f7f4; --map-panel: rgba(255,255,255,.96); --map-panel-solid: #fff;
+  --map-border: #d5ded5; --map-text: #213629; --map-text-muted: #536657;
+  color: var(--text); background: var(--surface);
+}
+.cuencas-tarjetas-embed > .embed-warning { position: static; margin: 0 0 12px; }

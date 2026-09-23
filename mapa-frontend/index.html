@@ -8,7 +8,7 @@
     <script>
       try {
         const saved = localStorage.getItem("ecologia-theme-v1");
-        const dark = location.pathname !== "/embed/pronostico-3-dias" &&
+        const dark = !["/embed/pronostico-3-dias", "/embed/cuencas-tarjetas", "/embed/cuencas-mapa"].includes(location.pathname.replace(/\/$/, "")) &&
           (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches));
         document.documentElement.dataset.theme = dark ? "dark" : "light";
         document.querySelector('meta[name="theme-color"]').content = dark ? "#17251e" : "#faf4eb";

@@ -103,9 +103,9 @@ export default function CuencasMap({ represas, puertos, titulo, embed = false })
 
   useEffect(() => { syncRef.current?.(); }, [represas, puertos]);
 
-  if (!webglOk) return <div className="base-map base-map--fallback">Tu navegador necesita WebGL activo para mostrar el mapa.</div>;
+  if (!webglOk) return <div className="base-map base-map--fallback cuencas-claro">Tu navegador necesita WebGL activo para mostrar el mapa.</div>;
 
-  return <div className={`base-map${embed ? " base-map--embed" : ""}`}>
+  return <div className={`base-map cuencas-claro${embed ? " base-map--embed" : ""}`}>
     <div ref={mapContainerRef} className="base-map__canvas-container" />
     {titulo && <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
       <div><strong>{titulo}</strong></div></div>}
@@ -120,14 +120,15 @@ export default function CuencasMap({ represas, puertos, titulo, embed = false })
     {activo && <div className="map-info"><div className="municipio-popover" role="dialog" aria-label={activo.nombre}>
       <button className="municipio-popover__close" onClick={() => setActivo(null)} aria-label="Cerrar">✕</button>
       <h3>{activo.nombre}</h3>
+      {(activo.desactualizado || activo.vigente === false) && <p>Sin datos recientes. Se muestra la última medición disponible.</p>}
       {activo.tipo === "represa" ? <>
         <p className="risk-category"><i style={{ background: COLOR_REPRESA }} />Represa</p>
-        <p>Defluente: <strong>{Math.round(activo.valor).toLocaleString("es-AR")} m³/s</strong></p>
+        <p>Defluente: <strong>{activo.valor == null ? "—" : Math.round(activo.valor).toLocaleString("es-AR")} m³/s</strong></p>
         <p>Dato de {fecha(activo.fecha)}</p>
       </> : <>
         <p className="risk-category"><i style={{ background: COLOR_PUERTO }} />Puerto · {activo.rio}</p>
         <p>Altura: <strong>{activo.valor} m</strong> · Tendencia: {activo.tendencia || "—"} · Estado: {activo.estado || "—"}</p>
-        {activo.nivelAlerta != null && <p>Nivel de alerta: {activo.nivelAlerta} m{activo.nivelEvacuacion != null ? ` · evacuación: ${activo.nivelEvacuacion} m` : ""}</p>}
+        {activo.nivelAlerta > 0 && <p>Nivel de alerta: {activo.nivelAlerta} m{activo.nivelEvacuacion > 0 ? ` · evacuación: ${activo.nivelEvacuacion} m` : ""}</p>}
         <p>Dato de {fecha(activo.fecha)}</p>
       </>}
     </div></div>}
