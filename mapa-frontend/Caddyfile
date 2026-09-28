@@ -3,6 +3,14 @@
 {$DOMAIN:localhost} {
 	encode gzip
 
+	# Registro de cada pedido (IP, User-Agent, código de respuesta) en los logs
+	# del contenedor: `docker compose logs -f frontend`. Sirve para ver si un
+	# pedido llegó hasta acá o lo cortó algo antes (firewall, HAProxy).
+	log {
+		output stdout
+		format console
+	}
+
 	# Todo lo que sirve el backend, proxeado bajo el mismo origen: así el
 	# front nunca necesita CORS, aunque en dev (dos puertos) siga hacen falta.
 	@backend path /api/* /glyphs/* /materiales/* /health
