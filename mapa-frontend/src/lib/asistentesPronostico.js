@@ -1,5 +1,5 @@
 import { esc } from "./ui";
-import { asistente, pasoVistaPrevia, htmlPlacaLista } from "./pasos";
+import { asistente, pasoVistaPrevia, htmlPlacaLista, pasoRepublicar } from "./pasos";
 import { htmlCambios } from "./pasosMapa";
 import { publicarEnRedes } from "./publicarEnRedes";
 import { CONDICIONES_CANONICAS, condicionCanonica, esCondicionConocida } from "./condiciones";
@@ -80,21 +80,21 @@ export function crearPlacaPronostico({ vistaPrevia, guardar, epigrafe }) {
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: {}, ancho: 760 });
 }
 
-export function publicarPronosticoPorPasos({ cantidad, sinPublicar, fecha, fechaCambiada, cambios, publicar }) {
+export function publicarPronosticoPorPasos({ cantidad, sinPublicar, fecha, fechaCambiada, cambios, republicar, publicar }) {
   const lista = (cambios || []).length
     ? `<p>Se van a actualizar <strong>${cambios.length}</strong> ${cambios.length === 1 ? "dato" : "datos"} del mapa público:</p><ul class="paso-cambios">${cambios.map((c) => `<li><strong>${esc(c.localidad)}</strong> · ${esc(c.campo)}: ${esc(c.de)} <span aria-hidden="true">→</span> ${esc(c.a)}</li>`).join("")}</ul>` : "";
   return asistente({
-    estado: {}, textoEnviar: "Publicar en el mapa público",
-    pasos: [{ pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra esta versión.",
+    estado: {}, textoEnviar: republicar ? "Republicar" : "Publicar en el mapa público",
+    pasos: [republicar ? pasoRepublicar("el mismo pronóstico") : { pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra esta versión.",
       html: () => `${sinPublicar ? `<p>Se publicará el primer pronóstico con ${cantidad} localidades.</p>` : ""}${fechaCambiada ? `<p>Fecha del pronóstico: <strong>${esc(fecha)}</strong>.</p>` : ""}${lista}` }],
     enviar: async () => { await publicar(); return { tipo: "ok", titulo: "¡Publicado!", datos: true, html: "<p>El mapa público ya muestra esta versión.</p>" }; },
   });
 }
 
-export function publicarExtendidoPorPasos({ publicar }) {
+export function publicarExtendidoPorPasos({ republicar, publicar }) {
   return asistente({
-    estado: {}, textoEnviar: "Publicar en el mapa público",
-    pasos: [{ pregunta: "¿Publicamos el pronóstico de 3 días?", ayuda: "Al confirmar, se actualiza el pronóstico de 3 días del mapa público con lo que ves en la vista previa.", html: () => "" }],
+    estado: {}, textoEnviar: republicar ? "Republicar" : "Publicar en el mapa público",
+    pasos: [republicar ? pasoRepublicar("el mismo pronóstico de 3 días") : { pregunta: "¿Publicamos el pronóstico de 3 días?", ayuda: "Al confirmar, se actualiza el pronóstico de 3 días del mapa público con lo que ves en la vista previa.", html: () => "" }],
     enviar: async () => { await publicar(); return { tipo: "ok", titulo: "¡Publicado!", datos: true, html: "<p>El mapa público ya muestra esta versión.</p>" }; },
   });
 }

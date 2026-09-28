@@ -1,5 +1,5 @@
 import { esc } from "./ui";
-import { asistente, pasoVistaPrevia, htmlPlacaLista } from "./pasos";
+import { asistente, pasoVistaPrevia, htmlPlacaLista, pasoRepublicar } from "./pasos";
 import { pasoNiveles, htmlCambios } from "./pasosMapa";
 import { publicarEnRedes } from "./publicarEnRedes";
 
@@ -38,10 +38,10 @@ export function crearPlacaRiesgo({ catalogo, zonas, fecha, vistaPrevia, guardar 
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: { zonas, fecha }, ancho: 760 });
 }
 
-export function publicarRiesgoPorPasos({ cambios, sinPublicar, publicar }) {
+export function publicarRiesgoPorPasos({ cambios, sinPublicar, republicar, publicar }) {
   return asistente({
-    estado: {}, textoEnviar: "Publicar en el mapa público",
-    pasos: [{ pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra estos niveles.", html: () => htmlCambios({ cambios, sinPublicar }) }],
+    estado: {}, textoEnviar: republicar ? "Republicar" : "Publicar en el mapa público",
+    pasos: [republicar ? pasoRepublicar("los mismos niveles") : { pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra estos niveles.", html: () => htmlCambios({ cambios, sinPublicar }) }],
     enviar: async () => { await publicar(); return { tipo: "ok", titulo: "¡Publicado!", datos: true, html: "<p>El mapa público ya muestra estas categorías.</p>" }; },
   });
 }

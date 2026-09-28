@@ -1,5 +1,5 @@
 import { esc } from "./ui";
-import { asistente, opciones, leerOpciones, pasoVistaPrevia, htmlPlacaLista, htmlAreaConIconos, activarAreaConIconos } from "./pasos";
+import { asistente, opciones, leerOpciones, pasoVistaPrevia, htmlPlacaLista, htmlAreaConIconos, activarAreaConIconos, pasoRepublicar } from "./pasos";
 import { pasoNiveles, pasoFenomenos, htmlCambios } from "./pasosMapa";
 import { publicarEnRedes } from "./publicarEnRedes";
 
@@ -105,10 +105,10 @@ export function crearPlacaRecomendaciones({ inicial, vistaPrevia, guardar }) {
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: inicial, ancho: 760 });
 }
 
-export function publicarAlertasPorPasos({ cambios, sinPublicar, iconosCambiaron, publicar }) {
+export function publicarAlertasPorPasos({ cambios, sinPublicar, iconosCambiaron, republicar, publicar }) {
   return asistente({
-    estado: {}, textoEnviar: "Publicar en el mapa público",
-    pasos: [{ pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra este mapa.",
+    estado: {}, textoEnviar: republicar ? "Republicar" : "Publicar en el mapa público",
+    pasos: [republicar ? pasoRepublicar("el mismo mapa") : { pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra este mapa.",
       html: () => `${htmlCambios({ cambios, sinPublicar })}${iconosCambiaron ? "<p>Cambiaron los fenómenos de la placa.</p>" : ""}` }],
     enviar: async () => { await publicar(); return { tipo: "ok", titulo: "¡Publicado!", datos: true, html: "<p>El mapa público ya muestra este mapa.</p>" }; },
   });

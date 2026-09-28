@@ -43,7 +43,7 @@ export default function PronosticoExtendidoPage() {
     setDirty(false);
     setMensajeOk("Publicado. El mapa público ya muestra esta versión.");
   }
-  const revisarYPublicar = () => publicarExtendidoPorPasos({ publicar: publicarAhora });
+  const revisarYPublicar = () => publicarExtendidoPorPasos({ republicar: !dirty, publicar: publicarAhora });
 
   const invalido = extendido ? hayInvalidosExtendido(extendido) : true;
 
@@ -81,7 +81,7 @@ export default function PronosticoExtendidoPage() {
             )}
 
             <div className="admin-acciones">
-              <button type="button" className="btn btn--primary btn--block" disabled={publicando || invalido || !dirty} onClick={revisarYPublicar}>Revisar y publicar</button>
+              <button type="button" className="btn btn--primary btn--block" disabled={publicando || invalido} onClick={revisarYPublicar}>{dirty ? "Revisar y publicar" : "Republicar"}</button>
             </div>
 
             <h2 style={{ marginTop: 22 }}>Vista previa</h2>

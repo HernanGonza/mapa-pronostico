@@ -154,7 +154,7 @@ export default function AdminPage() {
     },
   });
   const revisarYPublicar = () => publicarPronosticoPorPasos({
-    cantidad: filas.length, sinPublicar: !publicado, fecha: fechaPronostico, fechaCambiada, cambios,
+    cantidad: filas.length, sinPublicar: !publicado, fecha: fechaPronostico, fechaCambiada, cambios, republicar: !sucio,
     publicar: async () => { setPublicado(await publicar(filas, fechaPronostico, extendido)); setMensajeOk("Publicado. El mapa público ya muestra esta versión."); },
   });
 
@@ -202,7 +202,7 @@ export default function AdminPage() {
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={cargar}>{filas ? "Cargar o corregir el pronóstico" : "Cargar el pronóstico del día"}</button>
           <button className="btn btn--block" disabled={!filas || hayInvalidos} onClick={crearPlaca}>Crear placa para redes</button>
-          <button className="btn btn--block" disabled={!filas || hayInvalidos || !fechaPronostico || !sucio} onClick={revisarYPublicar}>Revisar y publicar</button>
+          <button className="btn btn--block" disabled={!filas || hayInvalidos || !fechaPronostico} onClick={revisarYPublicar}>{sucio ? "Revisar y publicar" : "Republicar"}</button>
           <button className="btn btn--ghost btn--block" disabled={!filas} onClick={onCapturarDesdeElMapa}>Capturar mapa actual</button>
         </div>
         <p className="admin-panel__hint">{!filas ? "Subí el .docx que manda Alerta Temprana y corregí los datos si hace falta. El mapa se arma solo." : hayInvalidos ? "Hay datos por corregir: abrí «Cargar o corregir el pronóstico»." : sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>

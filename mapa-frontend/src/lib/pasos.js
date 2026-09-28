@@ -183,3 +183,13 @@ export function htmlPlacaLista(placa) {
   return `<div class="paso-miniaturas"><img src="${esc(placa.feedUrl)}" alt="Placa de feed"><img src="${esc(placa.historiasUrl)}" alt="Placa de historias"></div>
     <div class="paso-descargas">${descarga(placa.feedUrl, placa.feedNombre, "Descargar feed")}${descarga(placa.historiasUrl, placa.historiasNombre, "Descargar historias")}</div>`;
 }
+
+/**
+ * Paso de "Republicar": no hay cambios respecto de lo publicado, pero se vuelve a publicar
+ * la misma versión para que el mapa público figure con la fecha y hora de hoy.
+ */
+export const pasoRepublicar = (que = "la misma versión") => ({
+  pregunta: "¿Volvemos a publicar lo mismo?",
+  ayuda: "No hay cambios respecto de lo publicado.",
+  html: () => `<p>Se publica de nuevo ${esc(que)} para que el mapa público figure como actualizado hoy.</p>`,
+});

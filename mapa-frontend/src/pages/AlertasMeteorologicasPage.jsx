@@ -36,7 +36,7 @@ export default function AlertasMeteorologicasPage() {
   const zonasCambiadas = zonas.filter(z => z.categoria !== antes(z.id));
   const iconosCambiaron = JSON.stringify(iconos) !== JSON.stringify(publicado?.iconos || []);
   const cambios = zonasCambiadas.length > 0 || iconosCambiaron;
-  const puedePublicar = !!catalogo && (!publicado || cambios);
+  const republicar = !!publicado && !cambios;
   const detalle = zonasCambiadas.map(z => ({ nombre: catalogo?.departamentos.find(d => String(d.id) === String(z.id))?.nombre || String(z.id), antes: antes(z.id), despues: z.categoria }));
 
   const editarMapa = () => editarMapaAlertas({ catalogo, zonas, iconos, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
@@ -62,7 +62,7 @@ export default function AlertasMeteorologicasPage() {
     },
   });
   const revisarYPublicar = () => publicarAlertasPorPasos({
-    cambios: detalle, sinPublicar: !publicado, iconosCambiaron,
+    cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar,
     publicar: async () => { setPublicado(await api.publicarAlertasMeteorologicas(zonas, iconos)); setMensaje('Publicado. El mapa público ya muestra este mapa.'); },
   });
 
@@ -77,7 +77,7 @@ export default function AlertasMeteorologicasPage() {
           <button className="btn btn--primary btn--block" onClick={editarMapa}>Editar mapa</button>
           <button className="btn btn--block" onClick={crearPlacaMapa}>Crear placa del mapa</button>
           <button className="btn btn--block" onClick={crearRecomendaciones}>Crear placa de recomendaciones</button>
-          <button className="btn btn--block" disabled={!puedePublicar} onClick={revisarYPublicar}>Revisar y publicar</button>
+          <button className="btn btn--block" disabled={!catalogo} onClick={revisarYPublicar}>{republicar ? "Republicar" : "Revisar y publicar"}</button>
         </div>
         <p className="admin-panel__hint">La placa del mapa usa los niveles y fenómenos que ves a la derecha. El mapa público muestra lo último que publicaste.</p>
         <details><summary>Qué significa cada nivel</summary>{catalogo.categorias.map(c => <p key={c.nombre}><strong>{c.nombre} · {c.accion}</strong><br />{c.descripcion}</p>)}</details>

@@ -71,7 +71,7 @@ export default function RiesgoIncendiosPage() {
       return placa;
     },
   });
-  const revisarYPublicar = () => publicarRiesgoPorPasos({ cambios: detalleCambios, sinPublicar: !publicado, publicar: async () => { await guardar(); setMensaje("Publicado. El mapa público ya muestra estas categorías."); } });
+  const revisarYPublicar = () => publicarRiesgoPorPasos({ cambios: detalleCambios, sinPublicar: !publicado, republicar: !sucio && !!publicado, publicar: async () => { await guardar(); setMensaje("Publicado. El mapa público ya muestra estas categorías."); } });
   async function exportar() {
     setOcupado(true); setError("");
     try {
@@ -97,7 +97,7 @@ export default function RiesgoIncendiosPage() {
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" disabled={ocupado} onClick={editarNiveles}>Editar niveles</button>
           <button className="btn btn--block" disabled={ocupado} onClick={crearPlaca}>Crear placa para redes</button>
-          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length || !sucio} onClick={revisarYPublicar}>Revisar y publicar</button>
+          <button className="btn btn--block" disabled={ocupado || completos !== zonas.length} onClick={revisarYPublicar}>{sucio || !publicado ? "Revisar y publicar" : "Republicar"}</button>
           <button className="btn btn--ghost btn--block" disabled={ocupado || completos !== zonas.length} onClick={exportar}>{ocupado ? "Procesando…" : "Capturar mapa actual"}</button>
         </div>
         <p className="admin-panel__hint">{sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>
