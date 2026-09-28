@@ -1,11 +1,5 @@
-# Robots de vista previa de Meta (Facebook/Instagram): tienen que poder leer las
-# páginas públicas, entre ellas /privacidad y /eliminacion-de-datos (las pide Meta).
-User-agent: facebookexternalhit
-User-agent: meta-externalagent
-User-agent: Facebot
-Allow: /
-
+# Todo permitido, en la forma más simple posible: el robot de Meta
+# (facebookexternalhit) tiene que poder leer /privacidad y /eliminacion-de-datos.
+# El panel no necesita bloquearse acá: pide usuario y contraseña.
 User-agent: *
-Disallow: /panel
-Disallow: /api/
 Allow: /
