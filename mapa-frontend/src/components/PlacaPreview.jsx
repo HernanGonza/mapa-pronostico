@@ -24,7 +24,7 @@ export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, 
         {conjunto ? <>
         <PublicarEnRedes className="btn btn--primary" feedUrl={conjunto.feed} historiasUrl={conjunto.historias} epigrafe={epigrafe ?? `${titulo.charAt(0).toUpperCase()}${titulo.slice(1)} · Ministerio de Ecología y RNR de Misiones`} />
         <div className="placa-preview-grid">
-          {['feed', 'historias'].map(formato => <figure key={formato}>
+          {['feed', 'historias'].filter(formato => conjunto[formato]).map(formato => <figure key={formato}>
             <a className="btn btn--primary" href={`${conjunto[formato]}?download=${encodeURIComponent(conjunto[`${formato}Nombre`])}`}>Descargar {formato}</a>
             <img src={conjunto[formato]} alt={`Vista previa de ${vista === 'recomendaciones' ? 'recomendaciones' : titulo} para ${formato}`} />
             <figcaption>{formato === 'feed' ? 'Feed' : 'Historias'}</figcaption>

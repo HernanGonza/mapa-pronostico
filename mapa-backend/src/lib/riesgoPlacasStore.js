@@ -3,8 +3,9 @@ const store = require("./store");
 const auth = require("./auth");
 const { subirArchivo, urlPublica } = require("./storage");
 
-/** Historial de placas feed+historias del riesgo de incendios — mismo
- * patrón que pronosticoPlacasStore.js. */
+/** Historial de placas del riesgo de incendios — mismo patrón que
+ * pronosticoPlacasStore.js, pero sólo historias (feed_path queda NULL;
+ * las filas viejas conservan su feed). */
 
 let initPromise;
 
@@ -25,6 +26,7 @@ async function init() {
          historias_path text NOT NULL
        )`
     )
+    .then(() => p.query(`ALTER TABLE riesgo_placas ALTER COLUMN feed_path DROP NOT NULL`))
     .then(() => console.log("[riesgoPlacasStore] Postgres listo (tabla riesgo_placas)"))
     .catch((e) => {
       initPromise = null;
@@ -38,19 +40,10 @@ function baseRuta() {
   return `placas/${stamp}-${crypto.randomBytes(3).toString("hex")}`;
 }
 
-function nombresArchivos(fecha) {
-  return {
-    feedNombre: `riesgo-incendios-feed-${fecha}.png`,
-    historiasNombre: `riesgo-incendios-historias-${fecha}.png`,
-  };
-}
-
-async function crear({ fecha, usuarioId = null, feedPng, historiasPng }) {
-  const base = baseRuta();
-  const nombres = nombresArchivos(fecha);
-  const feedPath = `${base}/${nombres.feedNombre}`;
-  const historiasPath = `${base}/${nombres.historiasNombre}`;
-  await Promise.all([subirArchivo(feedPath, feedPng), subirArchivo(historiasPath, historiasPng)]);
+async function crear({ fecha, usuarioId = null, historiasPng }) {
+  const nombres = { feedNombre: null, historiasNombre: `riesgo-incendios-historias-${fecha}.png` };
+  const historiasPath = `${baseRuta()}/${nombres.historiasNombre}`;
+  await subirArchivo(historiasPath, historiasPng);
 
   await init();
   const p = store.getPool();
@@ -59,11 +52,11 @@ async function crear({ fecha, usuarioId = null, feedPng, historiasPng }) {
       `INSERT INTO riesgo_placas (generado_por, fecha, feed_path, historias_path)
        VALUES ($1,$2,$3,$4)
        RETURNING id, generado_en`,
-      [usuarioId, fecha, feedPath, historiasPath]
+      [usuarioId, fecha, null, historiasPath]
     );
-    return { id: Number(rows[0].id), ...nombres, generadoEn: rows[0].generado_en.toISOString(), feedUrl: urlPublica(feedPath), historiasUrl: urlPublica(historiasPath) };
+    return { id: Number(rows[0].id), ...nombres, generadoEn: rows[0].generado_en.toISOString(), feedUrl: null, historiasUrl: urlPublica(historiasPath) };
   }
-  return { id: null, ...nombres, generadoEn: new Date().toISOString(), feedUrl: urlPublica(feedPath), historiasUrl: urlPublica(historiasPath) };
+  return { id: null, ...nombres, generadoEn: new Date().toISOString(), feedUrl: null, historiasUrl: urlPublica(historiasPath) };
 }
 
 module.exports = { init, crear };

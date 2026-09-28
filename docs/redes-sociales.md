@@ -27,10 +27,19 @@ dónde, enlace). Si una placa ya salió en un destino, el sistema avisa antes de
 2. **Crear la app**: en <https://developers.facebook.com/apps> → *Crear app* → tipo
    *Empresa* (Business). Agregar los productos **Facebook Login for Business** e
    **Instagram Graph API**.
-3. **No hace falta pasar la revisión de Meta** mientras la app esté en modo
-   *Desarrollo* y la persona que genera el token tenga rol (administrador o
-   desarrollador) en la app. Para publicar solo en cuentas propias del Ministerio
-   alcanza con eso.
+3. **No hace falta pasar la revisión de Meta** (App Review): las apps de tipo
+   *Empresa* tienen «acceso estándar» a todos los permisos, que alcanza para publicar
+   en cuentas de personas con rol (administrador o desarrollador) en la app — o sea,
+   las cuentas propias del Ministerio. La persona que genera el token tiene que tener
+   ese rol en la app **y** ser administradora de la página.
+   **Pero la app tiene que pasar a modo *Activo* (Live)**: en modo *Desarrollo* lo que
+   se publica en Facebook solo lo ven quienes tienen rol en la app, no el público.
+   Para activarla, en *Configuración de la app → Básica* hay que completar la URL de
+   la política de privacidad, la de eliminación de datos (puede ser la misma página),
+   la categoría y el ícono; después, el interruptor *Modo de la app* arriba.
+   Las dos URLs ya existen en el sistema, linkeadas desde la portada:
+   `https://<dominio>/privacidad` y `https://<dominio>/eliminacion-de-datos`
+   (contenido en `mapa-frontend/src/pages/LegalPage.jsx`).
 4. **Generar el token**, en el [Explorador de la Graph API](https://developers.facebook.com/tools/explorer/):
    - Elegir la app y *Obtener token de acceso de usuario* con los permisos
      `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`,
@@ -43,7 +52,16 @@ dónde, enlace). Si una placa ya salió en un destino, el sistema avisa antes de
      `META_PAGE_ID`.
 5. **ID de Instagram**: `GET /<META_PAGE_ID>?fields=instagram_business_account` → el
    `id` de `instagram_business_account` es `META_IG_USER_ID`.
-6. Cargar las tres variables en el `.env` y reiniciar el backend.
+6. Cargar las tres variables en el `.env` y reiniciar el backend
+   (`docker compose up -d`).
+7. **Verificar sin publicar nada**: `docker compose exec backend node scripts/verificar-redes.js`.
+   Chequea que el token sea de página, que no venza, que tenga los permisos, que
+   `META_PAGE_ID` y `META_IG_USER_ID` coincidan con la página/cuenta del token y que el
+   bot de Telegram pueda publicar en el canal. Si dice «Todo en orden», el panel ya
+   publica.
+
+La versión de la Graph API es `v25.0` por defecto (vigente hasta julio de 2028); se
+puede cambiar con `META_GRAPH_VERSION` sin tocar código.
 
 Si el token se revoca (cambio de contraseña, se saca el rol en la app, etc.), el panel
 muestra «El token de Meta venció o fue revocado»: repetir el paso 4.

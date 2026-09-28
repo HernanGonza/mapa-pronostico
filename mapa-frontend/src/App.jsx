@@ -30,6 +30,7 @@ const EmbedCuencasMapaPage = lazy(() => import("./pages/EmbedCuencasMapaPage"));
 const EmbedCuencasTarjetasPage = lazy(() => import("./pages/EmbedCuencasTarjetasPage"));
 
 const RecuperarPasswordPage = lazy(() => import("./pages/RecuperarPasswordPage"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
 
 export default function App() {
   return (
@@ -40,6 +41,8 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/recuperar-contrasena" element={<RecuperarPasswordPage />} />
+          <Route path="/privacidad" element={<LegalPage tipo="privacidad" />} />
+          <Route path="/eliminacion-de-datos" element={<LegalPage tipo="eliminacion" />} />
 
           <Route
             path="/panel"

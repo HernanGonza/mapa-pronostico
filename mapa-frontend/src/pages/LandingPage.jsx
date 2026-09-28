@@ -41,6 +41,10 @@ export default function LandingPage() {
         <h1>Sistema Integrado Alerta Temprana</h1>
         <p>Mapas, pronósticos y alertas para anticiparnos al clima de la provincia.</p>
         <Link to="/login" className="btn btn--primary landing__cta">Ingresar <Icono icono={ArrowRight} size={18} /></Link>
+        <nav className="landing__legales" aria-label="Información legal">
+          <Link to="/privacidad">Política de privacidad</Link>
+          <Link to="/eliminacion-de-datos">Eliminación de datos</Link>
+        </nav>
 
         {destacadas.length > 0 && <section className="landing__hoy" aria-label="Pronóstico publicado">
           <h2>Pronóstico{pronostico?.fechaPronostico ? ` · ${fechaLarga(pronostico.fechaPronostico)}` : ""}</h2>

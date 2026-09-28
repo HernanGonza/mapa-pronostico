@@ -155,7 +155,7 @@ export function pasoVistaPrevia({ pregunta = "Así queda la placa", ayuda = "Rev
       const boton = Swal_getConfirm(popup);
       const mostrar = (vista) => {
         cargando.hidden = true; grid.hidden = false;
-        grid.innerHTML = ["feed", "historias"].map((f) => `<figure><div class="paso-previa__marco"><img src="${esc(urlPlaca(vista[`${f}Url`]))}" alt="Vista previa ${nombreDe[f]}"><button type="button" class="paso-previa__pantalla" data-pantalla aria-label="Ver ${nombreDe[f].toLowerCase()} en pantalla completa" title="Pantalla completa">${ICONO_PANTALLA_COMPLETA}</button></div><figcaption>${nombreDe[f]}</figcaption></figure>`).join("");
+        grid.innerHTML = ["feed", "historias"].filter((f) => vista[`${f}Url`]).map((f) => `<figure><div class="paso-previa__marco"><img src="${esc(urlPlaca(vista[`${f}Url`]))}" alt="Vista previa ${nombreDe[f]}"><button type="button" class="paso-previa__pantalla" data-pantalla aria-label="Ver ${nombreDe[f].toLowerCase()} en pantalla completa" title="Pantalla completa">${ICONO_PANTALLA_COMPLETA}</button></div><figcaption>${nombreDe[f]}</figcaption></figure>`).join("");
         grid.addEventListener("click", (e) => { e.target.closest("[data-pantalla]")?.closest(".paso-previa__marco")?.querySelector("img")?.requestFullscreen?.().catch(() => {}); });
         if (boton) boton.disabled = false;
       };
@@ -180,8 +180,9 @@ const Swal_getConfirm = (popup) => popup.querySelector(".swal2-confirm");
 /** Resultado de crear una placa: miniaturas y descarga de cada formato. */
 export function htmlPlacaLista(placa) {
   const descarga = (url, nombre, etiqueta) => `<a class="btn" href="${esc(url)}?download=${encodeURIComponent(nombre || "placa.png")}">${etiqueta}</a>`;
-  return `<div class="paso-miniaturas"><img src="${esc(placa.feedUrl)}" alt="Placa de feed"><img src="${esc(placa.historiasUrl)}" alt="Placa de historias"></div>
-    <div class="paso-descargas">${descarga(placa.feedUrl, placa.feedNombre, "Descargar feed")}${descarga(placa.historiasUrl, placa.historiasNombre, "Descargar historias")}</div>`;
+  const formatos = [["feed", "Placa de feed", "Descargar feed"], ["historias", "Placa de historias", "Descargar historias"]].filter(([f]) => placa[`${f}Url`]);
+  return `<div class="paso-miniaturas">${formatos.map(([f, alt]) => `<img src="${esc(placa[`${f}Url`])}" alt="${alt}">`).join("")}</div>
+    <div class="paso-descargas">${formatos.map(([f, , etiqueta]) => descarga(placa[`${f}Url`], placa[`${f}Nombre`], etiqueta)).join("")}</div>`;
 }
 
 /**

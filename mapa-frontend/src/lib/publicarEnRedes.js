@@ -56,9 +56,9 @@ export async function publicarEnRedes({ feedUrl, historiasUrl, epigrafe = "" }) 
   }
 
   const pasos = [
-    { pregunta: "¿Qué querés publicar?", ayuda: "Podés elegir los dos formatos.",
+    { pregunta: "¿Qué querés publicar?", ayuda: feedUrl ? "Podés elegir los dos formatos." : "Esta placa sólo tiene formato de historias.",
       html: (s) => opciones({ nombre: "formato", items: [
-        { valor: "feed", titulo: "Feed", detalle: "Publicación cuadrada", img: feedUrl, marcada: s.formatos.includes("feed") },
+        ...(feedUrl ? [{ valor: "feed", titulo: "Feed", detalle: "Publicación cuadrada", img: feedUrl, marcada: s.formatos.includes("feed") }] : []),
         { valor: "historias", titulo: "Historias", detalle: "Vertical, sin texto", img: historiasUrl, marcada: s.formatos.includes("historias") }] }),
       leer: (popup) => ({ formatos: leerOpciones(popup, "formato") }),
       validar: (s) => (s.formatos.length ? null : "Elegí al menos un formato.") },
@@ -88,5 +88,5 @@ export async function publicarEnRedes({ feedUrl, historiasUrl, epigrafe = "" }) 
         <p class="paso-nota">Desde el sistema no se puede deshacer: para borrar una publicación hay que hacerlo a mano en cada red.</p>` },
   ];
 
-  await asistente({ pasos, enviar, textoEnviar: "Publicar", estado: { formatos: ["feed", "historias"], destinos: ["facebook", "instagram", "telegram"].filter((id) => estado[id]), epigrafe } });
+  await asistente({ pasos, enviar, textoEnviar: "Publicar", estado: { formatos: feedUrl ? ["feed", "historias"] : ["historias"], destinos: ["facebook", "instagram", "telegram"].filter((id) => estado[id]), epigrafe } });
 }

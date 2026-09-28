@@ -31,7 +31,7 @@ const DIMENSIONES = { feed: [1080, 1350], historias: [1080, 1920] };
 const env = (nombre) => (process.env[nombre] || "").trim();
 
 function graphBase() {
-  return `https://graph.facebook.com/${env("META_GRAPH_VERSION") || "v21.0"}`;
+  return `https://graph.facebook.com/${env("META_GRAPH_VERSION") || "v25.0"}`;
 }
 
 function telegramChats() {
@@ -227,4 +227,4 @@ async function publicar({ feedUrl, historiasUrl, epigrafe, destinos, formatos })
   return porDestino.flat();
 }
 
-module.exports = { FORMATOS, DESTINOS, DIMENSIONES, estado, esUrlDePlaca, errorDePedido, convertirAJpeg, mensajeDeMeta, publicar };
+module.exports = { FORMATOS, DESTINOS, DIMENSIONES, graphBase, estado, esUrlDePlaca, errorDePedido, convertirAJpeg, mensajeDeMeta, publicar };

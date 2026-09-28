@@ -20,7 +20,8 @@ function guardar({ feedPng, historiasPng }, usuarioId) {
   limpiar();
   const token = crypto.randomBytes(16).toString("hex");
   pendientes.set(token, { feedPng, historiasPng, usuarioId, expira: Date.now() + VENCE_MS });
-  return { token, vistaPrevia: true, feedUrl: `/api/placas/pendientes/${token}/feed.png`, historiasUrl: `/api/placas/pendientes/${token}/historias.png` };
+  // Una placa puede venir sin feed (riesgo de incendios sólo tiene historias): feedUrl queda en null.
+  return { token, vistaPrevia: true, feedUrl: feedPng ? `/api/placas/pendientes/${token}/feed.png` : null, historiasUrl: `/api/placas/pendientes/${token}/historias.png` };
 }
 
 /** Devuelve la vista previa (sin quitarla) si existe, no venció y es de esta persona. */
