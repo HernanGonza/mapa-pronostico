@@ -11,10 +11,12 @@
 	}
 
 	# El resto: el SPA. Fallback a index.html para las rutas de React Router
-	# (/admin, /embed) — si no, un F5 en /embed tira 404.
+	# (/admin, /embed) — si no, un F5 en /embed tira 404. `{path}.html` sirve
+	# las páginas estáticas de public/ con URL limpia (/privacidad →
+	# privacidad.html): Meta las lee sin ejecutar JavaScript.
 	handle {
 		root * /srv
-		try_files {path} /index.html
+		try_files {path} {path}.html /index.html
 		file_server
 	}
 }

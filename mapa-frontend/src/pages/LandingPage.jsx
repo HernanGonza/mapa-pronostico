@@ -42,8 +42,9 @@ export default function LandingPage() {
         <p>Mapas, pronósticos y alertas para anticiparnos al clima de la provincia.</p>
         <Link to="/login" className="btn btn--primary landing__cta">Ingresar <Icono icono={ArrowRight} size={18} /></Link>
         <nav className="landing__legales" aria-label="Información legal">
-          <Link to="/privacidad">Política de privacidad</Link>
-          <Link to="/eliminacion-de-datos">Eliminación de datos</Link>
+          {/* <a> y no <Link>: son HTML estático (public/*.html), fuera del SPA. */}
+          <a href="/privacidad">Política de privacidad</a>
+          <a href="/eliminacion-de-datos">Eliminación de datos</a>
         </nav>
 
         {destacadas.length > 0 && <section className="landing__hoy" aria-label="Pronóstico publicado">

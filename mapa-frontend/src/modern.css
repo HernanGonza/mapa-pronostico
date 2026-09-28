@@ -385,16 +385,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .info-card__confianza--alta strong { color: #23694a; }
 .info-card__level small { font-weight: 600; }
 
-/* --- Portada: links legales + páginas de privacidad / eliminación de datos --- */
+/* --- Portada: links a las páginas legales (estáticas, public/*.html) --- */
 .landing__legales { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; font-size: 13px; }
 .landing__legales a { color: rgba(255, 255, 255, 0.78); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.35); }
 .landing__legales a:hover, .landing__legales a:focus-visible { color: #fff; text-decoration-color: currentColor; }
-.legal { min-height: 100vh; background: var(--bg); color: var(--text); }
-.legal__contenido { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; line-height: 1.65; }
-.legal__contenido h1 { margin: 0 0 4px; font-size: clamp(26px, 5vw, 34px); letter-spacing: -0.02em; }
-.legal__contenido h2 { margin: 28px 0 8px; font-size: 19px; }
-.legal__contenido ul, .legal__contenido ol { padding-left: 22px; }
-.legal__contenido li { margin-bottom: 6px; }
-.legal__contenido a { color: var(--accent); }
-.legal__fecha { margin: 0 0 20px; color: var(--text-muted); font-size: 14px; }
-.legal__nota { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-muted); font-size: 14px; }

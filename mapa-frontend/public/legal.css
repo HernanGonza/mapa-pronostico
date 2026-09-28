@@ -1,0 +1,24 @@
+/* Páginas legales estáticas (privacidad.html, eliminacion-de-datos.html). Son HTML
+   plano, no React, para que el robot de Meta (que no ejecuta JavaScript) lea el texto. */
+@font-face { font-family: "Oak Sans"; src: url("/fonts/OakSans-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Oak Sans"; src: url("/fonts/OakSans-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Oak Sans"; src: url("/fonts/OakSans-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+:root { --bg: #faf4eb; --surface: #ffffff; --text: #21130d; --muted: #6b6152; --border: #e4dac6; --accent: #3e6c51; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #17251e; --surface: #203229; --text: #f6f3ec; --muted: #c3cdbf; --border: #42564a; --accent: #cad4a0; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 "Oak Sans", system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
+header .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+header .marca strong { display: block; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+header .marca span { display: block; font-size: 12px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+header nav { margin-left: auto; font-size: 14px; }
+a { color: var(--accent); }
+main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+h1 { margin: 0 0 4px; font-size: clamp(26px, 5vw, 34px); line-height: 1.2; letter-spacing: -0.02em; }
+h2 { margin: 28px 0 8px; font-size: 19px; }
+ul, ol { padding-left: 22px; }
+li { margin-bottom: 6px; }
+.fecha { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+.nota { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; color: var(--muted); font-size: 14px; }

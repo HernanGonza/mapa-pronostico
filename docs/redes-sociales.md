@@ -39,7 +39,7 @@ dónde, enlace). Si una placa ya salió en un destino, el sistema avisa antes de
    la categoría y el ícono; después, el interruptor *Modo de la app* arriba.
    Las dos URLs ya existen en el sistema, linkeadas desde la portada:
    `https://<dominio>/privacidad` y `https://<dominio>/eliminacion-de-datos`
-   (contenido en `mapa-frontend/src/pages/LegalPage.jsx`).
+   (HTML estático en `mapa-frontend/public/privacidad.html` y `eliminacion-de-datos.html`, para que Meta las lea sin JavaScript).
 4. **Generar el token**, en el [Explorador de la Graph API](https://developers.facebook.com/tools/explorer/):
    - Elegir la app y *Obtener token de acceso de usuario* con los permisos
      `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`,
