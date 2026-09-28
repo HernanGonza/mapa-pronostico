@@ -1,0 +1,11 @@
+# Robots de vista previa de Meta (Facebook/Instagram): tienen que poder leer las
+# páginas públicas, entre ellas /privacidad y /eliminacion-de-datos (las pide Meta).
+User-agent: facebookexternalhit
+User-agent: meta-externalagent
+User-agent: Facebot
+Allow: /
+
+User-agent: *
+Disallow: /panel
+Disallow: /api/
+Allow: /
