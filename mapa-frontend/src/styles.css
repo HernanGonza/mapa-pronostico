@@ -1344,6 +1344,31 @@ input[type="file"] {
 
 .base-map .maplibregl-ctrl-attrib { background: rgba(255,255,255,.93) !important; color: #435d4d !important; font-size: 10px; }
 .base-map .maplibregl-ctrl-attrib a { color: #435d4d !important; }
+
+/* Embebido en un cuadro chico (la tarjeta 4:5 de alertatemprana.misiones.gob.ar
+   mide ~370 × 460): los cuadros blancos de leyenda (fenómenos + referencias de
+   color) tapaban más de la mitad del mapa. Mismo estilo, versión compacta. Dentro
+   de un iframe, el viewport es el iframe: esta media query mide el cuadro, no la
+   pantalla. Si el iframe es grande, todo queda como arriba. */
+@media (max-width: 520px), (max-height: 600px) {
+  /* bottom: deja lugar a los créditos del mapa, que en un cuadro angosto ocupan dos renglones. */
+  .base-map--embed .map-legend { left: 8px; right: 8px; bottom: 40px; max-width: calc(100% - 16px); }
+  .base-map--embed .risk-legends { gap: 5px; }
+  .base-map--embed .risk-legend { padding: 7px 10px 8px; border-radius: 10px; box-shadow: 0 2px 12px #16332518; }
+  .base-map--embed .risk-legend strong { margin-bottom: 5px; font-size: 10.5px; }
+  .base-map--embed .risk-legend small { display: none; }
+  /* Fenómenos: íconos y textos más chicos, en tantas columnas como entren. */
+  .base-map--embed .weather-legend ul { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 3px 10px; }
+  .base-map--embed .weather-legend li { gap: 4px; }
+  .base-map--embed .weather-legend__icon { width: 22px; height: 20.4px; }
+  .base-map--embed .weather-legend__icon img { width: 141.4px; height: 20.4px; }
+  .base-map--embed .weather-legend__label { padding-bottom: 2px; border-bottom-width: 2px; font-size: 9.5px; }
+  /* Referencias de color: barra más fina y textos en una línea más compacta. */
+  .base-map--embed .risk-legend__scale > div { min-width: 48px; padding: 0 1px; }
+  .base-map--embed .risk-legend__scale i { height: 7px; margin-bottom: 3px; }
+  .base-map--embed .risk-legend__scale span { display: block; font-size: 7.5px; line-height: 1.25; }
+  .base-map--embed .maplibregl-ctrl-attrib { font-size: 8.5px; }
+}
 .meteo-layout .admin-panel > .btn { margin-block: 12px; }
 .meteo-layout .risk-review > .btn { margin-top: 12px; }
 .meteo-downloads { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
