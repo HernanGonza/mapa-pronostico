@@ -29,6 +29,21 @@ function geojsonDePoligonos(poligonos) {
   ]) };
 }
 
+/** Límites municipales (relleno + línea + nombres), debajo del polígono si ya está dibujado. */
+function agregarMunicipios(map, datos) {
+  const antes = map.getLayer("poligono-relleno") ? "poligono-relleno" : undefined;
+  map.addSource("municipios-limite", { type: "geojson", data: datos });
+  // Relleno verde tenue sobre los 79 municipios: sin esto, Misiones se
+  // pierde contra Brasil/Paraguay/Corrientes en el fondo "positron"
+  // (todo blanco/gris) — con el mapa capturado como placa, hace falta
+  // que la provincia se distinga a simple vista.
+  map.addLayer({ id: "municipios-limite-relleno", type: "fill", source: "municipios-limite", paint: { "fill-color": "#3e6c51", "fill-opacity": 0.16 } }, antes);
+  map.addLayer({ id: "municipios-limite-linea", type: "line", source: "municipios-limite", paint: { "line-color": "#345345", "line-width": 1, "line-opacity": 0.55 } }, antes);
+  map.addLayer({ id: "municipios-limite-label", type: "symbol", source: "municipios-limite", minzoom: 7.5,
+    layout: { "text-field": ["get", "nombre"], "text-font": ["Noto Sans Regular"], "text-size": 10.5, "text-max-width": 8 },
+    paint: { "text-color": "#5a6b5d", "text-halo-color": "#ffffff", "text-halo-width": 1.2 } }, antes);
+}
+
 /**
  * Mapa para dibujar a mano el polígono de referencia de un aviso a muy
  * corto plazo (o mostrar el que ya vino del CAP del SMN): click agrega un
@@ -96,18 +111,7 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligon
     map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
 
     map.on("style.load", () => {
-      if (municipiosRef.current) {
-        map.addSource("municipios-limite", { type: "geojson", data: municipiosRef.current });
-        // Relleno verde tenue sobre los 79 municipios: sin esto, Misiones se
-        // pierde contra Brasil/Paraguay/Corrientes en el fondo "positron"
-        // (todo blanco/gris) — con el mapa capturado como placa, hace falta
-        // que la provincia se distinga a simple vista.
-        map.addLayer({ id: "municipios-limite-relleno", type: "fill", source: "municipios-limite", paint: { "fill-color": "#3e6c51", "fill-opacity": 0.16 } });
-        map.addLayer({ id: "municipios-limite-linea", type: "line", source: "municipios-limite", paint: { "line-color": "#345345", "line-width": 1, "line-opacity": 0.55 } });
-        map.addLayer({ id: "municipios-limite-label", type: "symbol", source: "municipios-limite", minzoom: 7.5,
-          layout: { "text-field": ["get", "nombre"], "text-font": ["Noto Sans Regular"], "text-size": 10.5, "text-max-width": 8 },
-          paint: { "text-color": "#5a6b5d", "text-halo-color": "#ffffff", "text-halo-width": 1.2 } });
-      }
+      if (municipiosRef.current) agregarMunicipios(map, municipiosRef.current);
       const color = colorPoligonoRef.current;
       map.addSource("poligono-dibujo", { type: "geojson", data: datosDibujo() });
       map.addLayer({ id: "poligono-relleno", type: "fill", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.22 } });
@@ -166,6 +170,16 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligon
     mapRef.current?.getSource("poligono-dibujo")?.setData(datosDibujo());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puntos, poligonos, listo]);
+
+  // Los municipios pueden llegar después de que cargó el mapa (el iframe lo
+  // crea enseguida, antes de tenerlos): se agregan cuando llegan.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!listo || !map || !municipios) return;
+    const fuente = map.getSource("municipios-limite");
+    if (fuente) fuente.setData(municipios);
+    else agregarMunicipios(map, municipios);
+  }, [municipios, listo]);
 
   if (!webglOk) {
     return (
