@@ -5,8 +5,26 @@ import { API_URL } from '../config';
 import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson } from '../api';
 import { tiempoRelativo } from '../lib/tiempoRelativo';
 
-const fecha = value => new Date(value).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+const AR = 'America/Argentina/Buenos_Aires';
+const fecha = value => new Date(value).toLocaleString('es-AR', { timeZone: AR });
+const horaCorta = value => new Date(value).toLocaleString('es-AR', { timeZone: AR, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const order = { Amarillo: 1, Naranja: 2, Rojo: 3, ACP: 4 };
+
+// Días en hora argentina ("AAAA-MM-DD"). Cada emisión del SMN es un informe
+// completo (reemplaza al anterior: tipo "Update") con áreas para hoy y para
+// mañana: se elige la emisión y el día, y el mapa muestra sólo eso.
+const diaAR = value => new Intl.DateTimeFormat('en-CA', { timeZone: AR }).format(new Date(value));
+const sumarDia = (dia, n = 1) => new Date(Date.parse(`${dia}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+function diasDe(info) {
+  const dias = [], fin = diaAR(info.fin);
+  for (let d = diaAR(info.inicio); d <= fin && dias.length < 7; d = sumarDia(d)) dias.push(d);
+  return dias;
+}
+function etiquetaDia(dia) {
+  const hoy = diaAR(Date.now());
+  const nombre = new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-AR', { timeZone: 'UTC', weekday: 'short', day: '2-digit', month: '2-digit' });
+  return dia === hoy ? `Hoy · ${nombre}` : dia === sumarDia(hoy) ? `Mañana · ${nombre}` : nombre;
+}
 
 // Suena dos beeps cortos (sin depender de ningún archivo de audio).
 function sonarAlarma(ctx) {
@@ -36,6 +54,9 @@ export default function SmnAlertas() {
   const [updating, setUpdating] = useState(false);
   const [sonidoListo, setSonidoListo] = useState(false);
   const [reconocidos, setReconocidos] = useState(() => new Set());
+  // null = seguir la emisión más reciente / el primer día que traiga.
+  const [emisionElegida, setEmisionElegida] = useState(null);
+  const [diaElegido, setDiaElegido] = useState(null);
   const audioCtxRef = useRef(null);
   const vistosAcpRef = useRef(new Set());
 
@@ -85,8 +106,19 @@ export default function SmnAlertas() {
     finally { setUpdating(false); }
   }
 
-  const infos = data ? Object.values(data.fuentes).flatMap(f => f.alertas).flatMap(a => a.infos.map((info, index) => ({ ...info, id: `${a.id}:${index}`, fuente: a.fuente, url: a.url })))
+  const todas = data ? Object.values(data.fuentes).flatMap(f => f.alertas).flatMap(a => a.infos.map((info, index) => ({ ...info, id: `${a.id}:${index}`, fuente: a.fuente, url: a.url, emitidoEn: a.emitidoEn })))
     .filter(i => Date.parse(i.fin) > Date.now()).sort((a, b) => order[a.categoria] - order[b.categoria]) : [];
+  const sat = todas.filter(i => i.fuente !== 'ACP');
+  const acp = todas.filter(i => i.fuente === 'ACP');
+  const emisiones = [...new Set(sat.map(i => i.emitidoEn).filter(Boolean))].sort().reverse();
+  const emision = emisiones.includes(emisionElegida) ? emisionElegida : emisiones[0] || null;
+  const deEmision = sat.filter(i => i.emitidoEn === emision);
+  const hoy = diaAR(Date.now());
+  const dias = [...new Set(deEmision.flatMap(diasDe))].sort();
+  if (acp.length && !dias.includes(hoy)) dias.unshift(hoy); // los ACP son de ahora mismo
+  const dia = dias.includes(diaElegido) ? diaElegido : dias[0] || null;
+  // Lo que se ve en el mapa y en la lista: la emisión y el día elegidos (+ los ACP, si el día es hoy).
+  const infos = [...deEmision.filter(i => diasDe(i).includes(dia)), ...(dia === hoy ? acp : [])];
   const features = base ? base.features.map(f => ({ ...f, properties: { ...f.properties, id: `base-${f.properties.id}` } })) : [];
   const datos = [];
   for (const info of infos) info.zonas.forEach((z, i) => {
@@ -97,7 +129,7 @@ export default function SmnAlertas() {
   });
   const outdated = data ? Object.entries(data.fuentes).filter(([, f]) => f.desactualizado || f.error) : [];
   const last = data ? Object.values(data.fuentes).map(f => f.consultadoEn).filter(Boolean).sort().at(-1) : null;
-  const acpSinReconocer = infos.filter(i => i.fuente === 'ACP' && !reconocidos.has(i.id));
+  const acpSinReconocer = acp.filter(i => !reconocidos.has(i.id));
 
   return <>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
@@ -123,7 +155,19 @@ export default function SmnAlertas() {
       </div>
       {!sonidoListo && <p className="admin-panel__hint">El sonido lo tiene que activar una persona (los navegadores bloquean el audio automático); dejalo activado mientras esta pestaña quede abierta.</p>}
 
-      <h2>Avisos vigentes ({infos.length})</h2>
+      {emisiones.length > 0 && <div className="smn-seleccion">
+        <label className="smn-seleccion__emision">Emisión del SMN
+          <select value={emision || ''} onChange={e => { setEmisionElegida(e.target.value); setDiaElegido(null); }}>
+            {emisiones.map((em, i) => <option key={em} value={em}>{horaCorta(em)}{i === 0 ? ' · la más reciente' : ' · reemplazada'}</option>)}
+          </select>
+        </label>
+        {emision !== emisiones[0] && <p className="admin-panel__hint">Estás viendo una emisión vieja: el SMN la reemplazó por la de las {horaCorta(emisiones[0])}.</p>}
+      </div>}
+      {dias.length > 0 && <div className="placa-toolbar smn-seleccion__dias" role="group" aria-label="Día">
+        {dias.map(d => <button type="button" key={d} className="btn" aria-pressed={d === dia} onClick={() => setDiaElegido(d)}>{etiquetaDia(d)}</button>)}
+      </div>}
+
+      <h2>{dia ? `Avisos · ${etiquetaDia(dia)}` : 'Avisos vigentes'} ({infos.length})</h2>
       {infos.length === 0 && <p className="admin-panel__hint">No hay avisos vigentes en la respuesta del SMN.</p>}
       <div className="smn-avisos">
         {infos.map(info => <article key={info.id} className="smn-aviso" style={{ '--smn-color': data.colores[info.categoria] }}>
@@ -140,8 +184,8 @@ export default function SmnAlertas() {
     <div className="admin-map-area">
       {base ? <BaseMap poligonos={{ type: 'FeatureCollection', features }} datos={datos}
         colorDe={d => data.colores[d?.categoria]} regionLabel={data?.alcance === 'argentina' ? 'Argentina · prueba' : 'Misiones'}
-        titulo="SMN · avisos vigentes" publicadoEn={last}
-        leyenda={<div className="risk-legend"><strong>{infos.length} avisos vigentes</strong>
+        titulo={dia ? `SMN · ${etiquetaDia(dia)}` : 'SMN · avisos vigentes'} publicadoEn={emision || last}
+        leyenda={<div className="risk-legend"><strong>{infos.length} {infos.length === 1 ? 'aviso' : 'avisos'}{dia ? ` · ${etiquetaDia(dia)}` : ' vigentes'}</strong>
           <div className="risk-legend__scale">{Object.entries(data?.colores || {}).map(([name, color]) => <div key={name}><i style={{ background: color }} /><span>{name}</span></div>)}</div>
           <small>Gris: sin aviso vigente. Seleccioná un área para ver horarios e instrucciones.</small>
         </div>}
