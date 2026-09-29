@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import PolygonDrawMap from "../components/PolygonDrawMap";
 import { getAvisosCortoPlazoVigentes, getMunicipiosGeojson } from "../api";
-import { tiempoRelativo } from "../lib/tiempoRelativo";
+
+// Un color por aviso, para distinguirlos cuando hay varios. El primero es el
+// violeta del SMN/ACP de siempre; el resto contrasta con él y con el verde de
+// los municipios.
+const COLORES = ["#8b3fc4", "#e0701b", "#1d7fa8", "#c9346c", "#b8940f", "#2f8f5b"];
+const colorDe = (i) => COLORES[i % COLORES.length];
 
 const hora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 // Página pensada para el <iframe> del sitio del ministerio — mismo patrón
 // que EmbedRiesgoPage.jsx: solo lectura, muestra los avisos publicados
 // desde /panel/avisos-corto-plazo que siguen vigentes (puede haber varios, o
-// ninguno: entonces lo dice). Se refresca cada minuto, así un aviso que
-// vence desaparece solo aunque nadie recargue la página.
+// ninguno: entonces lo dice). Cada aviso con su color; el texto sale en un
+// cartel al pasar el mouse (o tocar) su polígono, así varios avisos no tapan
+// el mapa. Se refresca cada minuto: un aviso que vence desaparece solo.
 export default function EmbedAvisosCortoPlazoPage() {
   const [avisos, setAvisos] = useState(null);
   const [municipios, setMunicipios] = useState(null);
@@ -34,27 +40,36 @@ export default function EmbedAvisosCortoPlazoPage() {
   useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 15 * 1000); return () => clearInterval(t); }, []);
   const vigentes = (avisos || []).filter((a) => Date.parse(a.vigenteHasta) > ahora);
 
+  // Más viejo primero: así el primero publicado conserva su color aunque se sumen otros.
+  const ordenados = [...vigentes].sort((x, y) => Date.parse(x.publicadoEn) - Date.parse(y.publicadoEn));
+  const poligonos = ordenados.map((a, i) => ({
+    puntos: a.poligono, color: colorDe(i),
+    cartel: { titulo: a.titulo, texto: a.texto, pie: `Vigente hasta el ${hora(a.vigenteHasta)}` },
+  }));
+
   return (
     <div className="aviso-embed">
       {error && avisos && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
       <div className="aviso-embed__mapa">
-        <PolygonDrawMap poligonos={vigentes.map((a) => a.poligono)} onChange={() => {}} municipios={municipios} readOnly colorPoligono="#8b3fc4" />
-      </div>
-      <div className="aviso-embed__info">
+        <PolygonDrawMap poligonos={poligonos} onChange={() => {}} municipios={municipios} readOnly colorPoligono={COLORES[0]} />
         {avisos === null ? (
-          <p className="aviso-embed__vacio">{error ? "No se pudieron cargar los avisos." : "Cargando…"}</p>
-        ) : vigentes.length === 0 ? (
-          <div className="aviso-embed__vacio">
-            <h2>Sin avisos a muy corto plazo</h2>
-            <p>No hay avisos vigentes para Misiones en este momento.</p>
+          <div className="aviso-embed__estado" role="status">{error ? "No se pudieron cargar los avisos." : "Cargando…"}</div>
+        ) : ordenados.length === 0 ? (
+          <div className="aviso-embed__estado" role="status">
+            <strong>Sin avisos a muy corto plazo</strong>
+            <span>No hay avisos vigentes para Misiones en este momento.</span>
           </div>
-        ) : vigentes.map((a) => (
-          <article key={a.id} className="aviso-embed__aviso">
-            <h2>{a.titulo}</h2>
-            <p>{a.texto}</p>
-            <small>Vigente hasta el {hora(a.vigenteHasta)} · publicado {tiempoRelativo(a.publicadoEn)}</small>
-          </article>
-        ))}
+        ) : (
+          <div className="aviso-embed__leyenda">
+            <strong>Avisos a muy corto plazo</strong>
+            <ul>
+              {ordenados.map((a, i) => (
+                <li key={a.id}><i style={{ background: colorDe(i) }} aria-hidden="true" />Vigente hasta el {hora(a.vigenteHasta)}</li>
+              ))}
+            </ul>
+            <small>Pasá el mouse o tocá un área para leer el aviso.</small>
+          </div>
+        )}
       </div>
     </div>
   );

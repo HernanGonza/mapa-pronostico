@@ -1304,15 +1304,32 @@ input[type="file"] {
 .embed-warning { position: absolute; top: 0; left: 0; right: 0; z-index: 12; background: #fff0c9; padding: 6px; font-size: 12px; text-align: center; }
 .aviso-embed { height: 100%; display: flex; flex-direction: column; }
 .aviso-embed__mapa { flex: 1 1 auto; min-height: 220px; position: relative; }
-.aviso-embed__info { flex: none; padding: 16px 20px; background: var(--surface); border-top: 1px solid var(--border); }
-.aviso-embed__info h2 { margin: 0 0 8px; font-size: 16px; }
-.aviso-embed__info p { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
-.aviso-embed__info small { color: var(--text-muted); }
-.aviso-embed__info { max-height: 45%; overflow-y: auto; }
-.aviso-embed__aviso + .aviso-embed__aviso { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
-.aviso-embed__vacio { text-align: center; }
-.aviso-embed__vacio h2 { margin-bottom: 4px; }
-.aviso-embed__vacio p { margin: 0; color: var(--text-muted); }
+/* Leyenda (colores + vigencia) y estado vacío, flotando sobre el mapa. */
+.aviso-embed__leyenda, .aviso-embed__estado {
+  position: absolute; z-index: 2;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.aviso-embed__leyenda { top: 12px; left: 12px; max-width: min(300px, calc(100% - 24px)); padding: 10px 12px; font-size: 12.5px; }
+.aviso-embed__leyenda strong { display: block; margin-bottom: 6px; font-size: 13px; }
+.aviso-embed__leyenda ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.aviso-embed__leyenda li { display: flex; align-items: center; gap: 8px; }
+.aviso-embed__leyenda i { flex: none; width: 14px; height: 14px; border-radius: 3px; opacity: 0.85; }
+.aviso-embed__leyenda small { color: var(--text-muted); }
+.aviso-embed__estado {
+  left: 50%; bottom: 16px; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px);
+  padding: 12px 18px; text-align: center; display: grid; gap: 2px;
+}
+.aviso-embed__estado span { color: var(--text-muted); font-size: 13px; }
+
+/* Cartel de cada polígono (maplibregl.Popup). */
+.poligono-popup .maplibregl-popup-content { padding: 0; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.2); }
+.poligono-cartel { max-height: 260px; overflow-y: auto; padding: 10px 14px 12px; border-top: 5px solid var(--color-cartel, #8b3fc4); color: #21130d; font-size: 13px; }
+.poligono-cartel__titulo { display: block; margin-bottom: 4px; font-size: 14px; }
+.poligono-cartel__texto { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.poligono-cartel__pie { color: #6b6152; }
 .alertas-demo-aviso { margin: 12px 0; padding: 8px 10px; border-radius: 6px; background: #fff0c9; color: #755b16; font-size: 12px; }
 @media (max-width: 600px) {
   .map-title { left: 10px; top: 10px; padding: 9px 10px; }

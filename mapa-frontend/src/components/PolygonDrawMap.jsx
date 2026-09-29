@@ -20,13 +20,28 @@ function geojsonDePuntos(puntos) {
   return { type: "FeatureCollection", features: [...relleno, ...linea, ...marcadores] };
 }
 
-/** Varios polígonos a la vez, sólo para mostrar (sin vértices): el iframe con más de un aviso vigente. */
+/** Varios polígonos a la vez, sólo para mostrar (sin vértices): el iframe con más de un aviso
+ * vigente. Cada uno `{ puntos, color, cartel }`; `k` es su posición, para encontrar el cartel. */
 function geojsonDePoligonos(poligonos) {
-  const validos = poligonos.filter((p) => p?.length >= 3);
-  return { type: "FeatureCollection", features: validos.flatMap((p) => [
-    { type: "Feature", geometry: { type: "Polygon", coordinates: [[...p, p[0]]] }, properties: {} },
-    { type: "Feature", geometry: { type: "LineString", coordinates: [...p, p[0]] }, properties: {} },
-  ]) };
+  return { type: "FeatureCollection", features: poligonos.flatMap(({ puntos: p, color }, k) => (p?.length >= 3 ? [
+    { type: "Feature", geometry: { type: "Polygon", coordinates: [[...p, p[0]]] }, properties: { k, color } },
+    { type: "Feature", geometry: { type: "LineString", coordinates: [...p, p[0]] }, properties: { k, color } },
+  ] : [])) };
+}
+
+/** Contenido del cartel de un polígono, armado con nodos (el texto viene del SMN: nada de innerHTML). */
+function nodoCartel({ titulo, texto, pie }, color) {
+  const caja = document.createElement("div");
+  caja.className = "poligono-cartel";
+  caja.style.setProperty("--color-cartel", color);
+  for (const [etiqueta, clase, valor] of [["strong", "poligono-cartel__titulo", titulo], ["p", "poligono-cartel__texto", texto], ["small", "poligono-cartel__pie", pie]]) {
+    if (!valor) continue;
+    const el = document.createElement(etiqueta);
+    el.className = clase;
+    el.textContent = valor;
+    caja.append(el);
+  }
+  return caja;
 }
 
 /** Límites municipales (relleno + línea + nombres), debajo del polígono si ya está dibujado. */
@@ -55,8 +70,10 @@ function agregarMunicipios(map, datos) {
  * generateAvisoCortoPlazoMap) — este mapa es sólo para que el operador
  * elija/dibuje el área. `colorPoligono` es el violeta propio del SMN/ACP
  * (#8b3fc4, ver alertas automáticas) en avisos a muy corto plazo; en otros
- * usos (HistoricoPage) queda el rosa/magenta de siempre. `poligonos` (lista de
- * polígonos) reemplaza a `puntos` para mostrar varios a la vez, sólo lectura.
+ * usos (HistoricoPage) queda el rosa/magenta de siempre. `poligonos`
+ * (`[{ puntos, color, cartel: { titulo, texto, pie } }]`) reemplaza a `puntos`
+ * para mostrar varios a la vez, sólo lectura, cada uno con su color; el
+ * cartel sale al pasar el mouse (o al tocar, en celular) sobre el polígono.
  */
 const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligonos = null, onChange, municipios, readOnly = false, colorPoligono = "#c9346c" }, ref) {
   const mapContainerRef = useRef(null);
@@ -112,13 +129,31 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligon
 
     map.on("style.load", () => {
       if (municipiosRef.current) agregarMunicipios(map, municipiosRef.current);
-      const color = colorPoligonoRef.current;
+      // Cada polígono puede traer su color (varios avisos a la vez); si no, el del componente.
+      const color = ["coalesce", ["get", "color"], colorPoligonoRef.current];
       map.addSource("poligono-dibujo", { type: "geojson", data: datosDibujo() });
-      map.addLayer({ id: "poligono-relleno", type: "fill", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.22 } });
+      map.addLayer({ id: "poligono-relleno", type: "fill", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.28 } });
       map.addLayer({ id: "poligono-linea", type: "line", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": color, "line-width": 3 } });
-      map.addLayer({ id: "poligono-puntos", type: "circle", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 6, "circle-color": "#fff", "circle-stroke-color": color, "circle-stroke-width": 2 } });
+      map.addLayer({ id: "poligono-puntos", type: "circle", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 6, "circle-color": "#fff", "circle-stroke-color": colorPoligonoRef.current, "circle-stroke-width": 2 } });
       setListo(true);
     });
+
+    if (readOnly) {
+      // Cartel de cada polígono: sigue al mouse mientras está encima; con un
+      // toque (celular) queda fijo hasta tocar afuera o la cruz.
+      const cartel = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: "320px", offset: 12, className: "poligono-popup" });
+      let fijo = false;
+      const mostrar = (e) => {
+        const f = map.queryRenderedFeatures(e.point, { layers: ["poligono-relleno"] })[0];
+        const datos = f && poligonosRef.current?.[f.properties.k];
+        if (!datos?.cartel) return false;
+        cartel.setLngLat(e.lngLat).setDOMContent(nodoCartel(datos.cartel, datos.color || colorPoligonoRef.current)).addTo(map);
+        return true;
+      };
+      map.on("mousemove", "poligono-relleno", (e) => { if (fijo) return; map.getCanvas().style.cursor = "pointer"; mostrar(e); });
+      map.on("mouseleave", "poligono-relleno", () => { map.getCanvas().style.cursor = ""; if (!fijo) cartel.remove(); });
+      map.on("click", (e) => { fijo = mostrar(e); if (!fijo) cartel.remove(); });
+    }
 
     if (!readOnly) {
       map.on("mouseenter", "poligono-puntos", () => { map.getCanvas().style.cursor = "grab"; });
