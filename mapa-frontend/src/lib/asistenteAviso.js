@@ -9,6 +9,8 @@ import { esc } from "./ui";
  * La página aporta:
  *   avisos: [{ id, titulo, zona, fin, poligono, texto }]  candidatos vigentes del RSS/CAP del SMN
  *   puntosDibujados: puntos ya dibujados a mano en el mapa de la página (fallback sin RSS)
+ *   publicados: avisos vigentes en el mapa público ({ smnId, poligono, vigenteHasta }): los del SMN
+ *               que ya están publicados salen desactivados, para reconocerlos a simple vista
  *   onSeleccionarPoligono(poligono) → refleja la elección en el mapa de la página (para la captura)
  *   vistaPrevia(valores) → { token, feedUrl, historiasUrl }   (genera sin guardar)
  *   guardar(valores, token, { finSmn }) → la placa guardada (finSmn: hasta cuándo rige el aviso del SMN elegido)
@@ -17,21 +19,33 @@ import { esc } from "./ui";
 const MAX_TEXTO = 2400;
 const FONDOS = { tormenta: ["Tormenta", "Cielo oscuro, para alertas de tormenta"], nubes: ["Nubes", "Fondo claro con nubes"] };
 export const TITULO = "Aviso a muy corto plazo";
-const valoresDe = (s) => ({ texto: s.texto, fondo: s.fondo, poligono: s.poligono });
+const valoresDe = (s) => ({ texto: s.texto, fondo: s.fondo, poligono: s.poligono, smnId: s.avisoId && s.avisoId !== "manual" ? s.avisoId : null });
 
 const fechaHora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-function pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono }) {
+/** El publicado que corresponde a este aviso del SMN, si lo hay. Los publicados antes de guardar
+ * `smnId` se reconocen por el polígono, que se guarda tal cual vino del SMN. */
+function publicadoDe(aviso, publicados) {
+  const poligono = JSON.stringify(aviso.poligono);
+  return publicados.find((p) => (p.smnId ? p.smnId === aviso.id : JSON.stringify(p.poligono) === poligono));
+}
+
+function pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publicados }) {
   const hayDibujo = puntosDibujados.length >= 3;
   const items = [
-    ...avisos.map((a) => ({ valor: a.id, titulo: a.titulo, detalle: `${a.zona} · vigente hasta ${fechaHora(a.fin)}` })),
+    ...avisos.map((a) => {
+      const pub = publicadoDe(a, publicados);
+      return pub
+        ? { valor: a.id, titulo: a.titulo, detalle: `${a.zona} · Ya publicado en el mapa público, vigente hasta ${fechaHora(pub.vigenteHasta)}`, deshabilitada: true }
+        : { valor: a.id, titulo: a.titulo, detalle: `${a.zona} · vigente hasta ${fechaHora(a.fin)}` };
+    }),
     { valor: "manual", titulo: "Dibujar el área a mano", detalle: hayDibujo ? "Se usa lo que ya dibujaste en el mapa." : "Todavía no dibujaste nada — cerrá este asistente y dibujá el área en el mapa primero.", deshabilitada: !hayDibujo },
   ];
   return {
     pregunta: "¿Qué aviso del SMN publicamos?",
     ayuda: "Llegan por RSS del SMN; a veces hay más de uno vigente al mismo tiempo. Elegí cuál se convierte en placa.",
     omitir: () => avisos.length === 0,
-    html: (s) => opciones({ nombre: "aviso", tipo: "radio", items: items.map((it) => ({ ...it, marcada: s.avisoId === it.valor })) }),
+    html: (s) => opciones({ nombre: "aviso", tipo: "radio", items: items.map((it) => ({ ...it, marcada: !it.deshabilitada && s.avisoId === it.valor })) }),
     leer: (popup) => {
       const elegido = leerOpciones(popup, "aviso")[0];
       if (elegido === "manual") return { avisoId: "manual", poligono: puntosDibujados, finSmn: null };
@@ -44,9 +58,9 @@ function pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono }) {
   };
 }
 
-export function crearAvisoPorPasos({ inicial, avisos, puntosDibujados, onSeleccionarPoligono, vistaPrevia, guardar, publicar }) {
+export function crearAvisoPorPasos({ inicial, avisos, puntosDibujados, onSeleccionarPoligono, publicados = [], vistaPrevia, guardar, publicar }) {
   const pasos = [
-    pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono }),
+    pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publicados }),
     { pregunta: "¿Qué fondo le ponemos?",
       html: (s) => opciones({ nombre: "fondo", tipo: "radio", items: Object.entries(FONDOS).map(([valor, [titulo, detalle]]) => ({ valor, titulo, detalle, marcada: s.fondo === valor })) }),
       leer: (popup) => ({ fondo: leerOpciones(popup, "fondo")[0] || "tormenta" }) },

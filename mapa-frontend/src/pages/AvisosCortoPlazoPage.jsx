@@ -102,7 +102,7 @@ export default function AvisosCortoPlazoPage() {
     // `poligono` va en el estado inicial (no sólo en el paso "elegir aviso"):
     // si no hay avisos del SMN vigentes, ese paso se salta entero y el único
     // origen del polígono es lo ya dibujado a mano en el mapa de la página.
-    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
+    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, publicados: vigentes || [], vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
   }
 
   // Publicar (o cambiarle la vigencia a uno ya publicado) es un asistente con el paso de vigencia.

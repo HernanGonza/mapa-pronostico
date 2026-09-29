@@ -15,6 +15,8 @@ const router = express.Router();
 // fondos), no es editable. Se persiste todo en la base (polígono incluido).
 router.post("/avisos-corto-plazo/generar", requireAuth, express.json({ limit: "256kb" }), async (req, res) => {
   const { poligono, texto, fondo, confirmarToken } = req.body || {};
+  // Id del aviso del SMN del que sale la placa (null si se dibujó a mano).
+  const smnId = typeof req.body?.smnId === "string" && req.body.smnId.length <= 300 ? req.body.smnId : null;
   const error = errorDePoligono(poligono) || (confirmarToken ? null : errorDeAvisoCortoPlazoMap(texto, fondo));
   if (error) return res.status(400).json({ error });
   try {
@@ -27,7 +29,7 @@ router.post("/avisos-corto-plazo/generar", requireAuth, express.json({ limit: "2
         ]);
         return { feedPng, historiasPng };
       },
-      guardar: (pngs) => avisos.crear({ poligono: poligonoNorm, titulo: TITULO, texto, fondo, usuarioId: req.usuario.usuarioId, ...pngs }),
+      guardar: (pngs) => avisos.crear({ poligono: poligonoNorm, titulo: TITULO, texto, fondo, smnId, usuarioId: req.usuario.usuarioId, ...pngs }),
     });
   } catch (e) {
     console.error(e);
