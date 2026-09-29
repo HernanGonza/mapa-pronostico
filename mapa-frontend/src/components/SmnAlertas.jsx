@@ -12,7 +12,8 @@ const order = { Amarillo: 1, Naranja: 2, Rojo: 3, ACP: 4 };
 
 // Días en hora argentina ("AAAA-MM-DD"). Cada emisión del SMN es un informe
 // completo (reemplaza al anterior: tipo "Update") con áreas para hoy y para
-// mañana: se elige la emisión y el día, y el mapa muestra sólo eso.
+// mañana. El backend ya manda sólo la última (ver ultimaEmision en
+// lib/smn/cap.mjs); acá se elige el día y el mapa muestra sólo eso.
 const diaAR = value => new Intl.DateTimeFormat('en-CA', { timeZone: AR }).format(new Date(value));
 const sumarDia = (dia, n = 1) => new Date(Date.parse(`${dia}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 function diasDe(info) {
@@ -155,7 +156,8 @@ export default function SmnAlertas() {
       </div>
       {!sonidoListo && <p className="admin-panel__hint">El sonido lo tiene que activar una persona (los navegadores bloquean el audio automático); dejalo activado mientras esta pestaña quede abierta.</p>}
 
-      {emisiones.length > 0 && <div className="smn-seleccion">
+      {emisiones.length === 1 && <p className="smn-seleccion smn-seleccion__emision">Emisión del SMN de las {horaCorta(emisiones[0])} · reemplaza a las anteriores</p>}
+      {emisiones.length > 1 && <div className="smn-seleccion">
         <label className="smn-seleccion__emision">Emisión del SMN
           <select value={emision || ''} onChange={e => { setEmisionElegida(e.target.value); setDiaElegido(null); }}>
             {emisiones.map((em, i) => <option key={em} value={em}>{horaCorta(em)}{i === 0 ? ' · la más reciente' : ' · reemplazada'}</option>)}

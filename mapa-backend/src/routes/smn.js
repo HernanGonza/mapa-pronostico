@@ -30,8 +30,9 @@ router.get('/alertas-meteorologicas/smn/:fuente.png', async (req, res) => {
     if (!r || Date.now() - Date.parse(r.consultadoEn) > 10 * 60 * 1000) return res.status(503).json({ error: 'La imagen requiere una consulta reciente al SMN' });
     // Recalcula vencimientos al descargar entre dos consultas del worker.
     const { generarImagen } = await import('../lib/smn/image.mjs');
-    const { vigentes } = await import('../lib/smn/cap.mjs');
-    res.set('Cache-Control', 'no-store').type('png').send(generarImagen(fuente, vigentes(r.datos), new Date(r.consultadoEn)));
+    const { vigentes, ultimaEmision } = await import('../lib/smn/cap.mjs');
+    const datos = fuente === 'SAT' ? ultimaEmision(r.datos) : r.datos;
+    res.set('Cache-Control', 'no-store').type('png').send(generarImagen(fuente, vigentes(datos), new Date(r.consultadoEn)));
   } catch (e) { console.error('[SMN imagen]', e.message); res.status(503).json({ error: 'No se pudo generar la imagen' }); }
 });
 module.exports = router;

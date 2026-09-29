@@ -1,4 +1,4 @@
-import { leerFuente, reconciliar, vigentes, colores } from './cap.mjs';
+import { leerFuente, reconciliar, vigentes, ultimaEmision, colores } from './cap.mjs';
 import * as store from './store.mjs';
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
@@ -45,7 +45,9 @@ export async function obtenerActual() {
     const r = await store.actual(fuente);
     fuentes[fuente] = { consultadoEn: r?.consultadoEn || null, revision: r?.revision || null,
       desactualizado: !r || Date.now() - Date.parse(r.consultadoEn) > 2 * INTERVALO,
-      error: errores[fuente] || null, alertas: vigentes(r?.datos || []) };
+      // SAT: sólo la última emisión (reemplaza a las anteriores). Los ACP son
+      // avisos sueltos de corta duración: se muestran todos los vigentes.
+      error: errores[fuente] || null, alertas: vigentes(fuente === 'SAT' ? ultimaEmision(r?.datos || []) : r?.datos || []) };
   }));
   return { fuente: 'SMN · RSS/CAP', alcance: process.env.SMN_SCOPE || 'argentina', intervaloSegundos: INTERVALO / 1000, colores, fuentes };
 }

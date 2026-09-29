@@ -115,6 +115,21 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
   }
   return result;
 }
+/**
+ * Sólo la emisión más reciente. Cada emisión SAT del SMN es un informe
+ * completo (msgType "Update") que reemplaza al anterior, pero sus
+ * `references` apuntan al informe previo sin el sufijo de zona
+ * (`…2026.09.28.20.49.42`, no `…2026.09.28.20.49.42.56`), así que
+ * `reconciliar` no encuentra qué borrar y las emisiones viejas se acumulan
+ * hasta que vencen. Esto no toca lo guardado (smn_estado / smn_historial
+ * conservan todo para el histórico): sólo filtra lo que se muestra. Cuenta
+ * también las emisiones sin áreas en Misiones: si el último informe ya no
+ * trae alertas acá, no queda ninguna vigente.
+ */
+export function ultimaEmision(rows) {
+  const ultima = rows.reduce((max, r) => (r.emitidoEn > max ? r.emitidoEn : max), '');
+  return rows.filter(r => r.emitidoEn === ultima);
+}
 export function vigentes(rows, now = Date.now()) {
   return rows.map(r => ({ ...r, infos: r.infos.filter(i => Date.parse(i.fin) > now) })).filter(r => r.infos.length);
 }
