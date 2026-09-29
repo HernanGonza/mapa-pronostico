@@ -304,29 +304,35 @@ html:has(.embed-risk--pronostico), body:has(.embed-risk--pronostico) { overflow:
 .extendido-editor__zona input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
 .extendido-editor__zona select { width: 100%; }
 
-.avisos-historial {
+.avisos-lista {
   margin-top: 20px;
 }
-.avisos-historial ul {
+.avisos-lista h2 { margin: 0 0 10px; font-size: 15px; }
+.avisos-lista ul {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: 10px;
 }
-.avisos-historial li {
-  padding: 10px 12px;
+.avisos-lista li,
+.avisos-lista--pendiente {
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 13px;
 }
-.avisos-historial li .btn { margin-top: 8px; }
-.avisos-historial__publicado {
-  display: inline-block;
-  margin-top: 8px;
-  color: var(--accent);
-  font-weight: 600;
+.avisos-lista__texto {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+.avisos-lista small { color: var(--text-muted); }
+.avisos-lista__acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
 .base-map--fallback p {
   color: var(--map-text-muted);
@@ -1302,6 +1308,11 @@ input[type="file"] {
 .aviso-embed__info h2 { margin: 0 0 8px; font-size: 16px; }
 .aviso-embed__info p { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
 .aviso-embed__info small { color: var(--text-muted); }
+.aviso-embed__info { max-height: 45%; overflow-y: auto; }
+.aviso-embed__aviso + .aviso-embed__aviso { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.aviso-embed__vacio { text-align: center; }
+.aviso-embed__vacio h2 { margin-bottom: 4px; }
+.aviso-embed__vacio p { margin: 0; color: var(--text-muted); }
 .alertas-demo-aviso { margin: 12px 0; padding: 8px 10px; border-radius: 6px; background: #fff0c9; color: #755b16; font-size: 12px; }
 @media (max-width: 600px) {
   .map-title { left: 10px; top: 10px; padding: 9px 10px; }

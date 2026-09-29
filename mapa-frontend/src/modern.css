@@ -294,11 +294,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 
 /* Historial (desplegable) y detalles */
 details > summary { cursor: pointer; font-weight: 600; }
-.avisos-historial > summary { padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); list-style-position: inside; }
-.avisos-historial li { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); box-shadow: var(--shadow-card); transition: transform 0.25s var(--ease-out), box-shadow 0.25s; }
-.avisos-historial li:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
-.avisos-historial li .btn { margin: 8px 6px 0 0; }
-.avisos-historial__publicado { padding: 3px 10px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-size: 12px; }
 .meteo-emojis .btn, .meteo-emojis button { min-width: 40px; border-radius: 10px; }
 
 /* Tablas */
@@ -389,3 +384,11 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .landing__legales { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; font-size: 13px; }
 .landing__legales a { color: rgba(255, 255, 255, 0.78); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.35); }
 .landing__legales a:hover, .landing__legales a:focus-visible { color: #fff; text-decoration-color: currentColor; }
+
+/* --- Avisos a muy corto plazo: vigentes + paso de vigencia --- */
+.avisos-lista li, .avisos-lista--pendiente { border-radius: var(--radius-sm); background: var(--surface-2); box-shadow: var(--shadow-card); }
+.avisos-lista--pendiente { border-color: var(--accent); }
+.paso-vigencia { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; text-align: left; }
+.paso-vigencia__placa { width: 120px; border-radius: 8px; box-shadow: var(--shadow-card); }
+.paso-vigencia > div { flex: 1 1 240px; }
+.paso-vigencia__rapidas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

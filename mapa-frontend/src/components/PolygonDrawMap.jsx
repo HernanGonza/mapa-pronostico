@@ -20,6 +20,15 @@ function geojsonDePuntos(puntos) {
   return { type: "FeatureCollection", features: [...relleno, ...linea, ...marcadores] };
 }
 
+/** Varios polígonos a la vez, sólo para mostrar (sin vértices): el iframe con más de un aviso vigente. */
+function geojsonDePoligonos(poligonos) {
+  const validos = poligonos.filter((p) => p?.length >= 3);
+  return { type: "FeatureCollection", features: validos.flatMap((p) => [
+    { type: "Feature", geometry: { type: "Polygon", coordinates: [[...p, p[0]]] }, properties: {} },
+    { type: "Feature", geometry: { type: "LineString", coordinates: [...p, p[0]] }, properties: {} },
+  ]) };
+}
+
 /**
  * Mapa para dibujar a mano el polígono de referencia de un aviso a muy
  * corto plazo (o mostrar el que ya vino del CAP del SMN): click agrega un
@@ -31,15 +40,19 @@ function geojsonDePuntos(puntos) {
  * generateAvisoCortoPlazoMap) — este mapa es sólo para que el operador
  * elija/dibuje el área. `colorPoligono` es el violeta propio del SMN/ACP
  * (#8b3fc4, ver alertas automáticas) en avisos a muy corto plazo; en otros
- * usos (HistoricoPage) queda el rosa/magenta de siempre.
+ * usos (HistoricoPage) queda el rosa/magenta de siempre. `poligonos` (lista de
+ * polígonos) reemplaza a `puntos` para mostrar varios a la vez, sólo lectura.
  */
-const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, municipios, readOnly = false, colorPoligono = "#c9346c" }, ref) {
+const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligonos = null, onChange, municipios, readOnly = false, colorPoligono = "#c9346c" }, ref) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
   const [listo, setListo] = useState(false);
   const puntosRef = useRef(puntos);
   puntosRef.current = puntos;
+  const poligonosRef = useRef(poligonos);
+  poligonosRef.current = poligonos;
+  const datosDibujo = () => (poligonosRef.current ? geojsonDePoligonos(poligonosRef.current) : geojsonDePuntos(puntosRef.current));
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const municipiosRef = useRef(municipios);
@@ -96,7 +109,7 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
           paint: { "text-color": "#5a6b5d", "text-halo-color": "#ffffff", "text-halo-width": 1.2 } });
       }
       const color = colorPoligonoRef.current;
-      map.addSource("poligono-dibujo", { type: "geojson", data: geojsonDePuntos(puntosRef.current) });
+      map.addSource("poligono-dibujo", { type: "geojson", data: datosDibujo() });
       map.addLayer({ id: "poligono-relleno", type: "fill", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.22 } });
       map.addLayer({ id: "poligono-linea", type: "line", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": color, "line-width": 3 } });
       map.addLayer({ id: "poligono-puntos", type: "circle", source: "poligono-dibujo", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 6, "circle-color": "#fff", "circle-stroke-color": color, "circle-stroke-width": 2 } });
@@ -150,8 +163,9 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos, onChange, mu
 
   useEffect(() => {
     if (!listo) return;
-    mapRef.current?.getSource("poligono-dibujo")?.setData(geojsonDePuntos(puntos));
-  }, [puntos, listo]);
+    mapRef.current?.getSource("poligono-dibujo")?.setData(datosDibujo());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puntos, poligonos, listo]);
 
   if (!webglOk) {
     return (

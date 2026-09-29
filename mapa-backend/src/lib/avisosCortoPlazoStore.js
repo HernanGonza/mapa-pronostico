@@ -35,6 +35,9 @@ async function init() {
        )`
     )
     .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS publicado_en timestamptz`))
+    // Hasta cuándo se muestra en el mapa público: pasada esa hora se
+    // despublica solo. Despublicar a mano = poner vigente_hasta en now().
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS vigente_hasta timestamptz`))
     .then(() => console.log("[avisosCortoPlazoStore] Postgres listo (tabla avisos_corto_plazo)"))
     .catch((e) => {
       initPromise = null;
@@ -94,7 +97,7 @@ async function obtenerHistorial(limite = 20) {
   await init();
   const p = store.getPool();
   const { rows } = await p.query(
-    `SELECT a.id, a.generado_en, a.publicado_en, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
+    `SELECT a.id, a.generado_en, a.publicado_en, a.vigente_hasta, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
             u.email AS generado_por_email
        FROM avisos_corto_plazo a
        LEFT JOIN usuarios u ON u.id = a.generado_por
@@ -110,6 +113,7 @@ function filaAAviso(r) {
     id: Number(r.id),
     generadoEn: r.generado_en.toISOString(),
     publicadoEn: r.publicado_en ? r.publicado_en.toISOString() : null,
+    vigenteHasta: r.vigente_hasta ? r.vigente_hasta.toISOString() : null,
     titulo: r.titulo,
     texto: r.texto,
     fondo: r.fondo,
@@ -120,38 +124,63 @@ function filaAAviso(r) {
   };
 }
 
-/** Marca este aviso como el que se muestra en el mapa público/iframe — es
- * el único "publicado" en un momento dado (no hace falta "despublicar" el
- * anterior: `obtenerActual` siempre toma el de `publicado_en` más reciente). */
-async function publicar(id) {
+const MAX_VIGENCIA_HORAS = 72;
+
+/** Error de la vigencia pedida (ISO), o null si sirve: tiene que ser futura y razonable. */
+function errorDeVigencia(vigenteHasta) {
+  const t = Date.parse(vigenteHasta);
+  if (typeof vigenteHasta !== "string" || Number.isNaN(t)) return "Elegí hasta cuándo está vigente el aviso.";
+  if (t <= Date.now()) return "La vigencia tiene que ser una fecha y hora futura.";
+  if (t > Date.now() + MAX_VIGENCIA_HORAS * 3600 * 1000) return `La vigencia no puede superar las ${MAX_VIGENCIA_HORAS} horas.`;
+  return null;
+}
+
+/** Publica el aviso en el mapa público hasta `vigenteHasta`; pasada esa hora
+ * deja de mostrarse solo. Puede haber varios vigentes a la vez (distintas
+ * zonas del SMN). Republicar uno ya publicado le cambia la vigencia. */
+async function publicar(id, vigenteHasta) {
+  const error = errorDeVigencia(vigenteHasta);
+  if (error) throw Object.assign(new Error(error), { status: 400 });
   await init();
   const p = store.getPool();
   if (!p) throw Object.assign(new Error("No hay base de datos disponible para publicar."), { status: 503 });
   const { rows } = await p.query(
-    `UPDATE avisos_corto_plazo SET publicado_en = now() WHERE id = $1
-       RETURNING id, generado_en, publicado_en, titulo, texto, fondo, poligono, feed_path, historias_path,
+    `UPDATE avisos_corto_plazo SET publicado_en = now(), vigente_hasta = $2 WHERE id = $1
+       RETURNING id, generado_en, publicado_en, vigente_hasta, titulo, texto, fondo, poligono, feed_path, historias_path,
          (SELECT email FROM usuarios WHERE id = generado_por) AS generado_por_email`,
-    [id]
+    [id, new Date(vigenteHasta)]
   );
   if (!rows.length) throw Object.assign(new Error("No existe ese aviso."), { status: 404 });
   return filaAAviso(rows[0]);
 }
 
-/** El aviso publicado actualmente (`null` si ninguno lo está todavía). */
-async function obtenerActual() {
-  if (!store.usaPostgres()) return null;
+/** Lo saca del mapa público ya, sin esperar a que venza. */
+async function despublicar(id) {
+  await init();
+  const p = store.getPool();
+  if (!p) throw Object.assign(new Error("No hay base de datos disponible."), { status: 503 });
+  const { rowCount } = await p.query(
+    `UPDATE avisos_corto_plazo SET vigente_hasta = now() WHERE id = $1 AND vigente_hasta > now()`,
+    [id]
+  );
+  if (!rowCount) throw Object.assign(new Error("Ese aviso no está vigente."), { status: 404 });
+}
+
+/** Avisos publicados y todavía vigentes, el más reciente primero ([] si no hay).
+ * Los publicados antes de existir la vigencia (vigente_hasta NULL) no cuentan. */
+async function obtenerVigentes() {
+  if (!store.usaPostgres()) return [];
   await init();
   const p = store.getPool();
   const { rows } = await p.query(
-    `SELECT a.id, a.generado_en, a.publicado_en, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
+    `SELECT a.id, a.generado_en, a.publicado_en, a.vigente_hasta, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path,
             u.email AS generado_por_email
        FROM avisos_corto_plazo a
        LEFT JOIN usuarios u ON u.id = a.generado_por
-      WHERE a.publicado_en IS NOT NULL
-      ORDER BY a.publicado_en DESC
-      LIMIT 1`
+      WHERE a.publicado_en IS NOT NULL AND a.vigente_hasta > now()
+      ORDER BY a.publicado_en DESC`
   );
-  return rows.length ? filaAAviso(rows[0]) : null;
+  return rows.map(filaAAviso);
 }
 
-module.exports = { init, crear, obtenerHistorial, publicar, obtenerActual };
+module.exports = { init, crear, obtenerHistorial, publicar, despublicar, obtenerVigentes, errorDeVigencia, MAX_VIGENCIA_HORAS };

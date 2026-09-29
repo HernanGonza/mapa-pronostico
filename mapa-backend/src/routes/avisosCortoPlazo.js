@@ -45,30 +45,42 @@ router.get("/avisos-corto-plazo/historial", requireAuth, async (req, res) => {
   }
 });
 
-// Marca un aviso ya generado como el que se muestra en el mapa público
-// (/embed/avisos-corto-plazo) — mismo criterio de "publicar" que el resto
-// de las pantallas del panel.
-router.post("/avisos-corto-plazo/:id/publicar", requireAuth, async (req, res) => {
+// Publica un aviso ya generado en el mapa público (/embed/avisos-corto-plazo)
+// hasta `vigenteHasta` (ISO): pasada esa hora deja de mostrarse solo.
+router.post("/avisos-corto-plazo/:id/publicar", requireAuth, express.json(), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Id inválido." });
   try {
-    res.json(await avisos.publicar(id));
+    res.json(await avisos.publicar(id, req.body?.vigenteHasta));
   } catch (e) {
-    console.error(e);
+    if (!e.status) console.error(e);
     const status = [400, 404, 503].includes(e.status) ? e.status : 500;
     res.status(status).json({ error: status === 500 ? "No se pudo publicar el aviso." : e.message });
   }
 });
 
-// GET público — lo consume el iframe embebible, sin sesión.
-router.get("/avisos-corto-plazo/actual", async (req, res) => {
+// Lo saca del mapa público antes de que venza.
+router.post("/avisos-corto-plazo/:id/despublicar", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Id inválido." });
   try {
-    const actual = await avisos.obtenerActual();
-    if (!actual) return res.status(404).json({ error: "Todavía no se publicó ningún aviso." });
-    res.set("Cache-Control", "no-store").json(actual);
+    await avisos.despublicar(id);
+    res.json({ ok: true });
+  } catch (e) {
+    if (!e.status) console.error(e);
+    const status = [404, 503].includes(e.status) ? e.status : 500;
+    res.status(status).json({ error: status === 500 ? "No se pudo despublicar el aviso." : e.message });
+  }
+});
+
+// GET público — lo consume el iframe embebible, sin sesión. Lista vacía = no
+// hay avisos vigentes (el iframe muestra "Sin avisos a muy corto plazo").
+router.get("/avisos-corto-plazo/vigentes", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json({ avisos: await avisos.obtenerVigentes() });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "No se pudieron leer los avisos vigentes." });
   }
 });
 

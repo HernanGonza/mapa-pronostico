@@ -258,16 +258,18 @@ export async function generarAvisoCortoPlazo(payload) {
     body: JSON.stringify(payload), ...CON_SESION,
   }));
 }
-export async function getAvisosCortoPlazoHistorial() {
-  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/historial`, CON_SESION));
+export async function publicarAvisoCortoPlazo(id, vigenteHasta) {
+  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/${id}/publicar`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vigenteHasta }), ...CON_SESION,
+  }));
 }
-export async function publicarAvisoCortoPlazo(id) {
-  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/${id}/publicar`, { method: "POST", ...CON_SESION }));
+export async function despublicarAvisoCortoPlazo(id) {
+  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/${id}/despublicar`, { method: "POST", ...CON_SESION }));
 }
-export async function getAvisoCortoPlazoActual() {
-  const res = await fetch(`${API_URL}/api/avisos-corto-plazo/actual`, { cache: "no-store" });
-  if (res.status === 404) return null;
-  return handleJson(res);
+/** Avisos publicados y todavía vigentes (público, lo usa el iframe). [] = ninguno. */
+export async function getAvisosCortoPlazoVigentes() {
+  return (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;
 }
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }

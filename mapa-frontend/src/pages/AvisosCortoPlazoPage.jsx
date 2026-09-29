@@ -9,7 +9,7 @@ import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
 import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
-import { crearAvisoPorPasos, TITULO } from "../lib/asistenteAviso";
+import { crearAvisoPorPasos, publicarAvisoPorPasos, TITULO } from "../lib/asistenteAviso";
 
 const COLOR_ACP = "#8b3fc4"; // mismo violeta que "Alertas automáticas (SMN)" para avisos ACP.
 
@@ -49,17 +49,21 @@ export default function AvisosCortoPlazoPage() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   useNotificacion(mensaje);
-  const [historial, setHistorial] = useState(null);
-  const [historialAbierto, setHistorialAbierto] = useState(false);
   const [municipios, setMunicipios] = useState(null);
   const [avisosAcp, setAvisosAcp] = useState([]);
-  const [publicando, setPublicando] = useState(null); // id del aviso que se está publicando
-  const [publicado, setPublicado] = useState(null); // último aviso publicado (mapa público)
+  // Sólo lo que importa acá: los avisos vigentes en el mapa público y la placa
+  // recién generada (sin publicar). El historial va a vivir en el histórico.
+  const [vigentes, setVigentes] = useState(null);
+  const [generada, setGenerada] = useState(null); // { ...placa, finSmn }
+  const [despublicando, setDespublicando] = useState(null);
 
+  const cargarVigentes = () => api.getAvisosCortoPlazoVigentes().then(setVigentes).catch((e) => { setVigentes([]); setError(e.message); });
   useEffect(() => {
-    api.getAvisosCortoPlazoHistorial().then((r) => setHistorial(r.historial)).catch(() => setHistorial([]));
     api.getMunicipiosGeojson().then(setMunicipios).catch(() => {});
-    api.getAvisoCortoPlazoActual().then(setPublicado).catch(() => setPublicado(null));
+    cargarVigentes();
+    // Refresca para que un aviso que venció desaparezca de la lista solo.
+    const timer = setInterval(cargarVigentes, 60000);
+    return () => clearInterval(timer);
   }, []);
 
   // Lista de avisos ACP vigentes: se refresca sola cada 60s (mismo intervalo
@@ -80,13 +84,12 @@ export default function AvisosCortoPlazoPage() {
 
   // La vista previa NO guarda nada; recién al confirmar en el asistente se guarda la misma placa.
   const vistaPrevia = (valores) => api.generarAvisoCortoPlazo({ ...valores, vistaPrevia: true });
-  async function guardarPlaca(valores, token) {
+  async function guardarPlaca(valores, token, { finSmn }) {
     const placa = await api.generarAvisoCortoPlazo({ ...valores, confirmarToken: token });
     setPuntos(valores.poligono); setTexto(valores.texto); setFondo(valores.fondo);
     setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
     setVista("recomendaciones");
-    setHistorial((h) => [{ ...placa, ...valores }, ...(h || [])]);
-    setHistorialAbierto(true);
+    setGenerada({ ...placa, ...valores, finSmn });
     return placa;
   }
 
@@ -99,25 +102,28 @@ export default function AvisosCortoPlazoPage() {
     // `poligono` va en el estado inicial (no sólo en el paso "elegir aviso"):
     // si no hay avisos del SMN vigentes, ese paso se salta entero y el único
     // origen del polígono es lo ya dibujado a mano en el mapa de la página.
-    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, vistaPrevia, guardar: guardarPlaca });
+    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
   }
 
-  // Publicar es independiente de la sesión: cualquier aviso ya generado
-  // (esta sesión o una anterior — viene del historial, que persiste en la
-  // base) se puede publicar, no solo el que se acaba de generar.
-  async function publicarAviso(id) {
-    if (id == null) return;
-    if (!(await confirmar({ titulo: "¿Publicar en el mapa público?", texto: "El mapa público pasará a mostrar este aviso en lugar del anterior.", confirmar: "Publicar" }))) return;
-    setPublicando(id); setError(""); setMensaje("");
-    try {
-      const nuevo = await api.publicarAvisoCortoPlazo(id);
-      setPublicado(nuevo);
-      setMensaje("Publicado. El mapa público ya muestra este aviso.");
-    } catch (e) { setError(e.message); }
-    finally { setPublicando(null); }
+  // Publicar (o cambiarle la vigencia a uno ya publicado) es un asistente con el paso de vigencia.
+  function abrirPublicar(aviso, { finSmn = null, vigenteHasta = null } = {}) {
+    setError(""); setMensaje("");
+    return publicarAvisoPorPasos({
+      aviso, finSmn, vigenteHasta,
+      publicar: async (id, hasta) => { const r = await api.publicarAvisoCortoPlazo(id, hasta); await cargarVigentes(); return r; },
+    });
   }
 
-  const hayCambiosSinPublicar = !!historial?.length && historial[0].id != null && historial[0].id !== publicado?.id;
+  async function despublicar(aviso) {
+    if (!(await confirmar({ titulo: "¿Sacar el aviso del mapa público?", texto: "Deja de mostrarse ahora, sin esperar a que venza.", confirmar: "Despublicar" }))) return;
+    setDespublicando(aviso.id); setError("");
+    try { await api.despublicarAvisoCortoPlazo(aviso.id); await cargarVigentes(); setMensaje("Listo: el aviso ya no se muestra en el mapa público."); }
+    catch (e) { setError(e.message); }
+    finally { setDespublicando(null); }
+  }
+
+  const hora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const generadaSinPublicar = generada?.id != null && !vigentes?.some((v) => v.id === generada.id);
 
   return (
     <div className="admin-layout risk-layout meteo-layout">
@@ -127,8 +133,8 @@ export default function AvisosCortoPlazoPage() {
           <h1>Avisos a muy corto plazo</h1>
           <p>Tocá «Crear placa» y elegí el aviso vigente del SMN: el polígono y el texto se completan solos. Si el SMN no trajo polígono, dibujalo a mano sobre los límites municipales.</p>
         </div>
-        <PublicationStatus changed={hayCambiosSinPublicar} published={publicado}>
-          {publicado ? `«${publicado.titulo}»` : null}
+        <PublicationStatus changed={generadaSinPublicar} published={vigentes?.length > 0}>
+          {vigentes === null ? null : vigentes.length ? `${vigentes.length} aviso${vigentes.length === 1 ? "" : "s"} vigente${vigentes.length === 1 ? "" : "s"}` : "Sin avisos vigentes en el mapa público"}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
         <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crearPlaca}>Crear placa</button>
@@ -138,28 +144,32 @@ export default function AvisosCortoPlazoPage() {
             : "Sin avisos del SMN vigentes por ahora: dibujá la zona afectada en el mapa y tocá «Crear placa»."}
         </p>
 
-        {historial && historial.length > 0 && (
-          <details className="avisos-historial" open={historialAbierto} onToggle={(e) => setHistorialAbierto(e.target.open)}>
-            <summary>Historial ({historial.length})</summary>
+        {generadaSinPublicar && (
+          <div className="avisos-lista avisos-lista--pendiente">
+            <h2>Placa generada, sin publicar</h2>
+            <p className="avisos-lista__texto">{generada.texto}</p>
+            <button type="button" className="btn btn--primary" onClick={() => abrirPublicar(generada, { finSmn: generada.finSmn })}>Publicar en el mapa público</button>
+          </div>
+        )}
+
+        {vigentes?.length > 0 && (
+          <div className="avisos-lista">
+            <h2>Vigentes en el mapa público</h2>
             <ul>
-              {historial.map((h, i) => (
-                <li key={h.id ?? i}>
-                  <strong>{h.titulo}</strong> · {new Date(h.generadoEn).toLocaleString("es-AR")}
-                  {h.generadoPorEmail && <> · {h.generadoPorEmail}</>}
-                  <br /><a href={h.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={h.historiasUrl} target="_blank" rel="noreferrer">historias</a>
-                  <br />
-                  <PublicarEnRedes feedUrl={h.feedUrl} historiasUrl={h.historiasUrl} epigrafe={`${h.titulo}\n\n${h.texto}`} />{" "}
-                  {publicado?.id != null && publicado.id === h.id ? (
-                    <span className="avisos-historial__publicado">Publicado en el mapa público</span>
-                  ) : (
-                    <button type="button" className="btn" disabled={h.id == null || publicando != null} title={h.id == null ? "Este aviso no se guardó en la base — no se puede publicar." : undefined} onClick={() => publicarAviso(h.id)}>
-                      {publicando === h.id ? "Publicando…" : "Publicar en el mapa público"}
-                    </button>
-                  )}
+              {vigentes.map((a) => (
+                <li key={a.id}>
+                  <strong>Hasta el {hora(a.vigenteHasta)}</strong>
+                  <p className="avisos-lista__texto">{a.texto}</p>
+                  <small>Publicado el {hora(a.publicadoEn)}{a.generadoPorEmail && <> · {a.generadoPorEmail}</>} · <a href={a.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={a.historiasUrl} target="_blank" rel="noreferrer">historias</a></small>
+                  <div className="avisos-lista__acciones">
+                    <button type="button" className="btn" onClick={() => abrirPublicar(a, { vigenteHasta: a.vigenteHasta })}>Cambiar vigencia</button>
+                    <PublicarEnRedes feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={`${a.titulo}\n\n${a.texto}`} />
+                    <button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(a)}>{despublicando === a.id ? "Despublicando…" : "Despublicar"}</button>
+                  </div>
                 </li>
               ))}
             </ul>
-          </details>
+          </div>
         )}
         <EmbedShare path="/embed/avisos-corto-plazo" title="Aviso a muy corto plazo · Misiones" />
       </section>
