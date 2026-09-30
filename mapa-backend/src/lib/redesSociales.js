@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const { createCanvas, loadImage } = require("canvas");
-const { subirArchivo, urlPublica, habilitado: storageHabilitado } = require("./storage");
+const { subirArchivo, urlPublica, urlParaLeer, habilitado: storageHabilitado } = require("./storage");
 
 /**
  * Publicación de placas en redes desde el panel.
@@ -129,7 +129,7 @@ async function convertirAJpeg(buffer, formato) {
 }
 
 async function descargarPlaca(url) {
-  const res = await fetchConTimeout(url);
+  const res = await fetchConTimeout(urlParaLeer(url));
   if (!res.ok) throw httpError(502, `No se pudo leer la placa del almacenamiento (${res.status}).`);
   const largo = Number(res.headers.get("content-length") || 0);
   if (largo > MAX_BYTES_PLACA) throw httpError(400, "La placa es demasiado pesada.");

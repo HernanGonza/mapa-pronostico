@@ -17,6 +17,7 @@ services:
       DATABASE_SSL: ${DATABASE_SSL:-false}
       # Placas (feed + historias) al bucket de Supabase Storage de ecodatos.
       SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       # Todo entra por el mismo origen (Caddy), así que no hace falta
       # restringir CORS acá; si igual querés pegarle directo al backend

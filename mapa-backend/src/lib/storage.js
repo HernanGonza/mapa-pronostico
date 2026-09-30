@@ -15,6 +15,16 @@ function base() {
   return (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
 }
 
+/**
+ * Dirección por la que el BACKEND le habla al Storage (opcional). Con la red interna
+ * (ej. http://10.0.0.231) no depende de la vuelta por la IP pública 170.83.126.55,
+ * que desde la VM da ECONNREFUSED (30/09). Las URLs públicas de las placas (las que
+ * ven navegadores y redes) siguen saliendo de SUPABASE_URL.
+ */
+function baseInterna() {
+  return (process.env.SUPABASE_INTERNAL_URL || "").replace(/\/+$/, "") || base();
+}
+
 function serviceKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 }
@@ -26,7 +36,7 @@ function habilitado() {
 /** Sube (o sobreescribe) un archivo al bucket. `ruta` es relativa al bucket. */
 async function subirArchivo(ruta, buffer, contentType = "image/png") {
   if (!habilitado()) throw new Error("Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY");
-  const res = await fetch(`${base()}/storage/v1/object/${BUCKET}/${ruta}`, {
+  const res = await fetch(`${baseInterna()}/storage/v1/object/${BUCKET}/${ruta}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${serviceKey()}`,
@@ -47,4 +57,10 @@ function urlPublica(ruta) {
   return `${base()}/storage/v1/object/public/${BUCKET}/${ruta}`;
 }
 
-module.exports = { subirArchivo, urlPublica, habilitado, BUCKET };
+/** Una URL pública del bucket, reescrita para que el backend la lea por la red interna. */
+function urlParaLeer(url) {
+  const publica = base(), interna = baseInterna();
+  return publica && interna !== publica && url.startsWith(`${publica}/`) ? interna + url.slice(publica.length) : url;
+}
+
+module.exports = { subirArchivo, urlPublica, urlParaLeer, habilitado, BUCKET };
