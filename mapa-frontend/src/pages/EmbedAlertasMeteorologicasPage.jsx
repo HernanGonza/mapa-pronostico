@@ -43,16 +43,27 @@ export default function EmbedAlertasMeteorologicasPage() {
   if (!data) return <div className="base-map base-map--fallback"><div><strong>Alertas meteorológicas · Misiones</strong><p>{error || "Cargando mapa…"}</p></div></div>;
 
   // Si una alerta vence entre dos consultas, se saca igual en el momento.
+  const manualesVigentes = data.manuales.filter((m) => Date.parse(m.vigenteHasta) > ahora);
   const tarjetas = [
-    ...data.manuales.filter((m) => Date.parse(m.vigenteHasta) > ahora).map((m) => ({ clave: `manual-${m.id}`, tipo: "manual", manual: m })),
+    // Todo verde no es una alerta: no lleva tarjeta (se ve el mapa verde, sin cartel).
+    ...manualesVigentes.filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "manual", manual: m })),
     ...data.smn.filter((a) => Date.parse(a.vigenteHasta) > ahora).map((a) => ({ clave: `smn-${a.id}`, tipo: "smn", alerta: a })),
   ];
-  if (!tarjetas.length) return <div className="base-map base-map--fallback"><div><strong>Alertas meteorológicas · Misiones</strong><p>No hay alertas meteorológicas vigentes para Misiones en este momento.</p></div></div>;
+  // Sin alertas: el mapa con los departamentos en verde, igual que los otros mapas del sitio.
+  if (!tarjetas.length) {
+    const verde = manualesVigentes.at(-1);
+    const zonas = verde?.zonas || data.catalogo.departamentos.map((d) => ({ id: String(d.id), categoria: "Verde" }));
+    return <div className="embed-risk">{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
+      <RiesgoMap embed geo={data.geo} zonas={zonas} iconos={[]} catalogo={data.catalogo} publicadoEn={verde?.publicadoEn} titulo="Alertas meteorológicas · Sin alertas vigentes" />
+    </div>;
+  }
   const actual = tarjetas.find((t) => t.clave === elegida) || tarjetas[0];
 
   return <div className="alertas-embed">
     {error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
-    <div className="alertas-embed__tarjetas" role="tablist" aria-label="Alertas vigentes">
+    {/* Sólo si hay para elegir: con una sola alerta el período ya va en el título del mapa,
+        y el cartel le quitaba lugar al mapa en el iframe chico del sitio (371×464). */}
+    {tarjetas.length > 1 && <div className="alertas-embed__tarjetas" role="tablist" aria-label="Alertas vigentes">
       {tarjetas.map((t) => <button key={t.clave} type="button" role="tab" aria-selected={t === actual} className="alertas-embed__tarjeta"
         style={{ "--alerta-color": t.tipo === "smn" ? t.alerta.color || "#888" : "#2f8f5b" }} onClick={() => setElegida(t.clave)}>
         {t.tipo === "smn" ? <>
@@ -65,7 +76,7 @@ export default function EmbedAlertasMeteorologicasPage() {
           <small>Publicada el {fechaHora(t.manual.publicadoEn)}</small>
         </>}
       </button>)}
-    </div>
+    </div>}
     <div className="alertas-embed__mapa">
       {actual.tipo === "smn"
         ? <MapaAlertaSmn alerta={actual.alerta} geo={data.geo} />
@@ -81,6 +92,9 @@ export default function EmbedAlertasMeteorologicasPage() {
     </div>}
   </div>;
 }
+
+/** Una publicación manual es una alerta si algún departamento no está en verde (ni gris, sin dato). */
+const esAlerta = (m) => (m.zonas || []).some((z) => z.categoria && !["Verde", "Gris"].includes(z.categoria));
 
 /** Departamentos en gris y encima el área de la alerta del SMN, con el color de su nivel. */
 function MapaAlertaSmn({ alerta, geo }) {
