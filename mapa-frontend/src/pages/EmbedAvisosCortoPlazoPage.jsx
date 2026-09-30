@@ -8,7 +8,7 @@ import { getAvisosCortoPlazoVigentes, getMunicipiosGeojson } from "../api";
 const COLORES = ["#8b3fc4", "#e0701b", "#1d7fa8", "#c9346c", "#b8940f", "#2f8f5b"];
 const colorDe = (i) => COLORES[i % COLORES.length];
 
-const hora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const hora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 // Página pensada para el <iframe> del sitio del ministerio — mismo patrón
 // que EmbedRiesgoPage.jsx: solo lectura, muestra los avisos publicados
@@ -38,7 +38,9 @@ export default function EmbedAvisosCortoPlazoPage() {
   // Si un aviso vence entre dos consultas, se saca igual en el momento.
   const [ahora, setAhora] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 15 * 1000); return () => clearInterval(t); }, []);
-  const vigentes = (avisos || []).filter((a) => Date.parse(a.vigenteHasta) > ahora);
+  // ?id=<aviso>: sólo ese aviso (la pantalla de transmisión /tv muestra cada ACP por separado).
+  const soloId = new URLSearchParams(window.location.search).get("id");
+  const vigentes = (avisos || []).filter((a) => Date.parse(a.vigenteHasta) > ahora && (!soloId || String(a.id) === soloId));
 
   // Más viejo primero: así el primero publicado conserva su color aunque se sumen otros.
   const ordenados = [...vigentes].sort((x, y) => Date.parse(x.publicadoEn) - Date.parse(y.publicadoEn));
@@ -51,7 +53,7 @@ export default function EmbedAvisosCortoPlazoPage() {
     <div className="aviso-embed">
       {error && avisos && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
       <div className="aviso-embed__mapa">
-        <PolygonDrawMap poligonos={poligonos} onChange={() => {}} municipios={municipios} readOnly colorPoligono={COLORES[0]} />
+        <PolygonDrawMap poligonos={poligonos} onChange={() => {}} municipios={municipios} readOnly colorPoligono={COLORES[0]} encuadrar={!!soloId} />
         {avisos === null ? (
           <div className="aviso-embed__estado" role="status">{error ? "No se pudieron cargar los avisos." : "Cargando…"}</div>
         ) : ordenados.length === 0 ? (

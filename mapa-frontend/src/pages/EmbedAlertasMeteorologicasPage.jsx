@@ -44,11 +44,13 @@ export default function EmbedAlertasMeteorologicasPage() {
 
   // Si una alerta vence entre dos consultas, se saca igual en el momento.
   const manualesVigentes = data.manuales.filter((m) => Date.parse(m.vigenteHasta) > ahora);
+  // ?id=manual-<id> | smn-<id>: sólo esa alerta (la pantalla de transmisión /tv muestra cada una por separado).
+  const soloId = new URLSearchParams(window.location.search).get("id");
   const tarjetas = [
     // Todo verde no es una alerta: no lleva tarjeta (se ve el mapa verde, sin cartel).
     ...manualesVigentes.filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "manual", manual: m })),
     ...data.smn.filter((a) => Date.parse(a.vigenteHasta) > ahora).map((a) => ({ clave: `smn-${a.id}`, tipo: "smn", alerta: a })),
-  ];
+  ].filter((t) => !soloId || t.clave === soloId);
   // Sin alertas: el mapa con los departamentos en verde, igual que los otros mapas del sitio.
   if (!tarjetas.length) {
     const verde = manualesVigentes.at(-1);

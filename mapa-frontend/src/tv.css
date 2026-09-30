@@ -1,0 +1,47 @@
+/* Pantalla de transmisión (/tv): pensada para OBS a 1920×1080, medidas en vh para que escale igual. */
+.tv {
+  --tv-fondo: #0f2a1f;
+  --tv-texto: #ffffff;
+  --tv-urgente: #8b3fc4;
+  position: fixed; inset: 0; display: grid; grid-template-rows: 9vh 1fr 6vh;
+  background: var(--tv-fondo); color: var(--tv-texto); overflow: hidden; cursor: none;
+}
+.tv-cabecera { display: flex; align-items: center; gap: 1.6vh; padding: 0 3vh; }
+.tv-cabecera img { height: 5.2vh; }
+.tv-marca { display: grid; font-size: 1.5vh; line-height: 1.2; opacity: 0.85; }
+.tv-marca b { font-size: 2vh; }
+.tv-cabecera h1 { flex: 1; margin: 0; text-align: center; font-size: 3.6vh; font-weight: 700; letter-spacing: 0.02em; }
+.tv-reloj { display: grid; justify-items: end; font-size: 1.7vh; opacity: 0.9; }
+.tv-reloj b { font-size: 3.2vh; line-height: 1; }
+
+.tv-contenido { position: relative; margin: 0 2vh; border-radius: 1.2vh; overflow: hidden; background: #e9ece6; }
+.tv-pantalla { position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+.tv-pantalla--visible { opacity: 1; }
+.tv-pantalla { display: flex; }
+.tv-pantalla__marco { height: 100%; overflow: hidden; }
+.tv-pantalla iframe { width: 100%; height: 100%; border: 0; display: block; transform-origin: 0 0; }
+
+/* Algo urgente: marco del color del aviso/alerta y un panel con el texto. */
+.tv--urgente .tv-cabecera { background: var(--tv-urgente); animation: tv-latido 2.4s ease-in-out infinite; }
+.tv--urgente .tv-contenido { box-shadow: inset 0 0 0 0.6vh var(--tv-urgente); }
+.tv--urgente .tv-pantalla--visible .tv-pantalla__marco { width: 64% !important; }
+@keyframes tv-latido { 50% { filter: brightness(1.18); } }
+.tv-urgente {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 36%; display: flex; flex-direction: column; gap: 1.6vh;
+  padding: 4vh 3.4vh; background: #ffffff; color: #1d2a22; border-left: 0.8vh solid var(--tv-urgente); overflow: hidden;
+}
+.tv-urgente__etiqueta { align-self: flex-start; padding: 0.6vh 1.4vh; border-radius: 99px; background: var(--tv-urgente); color: #fff; font-size: 2vh; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.tv-urgente h2 { margin: 0; font-size: 4.2vh; line-height: 1.15; }
+.tv-urgente p { margin: 0; font-size: 2.5vh; line-height: 1.4; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 12; -webkit-box-orient: vertical; }
+.tv-urgente strong { margin-top: auto; font-size: 2.6vh; }
+.tv-urgente small { font-size: 1.7vh; color: #5b6a60; }
+
+.tv-pie { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 0 3vh; font-size: 2.1vh; }
+.tv-pie b { font-size: 2.6vh; }
+.tv-progreso { position: absolute; top: 0; left: 2vh; right: 2vh; height: 0.4vh; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.tv-progreso i { display: block; height: 100%; background: #9ccf6a; transform-origin: left; animation: tv-progreso linear both; }
+@keyframes tv-progreso { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tv--urgente .tv-cabecera { animation: none; }
+}

@@ -75,7 +75,7 @@ function agregarMunicipios(map, datos) {
  * para mostrar varios a la vez, sólo lectura, cada uno con su color; el
  * cartel sale al pasar el mouse (o al tocar, en celular) sobre el polígono.
  */
-const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligonos = null, onChange, municipios, readOnly = false, colorPoligono = "#c9346c" }, ref) {
+const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligonos = null, onChange, municipios, readOnly = false, colorPoligono = "#c9346c", encuadrar = false }, ref) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
@@ -205,6 +205,23 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligon
     mapRef.current?.getSource("poligono-dibujo")?.setData(datosDibujo());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puntos, poligonos, listo]);
+
+  // `encuadrar`: centra la vista en los polígonos (la pantalla de transmisión muestra un aviso
+  // por vez). Recién después deja el mapa en window.__map, para que /tv lo acerque despacio
+  // desde ese encuadre.
+  const encuadrado = useRef(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!listo || !map || !readOnly) return;
+    const todos = (poligonos || []).flatMap((p) => p.puntos || []);
+    if (encuadrar && !encuadrado.current && todos.length >= 3) {
+      const b = new maplibregl.LngLatBounds();
+      todos.forEach((p) => b.extend(p));
+      map.fitBounds(b, { padding: 80, maxZoom: 8.6, duration: 0 });
+      encuadrado.current = true;
+    }
+    if (!encuadrar || encuadrado.current) window.__map = map;
+  }, [listo, poligonos, encuadrar, readOnly]);
 
   // Los municipios pueden llegar después de que cargó el mapa (el iframe lo
   // crea enseguida, antes de tenerlos): se agregan cuando llegan.

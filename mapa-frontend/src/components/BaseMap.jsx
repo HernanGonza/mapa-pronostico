@@ -107,7 +107,9 @@ const BaseMap = forwardRef(function BaseMap({
     const ro = new ResizeObserver(() => { map.resize(); fitRef.current?.(); });
     ro.observe(containerRef.current);
     map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
-    if (import.meta.env.DEV) window.__map = map;
+    // En los embebidos queda a mano para la pantalla de transmisión (/tv), que desde el mismo
+    // origen mueve la cámara despacio mientras el mapa está al aire.
+    if (import.meta.env.DEV || embed) window.__map = map;
     return () => { ro.disconnect(); syncRef.current = null; mapRef.current = null; fittedRef.current = false; fitRef.current = null; map.remove(); };
     // El mapa vive durante el montaje; los datos se sincronizan por separado.
     // eslint-disable-next-line react-hooks/exhaustive-deps
