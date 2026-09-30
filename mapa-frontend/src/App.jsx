@@ -19,6 +19,7 @@ const AlertasMeteorologicasPage = lazy(() => import("./pages/AlertasMeteorologic
 const EmbedAlertasMeteorologicasPage = lazy(() => import("./pages/EmbedAlertasMeteorologicasPage"));
 const AlertasAutomaticasPage = lazy(() => import("./pages/AlertasAutomaticasPage"));
 const AvisosCortoPlazoPage = lazy(() => import("./pages/AvisosCortoPlazoPage"));
+const AvisoEspecialPage = lazy(() => import("./pages/AvisoEspecialPage"));
 const EmbedAvisosCortoPlazoPage = lazy(() => import("./pages/EmbedAvisosCortoPlazoPage"));
 const EmbedHistoricoPage = lazy(() => import("./pages/EmbedHistoricoPage"));
 const InundacionesPage = lazy(() => import("./pages/InundacionesPage"));
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="/panel/alertas-meteorologicas" element={<RutaProtegida><AlertasMeteorologicasPage /></RutaProtegida>} />
           <Route path="/panel/alertas-automaticas" element={<RutaProtegida><AlertasAutomaticasPage /></RutaProtegida>} />
           <Route path="/panel/avisos-corto-plazo" element={<RutaProtegida><AvisosCortoPlazoPage /></RutaProtegida>} />
+          <Route path="/panel/aviso-especial" element={<RutaProtegida><AvisoEspecialPage /></RutaProtegida>} />
           <Route path="/panel/inundaciones" element={<RutaProtegida><InundacionesPage /></RutaProtegida>} />
           <Route path="/panel/cuencas" element={<RutaProtegida><CuencasPage /></RutaProtegida>} />
           <Route path="/panel/pronostico-3-dias" element={<RutaProtegida><PronosticoExtendidoPage /></RutaProtegida>} />

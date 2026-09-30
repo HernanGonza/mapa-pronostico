@@ -267,6 +267,16 @@ export async function publicarAvisoCortoPlazo(id, vigenteHasta) {
 export async function despublicarAvisoCortoPlazo(id) {
   return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/${id}/despublicar`, { method: "POST", ...CON_SESION }));
 }
+/** Aviso especial (texto libre + captura). `opciones`: { vistaPrevia: true } o { confirmarToken }
+ * — al confirmar no se reenvía la imagen: el backend guarda la vista previa ya generada. */
+export async function generarAvisoEspecial({ texto, emitidoEn, imagen }, { vistaPrevia = false, confirmarToken = null } = {}) {
+  const form = new FormData();
+  form.append("texto", texto);
+  form.append("emitidoEn", emitidoEn);
+  if (confirmarToken) form.append("confirmarToken", confirmarToken);
+  else { form.append("imagen", imagen); if (vistaPrevia) form.append("vistaPrevia", "true"); }
+  return handleJson(await fetch(`${API_URL}/api/avisos-especiales/generar`, { method: "POST", body: form, ...CON_SESION }));
+}
 /** Avisos publicados y todavía vigentes (público, lo usa el iframe). [] = ninguno. */
 export async function getAvisosCortoPlazoVigentes() {
   return (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;

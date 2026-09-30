@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CloudSun, CalendarDays, Flame, Radar, CloudLightning, Bell, PenLine, Waves, Droplets } from "lucide";
+import { CloudSun, CalendarDays, Flame, Radar, CloudLightning, Bell, PenLine, Megaphone, Waves, Droplets } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import BrandHeader from "../components/BrandHeader";
 import { useAuth } from "../context/AuthContext";
@@ -47,6 +47,12 @@ const OPCIONES = [
     icono: PenLine,
     titulo: "Avisos a muy corto plazo",
     descripcion: "Dibujá la zona afectada en el mapa y generá una placa de texto libre para redes.",
+  },
+  {
+    to: "/panel/aviso-especial",
+    icono: Megaphone,
+    titulo: "Aviso especial",
+    descripcion: "Texto libre con una captura de radar o satélite: placas de feed e historias.",
   },
   {
     to: "/panel/inundaciones",

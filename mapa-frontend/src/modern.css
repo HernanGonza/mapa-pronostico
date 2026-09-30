@@ -392,3 +392,8 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .paso-vigencia__placa { width: 120px; border-radius: 8px; box-shadow: var(--shadow-card); }
 .paso-vigencia > div { flex: 1 1 240px; }
 .paso-vigencia__rapidas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+/* Asistente de aviso especial: elegir la captura de radar/satélite */
+.paso-captura { display: grid; gap: 10px; }
+.paso-captura__nombre { margin: 0; color: var(--text-muted); font-size: 13px; overflow-wrap: anywhere; }
+.paso-captura__miniatura { max-width: 100%; max-height: 260px; justify-self: center; border-radius: var(--radius-sm); border: 1px solid var(--border); object-fit: contain; }
