@@ -6,6 +6,8 @@ const { PLACAS_DIR, dibujarMapaEnRecuadro } = require('./misionesVectorMap');
 const DIR = path.join(__dirname, '../../data/alertas');
 registerFont(path.join(DIR, 'OakSans-Regular.ttf'), {family:'AlertaPlaca'});
 registerFont(path.join(DIR, 'OakSans-Bold.ttf'), {family:'AlertaPlaca',weight:'bold'});
+// Título de la placa en SemiBold (el Bold quedaba demasiado pesado).
+registerFont(path.join(DIR, 'OakSans-SemiBold.ttf'), {family:'AlertaPlacaTitulo'});
 // Material fuente: Placas-Alertas-Separadas/ en la raíz del repo (assets
 // separados por capa, provistos por diseño) — se copió tal cual a
 // data/alertas/placas-2025/ para que el backend no dependa de una carpeta
@@ -143,11 +145,11 @@ const TITULO_LAYOUT = {
 function dibujarTitulo(ctx, titulo, tamano) {
   const L = TITULO_LAYOUT[tamano], texto = titulo.trim().toLocaleUpperCase('es-AR');
   ctx.save();
-  ctx.font = 'bold 200px AlertaPlaca';
+  ctx.font = '200px AlertaPlacaTitulo';
   let size = Math.round((200 * L.alto) / ctx.measureText('H').actualBoundingBoxAscent);
-  ctx.font = `bold ${size}px AlertaPlaca`;
+  ctx.font = `${size}px AlertaPlacaTitulo`;
   const ancho = ctx.measureText(texto).width;
-  if (ancho > L.maxW) { size = Math.floor((size * L.maxW) / ancho); ctx.font = `bold ${size}px AlertaPlaca`; }
+  if (ancho > L.maxW) { size = Math.floor((size * L.maxW) / ancho); ctx.font = `${size}px AlertaPlacaTitulo`; }
   ctx.fillStyle = '#fff'; ctx.textAlign = L.alinear; ctx.textBaseline = 'alphabetic';
   ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
   // Base de las mayúsculas fija: un título achicado queda alineado abajo con el original.

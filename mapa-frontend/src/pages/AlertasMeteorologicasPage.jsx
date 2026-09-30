@@ -8,6 +8,9 @@ import EmbedShare from '../components/EmbedShare';
 import RiesgoMap from '../components/RiesgoMap';
 import { editarMapaAlertas, crearPlacaMapaAlertas, crearPlacaRecomendaciones, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
 import * as api from '../api';
+import { confirmar } from '../lib/ui';
+
+const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 const comoImagenes = (p) => ({ feed: p.feedUrl, historias: p.historiasUrl, feedNombre: p.feedNombre, historiasNombre: p.historiasNombre });
 
@@ -18,6 +21,10 @@ export default function AlertasMeteorologicasPage() {
   // Valores con los que arrancan los asistentes (se actualizan con lo último que se generó).
   const [periodo, setPeriodo] = useState('Próximas 24 horas'), [fondo, setFondo] = useState('tormenta'), [titulo, setTitulo] = useState('Alerta meteorológica'), [tamanoPeriodo, setTamanoPeriodo] = useState(64);
   const [recomendaciones, setRecomendaciones] = useState('');
+  // Publicaciones que se ven ahora en el mapa público (cada una se saca sola al vencer).
+  const [vigentes, setVigentes] = useState(null), [despublicando, setDespublicando] = useState(null);
+  const cargarVigentes = () => api.getAlertasMeteorologicasVigentes().then(setVigentes).catch(e => { setVigentes([]); setError(e.message); });
+  useEffect(() => { cargarVigentes(); const t = setInterval(cargarVigentes, 60000); return () => clearInterval(t); }, []);
   const [iconos, setIconos] = useState([]), [imagenes, setImagenes] = useState(null), [imagenesRecomendaciones, setImagenesRecomendaciones] = useState(null), [vista, setVista] = useState('mapa');
 
   useEffect(() => {
@@ -62,9 +69,20 @@ export default function AlertasMeteorologicasPage() {
     },
   });
   const revisarYPublicar = () => publicarAlertasPorPasos({
-    cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar,
-    publicar: async () => { setPublicado(await api.publicarAlertasMeteorologicas(zonas, iconos)); setMensaje('Publicado. El mapa público ya muestra este mapa.'); },
+    cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], periodoSugerido: periodo,
+    publicar: async (opciones) => {
+      const pub = await api.publicarAlertasMeteorologicas(zonas, iconos, opciones);
+      setPublicado(pub); await cargarVigentes(); setMensaje('Publicado. El mapa público ya muestra este mapa.');
+      return pub;
+    },
   });
+  async function despublicar(v) {
+    if (!(await confirmar({ titulo: '¿Sacar la alerta del mapa público?', texto: 'Deja de mostrarse ahora, sin esperar a que venza.', confirmar: 'Despublicar' }))) return;
+    setDespublicando(v.id); setError('');
+    try { await api.despublicarAlertaMeteorologica(v.id); await cargarVigentes(); setMensaje('Listo: la alerta ya no se muestra en el mapa público.'); }
+    catch (e) { setError(e.message); }
+    finally { setDespublicando(null); }
+  }
 
   return <div className="admin-layout risk-layout meteo-layout">
     <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
@@ -79,7 +97,16 @@ export default function AlertasMeteorologicasPage() {
           <button className="btn btn--block" onClick={crearRecomendaciones}>Crear placa de recomendaciones</button>
           <button className="btn btn--block" disabled={!catalogo} onClick={revisarYPublicar}>{republicar ? "Republicar" : "Revisar y publicar"}</button>
         </div>
-        <p className="admin-panel__hint">La placa del mapa usa los niveles y fenómenos que ves a la derecha. El mapa público muestra lo último que publicaste.</p>
+        <p className="admin-panel__hint">La placa del mapa usa los niveles y fenómenos que ves a la derecha. Al publicar elegís para cuándo es y hasta cuándo se muestra: después se saca sola.</p>
+        {vigentes?.length > 0 && <div className="avisos-lista">
+          <h2>Vigentes en el mapa público</h2>
+          <ul>{vigentes.map(v => <li key={v.id}>
+            <strong>{v.periodo}</strong>
+            <small>Publicada el {fechaHora(v.publicadoEn)} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
+            <div className="avisos-lista__acciones"><button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Despublicando…' : 'Despublicar'}</button></div>
+          </li>)}</ul>
+        </div>}
+        {vigentes?.length === 0 && <p className="admin-panel__hint">No hay alertas por departamento vigentes en el mapa público.</p>}
         <details><summary>Qué significa cada nivel</summary>{catalogo.categorias.map(c => <p key={c.nombre}><strong>{c.nombre} · {c.accion}</strong><br />{c.descripcion}</p>)}</details>
         <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />
       </>}

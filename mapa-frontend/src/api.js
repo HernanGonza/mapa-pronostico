@@ -242,7 +242,11 @@ export async function renderRiesgoPng(zonas, fecha) {
 export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/catalogo`);
 export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
 export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
-export async function publicarAlertasMeteorologicas(zonas,iconos){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos}),...CON_SESION}));}
+/** Publica el mapa manual para `periodo`, visible hasta `vigenteHasta` (ISO); `reemplazar`: ids de vigentes que saca. */
+export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[]}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar}),...CON_SESION}));}
+/** Publicaciones manuales vigentes (público, lo usa el iframe). [] = ninguna. */
+export async function getAlertasMeteorologicasVigentes(){return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/vigentes`,{cache:"no-store"}))).publicaciones;}
+export async function despublicarAlertaMeteorologica(id){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${id}/despublicar`,{method:"POST",...CON_SESION}));}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }

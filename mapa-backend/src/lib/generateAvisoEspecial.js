@@ -19,7 +19,8 @@ const ASSETS_DIR = path.join(__dirname, '../../data/alertas/aviso-especial');
 // Familias propias (mismos .ttf de Oak Sans, registrados con otro nombre) para no
 // depender del orden en que se cargan los otros generadores.
 registerFont(path.join(__dirname, '../../data/alertas/OakSans-Bold.ttf'), { family: 'AvisoEspecialTexto', weight: 'bold' });
-registerFont(path.join(ASSETS_DIR, 'OakSans-ExtraBold.ttf'), { family: 'AvisoEspecialTitulo', weight: 'bold' });
+// Título en SemiBold: el ExtraBold quedaba demasiado pesado.
+registerFont(path.join(__dirname, '../../data/alertas/OakSans-SemiBold.ttf'), { family: 'AvisoEspecialTitulo' });
 
 const TITULO = 'AVISO';
 const TAMANOS = ['feed', 'historias'];
@@ -186,9 +187,9 @@ async function generateAvisoEspecial({ texto, emitidoEn, imagen, tamano = 'feed'
   ctx.drawImage(fondo, 0, 0);
 
   // 1) Título fijo, centrado: el tamaño se calcula para que las mayúsculas midan tituloAlto.
-  ctx.font = 'bold 200px AvisoEspecialTitulo';
+  ctx.font = '200px AvisoEspecialTitulo';
   const alto200 = ctx.measureText(TITULO).actualBoundingBoxAscent;
-  ctx.font = `bold ${Math.round((200 * L.tituloAlto) / alto200)}px AvisoEspecialTitulo`;
+  ctx.font = `${Math.round((200 * L.tituloAlto) / alto200)}px AvisoEspecialTitulo`;
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';

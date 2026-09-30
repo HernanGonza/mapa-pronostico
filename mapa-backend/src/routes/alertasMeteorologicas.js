@@ -13,10 +13,22 @@ router.get('/alertas-meteorologicas/geojson',(req,res)=>{res.set('Cache-Control'
 router.get('/alertas-meteorologicas/actual',async(req,res)=>{
   try {res.set('Cache-Control','no-store').json(await s.actual()||{});}catch(e){console.error(e);res.status(503).json({error:'No se pudo leer la publicación.'});}
 });
+// Publica el mapa en el embebido, para `periodo` (para cuándo es) y hasta
+// `vigenteHasta` (ISO; después se saca solo). `reemplazar`: ids de publicaciones
+// vigentes que ésta reemplaza.
 router.post('/alertas-meteorologicas/publicar',requireAuth,express.json(),async(req,res)=>{
-  const {zonas,iconos:iconosElegidos=[]}=req.body||{};
-  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos);if(error)return res.status(400).json({error});
-  try{res.json(await s.publicar(normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId));}catch(e){console.error(e);res.status(500).json({error:'No se pudo publicar.'});}
+  const {zonas,iconos:iconosElegidos=[],vigenteHasta,periodo,reemplazar=[]}=req.body||{};
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||s.errorDePublicacion({vigenteHasta,periodo,reemplazar});if(error)return res.status(400).json({error});
+  try{res.json(await s.publicar(normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId,{vigenteHasta,periodo,reemplazar}));}catch(e){console.error(e);res.status(500).json({error:'No se pudo publicar.'});}
+});
+// Público: las publicaciones vigentes (lo que muestra el embebido). [] = ninguna.
+router.get('/alertas-meteorologicas/vigentes',async(req,res)=>{
+  try{res.set('Cache-Control','no-store').json({publicaciones:await s.vigentes()});}catch(e){console.error(e);res.status(503).json({error:'No se pudieron leer las alertas vigentes.'});}
+});
+router.post('/alertas-meteorologicas/publicaciones/:id/despublicar',requireAuth,async(req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Id inválido.'});
+  try{await s.despublicar(id);res.json({ok:true});}catch(e){if(!e.status)console.error(e);res.status(e.status===404?404:500).json({error:e.status===404?e.message:'No se pudo despublicar.'});}
 });
 // Genera feed + historias en una sola llamada (antes eran dos POST, uno
 // por tamaño — eso hacía imposible agrupar ambas imágenes bajo un mismo
