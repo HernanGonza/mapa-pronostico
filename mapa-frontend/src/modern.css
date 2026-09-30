@@ -425,3 +425,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .correo-pegar summary { cursor: pointer; color: var(--text-muted); font-size: 13px; font-weight: 600; }
 .correo-pegar textarea { margin: 8px 0; }
 @media (max-width: 560px) { .correo-fila { grid-template-columns: minmax(0, 1fr) auto; } .correo-fila [data-campo="nombre"] { grid-column: 1 / -1; } }
+
+/* Pronóstico de 3 días: la vista previa ocupa el área de la derecha, como el mapa en las otras pantallas. */
+.extendido-vista { overflow: auto; padding: 20px clamp(16px, 3vw, 36px); background: var(--surface); }
+.extendido-vista > h2 { margin: 0 0 12px; }

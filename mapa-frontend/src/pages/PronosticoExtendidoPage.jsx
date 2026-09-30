@@ -48,7 +48,7 @@ export default function PronosticoExtendidoPage() {
   const invalido = extendido ? hayInvalidosExtendido(extendido) : true;
 
   return (
-    <div className="admin-layout admin-layout--sin-mapa">
+    <div className="admin-layout">
       <BrandHeader subtitulo="Pronóstico de 3 días">
         <Link to="/panel/pronostico" className="btn-link">Ir a Pronóstico</Link>
         <Link to="/panel/mapas" className="btn-link">← Panel</Link>
@@ -83,12 +83,15 @@ export default function PronosticoExtendidoPage() {
             <div className="admin-acciones">
               <button type="button" className="btn btn--primary btn--block" disabled={publicando || invalido} onClick={revisarYPublicar}>{dirty ? "Revisar y publicar" : "Republicar"}</button>
             </div>
-
-            <h2 style={{ marginTop: 22 }}>Vista previa</h2>
-            <PronosticoExtendidoView extendido={extendido} publicadoEn={dirty ? null : actual?.publicadoEn} />
           </>
         )}
         <EmbedShare path="/embed/pronostico-3-dias" title="Pronóstico de 3 días · Misiones" />
+      </div>
+      {/* Como el resto del panel: a la derecha, a pantalla completa, lo que se va a publicar. */}
+      <div className="admin-map-area extendido-vista">
+        {actual && !cargando
+          ? <><h2>Vista previa</h2><PronosticoExtendidoView extendido={extendido} publicadoEn={dirty ? null : actual?.publicadoEn} /></>
+          : <div className="admin-map-area__vacio">{cargando ? "Cargando…" : "Todavía no hay pronóstico publicado."}</div>}
       </div>
     </div>
   );
