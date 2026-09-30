@@ -37,7 +37,12 @@ dónde, enlace). Si una placa ya salió en un destino, el sistema avisa antes de
    Para activarla, en *Configuración de la app → Básica* hay que completar la URL de
    la política de privacidad, la de eliminación de datos (puede ser la misma página),
    la categoría y el ícono; después, el interruptor *Modo de la app* arriba.
-   Usar las copias en GitHub Pages:
+   Usar el Google Doc publicado (sirve para los dos campos, privacidad y eliminación de datos):
+   `https://docs.google.com/document/d/e/2PACX-1vQuhFGFJ2dTqutHcAJbgnj-Z6OpU4IS4TIDPrQWlm_TkRxiY-3RaPq1neyO0O9StiWs2flZdbbVlRK8/pub`
+   Meta rechaza con 403 tanto `tramites.ecologia.misiones.gob.ar` como
+   `hernangonza.github.io` aunque los servidores respondan bien (el depurador muestra 403
+   incluso para la página de error de GitHub, que responde 404): es un bloqueo del lado
+   de Meta sobre esos dominios. Las copias en GitHub Pages quedan publicadas igual:
    `https://hernangonza.github.io/mapa-pronostico/privacidad` y
    `https://hernangonza.github.io/mapa-pronostico/eliminacion-de-datos`.
    El robot de Meta recibe un **403 vacío** en la red del ministerio antes de llegar a la
