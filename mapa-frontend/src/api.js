@@ -41,6 +41,34 @@ export async function parseDocx(file) {
   return handleJson(res);
 }
 
+// --- Envío del pronóstico por correo (Microsoft 365) ---
+/** { configurado, remitente }: si el servidor tiene cargados los datos de Microsoft 365. */
+export async function getCorreoEstado() {
+  return handleJson(await fetch(`${API_URL}/api/correo/estado`, { cache: "no-store", ...CON_SESION }));
+}
+export async function getCorreoDestinatarios() {
+  return (await handleJson(await fetch(`${API_URL}/api/correo/destinatarios`, { cache: "no-store", ...CON_SESION }))).destinatarios;
+}
+/** Reemplaza la lista completa de destinatarios: [{ nombre, email }]. */
+export async function guardarCorreoDestinatarios(destinatarios) {
+  return (await handleJson(await fetch(`${API_URL}/api/correo/destinatarios`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destinatarios }), ...CON_SESION,
+  }))).destinatarios;
+}
+/** Envía el pronóstico: docx + rtf adjuntos, a los ids elegidos de la lista (en copia oculta). */
+export async function enviarPronosticoPorCorreo({ docx, rtf, asunto, cuerpo, ids }) {
+  const form = new FormData();
+  form.append("docx", docx);
+  form.append("rtf", rtf);
+  form.append("asunto", asunto);
+  form.append("cuerpo", cuerpo);
+  form.append("ids", JSON.stringify(ids));
+  return handleJson(await fetch(`${API_URL}/api/correo/pronostico`, { method: "POST", body: form, ...CON_SESION }));
+}
+export async function getCorreoEnvios() {
+  return (await handleJson(await fetch(`${API_URL}/api/correo/envios`, { cache: "no-store", ...CON_SESION }))).envios;
+}
+
 export async function getMunicipios() {
   const res = await fetch(`${API_URL}/api/municipios`);
   return handleJson(res);

@@ -7,8 +7,14 @@ import { colorPronostico, infoPronostico, LeyendaPronostico } from "../component
 import EmbedShare from "../components/EmbedShare";
 import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos, filaInvalida } from "../lib/asistentesPronostico";
 import BrandHeader from "../components/BrandHeader";
+import { enviarPronosticoPorCorreo, editarDestinatariosPorPasos } from "../lib/asistenteCorreo";
+import { notificar } from "../lib/ui";
 import {
   parseDocx,
+  getCorreoEstado,
+  getCorreoDestinatarios,
+  guardarCorreoDestinatarios,
+  enviarPronosticoPorCorreo as enviarCorreo,
   publicar,
   generarPronosticoPlaca,
   getActual,
@@ -89,6 +95,8 @@ export default function AdminPage() {
   const [vista, setVista] = useState("mapa");
   useEffect(() => { setImagenes(null); }, [filas, fechaPronostico]);
   const mapaRef = useRef(null);
+  // El .docx que se cargó en esta sesión: se adjunta tal cual al enviar el pronóstico por correo.
+  const [docx, setDocx] = useState(null);
 
   useEffect(() => {
     getMunicipiosGeojson().then(setMunicipiosGeojson).catch(() => {});
@@ -140,7 +148,7 @@ export default function AdminPage() {
 
   // --- Asistentes (todo dentro de un modal, paso a paso) ---
   const cargar = () => cargarPronostico({
-    filas, fecha: fechaPronostico, parse: parseDocx,
+    filas, fecha: fechaPronostico, parse: (archivo) => parseDocx(archivo).then((r) => { setDocx(archivo); return r; }),
     aplicar: ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e || extendido || null); setError(null); },
   });
   const crearPlaca = () => crearPlacaPronostico({
@@ -157,6 +165,19 @@ export default function AdminPage() {
     cantidad: filas.length, sinPublicar: !publicado, fecha: fechaPronostico, fechaCambiada, cambios, republicar: !sucio,
     publicar: async () => { setPublicado(await publicar(filas, fechaPronostico, extendido)); setMensajeOk("Publicado. El mapa público ya muestra esta versión."); },
   });
+
+  // Correo: la lista y el estado se piden al abrir, así siempre están al día.
+  async function enviarPorCorreo() {
+    try {
+      const [estado, destinatarios] = await Promise.all([getCorreoEstado(), getCorreoDestinatarios()]);
+      if (!destinatarios.length) { notificar("error", "La lista de destinatarios está vacía: cargala en «Destinatarios del email»."); return; }
+      await enviarPronosticoPorCorreo({ docx, fecha: fechaPronostico, estado, destinatarios, enviar: enviarCorreo });
+    } catch (e) { notificar("error", e.message); }
+  }
+  async function editarDestinatarios() {
+    try { await editarDestinatariosPorPasos({ destinatarios: await getCorreoDestinatarios(), guardar: guardarCorreoDestinatarios }); }
+    catch (e) { notificar("error", e.message); }
+  }
 
   async function onCapturarDesdeElMapa() {
     if (!mapaRef.current) return;
@@ -203,7 +224,9 @@ export default function AdminPage() {
           <button className="btn btn--primary btn--block" onClick={cargar}>{filas ? "Cargar o corregir el pronóstico" : "Cargar el pronóstico del día"}</button>
           <button className="btn btn--block" disabled={!filas || hayInvalidos} onClick={crearPlaca}>Crear placa para redes</button>
           <button className="btn btn--block" disabled={!filas || hayInvalidos || !fechaPronostico} onClick={revisarYPublicar}>{sucio ? "Revisar y publicar" : "Republicar"}</button>
+          <button className="btn btn--block" onClick={enviarPorCorreo}>Enviar por email</button>
           <button className="btn btn--ghost btn--block" disabled={!filas} onClick={onCapturarDesdeElMapa}>Capturar mapa actual</button>
+          <button className="btn btn--ghost btn--block" onClick={editarDestinatarios}>Destinatarios del email</button>
         </div>
         <p className="admin-panel__hint">{!filas ? "Subí el .docx que manda Alerta Temprana y corregí los datos si hace falta. El mapa se arma solo." : hayInvalidos ? "Hay datos por corregir: abrí «Cargar o corregir el pronóstico»." : sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>
         {extendido && (

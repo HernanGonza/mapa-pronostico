@@ -75,6 +75,7 @@ app.use("/api", historicoRouter);
 app.use("/api", require("./routes/alertasSmnPublicadas"));
 app.use("/api", require("./routes/smn"));
 app.use("/api", require("./routes/cuencas"));
+app.use("/api", require("./routes/correo"));
 
 // Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.
 store
