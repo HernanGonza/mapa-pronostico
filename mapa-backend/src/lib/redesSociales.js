@@ -92,10 +92,21 @@ function mensajeDeMeta(err) {
   return message || "Meta devolvió un error sin detalle.";
 }
 
-async function graph(metodo, ruta, params = {}) {
+/**
+ * Llamada a la Graph API. Con `archivo` ({ buffer, nombre }) va como multipart y la
+ * imagen viaja en el pedido (campo `source`): Meta no tiene que descargarla de ningún
+ * lado. Hace falta porque el robot de Meta recibe un 403 en la red del ministerio
+ * (30/09: nunca llega a la VM), así que no puede bajar las placas del bucket.
+ */
+async function graph(metodo, ruta, params = {}, archivo = null) {
   const token = env("META_PAGE_ACCESS_TOKEN");
-  const cuerpo = new URLSearchParams({ ...params, access_token: token });
   const url = `${graphBase()}/${ruta}`;
+  let cuerpo = new URLSearchParams({ ...params, access_token: token });
+  if (archivo) {
+    cuerpo = new FormData();
+    for (const [k, v] of Object.entries({ ...params, access_token: token })) cuerpo.append(k, v);
+    cuerpo.append("source", new Blob([archivo.buffer], { type: "image/jpeg" }), archivo.nombre);
+  }
   const res = metodo === "GET"
     ? await fetchConTimeout(`${url}?${cuerpo}`)
     : await fetchConTimeout(url, { method: "POST", body: cuerpo });
@@ -136,17 +147,36 @@ async function prepararJpeg(placaUrl, formato) {
   return { url: urlPublica(ruta), buffer: jpeg };
 }
 
-async function publicarFacebook(imagenUrl, formato, epigrafe) {
+async function publicarFacebook(jpeg, formato, epigrafe) {
   const pagina = env("META_PAGE_ID");
+  const archivo = { buffer: jpeg, nombre: `placa-${formato}.jpg` };
   if (formato === "feed") {
-    const r = await graph("POST", `${pagina}/photos`, { url: imagenUrl, caption: epigrafe || "", published: "true" });
+    const r = await graph("POST", `${pagina}/photos`, { caption: epigrafe || "", published: "true" }, archivo);
     const idPost = r.post_id || r.id;
     return { externoId: String(idPost), permalink: `https://www.facebook.com/${idPost}` };
   }
   // Historia de página: subir la foto sin publicar y convertirla en historia.
-  const foto = await graph("POST", `${pagina}/photos`, { url: imagenUrl, published: "false" });
+  const foto = await graph("POST", `${pagina}/photos`, { published: "false" }, archivo);
   const r = await graph("POST", `${pagina}/photo_stories`, { photo_id: foto.id });
   return { externoId: String(r.post_id || foto.id), permalink: r.post_id ? `https://www.facebook.com/${r.post_id}` : null };
+}
+
+/**
+ * Instagram sólo acepta la imagen por URL, y Meta no alcanza la nuestra (ver `graph`).
+ * Se sube la placa a la página de Facebook como foto SIN publicar (no aparece en la
+ * página) y se usa la dirección de esa imagen en los servidores de Meta, que sí lee.
+ * Si eso falla (por ejemplo, falta un permiso), queda la URL del bucket.
+ */
+async function urlParaInstagram(jpeg, formato, urlBucket) {
+  try {
+    const foto = await graph("POST", `${env("META_PAGE_ID")}/photos`, { published: "false", temporary: "true" }, { buffer: jpeg, nombre: `placa-${formato}.jpg` });
+    const { images = [] } = await graph("GET", foto.id, { fields: "images" });
+    const mayor = images.reduce((a, b) => (b.width > (a?.width || 0) ? b : a), null);
+    if (mayor?.source) return mayor.source;
+  } catch (e) {
+    console.warn(`[redes] instagram/${formato}: no se pudo subir la imagen a Meta, se usa la del bucket:`, e.message);
+  }
+  return urlBucket;
 }
 
 async function publicarInstagram(imagenUrl, formato, epigrafe) {
@@ -204,8 +234,8 @@ async function publicarUno({ destino, formato, placaUrl, epigrafe, jpegs }) {
     if (!estado()[destino]) throw httpError(503, "Este destino no está configurado en el servidor.");
     if (!jpegs[formato]) jpegs[formato] = prepararJpeg(placaUrl, formato); // se comparte entre destinos
     const { url, buffer } = await jpegs[formato];
-    const r = destino === "facebook" ? await publicarFacebook(url, formato, epigrafe)
-      : destino === "instagram" ? await publicarInstagram(url, formato, epigrafe)
+    const r = destino === "facebook" ? await publicarFacebook(buffer, formato, epigrafe)
+      : destino === "instagram" ? await publicarInstagram(await urlParaInstagram(buffer, formato, url), formato, epigrafe)
       : await publicarTelegram(buffer, formato, epigrafe);
     return { destino, formato, ok: true, ...r };
   } catch (e) {

@@ -37,9 +37,15 @@ dónde, enlace). Si una placa ya salió en un destino, el sistema avisa antes de
    Para activarla, en *Configuración de la app → Básica* hay que completar la URL de
    la política de privacidad, la de eliminación de datos (puede ser la misma página),
    la categoría y el ícono; después, el interruptor *Modo de la app* arriba.
-   Las dos URLs ya existen en el sistema, linkeadas desde la portada:
-   `https://<dominio>/privacidad` y `https://<dominio>/eliminacion-de-datos`
-   (HTML estático en `mapa-frontend/public/privacidad.html` y `eliminacion-de-datos.html`, para que Meta las lea sin JavaScript).
+   Usar las copias en GitHub Pages:
+   `https://hernangonza.github.io/mapa-pronostico/privacidad` y
+   `https://hernangonza.github.io/mapa-pronostico/eliminacion-de-datos`.
+   El robot de Meta recibe un **403 vacío** en la red del ministerio antes de llegar a la
+   VM (probado el 30/09/2026: Caddy le respondió 200 y el depurador igual mostró 403), así
+   que no puede validar `tramites.ecologia.misiones.gob.ar/privacidad`. La fuente sigue
+   siendo `mapa-frontend/public/privacidad.html` y `eliminacion-de-datos.html`: el workflow
+   `.github/workflows/paginas-legales.yml` las publica en Pages en cada push que las cambie.
+   (La primera vez: en GitHub, *Settings → Pages → Source: GitHub Actions*.)
 4. **Generar el token**, en el [Explorador de la Graph API](https://developers.facebook.com/tools/explorer/):
    - Elegir la app y *Obtener token de acceso de usuario* con los permisos
      `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`,
@@ -70,6 +76,11 @@ Detalles técnicos que ya resuelve el sistema: Instagram solo acepta JPEG y prop
 4:5 (feed) o 9:16 (historias), así que cada placa se convierte a JPEG 1080×1350 /
 1080×1920 y se guarda una copia pública en `redes/` del mismo bucket antes de
 publicar. Las historias no admiten epígrafe.
+
+Por el mismo 403, Meta tampoco puede descargar imágenes de nuestro bucket. Por eso a
+Facebook la placa se le **sube como archivo**, y para Instagram (que sólo acepta URL)
+primero se sube a la página de Facebook como foto sin publicar y se usa la dirección de
+esa imagen en los servidores de Meta. Si ese paso falla, se intenta con la URL del bucket.
 
 ## Telegram
 

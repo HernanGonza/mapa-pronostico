@@ -1,0 +1,57 @@
+# Publica en GitHub Pages sólo las páginas legales (política de privacidad y
+# eliminación de datos) que pide Meta para la app de redes:
+#   https://hernangonza.github.io/mapa-pronostico/privacidad
+#   https://hernangonza.github.io/mapa-pronostico/eliminacion-de-datos
+# Motivo: el robot de Meta recibe un 403 vacío en la red del ministerio antes de
+# llegar a la VM (el 30/09 Caddy le respondió 200 y el depurador igual mostró 403),
+# así que Meta no puede validar tramites.ecologia.misiones.gob.ar.
+# La fuente es la misma de siempre (mapa-frontend/public/): acá sólo se copian y
+# se ajustan las rutas absolutas ("/legal.css") a la carpeta del sitio de Pages.
+name: Páginas legales (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mapa-frontend/public/privacidad.html"
+      - "mapa-frontend/public/eliminacion-de-datos.html"
+      - "mapa-frontend/public/legal.css"
+      - ".github/workflows/paginas-legales.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: paginas-legales
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Armar el sitio
+        run: |
+          set -eu
+          P=mapa-frontend/public
+          mkdir -p _site/brand _site/fonts
+          cp $P/privacidad.html $P/eliminacion-de-datos.html $P/legal.css $P/favicon.png _site/
+          cp $P/brand/ecologia-flor.png $P/brand/alerta-temprana.png _site/brand/
+          cp $P/fonts/OakSans-Regular.ttf $P/fonts/OakSans-SemiBold.ttf $P/fonts/OakSans-Bold.ttf _site/fonts/
+          # El logo/inicio lleva al sistema real; lo demás queda relativo al sitio de Pages.
+          sed -i -e 's#href="/"#href="https://tramites.ecologia.misiones.gob.ar/"#g' \
+                 -e 's#\(href\|src\)="/\([^"/]\)#\1="\2#g' _site/*.html
+          sed -i 's#url("/fonts/#url("fonts/#g' _site/legal.css
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -60,11 +60,13 @@ test("publica feed en Facebook e Instagram y reporta fallos parciales sin lanzar
   const llamadas = [];
   global.fetch = async (url, opts = {}) => {
     const u = String(url);
-    llamadas.push([opts.method || "GET", u.replace(/\?.*/, ""), opts.body instanceof URLSearchParams ? Object.fromEntries(opts.body) : null]);
+    const cuerpo = opts.body instanceof URLSearchParams || opts.body instanceof FormData ? Object.fromEntries(opts.body) : null;
+    llamadas.push([opts.method || "GET", u.replace(/\?.*/, ""), cuerpo]);
     const json = (o, status = 200) => ({ ok: status < 400, status, headers: new Headers(), json: async () => o });
     if (u.startsWith(PREFIJO)) return { ok: true, status: 200, headers: new Headers(), arrayBuffer: async () => png(2250, 2813) };
     if (u.startsWith("https://storage.test/storage/v1/object/placas/")) return json({});
     if (u.endsWith("/PAG/photos")) return json({ id: "F1", post_id: "PAG_F1" });
+    if (u.includes("/F1?")) return json({ images: [{ width: 480, source: "https://scontent.test/chica.jpg" }, { width: 1080, source: "https://scontent.test/grande.jpg" }] });
     if (u.endsWith("/IG/media")) return json({ error: { code: 190, message: "expired" } }, 400);
     throw new Error(`fetch inesperado: ${u}`);
   };
@@ -74,10 +76,17 @@ test("publica feed en Facebook e Instagram y reporta fallos parciales sin lanzar
   assert.equal(fb.permalink, "https://www.facebook.com/PAG_F1");
   assert.equal(ig.ok, false);
   assert.match(ig.error, /token de Meta/);
-  const foto = llamadas.find((l) => l[1].endsWith("/PAG/photos"));
+  // Facebook: la imagen viaja como archivo (Meta no alcanza el bucket del ministerio).
+  const fotos = llamadas.filter((l) => l[1].endsWith("/PAG/photos"));
+  const foto = fotos.find((l) => l[2].caption !== undefined);
   assert.equal(foto[2].caption, "Alerta");
+  assert.equal(foto[2].published, "true");
   assert.equal(foto[2].access_token, "TOK");
-  assert.match(foto[2].url, /\/redes\/.*-feed\.jpg$/);
+  assert.ok(foto[2].source instanceof Blob, "la placa va como archivo");
+  assert.equal(foto[2].url, undefined, "sin URL para que Meta descargue");
+  // Instagram: primero una foto sin publicar en la página, y su imagen más grande en los servidores de Meta.
+  assert.ok(fotos.some((l) => l[2].published === "false" && l[2].source instanceof Blob));
+  assert.equal(llamadas.find((l) => l[1].endsWith("/IG/media"))[2].image_url, "https://scontent.test/grande.jpg");
   // El JPEG se generó una sola vez aunque haya dos destinos.
   assert.equal(llamadas.filter((l) => l[0] === "POST" && l[1].includes("/object/placas/redes/")).length, 1);
 });
