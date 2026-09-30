@@ -158,7 +158,9 @@ async function publicarFacebook(jpeg, formato, epigrafe) {
   // Historia de página: subir la foto sin publicar y convertirla en historia.
   const foto = await graph("POST", `${pagina}/photos`, { published: "false" }, archivo);
   const r = await graph("POST", `${pagina}/photo_stories`, { photo_id: foto.id });
-  return { externoId: String(r.post_id || foto.id), permalink: r.post_id ? `https://www.facebook.com/${r.post_id}` : null };
+  // Las historias no se abren como un post (facebook.com/<id> da «contenido no disponible»):
+  // el enlace lleva a la página, donde se ven en la foto de perfil.
+  return { externoId: String(r.post_id || foto.id), permalink: `https://www.facebook.com/${pagina}` };
 }
 
 /**
