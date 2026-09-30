@@ -11,11 +11,13 @@ registerFont(path.join(DIR, 'OakSans-Bold.ttf'), {family:'AlertaPlaca',weight:'b
 // data/alertas/placas-2025/ para que el backend no dependa de una carpeta
 // fuera de su propio árbol.
 //
+// Fondos SIN el título "ALERTA METEOROLÓGICA" impreso: el título lo dibuja
+// siempre dibujarTitulo, sin recuadro, así uno cambiado no tapa nada. Salen
+// de los originales de diseño (placas-2025/fondo *.png, nombres genéricos que
+// no indican tamaño ni tema) con scripts/limpiar-titulos-alertas.py.
 const FONDOS = {
-  // el nombre de archivo no indica tamaño ni tema (assets exportados con
-  // nombres genéricos) — verificado a mano abriendo cada uno.
-  nubes: { feed: 'fondo feed (2).png', historias: 'fondo feed.png' },
-  tormenta: { feed: 'fondo historias.png', historias: 'fondo historias (2).png' },
+  nubes: { feed: 'sin-titulo/nubes-feed.png', historias: 'sin-titulo/nubes-historias.png' },
+  tormenta: { feed: 'sin-titulo/tormenta-feed.png', historias: 'sin-titulo/tormenta-historias.png' },
 };
 const TAMANOS = ['feed', 'historias'];
 // Antes 140 (pensado para 1-3 líneas cortadas a mano); con el ajuste
@@ -130,16 +132,26 @@ function errorDeTamanoPeriodo(tamanoPeriodo) {
   return typeof tamanoPeriodo !== 'number' || !Number.isFinite(tamanoPeriodo) || tamanoPeriodo < TAMANO_PERIODO_MIN || tamanoPeriodo > TAMANO_PERIODO_MAX
     ? `El tamaño de letra del período tiene que estar entre ${TAMANO_PERIODO_MIN} y ${TAMANO_PERIODO_MAX}.` : null;
 }
-// El encabezado original forma parte del PNG. Un panel opaco lo sustituye
-// por completo cuando se elige otro título, sin tocar el pie institucional.
-function dibujarTitulo(ctx, titulo, tamano, width) {
-  if (titulo === TITULO_PREDETERMINADO) return;
-  const h = tamano === 'feed' ? 330 : 430;
+// El título va directo sobre la foto (sin recuadro), donde estaba el de diseño:
+// en feed alineado a la izquierda, en historias centrado. `top`/`alto` son el
+// borde superior y el alto de las mayúsculas, medidos sobre los originales.
+// Si un título largo no entra en el ancho, la letra se achica (no se deforma).
+const TITULO_LAYOUT = {
+  feed: { x: 191, top: 194, alto: 113, alinear: 'left', maxW: 2250 - 2 * 191 },
+  historias: { x: 1125, top: 261, alto: 134, alinear: 'center', maxW: 2250 - 2 * 190 },
+};
+function dibujarTitulo(ctx, titulo, tamano) {
+  const L = TITULO_LAYOUT[tamano], texto = titulo.trim().toLocaleUpperCase('es-AR');
   ctx.save();
-  ctx.fillStyle = '#172332'; ctx.fillRect(0, 0, width, h);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 116px AlertaPlaca';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(titulo.trim().toLocaleUpperCase('es-AR'), width / 2, h * 0.72, width - 380);
+  ctx.font = 'bold 200px AlertaPlaca';
+  let size = Math.round((200 * L.alto) / ctx.measureText('H').actualBoundingBoxAscent);
+  ctx.font = `bold ${size}px AlertaPlaca`;
+  const ancho = ctx.measureText(texto).width;
+  if (ancho > L.maxW) { size = Math.floor((size * L.maxW) / ancho); ctx.font = `bold ${size}px AlertaPlaca`; }
+  ctx.fillStyle = '#fff'; ctx.textAlign = L.alinear; ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
+  // Base de las mayúsculas fija: un título achicado queda alineado abajo con el original.
+  ctx.fillText(texto, L.x, L.top + L.alto);
   ctx.restore();
 }
 async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='tormenta',tamano='feed',iconos:iconosElegidos=[],titulo=TITULO_PREDETERMINADO,tamanoPeriodo=TAMANO_PERIODO_PREDETERMINADO}) {
@@ -150,7 +162,7 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   const fondoImg = fondos[`${fondo}:${tamano}`];
   const canvas=createCanvas(fondoImg.width,fondoImg.height),ctx=canvas.getContext('2d');
   ctx.drawImage(fondoImg,0,0);
-  dibujarTitulo(ctx,titulo,tamano,canvas.width);
+  dibujarTitulo(ctx,titulo,tamano);
 
   // Mapa: se rasteriza a un tamaño generoso (según el ancho del recuadro
   // donde va) y se dibuja centrado ahí, conservando el aspect ratio real
@@ -273,14 +285,11 @@ async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'fe
     const height = tamano === 'feed' ? 2813 : 4000;
     await page.setViewport({ width: 2250, height, deviceScaleFactor: 1 });
     const font = fs.readFileSync(path.join(DIR, 'OakSans-Regular.ttf')).toString('base64');
-    let bg = fs.readFileSync(path.join(PLACAS_DIR, FONDOS[fondo][tamano])).toString('base64');
-    if (titulo !== TITULO_PREDETERMINADO) {
-      const fondoImg = await loadImage(Buffer.from(bg, 'base64'));
-      const canvas = createCanvas(fondoImg.width, fondoImg.height), ctx = canvas.getContext('2d');
-      ctx.drawImage(fondoImg, 0, 0);
-      dibujarTitulo(ctx, titulo, tamano, canvas.width);
-      bg = canvas.toBuffer('image/png').toString('base64');
-    }
+    const fondoImg = (await loadFondos())[`${fondo}:${tamano}`];
+    const fondoCanvas = createCanvas(fondoImg.width, fondoImg.height), fondoCtx = fondoCanvas.getContext('2d');
+    fondoCtx.drawImage(fondoImg, 0, 0);
+    dibujarTitulo(fondoCtx, titulo, tamano);
+    const bg = fondoCanvas.toBuffer('image/png').toString('base64');
     const top = tamano === 'feed' ? 520 : 760;
     const bottom = tamano === 'feed' ? 2200 : 3200;
     await page.setContent(`<style>

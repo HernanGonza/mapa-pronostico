@@ -281,6 +281,21 @@ export async function generarAvisoEspecial({ texto, emitidoEn, imagen }, { vista
 export async function getAvisosCortoPlazoVigentes() {
   return (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;
 }
+/** Alertas del SMN publicadas en el embebido y todavía vigentes (público). [] = ninguna. */
+export async function getAlertasSmnPublicadas() {
+  return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas`, { cache: "no-store" }))).alertas;
+}
+export async function getAlertasSmnPublicadasPanel() {
+  return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/panel`, { cache: "no-store", ...CON_SESION }))).alertas;
+}
+export async function publicarAlertaSmn(smnId) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicar`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ smnId }), ...CON_SESION,
+  }));
+}
+export async function despublicarAlertaSmn(id) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${id}/despublicar`, { method: "POST", ...CON_SESION }));
+}
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }
 

@@ -72,6 +72,7 @@ app.use("/api", require("./routes/avisosEspeciales"));
 app.use("/api", redesRouter);
 app.use("/api", placasRouter);
 app.use("/api", historicoRouter);
+app.use("/api", require("./routes/alertasSmnPublicadas"));
 app.use("/api", require("./routes/smn"));
 app.use("/api", require("./routes/cuencas"));
 

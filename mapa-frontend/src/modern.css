@@ -397,3 +397,21 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .paso-captura { display: grid; gap: 10px; }
 .paso-captura__nombre { margin: 0; color: var(--text-muted); font-size: 13px; overflow-wrap: anywhere; }
 .paso-captura__miniatura { max-width: 100%; max-height: 260px; justify-self: center; border-radius: var(--radius-sm); border: 1px solid var(--border); object-fit: contain; }
+
+/* --- Embebido de alertas meteorológicas: una tarjeta por alerta, el mapa de la elegida y su descripción --- */
+.alertas-embed { height: 100%; display: flex; flex-direction: column; position: relative; background: var(--surface); }
+.alertas-embed__tarjetas { display: flex; gap: 8px; padding: 10px; overflow-x: auto; flex: none; scrollbar-width: thin; }
+.alertas-embed__tarjeta { flex: 0 0 auto; min-width: 190px; max-width: 260px; display: grid; gap: 3px; padding: 9px 12px 9px 14px; text-align: left; border: 1px solid var(--border); border-left: 6px solid var(--alerta-color); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.alertas-embed__tarjeta strong { font-size: 14px; line-height: 1.2; }
+.alertas-embed__tarjeta small { color: var(--text-muted); font-size: 12px; line-height: 1.3; }
+.alertas-embed__tarjeta[aria-selected="true"] { background: color-mix(in srgb, var(--alerta-color) 16%, var(--surface)); border-color: var(--alerta-color); box-shadow: var(--shadow-card); }
+.alertas-embed__tarjeta:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.alertas-embed__nivel { font-size: 12px; font-weight: 700; }
+.alertas-embed__mapa { flex: 1 1 auto; min-height: 260px; position: relative; }
+.alertas-embed__detalle { flex: none; max-height: 38%; overflow: auto; padding: 12px 16px 14px; border-top: 5px solid var(--alerta-color); font-size: 14px; line-height: 1.45; }
+.alertas-embed__detalle h2 { margin: 0 0 4px; font-size: 16px; }
+.alertas-embed__detalle p { margin: 0 0 8px; }
+.alertas-embed__periodo { font-weight: 700; }
+.alertas-embed__zona { color: var(--text-muted); }
+.alertas-embed__detalle small { color: var(--text-muted); }
+.smn-aviso__publicada { color: var(--accent); font-weight: 700; }

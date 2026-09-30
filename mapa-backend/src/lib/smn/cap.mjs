@@ -20,9 +20,42 @@ export function xml(text) {
   if (/<!DOCTYPE|<!ENTITY/i.test(text) || XMLValidator.validate(text) !== true) throw new Error('SMN: XML inválido');
   return parser.parse(text);
 }
+/**
+ * El SMN escribe la hora UTC con sufijo "-03:00" (ej. `<sent>…T13:21:41-03:00`
+ * para un informe emitido a las 10:21 de Misiones; las franjas SAT vienen como
+ * 03:00–08:59, que en UTC son el bloque 00–06 de acá). Por eso el reloj se lee
+ * como UTC y se ignora el desfase. Si algún día el SMN lo corrige, sacar esto
+ * (y `corregirHoraVieja`).
+ */
 export function fecha(value) {
   if (typeof value !== 'string' || !/(Z|[+-]\d\d:\d\d)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new Error('SMN: fecha inválida');
-  return new Date(value).toISOString();
+  const reloj = value.replace(/(Z|[+-]\d\d:\d\d)$/, '');
+  const t = Date.parse(`${reloj}Z`);
+  if (!Number.isFinite(t)) throw new Error('SMN: fecha inválida');
+  return new Date(t).toISOString();
+}
+/**
+ * Los textos del SMN vienen con los acentos como entidades escapadas dos veces
+ * (`&amp;#xE1;` en el XML → "&#xE1;" después de parsear). Se decodifican acá.
+ */
+export function textoPlano(value) {
+  return String(value ?? '')
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(Number(d)))
+    .replace(/&(quot|apos|lt|gt|nbsp|amp);/g, (m, n) => ({ quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', amp: '&' })[n]);
+}
+// Marca de las filas leídas con `fecha` ya corregida: las guardadas antes del
+// arreglo (sin la marca) tienen todas las horas 3 h de más.
+export const RELOJ_UTC = 'utc';
+const TRES_HORAS = 3 * 3600 * 1000;
+const menos3h = iso => new Date(Date.parse(iso) - TRES_HORAS).toISOString();
+/** Corrige una sola vez las filas guardadas antes del arreglo de `fecha`. */
+export function corregirHoraVieja(r) {
+  if (r.reloj === RELOJ_UTC) return r;
+  return { ...r, reloj: RELOJ_UTC, emitidoEn: menos3h(r.emitidoEn), infos: (r.infos || []).map(i => ({ ...i, inicio: i.inicio && menos3h(i.inicio), fin: i.fin && menos3h(i.fin),
+    // (de paso, los textos guardados antes de decodificar las entidades)
+    titulo: textoPlano(i.titulo), descripcion: textoPlano(i.descripcion), instrucciones: textoPlano(i.instrucciones),
+    zonas: (i.zonas || []).map(z => ({ ...z, nombre: textoPlano(z.nombre) })) })) };
 }
 export function polygon(text) {
   const ring = String(text).trim().split(/\s+/).map(pair => {
@@ -69,7 +102,7 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
   if (a.status !== 'Actual' || a.scope !== 'Public') return null;
   if (!['Alert', 'Update', 'Cancel'].includes(a.msgType)) return null;
   const ref = array(a.references).flatMap(r => String(r).split(/\s+/)).filter(Boolean).map(r => r.split(',')[1]).filter(Boolean);
-  const result = { id: String(a.identifier), fuente, alcance, emitidoEn: fecha(a.sent), tipo: a.msgType, referencias: ref, url, infos: [] };
+  const result = { id: String(a.identifier), fuente, alcance, emitidoEn: fecha(a.sent), reloj: RELOJ_UTC, tipo: a.msgType, referencias: ref, url, infos: [] };
   if (a.msgType === 'Cancel') return result;
   for (const info of array(a.info)) {
     if (info.language && !info.language.startsWith('es')) continue;
@@ -79,7 +112,7 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
     for (const area of array(info.area)) {
       const campos = Object.keys(area || {});
       const geocodigos = array(area.geocode).map(g => valor(g)).filter(Boolean);
-      const nombreArea = valor(area.areaDesc) || geocodigos.join(' · ') || (area.circle ? `Área circular (${valor(area.circle)})` : `Área definida por el SMN${campos.length ? ` (${campos.join(', ')})` : ''}`);
+      const nombreArea = textoPlano(valor(area.areaDesc)) || geocodigos.join(' · ') || (area.circle ? `Área circular (${valor(area.circle)})` : `Área definida por el SMN${campos.length ? ` (${campos.join(', ')})` : ''}`);
       for (const p of array(area.polygon)) {
         const geo = polygon(p);
         const departamentos = provincia.features.filter(f => intersecta(geo, f.geometry)).map(f => f.properties.nombre);
@@ -108,8 +141,8 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
     // Las advertencias SAT sin nivel explícito siguen siendo visibles en la
     // tabla, para poder diagnosticar el formato real que entrega el SMN.
     if (!categoria) continue;
-    result.infos.push({ titulo: String(info.headline || info.event || 'Aviso SMN'), evento: String(info.event || ''),
-      descripcion: String(info.description || ''), instrucciones: String(info.instruction || ''),
+    result.infos.push({ titulo: textoPlano(info.headline || info.event || 'Aviso SMN'), evento: textoPlano(info.event || ''),
+      descripcion: textoPlano(info.description || ''), instrucciones: textoPlano(info.instruction || ''),
       severidad: String(info.severity || ''), categoria: fuente === 'ACP' ? 'ACP' : categoria,
       inicio, fin, zonas });
   }
@@ -127,9 +160,14 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
  * trae alertas acá, no queda ninguna vigente.
  */
 export function ultimaEmision(rows) {
-  const ultima = rows.reduce((max, r) => (r.emitidoEn > max ? r.emitidoEn : max), '');
-  return rows.filter(r => r.emitidoEn === ultima);
+  // Un mismo informe se publica en varios mensajes a lo largo de algunos
+  // segundos (ej. 13:21:41, :42, :43 y :44 — cada uno con su propio id): se
+  // toma como una sola emisión todo lo emitido hasta 10 min antes del último
+  // mensaje. Entre informes pasan horas, así que no se mezclan.
+  const ultima = Math.max(...rows.map(r => Date.parse(r.emitidoEn)).filter(Number.isFinite));
+  return rows.filter(r => ultima - Date.parse(r.emitidoEn) <= VENTANA_EMISION_MS);
 }
+const VENTANA_EMISION_MS = 10 * 60 * 1000;
 export function vigentes(rows, now = Date.now()) {
   return rows.map(r => ({ ...r, infos: r.infos.filter(i => Date.parse(i.fin) > now) })).filter(r => r.infos.length);
 }

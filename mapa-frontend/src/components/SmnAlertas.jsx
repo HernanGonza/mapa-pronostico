@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BaseMap from './BaseMap';
 import { API_URL } from '../config';
-import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson } from '../api';
+import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson, getAlertasSmnPublicadasPanel, publicarAlertaSmn, despublicarAlertaSmn } from '../api';
+import { confirmar } from '../lib/ui';
+import EmbedShare from './EmbedShare';
 import { tiempoRelativo } from '../lib/tiempoRelativo';
 
 const AR = 'America/Argentina/Buenos_Aires';
-const fecha = value => new Date(value).toLocaleString('es-AR', { timeZone: AR });
-const horaCorta = value => new Date(value).toLocaleString('es-AR', { timeZone: AR, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const fecha = value => new Date(value).toLocaleString('es-AR', { timeZone: AR, hourCycle: 'h23' });
+const horaCorta = value => new Date(value).toLocaleString('es-AR', { timeZone: AR, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const order = { Amarillo: 1, Naranja: 2, Rojo: 3, ACP: 4 };
 
 // Días en hora argentina ("AAAA-MM-DD"). Cada emisión del SMN es un informe
@@ -58,6 +60,9 @@ export default function SmnAlertas() {
   // null = seguir la emisión más reciente / el primer día que traiga.
   const [emisionElegida, setEmisionElegida] = useState(null);
   const [diaElegido, setDiaElegido] = useState(null);
+  // Alertas SAT publicadas en el embebido de alertas meteorológicas (vigentes).
+  const [publicadas, setPublicadas] = useState(null);
+  const [publicando, setPublicando] = useState(null);
   const audioCtxRef = useRef(null);
   const vistosAcpRef = useRef(new Set());
 
@@ -84,7 +89,9 @@ export default function SmnAlertas() {
       } catch (e) { if (!controller.signal.aborted) setError(e.message); }
       finally { busy = false; }
     }
-    refresh(); const timer = setInterval(refresh, 60000);
+    const refrescarPublicadas = () => getAlertasSmnPublicadasPanel().then(p => { if (!controller.signal.aborted) setPublicadas(p); }).catch(() => {});
+    refresh(); refrescarPublicadas();
+    const timer = setInterval(() => { refresh(); refrescarPublicadas(); }, 60000);
     return () => { clearInterval(timer); controller.abort(); };
   }, []);
 
@@ -98,6 +105,20 @@ export default function SmnAlertas() {
     activos.forEach(id => vistosAcpRef.current.add(id));
     if (nuevos.length && sonidoListo && audioCtxRef.current) sonarAlarma(audioCtxRef.current);
   }, [data, sonidoListo]);
+
+  async function publicar(info) {
+    setPublicando(info.id); setError('');
+    try { await publicarAlertaSmn(info.id); setPublicadas(await getAlertasSmnPublicadasPanel()); }
+    catch (e) { setError(e.message); }
+    finally { setPublicando(null); }
+  }
+  async function despublicar(p) {
+    if (!(await confirmar({ titulo: '¿Sacar la alerta del mapa público?', texto: 'Deja de mostrarse ahora, sin esperar a que venza.', confirmar: 'Despublicar' }))) return;
+    setPublicando(p.smnId); setError('');
+    try { await despublicarAlertaSmn(p.id); setPublicadas(await getAlertasSmnPublicadasPanel()); }
+    catch (e) { setError(e.message); }
+    finally { setPublicando(null); }
+  }
 
   async function consultarAhora() {
     if (updating) return;
@@ -137,7 +158,7 @@ export default function SmnAlertas() {
       <div className="editor-heading">
         <span className="editor-eyebrow">SMN · RSS/CAP</span>
         <h1>Alertas automáticas</h1>
-        <p>Avisos oficiales del SMN, leídos automáticamente de su canal RSS/CAP cada 5 minutos: alertas (SAT) y avisos a muy corto plazo (ACP, ~15 min de anticipación). Herramienta de consulta: todavía no se publica en el mapa público.</p>
+        <p>Avisos oficiales del SMN, leídos automáticamente de su canal RSS/CAP cada 5 minutos: alertas (SAT) y avisos a muy corto plazo (ACP, ~15 min de anticipación). Tocá «Publicar en el mapa público» en cada alerta que quieras mostrar en el embebido de alertas meteorológicas: se ve hasta que termina y se saca sola.</p>
       </div>
       <p className="admin-panel__hint">
         {data ? `${data.alcance === 'argentina' ? 'Toda Argentina · prueba' : 'Misiones'} · última consulta ${last ? tiempoRelativo(last) : 'sin datos aún'}` : 'Consultando alertas oficiales del SMN…'}
@@ -169,6 +190,17 @@ export default function SmnAlertas() {
         {dias.map(d => <button type="button" key={d} className="btn" aria-pressed={d === dia} onClick={() => setDiaElegido(d)}>{etiquetaDia(d)}</button>)}
       </div>}
 
+      {publicadas?.length > 0 && <div className="avisos-lista">
+        <h2>Publicadas en el mapa público ({publicadas.length})</h2>
+        <ul>{publicadas.map(p => <li key={p.id}>
+          <strong style={{ borderLeft: `6px solid ${p.color || '#999'}`, paddingLeft: 8 }}>{p.titulo} · {p.categoria}</strong>
+          <p className="avisos-lista__texto">{p.zonas.map(z => z.nombre).join(' · ')} · {horaCorta(p.inicio)} a {horaCorta(p.fin)}</p>
+          <small>Publicada el {horaCorta(p.publicadoEn)}{p.publicadoPorEmail && <> · {p.publicadoPorEmail}</>} · se saca sola el {horaCorta(p.vigenteHasta)}</small>
+          <div className="avisos-lista__acciones"><button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => despublicar(p)}>{publicando === p.smnId ? 'Despublicando…' : 'Despublicar'}</button></div>
+        </li>)}</ul>
+      </div>}
+      <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />
+
       <h2>{dia ? `Avisos · ${etiquetaDia(dia)}` : 'Avisos vigentes'} ({infos.length})</h2>
       {infos.length === 0 && <p className="admin-panel__hint">No hay avisos vigentes en la respuesta del SMN.</p>}
       <div className="smn-avisos">
@@ -179,6 +211,13 @@ export default function SmnAlertas() {
           {info.descripcion && <p>{info.descripcion}</p>}
           {info.zonas.some(z => !z.geometry) && <p>Sin polígono disponible{info.fuente === 'ACP' ? <> — dibujalo a mano en <Link to="/panel/avisos-corto-plazo">Avisos a muy corto plazo</Link></> : ' para dibujar en el mapa.'}</p>}
           {info.url && <a href={info.url} target="_blank" rel="noreferrer">Documento oficial SMN ↗</a>}
+          {info.fuente !== 'ACP' && (() => {
+            const pub = publicadas?.find(p => p.smnId === info.id);
+            if (pub) return <p className="smn-aviso__publicada">✓ Publicada en el mapa público hasta el {horaCorta(pub.vigenteHasta)}</p>;
+            const sinArea = !info.zonas.some(z => z.geometry);
+            return <button type="button" className="btn btn--primary" disabled={sinArea || publicando != null || publicadas === null} onClick={() => publicar(info)}>
+              {publicando === info.id ? 'Publicando…' : sinArea ? 'Sin área: no se puede publicar' : 'Publicar en el mapa público'}</button>;
+          })()}
         </article>)}
       </div>
     </section>
