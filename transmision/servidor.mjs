@@ -2,9 +2,11 @@
  * Servicio de transmisión en vivo (YouTube, Facebook y cualquier destino RTMP), sin OBS
  * ni computadora aparte.
  *
- *   Xvfb      pantalla virtual (TRANSMISION_PANTALLA, 1920x1080)
- *   Chromium  en modo kiosco, abre la página /tv del sistema en esa pantalla
- *   ffmpeg    captura la pantalla (x11grab), le suma una pista de audio en silencio
+ *   Xvfb      pantalla virtual del tamaño de la salida (TRANSMISION_SALIDA, 1280x720)
+ *   Chromium  en modo kiosco, abre la página /tv del sistema en esa pantalla. Con un factor de
+ *             escala (ancho de salida / 1920) la página sigue midiendo 1920 px de ancho y se ve
+ *             igual, pero Chromium dibuja sólo los píxeles que se transmiten (720p: 44 % de 1080p).
+ *   ffmpeg    captura la pantalla (x11grab) tal cual, sin reescalar, le suma una pista de audio en silencio
  *             (las plataformas exigen audio) y la manda por RTMP a los destinos elegidos.
  *             Con varios destinos codifica UNA vez y reparte (muxer tee): si uno se corta,
  *             los demás siguen y al minuto se reconecta todo.
@@ -62,8 +64,7 @@ const DESTINOS = leerDestinos();
 
 const CONFIG = {
   url: env("TRANSMISION_URL", "http://frontend/tv"),
-  pantalla: env("TRANSMISION_PANTALLA", "1920x1080"),
-  salida: env("TRANSMISION_SALIDA", "1280x720"),
+  salida: env("TRANSMISION_SALIDA", "1280x720"), // también el tamaño de la pantalla virtual
   fps: Number(env("TRANSMISION_FPS", "25")) || 25,
   bitrate: env("TRANSMISION_BITRATE", "3000k"),
   espera: Number(env("TRANSMISION_ESPERA_CARGA", "20")) || 20, // s para que /tv cargue antes de salir al aire
@@ -189,14 +190,20 @@ function lanzar(nombre, cmd, args, gen) {
 }
 
 function argsChromium() {
-  const [w, h] = CONFIG.pantalla.split("x");
+  const [w, h] = CONFIG.salida.split("x");
+  // /tv está pensada a 1920 px de ancho: con esta escala se ve idéntica en una ventana más chica.
+  const escala = (Number(w) / 1920).toFixed(6);
   return [
     "--no-sandbox", "--kiosk", "--start-fullscreen", `--window-size=${w},${h}`, "--window-position=0,0",
-    "--force-device-scale-factor=1", "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
-    "--disable-features=Translate,TranslateUI", "--hide-scrollbars", "--no-first-run", "--disable-dev-shm-usage",
+    `--force-device-scale-factor=${escala}`, "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
+    // Sin el cartel del traductor (además está la política TranslateEnabled=false del Dockerfile).
+    "--lang=es-AR", "--accept-lang=es-AR,es", "--disable-features=Translate,TranslateUI,MediaRouter",
+    "--hide-scrollbars", "--no-first-run", "--disable-dev-shm-usage", "--disable-extensions",
+    "--disable-background-networking", "--disable-component-update", "--mute-audio",
     "--autoplay-policy=no-user-gesture-required",
-    // Sin GPU: los mapas (WebGL) se dibujan por software.
-    "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
+    // Sin GPU: composición por software (más barata que pasarla por SwiftShader) y los mapas
+    // (WebGL) se dibujan con SwiftShader.
+    "--disable-gpu", "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
     "--user-data-dir=/tmp/perfil-chromium", CONFIG.url,
   ];
 }
@@ -219,13 +226,12 @@ function argsSalida() {
 }
 
 function argsFfmpeg() {
-  const [sw, sh] = CONFIG.salida.split("x");
   const gop = String(CONFIG.fps * 2);
   return [
     "-hide_banner", "-loglevel", "warning",
-    "-thread_queue_size", "512", "-f", "x11grab", "-draw_mouse", "0", "-video_size", CONFIG.pantalla, "-framerate", String(CONFIG.fps), "-i", `${DISPLAY}.0`,
+    "-thread_queue_size", "512", "-f", "x11grab", "-draw_mouse", "0", "-video_size", CONFIG.salida, "-framerate", String(CONFIG.fps), "-i", `${DISPLAY}.0`,
     "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-vf", `scale=${sw}:${sh}:flags=bicubic,format=yuv420p`,
+    "-pix_fmt", "yuv420p", // la pantalla ya tiene el tamaño de salida: sin reescalar
     "-c:v", "libx264", "-preset", "veryfast", "-b:v", CONFIG.bitrate, "-maxrate", CONFIG.bitrate, "-bufsize", `${parseInt(CONFIG.bitrate, 10) * 2}k`,
     "-g", gop, "-keyint_min", gop, "-sc_threshold", "0",
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
@@ -248,7 +254,7 @@ async function arrancar() {
   if (gen !== generacion || !estado.activo) return;
   const nombres = DESTINOS.filter((d) => estado.destinos.includes(d.id)).map((d) => d.nombre).join(" + ");
   anotar("control", `arrancando: ${CONFIG.url} → ${nombres} (${CONFIG.salida} a ${CONFIG.fps} fps, ${CONFIG.bitrate})`);
-  lanzar("xvfb", BIN.xvfb, [DISPLAY, "-screen", "0", `${CONFIG.pantalla}x24`, "-nolisten", "tcp"], gen);
+  lanzar("xvfb", BIN.xvfb, [DISPLAY, "-screen", "0", `${CONFIG.salida}x24`, "-nolisten", "tcp"], gen);
   await esperar(1500);
   if (gen !== generacion || !estado.activo) return;
   lanzar("chromium", BIN.chromium, argsChromium(), gen);
@@ -314,7 +320,7 @@ function detener() {
 function captura() {
   return new Promise((resolve, reject) => {
     if (!procesos.xvfb) return reject(Object.assign(new Error("No hay nada en pantalla: la transmisión está detenida."), { status: 409 }));
-    execFile(BIN.ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "x11grab", "-video_size", CONFIG.pantalla, "-i", `${DISPLAY}.0`, "-frames:v", "1", "-vf", "scale=960:-2", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "5", "-"],
+    execFile(BIN.ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "x11grab", "-video_size", CONFIG.salida, "-i", `${DISPLAY}.0`, "-frames:v", "1", "-vf", "scale=960:-2", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "5", "-"],
       { env: { ...process.env, DISPLAY }, encoding: "buffer", maxBuffer: 10 * 1024 * 1024, timeout: 15000 },
       (e, stdout) => (e ? reject(e) : resolve(stdout)));
   });

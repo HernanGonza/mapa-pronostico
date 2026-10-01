@@ -71,6 +71,8 @@ services:
   transmision:
     build: ./transmision
     restart: unless-stopped
+    # Un init de verdad como PID 1: recolecta los procesos zombie de Chromium (chrome_crashpad).
+    init: true
     environment:
       TRANSMISION_TOKEN: ${TRANSMISION_TOKEN:-}
       # Destinos: sólo se ofrecen los que tienen clave. Ver docs/transmision.md.

@@ -8,6 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Que Chromium nunca ofrezca traducir la página (el cartel aparecía arriba en la transmisión).
+RUN mkdir -p /etc/chromium/policies/managed \
+    && echo '{"TranslateEnabled": false}' > /etc/chromium/policies/managed/sin-traductor.json
+
 WORKDIR /app
 COPY servidor.mjs ./
 

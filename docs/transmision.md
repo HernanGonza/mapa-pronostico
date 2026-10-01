@@ -80,8 +80,10 @@ Aparecen en «Transmitir a» con ese nombre. (Vimeo requiere un plan pago con vi
 
 El servicio `transmision` del `docker-compose.yml` (carpeta `transmision/`):
 
-- **Xvfb**: una pantalla virtual de 1920×1080.
-- **Chromium** en modo kiosco abriendo `/tv` en esa pantalla (lo pide adentro de docker, al
+- **Xvfb**: una pantalla virtual del tamaño de la salida (`TRANSMISION_SALIDA`, 1280×720).
+- **Chromium** en modo kiosco abriendo `/tv` en esa pantalla, con un factor de escala
+  (ancho / 1920) para que la página se vea igual que a 1920×1080 pero dibuje sólo los
+  píxeles que se transmiten (lo pide adentro de docker, al
   Caddy del frontend: `http://frontend/tv`).
 - **ffmpeg**: captura la pantalla, le suma una pista de audio en silencio (las plataformas
   exigen audio) y la manda a los destinos elegidos (a Facebook, al vivo que crea por la API). Con varios destinos codifica **una sola
@@ -102,8 +104,9 @@ mismos destinos. Queda en espera (sin consumir casi nada) hasta que se lo inicia
   cualquier nombre (`DOMAIN=:80`, como está hoy). Si algún día `DOMAIN` es un dominio, poner
   `TRANSMISION_URL=http://<ese dominio>/tv`.
 - **CPU:** los mapas se dibujan por software (no hay GPU) y ffmpeg codifica por software.
-  Con lo que viene por defecto (720p, 25 fps) mirar `docker stats` los primeros minutos; si no
-  alcanza, `TRANSMISION_FPS=15` (los mapas cambian lento, casi no se nota).
+  Con lo que viene por defecto (720p, 25 fps) mirar `docker stats` los primeros minutos. Si no
+  alcanza: `TRANSMISION_FPS=15` (los mapas cambian lento, casi no se nota) y, si sigue sin
+  alcanzar, `TRANSMISION_SALIDA=854x480` (Chromium dibuja la mitad de píxeles que a 720p).
 - **Subida:** ~3,5 Mbps estables **por destino** para 720p (la señal se codifica una vez,
   pero se manda a cada plataforma): YouTube + Facebook ≈ 7 Mbps.
 
@@ -111,7 +114,7 @@ mismos destinos. Queda en espera (sin consumir casi nada) hasta que se lo inicia
 
 | Variable | Por defecto | Para qué |
 |---|---|---|
-| `TRANSMISION_SALIDA` | `1280x720` | Resolución que reciben las plataformas (`1920x1080` pide más CPU y subida). |
+| `TRANSMISION_SALIDA` | `1280x720` | Resolución que reciben las plataformas y tamaño en que dibuja Chromium (`854x480` gasta menos CPU; `1920x1080`, mucha más). |
 | `TRANSMISION_FPS` | `25` | Cuadros por segundo. |
 | `TRANSMISION_BITRATE` | `3000k` | Calidad del video (1080p: `5000k`–`6000k`). |
 | `YOUTUBE_RTMP_URL` | `rtmp://a.rtmp.youtube.com/live2` | RTMPS si el 1935 está cerrado. |

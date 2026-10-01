@@ -37,7 +37,8 @@ const ROTACION = [
   // Pensado para un iframe chico: se agranda para que llene la pantalla.
   { id: "extendido", titulo: "Pronóstico de 3 días", paginas: [{ src: "/embed/pronostico-3-dias", escala: 1.6 }] },
   { id: "riesgo", titulo: "Riesgo de incendios forestales", paginas: [{ src: "/embed/riesgo-incendios" }] },
-  { id: "cuencas", titulo: "Monitor de cuencas", paginas: [{ src: "/embed/cuencas-mapa", ancho: "42%" }, { src: "/embed/cuencas-tarjetas", ancho: "58%", escala: 1.3 }] },
+  // Sólo las tarjetas: el mapa de cuencas todavía no está terminado.
+  { id: "cuencas", titulo: "Monitor de cuencas", paginas: [{ src: "/embed/cuencas-tarjetas", escala: 1.3 }] },
   { id: "focos", titulo: "Focos de calor", paginas: [{ src: "/embed/alertas-incendios" }] },
   { id: "loop", titulo: "Ministerio de Ecología", video: "/videos/loop-ecologia.mp4" },
 ];
