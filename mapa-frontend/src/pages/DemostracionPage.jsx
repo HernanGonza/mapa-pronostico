@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import BrandHeader from "../components/BrandHeader";
 import { leerDemo, guardarDemo, alCambiarDemo, conDemo, VACIO } from "../lib/demo";
 
@@ -40,6 +41,7 @@ function VistaEscalada({ src, ancho, alto, titulo }) {
 }
 
 export default function DemostracionPage() {
+  const { usuario } = useAuth();
   const [config, setConfig] = useState(leerDemo);
   const [vista, setVista] = useState("tv");
   useEffect(() => alCambiarDemo(setConfig), []);
@@ -48,9 +50,11 @@ export default function DemostracionPage() {
   const apagarTodo = () => { setConfig({ ...VACIO }); guardarDemo({ ...VACIO }); };
   const hayAlgo = Object.values(config).some(Boolean);
   const actual = VISTAS.find((v) => v.id === vista);
+  // Como Usuarios: sólo superadmin (está dentro de Configuración).
+  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel/configuracion" replace />;
 
   return <div className="admin-layout">
-    <BrandHeader subtitulo="Demostración"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
+    <BrandHeader subtitulo="Demostración"><Link to="/panel/configuracion" className="btn-link">← Configuración</Link></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading">
         <h1>Demostración</h1>
