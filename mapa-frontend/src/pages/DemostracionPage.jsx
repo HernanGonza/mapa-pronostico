@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandHeader from "../components/BrandHeader";
+import VistaEscalada from "../components/VistaEscalada";
 import { leerDemo, guardarDemo, alCambiarDemo, conDemo, VACIO } from "../lib/demo";
 
 /**
@@ -21,24 +22,6 @@ const VISTAS = [
   { id: "acp", titulo: "Mapa de ACP", ruta: "/embed/avisos-corto-plazo" },
   { id: "alertas", titulo: "Mapa de alertas", ruta: "/embed/alertas-meteorologicas" },
 ];
-
-/** Iframe de tamaño fijo (la /tv es 1920×1080) escalado para entrar en el área disponible. */
-function VistaEscalada({ src, ancho, alto, titulo }) {
-  const caja = useRef(null);
-  const [escala, setEscala] = useState(0.4);
-  useEffect(() => {
-    const el = caja.current;
-    if (!el) return undefined;
-    const medir = () => setEscala(Math.min(el.clientWidth / ancho, el.clientHeight / alto));
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ancho, alto]);
-  return <div ref={caja} className="demo-vista__escalada">
-    <iframe src={src} title={titulo} style={{ width: ancho, height: alto, transform: `scale(${escala})` }} />
-  </div>;
-}
 
 export default function DemostracionPage() {
   const { usuario } = useAuth();

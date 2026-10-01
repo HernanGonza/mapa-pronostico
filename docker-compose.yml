@@ -49,6 +49,9 @@ services:
       # Token JWT del SMN (lib/smn/token.mjs) — sin este volumen, cada
       # redeploy fuerza abrir Chromium de nuevo para renovarlo.
       - smn_token:/app/data/smn
+      # Videos e imágenes que se suben para la pantalla de transmisión (/tv), desde
+      # Configuración → Pantalla TV (ver mapa-backend/src/lib/tvStore.js).
+      - tv_archivos:/app/data/tv
     ports:
       # Puerto directo al backend, sin pasar por Caddy/el dominio público —
       # para que el sistema de alertas de incendios (otro docker compose en
@@ -125,4 +128,5 @@ volumes:
   caddy_data:
   caddy_config:
   smn_token:
+  tv_archivos:
   transmision_datos:

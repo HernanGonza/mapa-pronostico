@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { getAvisosCortoPlazoVigentes, getAlertasMeteorologicasVigentes, getAlertasSmnPublicadas } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getAvisosCortoPlazoVigentes, getAlertasMeteorologicasVigentes, getAlertasSmnPublicadas, getRotacionTv, urlArchivoTv } from "../api";
+import { PANTALLAS_SISTEMA, armarRotacion, duracionDe } from "../lib/tvPantallas";
 import { enDemo, conDemo, alCambiarDemo } from "../lib/demo";
 import SelloDemo from "../components/SelloDemo";
 import "../tv.css";
@@ -15,33 +16,24 @@ import "../tv.css";
  *   muestra a pantalla completa, CADA UNO POR SEPARADO (su propio mapa, con ?id= en el
  *   embebido); si hay varios, rotan entre sí. Al vencer, vuelve sola a la rotación.
  *
- * - Videos institucionales en la rotación (public/videos/): a pantalla completa, duran lo que
- *   dure el video y sin sonido (CON_SONIDO), para no pisar lo que se habla en la transmisión.
+ * - Videos en la rotación: a pantalla completa, duran lo que dure el video y sin sonido
+ *   (CON_SONIDO), para no pisar lo que se habla en la transmisión.
+ * - Qué pantallas se ven, en qué orden y cuánto dura cada una se elige en el panel
+ *   (Configuración → Pantalla TV; ver lib/tvPantallas.js): se relee cada CONSULTA_ROTACION y
+ *   cambia sola, sin recargar. Ahí también se suman videos, imágenes y páginas de otros sitios.
  *
- * Todos los iframes quedan montados y sólo cambia cuál se ve (opacity, no display:none:
- * los mapas se rompen si se cargan ocultos), así nunca se ve una recarga. Cada embebido
+ * Los iframes propios quedan montados y sólo cambia cuál se ve (opacity, no display:none:
+ * los mapas se rompen si se cargan ocultos), así nunca se ve una recarga. Las páginas de otros
+ * sitios se montan sólo cuando están por verse (no se sabe cuánto gastan). Cada embebido
  * ya se actualiza solo cada minuto; la página entera se recarga cada 6 h para aguantar 24/7.
  */
-const DURACION_ROTACION = 25_000;
+const CONSULTA_ROTACION = 20_000;
 const DURACION_URGENTE = 20_000;
 const CONSULTA_URGENTES = 30_000;
 const RECARGA_COMPLETA = 6 * 3600_000;
 // En OBS el navegador deja reproducir con sonido; en Chrome normal un video con sonido no
 // arranca solo (se reintenta sin sonido).
 const CON_SONIDO = false;
-
-// Pantallas de la rotación: una o dos páginas embebidas (lado a lado) por pantalla, o un video.
-const ROTACION = [
-  { id: "marca", titulo: "Misiones", video: "/videos/marca-misiones.mp4" },
-  { id: "pronostico", titulo: "Previsión del tiempo", paginas: [{ src: "/embed" }] },
-  // Pensado para un iframe chico: se agranda para que llene la pantalla.
-  { id: "extendido", titulo: "Pronóstico de 3 días", paginas: [{ src: "/embed/pronostico-3-dias", escala: 1.6 }] },
-  { id: "riesgo", titulo: "Riesgo de incendios forestales", paginas: [{ src: "/embed/riesgo-incendios" }] },
-  // Sólo las tarjetas: el mapa de cuencas todavía no está terminado.
-  { id: "cuencas", titulo: "Monitor de cuencas", paginas: [{ src: "/embed/cuencas-tarjetas", escala: 1.3 }] },
-  { id: "focos", titulo: "Focos de calor", paginas: [{ src: "/embed/alertas-incendios" }] },
-  { id: "loop", titulo: "Ministerio de Ecología", video: "/videos/loop-ecologia.mp4" },
-];
 
 const AR = "America/Argentina/Buenos_Aires";
 const hora = (iso) => new Date(iso).toLocaleTimeString("es-AR", { timeZone: AR, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -75,10 +67,13 @@ function Reloj() {
   </span>;
 }
 
+/** El mapa que dejó el embebido en window.__map (una página de otro sitio no deja leerlo). */
+const mapaDe = (f) => { try { return f?.contentWindow?.__map; } catch { return null; } };
+
 /** Acerca despacio la cámara de los mapas de la pantalla (mismo origen: el embebido deja su mapa en window.__map). */
 function moverMapas(iframes, duracion) {
   for (const f of iframes) {
-    const mapa = f?.contentWindow?.__map;
+    const mapa = mapaDe(f);
     if (!mapa?.isStyleLoaded?.()) continue;
     if (!mapa.__tvInicio) mapa.__tvInicio = { center: mapa.getCenter(), zoom: mapa.getZoom() };
     mapa.jumpTo(mapa.__tvInicio);
@@ -92,22 +87,31 @@ function Pantalla({ paginas, visible, duracion }) {
     if (!visible) return undefined;
     // Un respiro para el fundido; si el mapa todavía estaba cargando, se reintenta.
     const t1 = setTimeout(() => moverMapas(iframes.current, duracion), 300);
-    const t2 = setTimeout(() => moverMapas(iframes.current.filter((f) => !f?.contentWindow?.__map?.__tvInicio), duracion - 3000), 3000);
+    const t2 = setTimeout(() => moverMapas(iframes.current.filter((f) => !mapaDe(f)?.__tvInicio), duracion - 3000), 3000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [visible, duracion]);
   return <div className={`tv-pantalla${visible ? " tv-pantalla--visible" : ""}`} aria-hidden={!visible}>
     {paginas.map((p, i) => {
       const k = p.escala || 1;
       return <div key={p.src} className="tv-pantalla__marco" style={{ width: p.ancho || "100%" }}>
-        <iframe ref={(el) => { iframes.current[i] = el; }} src={enDemo() ? conDemo(p.src) : p.src} title={p.src} tabIndex={-1}
+        {/* Otro sitio: sin permiso para navegar /tv ni abrir ventanas. */}
+        <iframe ref={(el) => { iframes.current[i] = el; }} src={p.externa ? p.src : enDemo() ? conDemo(p.src) : p.src} title={p.src} tabIndex={-1}
+          sandbox={p.externa ? "allow-scripts allow-same-origin" : undefined} allow={p.externa ? "autoplay" : undefined} referrerPolicy={p.externa ? "no-referrer" : undefined}
           style={k === 1 ? undefined : { width: `${100 / k}%`, height: `${100 / k}%`, transform: `scale(${k})` }} />
       </div>;
     })}
   </div>;
 }
 
-/** Video a pantalla completa: arranca de cero cada vez que sale al aire y avisa al terminar. */
-function VideoPantalla({ src, visible, onTermino }) {
+/** Imagen subida desde el panel, en el área de los mapas. */
+function ImagenPantalla({ src, titulo, visible }) {
+  return <div className={`tv-pantalla tv-pantalla--imagen${visible ? " tv-pantalla--visible" : ""}`} aria-hidden={!visible}>
+    <img src={src} alt={titulo} />
+  </div>;
+}
+
+/** Video a pantalla completa: arranca de cero cada vez que sale al aire (`vuelta`: también si es el único) y avisa al terminar. */
+function VideoPantalla({ src, visible, vuelta, cargar, onTermino }) {
   const video = useRef(null);
   const termino = useRef(onTermino);
   termino.current = onTermino;
@@ -118,13 +122,15 @@ function VideoPantalla({ src, visible, onTermino }) {
     v.currentTime = 0;
     v.muted = !CON_SONIDO;
     v.play().catch(() => { v.muted = true; return v.play(); }).catch(() => termino.current());
-  }, [visible]);
-  return <video ref={video} className={`tv-video${visible ? " tv-video--visible" : ""}`} src={src} preload="auto" playsInline muted
+  }, [visible, vuelta]);
+  return <video ref={video} className={`tv-video${visible ? " tv-video--visible" : ""}`} src={src} preload={cargar ? "auto" : "none"} playsInline muted
     onEnded={() => visible && termino.current()} onError={() => visible && termino.current()} aria-hidden={!visible} />;
 }
 
 export default function TvPage() {
-  const [indice, setIndice] = useState(0);
+  const [rotacion, setRotacion] = useState(() => armarRotacion(null));
+  const [actualId, setActualId] = useState(null);
+  const [vuelta, setVuelta] = useState(0); // cuenta cada pase, aunque sea la misma pantalla (una sola activa)
   const [urgentes, setUrgentes] = useState([]);
   const [indiceUrgente, setIndiceUrgente] = useState(0);
   // Embebidos urgentes ya cargados: quedan montados para no recargarlos al volver a mostrarlos.
@@ -145,14 +151,41 @@ export default function TvPage() {
     return () => { cancelado = true; clearInterval(t); dejar(); };
   }, []);
 
-  const hayUrgente = urgentes.length > 0;
-  const siguiente = () => setIndice((i) => (i + 1) % ROTACION.length);
-  // Cada pantalla tiene su tiempo: los mapas DURACION_ROTACION; los videos, lo que duren (avisan al terminar).
+  // Lo que se eligió en el panel. Si no responde, sigue con lo último que leyó.
   useEffect(() => {
-    if (hayUrgente || ROTACION[indice].video) return undefined;
-    const t = setTimeout(siguiente, DURACION_ROTACION);
+    let cancelado = false;
+    let ultima = "";
+    const leer = () => getRotacionTv().then((r) => {
+      const texto = JSON.stringify(r.pantallas);
+      if (cancelado || texto === ultima) return;
+      ultima = texto;
+      setRotacion(armarRotacion(r.pantallas));
+    }).catch(() => {});
+    leer();
+    const t = setInterval(leer, CONSULTA_ROTACION);
+    return () => { cancelado = true; clearInterval(t); };
+  }, []);
+
+  const activas = useMemo(() => {
+    const a = rotacion.filter((p) => p.activo);
+    return a.length ? a : [PANTALLAS_SISTEMA.find((p) => p.id === "pronostico")]; // todo apagado: al menos el pronóstico
+  }, [rotacion]);
+  // Si la pantalla que estaba al aire se apagó o se quitó, sigue con la primera.
+  const actual = activas.find((p) => p.id === actualId) || activas[0];
+  const posicion = activas.indexOf(actual);
+  const proxima = activas[(posicion + 1) % activas.length];
+  const anterior = activas[(posicion - 1 + activas.length) % activas.length];
+  const proximaRef = useRef(proxima);
+  proximaRef.current = proxima;
+
+  const hayUrgente = urgentes.length > 0;
+  const siguiente = () => { setActualId(proximaRef.current.id); setVuelta((v) => v + 1); };
+  // Cada pantalla tiene su tiempo (el del panel); los videos, lo que duren (avisan al terminar).
+  useEffect(() => {
+    if (hayUrgente || actual.tipo === "video") return undefined;
+    const t = setTimeout(siguiente, duracionDe(actual));
     return () => clearTimeout(t);
-  }, [hayUrgente, indice]);
+  }, [hayUrgente, actual.id, actual.tipo, actual.duracion, vuelta]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (urgentes.length < 2) return undefined;
     const t = setInterval(() => setIndiceUrgente((i) => i + 1), DURACION_URGENTE);
@@ -161,8 +194,6 @@ export default function TvPage() {
 
   const urgente = hayUrgente ? urgentes[indiceUrgente % urgentes.length] : null;
   if (urgente) montados.current.add(urgente.src);
-  const actual = ROTACION[indice];
-
   return <div className={`tv${urgente ? " tv--urgente" : ""}`} style={urgente ? { "--tv-urgente": urgente.color } : undefined}>
     <header className="tv-cabecera">
       <img src="/brand/ecologia-flor.png" alt="" />
@@ -172,7 +203,14 @@ export default function TvPage() {
     </header>
 
     <main className="tv-contenido">
-      {ROTACION.filter((p) => p.paginas).map((p) => <Pantalla key={p.id} paginas={p.paginas} visible={!urgente && p === actual} duracion={DURACION_ROTACION} />)}
+      {activas.map((p) => {
+        const visible = !urgente && p === actual;
+        if (p.tipo === "embebido") return <Pantalla key={p.id} paginas={p.paginas} visible={visible} duracion={duracionDe(p)} />;
+        if (p.tipo === "imagen") return <ImagenPantalla key={p.id} src={urlArchivoTv(p.src)} titulo={p.titulo} visible={visible} />;
+        // Otro sitio: montado sólo mientras está por verse, al aire o terminando el fundido.
+        if (p.tipo === "pagina" && [actual, proxima, anterior].includes(p)) return <Pantalla key={p.id} paginas={[{ src: p.src, externa: true }]} visible={visible} duracion={duracionDe(p)} />;
+        return null;
+      })}
       {[...montados.current].map((src) => <Pantalla key={src} paginas={[{ src }]} visible={urgente?.src === src} duracion={DURACION_URGENTE} />)}
       {urgente && <aside className="tv-urgente" role="alert">
         <span className="tv-urgente__etiqueta">⚠ {urgente.etiqueta}</span>
@@ -183,10 +221,11 @@ export default function TvPage() {
       </aside>}
     </main>
 
-    {ROTACION.filter((p) => p.video).map((p) => <VideoPantalla key={p.id} src={p.video} visible={!urgente && p === actual} onTermino={siguiente} />)}
+    {activas.filter((p) => p.tipo === "video").map((p) => <VideoPantalla key={p.id} src={urlArchivoTv(p.src)} visible={!urgente && p === actual} vuelta={vuelta}
+      cargar={p === actual || p === proxima || !p.propia} onTermino={siguiente} />)}
     <SelloDemo />
     <footer className="tv-pie">
-      {!urgente && !actual.video && <div className="tv-progreso" key={indice}><i style={{ animationDuration: `${DURACION_ROTACION}ms` }} /></div>}
+      {!urgente && actual.tipo !== "video" && <div className="tv-progreso" key={`${actual.id}-${vuelta}`}><i style={{ animationDuration: `${duracionDe(actual)}ms` }} /></div>}
       <span>Emergencias <b>911</b> · Defensa Civil <b>103</b></span>
       <span>alertatemprana.misiones.gob.ar</span>
     </footer>

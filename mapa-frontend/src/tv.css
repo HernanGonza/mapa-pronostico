@@ -20,6 +20,9 @@
 .tv-pantalla { display: flex; }
 .tv-pantalla__marco { height: 100%; overflow: hidden; }
 .tv-pantalla iframe { width: 100%; height: 100%; border: 0; display: block; transform-origin: 0 0; }
+/* Imagen subida desde el panel: entera, sin recortar, sobre el verde de la cabecera. */
+.tv-pantalla--imagen { align-items: center; justify-content: center; background: var(--tv-fondo); }
+.tv-pantalla--imagen img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 
 /* Algo urgente: marco del color del aviso/alerta y un panel con el texto. */
 .tv--urgente .tv-cabecera { background: var(--tv-urgente); animation: tv-latido 2.4s ease-in-out infinite; }

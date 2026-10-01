@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import lazy from "./lib/lazyConReintento"; // lazy() que reintenta si falla la descarga (ver el archivo)
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
@@ -32,6 +33,7 @@ const EmbedCuencasTarjetasPage = lazy(() => import("./pages/EmbedCuencasTarjetas
 const TvPage = lazy(() => import("./pages/TvPage"));
 const DemostracionPage = lazy(() => import("./pages/DemostracionPage"));
 const TransmisionPage = lazy(() => import("./pages/TransmisionPage"));
+const PantallaTvPage = lazy(() => import("./pages/PantallaTvPage"));
 
 const RecuperarPasswordPage = lazy(() => import("./pages/RecuperarPasswordPage"));
 
@@ -91,6 +93,7 @@ export default function App() {
           <Route path="/panel/usuarios" element={<RutaProtegida><UsuariosPage /></RutaProtegida>} />
           <Route path="/panel/demostracion" element={<RutaProtegida><DemostracionPage /></RutaProtegida>} />
           <Route path="/panel/transmision" element={<RutaProtegida><TransmisionPage /></RutaProtegida>} />
+          <Route path="/panel/pantalla-tv" element={<RutaProtegida><PantallaTvPage /></RutaProtegida>} />
 
           {/* Esta es la ruta que va en el src del <iframe> del ministerio — pública, sin login */}
           <Route path="/embed/alertas-incendios" element={<EmbedAlertasPage />} />

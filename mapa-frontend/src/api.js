@@ -86,6 +86,38 @@ export async function detenerTransmision() {
 /** URL de la vista previa (lo que se está transmitiendo); `t` evita la caché. */
 export const urlCapturaTransmision = (t) => `${API_URL}/api/transmision/captura.jpg?t=${t}`;
 
+// --- Pantalla de transmisión (/tv): qué se ve y en qué orden (Configuración → Pantalla TV) ---
+/** { pantallas: [...] | null, actualizadoEn }. Público: lo lee /tv cada 20 s. */
+export async function getRotacionTv() {
+  return handleJson(await fetch(`${API_URL}/api/tv/rotacion`, { cache: "no-store" }));
+}
+export async function guardarRotacionTv(pantallas) {
+  return handleJson(await fetch(`${API_URL}/api/tv/rotacion`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pantallas }), ...CON_SESION,
+  }));
+}
+/** Sube un video o una imagen para /tv → { tipo, src }. `alAvanzar(0..1)`: los videos pesan, se muestra el avance. */
+export function subirArchivoTv(archivo, alAvanzar) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}/api/tv/archivos`);
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) alAvanzar?.(e.loaded / e.total); };
+    xhr.onload = () => {
+      let cuerpo = {};
+      try { cuerpo = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(cuerpo);
+      else reject(new Error(cuerpo.error || `Error ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error("Se cortó la conexión mientras se subía el archivo."));
+    const form = new FormData();
+    form.append("archivo", archivo);
+    xhr.send(form);
+  });
+}
+/** Los archivos subidos se guardan como "/api/tv/archivos/…": acá se les pone el servidor del backend. */
+export const urlArchivoTv = (src) => (src?.startsWith("/api/") ? `${API_URL}${src}` : src);
+
 export async function getMunicipios() {
   const res = await fetch(`${API_URL}/api/municipios`);
   return handleJson(res);
