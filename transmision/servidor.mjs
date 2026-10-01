@@ -155,8 +155,12 @@ async function renovarVivoFacebook() {
 
 /** URL de salida de un destino (la de Facebook automático, la del vivo actual). */
 const urlDe = (d) => (d.automatico ? vivoFacebook?.url : d.url);
+// Ruido de Chromium en un contenedor (no hay dbus ni GPU): no dice nada útil y tapa lo importante.
+const RUIDO = /dbus|GL Driver Message|Fontconfig/i;
+
 function anotar(origen, texto) {
   for (const linea of tapar(String(texto)).split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean)) {
+    if (origen === "chromium" && RUIDO.test(linea)) continue;
     registro.push(`${new Date().toISOString().slice(11, 19)} [${origen}] ${linea}`.slice(0, 400));
   }
   registro.splice(0, Math.max(0, registro.length - 150));
@@ -192,10 +196,12 @@ function lanzar(nombre, cmd, args, gen) {
 function argsChromium() {
   const [w, h] = CONFIG.salida.split("x");
   // /tv está pensada a 1920 px de ancho: con esta escala se ve idéntica en una ventana más chica.
-  const escala = (Number(w) / 1920).toFixed(6);
+  const escala = Number(w) / 1920;
+  // --window-size va en píxeles lógicos (se multiplican por la escala): 1920 de ancho llena la pantalla.
+  const alto = Math.round(Number(h) / escala);
   return [
-    "--no-sandbox", "--kiosk", "--start-fullscreen", `--window-size=${w},${h}`, "--window-position=0,0",
-    `--force-device-scale-factor=${escala}`, "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
+    "--no-sandbox", "--kiosk", "--start-fullscreen", `--window-size=1920,${alto}`, "--window-position=0,0",
+    `--force-device-scale-factor=${escala.toFixed(6)}`, "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
     // Sin el cartel del traductor (además está la política TranslateEnabled=false del Dockerfile).
     "--lang=es-AR", "--accept-lang=es-AR,es", "--disable-features=Translate,TranslateUI,MediaRouter",
     "--hide-scrollbars", "--no-first-run", "--disable-dev-shm-usage", "--disable-extensions",
