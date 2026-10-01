@@ -2,11 +2,12 @@
  * Servicio de transmisión en vivo (YouTube, Facebook y cualquier destino RTMP), sin OBS
  * ni computadora aparte.
  *
- *   Xvfb      pantalla virtual del tamaño de la salida (TRANSMISION_SALIDA, 1280x720)
+ *   Xvfb      pantalla virtual del tamaño de la salida (TRANSMISION_SALIDA, 1280x720); nunca
+ *             menos de 960 de ancho (ver ESCALA_MINIMA)
  *   Chromium  en modo kiosco, abre la página /tv del sistema en esa pantalla. Con un factor de
- *             escala (ancho de salida / 1920) la página sigue midiendo 1920 px de ancho y se ve
- *             igual, pero Chromium dibuja sólo los píxeles que se transmiten (720p: 44 % de 1080p).
- *   ffmpeg    captura la pantalla (x11grab) tal cual, sin reescalar, le suma una pista de audio en silencio
+ *             escala (ancho / 1920) la página sigue midiendo 1920 px de ancho y se ve igual, pero
+ *             Chromium dibuja sólo los píxeles que se transmiten (720p: 44 % de 1080p).
+ *   ffmpeg    captura la pantalla (x11grab), la achica si la salida es menor que 960 de ancho, le suma una pista de audio en silencio
  *             (las plataformas exigen audio) y la manda por RTMP a los destinos elegidos.
  *             Con varios destinos codifica UNA vez y reparte (muxer tee): si uno se corta,
  *             los demás siguen y al minuto se reconecta todo.
@@ -64,11 +65,17 @@ const DESTINOS = leerDestinos();
 
 const CONFIG = {
   url: env("TRANSMISION_URL", "http://frontend/tv"),
-  salida: env("TRANSMISION_SALIDA", "1280x720"), // también el tamaño de la pantalla virtual
+  salida: env("TRANSMISION_SALIDA", "1280x720"),
   fps: Number(env("TRANSMISION_FPS", "25")) || 25,
   bitrate: env("TRANSMISION_BITRATE", "3000k"),
   espera: Number(env("TRANSMISION_ESPERA_CARGA", "20")) || 20, // s para que /tv cargue antes de salir al aire
 };
+// Chromium no acepta un factor de escala menor a 0,5 (lo sube y la ventana queda más grande que la
+// pantalla, cortada). Para salidas chicas (854x480) dibuja a 960 de ancho y ffmpeg achica.
+const ESCALA_MINIMA = 0.5;
+const [anchoSalida, altoSalida] = CONFIG.salida.split("x").map(Number);
+const ESCALA = Math.max(ESCALA_MINIMA, anchoSalida / 1920);
+const PANTALLA = `${Math.round(1920 * ESCALA)}x${Math.round((1920 * ESCALA * altoSalida) / anchoSalida)}`;
 const TOKEN = env("TRANSMISION_TOKEN");
 const PUERTO = Number(env("TRANSMISION_PUERTO", "8090"));
 const DISPLAY = ":99";
@@ -194,14 +201,12 @@ function lanzar(nombre, cmd, args, gen) {
 }
 
 function argsChromium() {
-  const [w, h] = CONFIG.salida.split("x");
   // /tv está pensada a 1920 px de ancho: con esta escala se ve idéntica en una ventana más chica.
-  const escala = Number(w) / 1920;
   // --window-size va en píxeles lógicos (se multiplican por la escala): 1920 de ancho llena la pantalla.
-  const alto = Math.round(Number(h) / escala);
+  const alto = Math.round(Number(PANTALLA.split("x")[1]) / ESCALA);
   return [
     "--no-sandbox", "--kiosk", "--start-fullscreen", `--window-size=1920,${alto}`, "--window-position=0,0",
-    `--force-device-scale-factor=${escala.toFixed(6)}`, "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
+    `--force-device-scale-factor=${ESCALA.toFixed(6)}`, "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
     // Sin el cartel del traductor (además está la política TranslateEnabled=false del Dockerfile).
     "--lang=es-AR", "--accept-lang=es-AR,es", "--disable-features=Translate,TranslateUI,MediaRouter",
     "--hide-scrollbars", "--no-first-run", "--disable-dev-shm-usage", "--disable-extensions",
@@ -235,9 +240,10 @@ function argsFfmpeg() {
   const gop = String(CONFIG.fps * 2);
   return [
     "-hide_banner", "-loglevel", "warning",
-    "-thread_queue_size", "512", "-f", "x11grab", "-draw_mouse", "0", "-video_size", CONFIG.salida, "-framerate", String(CONFIG.fps), "-i", `${DISPLAY}.0`,
+    "-thread_queue_size", "512", "-f", "x11grab", "-draw_mouse", "0", "-video_size", PANTALLA, "-framerate", String(CONFIG.fps), "-i", `${DISPLAY}.0`,
     "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-pix_fmt", "yuv420p", // la pantalla ya tiene el tamaño de salida: sin reescalar
+    ...(PANTALLA === CONFIG.salida ? ["-pix_fmt", "yuv420p"] // ya tiene el tamaño de salida: sin reescalar
+      : ["-vf", `scale=${anchoSalida}:${altoSalida}:flags=bicubic,format=yuv420p`]),
     "-c:v", "libx264", "-preset", "veryfast", "-b:v", CONFIG.bitrate, "-maxrate", CONFIG.bitrate, "-bufsize", `${parseInt(CONFIG.bitrate, 10) * 2}k`,
     "-g", gop, "-keyint_min", gop, "-sc_threshold", "0",
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
@@ -260,7 +266,7 @@ async function arrancar() {
   if (gen !== generacion || !estado.activo) return;
   const nombres = DESTINOS.filter((d) => estado.destinos.includes(d.id)).map((d) => d.nombre).join(" + ");
   anotar("control", `arrancando: ${CONFIG.url} → ${nombres} (${CONFIG.salida} a ${CONFIG.fps} fps, ${CONFIG.bitrate})`);
-  lanzar("xvfb", BIN.xvfb, [DISPLAY, "-screen", "0", `${CONFIG.salida}x24`, "-nolisten", "tcp"], gen);
+  lanzar("xvfb", BIN.xvfb, [DISPLAY, "-screen", "0", `${PANTALLA}x24`, "-nolisten", "tcp"], gen);
   await esperar(1500);
   if (gen !== generacion || !estado.activo) return;
   lanzar("chromium", BIN.chromium, argsChromium(), gen);
@@ -326,7 +332,7 @@ function detener() {
 function captura() {
   return new Promise((resolve, reject) => {
     if (!procesos.xvfb) return reject(Object.assign(new Error("No hay nada en pantalla: la transmisión está detenida."), { status: 409 }));
-    execFile(BIN.ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "x11grab", "-video_size", CONFIG.salida, "-i", `${DISPLAY}.0`, "-frames:v", "1", "-vf", "scale=960:-2", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "5", "-"],
+    execFile(BIN.ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "x11grab", "-video_size", PANTALLA, "-i", `${DISPLAY}.0`, "-frames:v", "1", "-vf", "scale=960:-2", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "5", "-"],
       { env: { ...process.env, DISPLAY }, encoding: "buffer", maxBuffer: 10 * 1024 * 1024, timeout: 15000 },
       (e, stdout) => (e ? reject(e) : resolve(stdout)));
   });

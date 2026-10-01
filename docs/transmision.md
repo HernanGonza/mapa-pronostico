@@ -106,7 +106,8 @@ mismos destinos. Queda en espera (sin consumir casi nada) hasta que se lo inicia
 - **CPU:** los mapas se dibujan por software (no hay GPU) y ffmpeg codifica por software.
   Con lo que viene por defecto (720p, 25 fps) mirar `docker stats` los primeros minutos. Si no
   alcanza: `TRANSMISION_FPS=15` (los mapas cambian lento, casi no se nota) y, si sigue sin
-  alcanzar, `TRANSMISION_SALIDA=854x480` (Chromium dibuja la mitad de píxeles que a 720p).
+  alcanzar, `TRANSMISION_SALIDA=854x480`: Chromium dibuja a 960×540 (su mínimo: no acepta una
+  escala menor a 0,5) y ffmpeg lo achica; son la mitad de píxeles que a 720p.
 - **Subida:** ~3,5 Mbps estables **por destino** para 720p (la señal se codifica una vez,
   pero se manda a cada plataforma): YouTube + Facebook ≈ 7 Mbps.
 
