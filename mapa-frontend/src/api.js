@@ -70,12 +70,15 @@ export async function getCorreoEnvios() {
   return (await handleJson(await fetch(`${API_URL}/api/correo/envios`, { cache: "no-store", ...CON_SESION }))).envios;
 }
 
-// --- Transmisión a YouTube (servicio `transmision`, sólo superadmin) ---
+// --- Transmisión en vivo (YouTube, Facebook, otros; servicio `transmision`, sólo superadmin) ---
 export async function getTransmisionEstado() {
   return handleJson(await fetch(`${API_URL}/api/transmision/estado`, { cache: "no-store", ...CON_SESION }));
 }
-export async function iniciarTransmision() {
-  return handleJson(await fetch(`${API_URL}/api/transmision/iniciar`, { method: "POST", ...CON_SESION }));
+/** destinos: ids de los destinos configurados en el servidor (["youtube", "facebook", …]). */
+export async function iniciarTransmision(destinos) {
+  return handleJson(await fetch(`${API_URL}/api/transmision/iniciar`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destinos }), ...CON_SESION,
+  }));
 }
 export async function detenerTransmision() {
   return handleJson(await fetch(`${API_URL}/api/transmision/detener`, { method: "POST", ...CON_SESION }));

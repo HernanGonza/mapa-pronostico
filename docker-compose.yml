@@ -64,7 +64,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Transmisión 24/7 a YouTube de la página /tv, sin OBS: pantalla virtual + Chromium
+  # Transmisión 24/7 de la página /tv (YouTube, Facebook u otros con RTMP), sin OBS: pantalla virtual + Chromium
   # + ffmpeg (ver docs/transmision.md). Queda en espera hasta que se la inicia desde
   # el panel (Configuración → Transmisión); el control (puerto 8090) sólo es visible
   # dentro de esta red de docker, para el backend. No publica puertos.
@@ -73,8 +73,22 @@ services:
     restart: unless-stopped
     environment:
       TRANSMISION_TOKEN: ${TRANSMISION_TOKEN:-}
+      # Destinos: sólo se ofrecen los que tienen clave. Ver docs/transmision.md.
       YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-}
       YOUTUBE_RTMP_URL: ${YOUTUBE_RTMP_URL:-rtmp://a.rtmp.youtube.com/live2}
+      # Facebook automático: con el token de la página (el de publicar placas) el vivo se
+      # crea por la API, sale al aire solo y se renueva antes del límite de 8 h de Facebook.
+      META_PAGE_ID: ${META_PAGE_ID:-}
+      META_PAGE_ACCESS_TOKEN: ${META_PAGE_ACCESS_TOKEN:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-}
+      FACEBOOK_AUTOMATICO: ${FACEBOOK_AUTOMATICO:-true}
+      FACEBOOK_HORAS_POR_VIVO: ${FACEBOOK_HORAS_POR_VIVO:-7.75}
+      TRANSMISION_TITULO: ${TRANSMISION_TITULO:-}
+      TRANSMISION_DESCRIPCION: ${TRANSMISION_DESCRIPCION:-}
+      # Modo manual de Facebook (sólo si FACEBOOK_AUTOMATICO=false): clave de Live Producer.
+      FACEBOOK_STREAM_KEY: ${FACEBOOK_STREAM_KEY:-}
+      FACEBOOK_RTMP_URL: ${FACEBOOK_RTMP_URL:-rtmps://live-api-s.facebook.com:443/rtmp}
+      TRANSMISION_OTROS: ${TRANSMISION_OTROS:-}
       # La página se pide adentro de docker, al Caddy del frontend (no por el dominio público).
       TRANSMISION_URL: ${TRANSMISION_URL:-http://frontend/tv}
       TRANSMISION_SALIDA: ${TRANSMISION_SALIDA:-1280x720}
