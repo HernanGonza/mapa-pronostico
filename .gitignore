@@ -10,3 +10,8 @@ mapa-backend/data/store/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Originales de los videos de la pantalla /tv (el Loop pesa 239 MB: GitHub rechaza > 100 MB).
+# Las copias para la web, recomprimidas, están en mapa-frontend/public/videos/.
+/Loop-Ecologia.mp4
+/marca-misiones.mp4

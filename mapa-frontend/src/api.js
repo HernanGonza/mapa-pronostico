@@ -70,6 +70,19 @@ export async function getCorreoEnvios() {
   return (await handleJson(await fetch(`${API_URL}/api/correo/envios`, { cache: "no-store", ...CON_SESION }))).envios;
 }
 
+// --- Transmisión a YouTube (servicio `transmision`, sólo superadmin) ---
+export async function getTransmisionEstado() {
+  return handleJson(await fetch(`${API_URL}/api/transmision/estado`, { cache: "no-store", ...CON_SESION }));
+}
+export async function iniciarTransmision() {
+  return handleJson(await fetch(`${API_URL}/api/transmision/iniciar`, { method: "POST", ...CON_SESION }));
+}
+export async function detenerTransmision() {
+  return handleJson(await fetch(`${API_URL}/api/transmision/detener`, { method: "POST", ...CON_SESION }));
+}
+/** URL de la vista previa (lo que se está transmitiendo); `t` evita la caché. */
+export const urlCapturaTransmision = (t) => `${API_URL}/api/transmision/captura.jpg?t=${t}`;
+
 export async function getMunicipios() {
   const res = await fetch(`${API_URL}/api/municipios`);
   return handleJson(res);

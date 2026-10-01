@@ -42,6 +42,9 @@ services:
       MS_CLIENT_ID: ${MS_CLIENT_ID:-}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # Control del servicio de transmisión a YouTube (red interna de docker).
+      TRANSMISION_TOKEN: ${TRANSMISION_TOKEN:-}
+      TRANSMISION_CONTROL_URL: ${TRANSMISION_CONTROL_URL:-http://transmision:8090}
     volumes:
       # Token JWT del SMN (lib/smn/token.mjs) — sin este volumen, cada
       # redeploy fuerza abrir Chromium de nuevo para renovarlo.
@@ -60,6 +63,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Transmisión 24/7 a YouTube de la página /tv, sin OBS: pantalla virtual + Chromium
+  # + ffmpeg (ver docs/transmision.md). Queda en espera hasta que se la inicia desde
+  # el panel (Configuración → Transmisión); el control (puerto 8090) sólo es visible
+  # dentro de esta red de docker, para el backend. No publica puertos.
+  transmision:
+    build: ./transmision
+    restart: unless-stopped
+    environment:
+      TRANSMISION_TOKEN: ${TRANSMISION_TOKEN:-}
+      YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-}
+      YOUTUBE_RTMP_URL: ${YOUTUBE_RTMP_URL:-rtmp://a.rtmp.youtube.com/live2}
+      # La página se pide adentro de docker, al Caddy del frontend (no por el dominio público).
+      TRANSMISION_URL: ${TRANSMISION_URL:-http://frontend/tv}
+      TRANSMISION_SALIDA: ${TRANSMISION_SALIDA:-1280x720}
+      TRANSMISION_FPS: ${TRANSMISION_FPS:-25}
+      TRANSMISION_BITRATE: ${TRANSMISION_BITRATE:-3000k}
+    # Chromium necesita más memoria compartida que los 64 MB de docker por defecto.
+    shm_size: "1gb"
+    volumes:
+      - transmision_datos:/data
+    depends_on:
+      - frontend
 
   frontend:
     build:
@@ -83,3 +109,4 @@ volumes:
   caddy_data:
   caddy_config:
   smn_token:
+  transmision_datos:

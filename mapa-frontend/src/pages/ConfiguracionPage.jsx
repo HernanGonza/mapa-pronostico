@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
-import { Users, Presentation } from "lucide";
+import { Users, Presentation, RadioTower } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
 
@@ -20,6 +20,7 @@ export default function ConfiguracionPage() {
           <div className="panel-botonera">
             <PanelBoton op={{ to: "/panel/usuarios", icono: Users, titulo: "Usuarios", descripcion: "Creá cuentas y asigná permisos de acceso al panel." }} indice={0} />
             <PanelBoton op={{ to: "/panel/demostracion", icono: Presentation, titulo: "Demostración", descripcion: "Avisos y alertas de prueba para mostrar la pantalla de transmisión y los mapas (no se ven en el sitio público)." }} indice={1} />
+            <PanelBoton op={{ to: "/panel/transmision", icono: RadioTower, titulo: "Transmisión", descripcion: "Transmitir la pantalla /tv en vivo a YouTube desde el servidor, sin OBS." }} indice={2} />
           </div>
         ) : (
           <p className="admin-panel__hint">Tu cuenta no tiene opciones de configuración disponibles.</p>

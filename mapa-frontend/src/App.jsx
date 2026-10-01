@@ -31,6 +31,7 @@ const EmbedCuencasMapaPage = lazy(() => import("./pages/EmbedCuencasMapaPage"));
 const EmbedCuencasTarjetasPage = lazy(() => import("./pages/EmbedCuencasTarjetasPage"));
 const TvPage = lazy(() => import("./pages/TvPage"));
 const DemostracionPage = lazy(() => import("./pages/DemostracionPage"));
+const TransmisionPage = lazy(() => import("./pages/TransmisionPage"));
 
 const RecuperarPasswordPage = lazy(() => import("./pages/RecuperarPasswordPage"));
 
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/panel/pronostico-3-dias" element={<RutaProtegida><PronosticoExtendidoPage /></RutaProtegida>} />
           <Route path="/panel/usuarios" element={<RutaProtegida><UsuariosPage /></RutaProtegida>} />
           <Route path="/panel/demostracion" element={<RutaProtegida><DemostracionPage /></RutaProtegida>} />
+          <Route path="/panel/transmision" element={<RutaProtegida><TransmisionPage /></RutaProtegida>} />
 
           {/* Esta es la ruta que va en el src del <iframe> del ministerio — pública, sin login */}
           <Route path="/embed/alertas-incendios" element={<EmbedAlertasPage />} />
