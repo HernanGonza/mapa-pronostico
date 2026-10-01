@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import BaseMap from "../components/BaseMap";
 import RiesgoMap from "../components/RiesgoMap";
 import { getAlertasMeteorologicasCatalogo, getAlertasMeteorologicasGeojson, getAlertasMeteorologicasVigentes, getAlertasSmnPublicadas } from "../api";
+import { alCambiarDemo } from "../lib/demo";
+import SelloDemo from "../components/SelloDemo";
 
 const AR = "America/Argentina/Buenos_Aires";
 const dia = (iso) => new Date(iso).toLocaleDateString("es-AR", { timeZone: AR, weekday: "long", day: "2-digit", month: "2-digit" });
@@ -37,7 +39,8 @@ export default function EmbedAlertasMeteorologicasPage() {
     }
     cargar();
     const timer = setInterval(cargar, 60000), reloj = setInterval(() => setAhora(Date.now()), 15000);
-    return () => { cancelado = true; clearInterval(timer); clearInterval(reloj); };
+    const dejar = alCambiarDemo(cargar); // modo demostración: al prender/apagar, se ve en el momento
+    return () => { cancelado = true; clearInterval(timer); clearInterval(reloj); dejar(); };
   }, []);
 
   if (!data) return <div className="base-map base-map--fallback"><div><strong>Alertas meteorológicas · Misiones</strong><p>{error || "Cargando mapa…"}</p></div></div>;
@@ -55,13 +58,14 @@ export default function EmbedAlertasMeteorologicasPage() {
   if (!tarjetas.length) {
     const verde = manualesVigentes.at(-1);
     const zonas = verde?.zonas || data.catalogo.departamentos.map((d) => ({ id: String(d.id), categoria: "Verde" }));
-    return <div className="embed-risk">{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
+    return <div className="embed-risk"><SelloDemo />{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
       <RiesgoMap embed geo={data.geo} zonas={zonas} iconos={[]} catalogo={data.catalogo} publicadoEn={verde?.publicadoEn} titulo="Alertas meteorológicas · Sin alertas vigentes" />
     </div>;
   }
   const actual = tarjetas.find((t) => t.clave === elegida) || tarjetas[0];
 
   return <div className="alertas-embed">
+    <SelloDemo />
     {error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
     {/* Sólo si hay para elegir: con una sola alerta el período ya va en el título del mapa,
         y el cartel le quitaba lugar al mapa en el iframe chico del sitio (371×464). */}

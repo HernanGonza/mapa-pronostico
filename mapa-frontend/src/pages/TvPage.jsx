@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getAvisosCortoPlazoVigentes, getAlertasMeteorologicasVigentes, getAlertasSmnPublicadas } from "../api";
+import { enDemo, conDemo, alCambiarDemo } from "../lib/demo";
+import SelloDemo from "../components/SelloDemo";
 import "../tv.css";
 
 /**
@@ -88,7 +90,7 @@ function Pantalla({ paginas, visible, duracion }) {
     {paginas.map((p, i) => {
       const k = p.escala || 1;
       return <div key={p.src} className="tv-pantalla__marco" style={{ width: p.ancho || "100%" }}>
-        <iframe ref={(el) => { iframes.current[i] = el; }} src={p.src} title={p.src} tabIndex={-1}
+        <iframe ref={(el) => { iframes.current[i] = el; }} src={enDemo() ? conDemo(p.src) : p.src} title={p.src} tabIndex={-1}
           style={k === 1 ? undefined : { width: `${100 / k}%`, height: `${100 / k}%`, transform: `scale(${k})` }} />
       </div>;
     })}
@@ -113,7 +115,8 @@ export default function TvPage() {
     const consultar = () => leerUrgentes().then((u) => { if (!cancelado) setUrgentes(u); });
     consultar();
     const t = setInterval(consultar, CONSULTA_URGENTES);
-    return () => { cancelado = true; clearInterval(t); };
+    const dejar = alCambiarDemo(consultar); // modo demostración: al prender/apagar, se ve en el momento
+    return () => { cancelado = true; clearInterval(t); dejar(); };
   }, []);
 
   const hayUrgente = urgentes.length > 0;
@@ -152,6 +155,7 @@ export default function TvPage() {
       </aside>}
     </main>
 
+    <SelloDemo />
     <footer className="tv-pie">
       {!urgente && <div className="tv-progreso" key={indice}><i style={{ animationDuration: `${DURACION_ROTACION}ms` }} /></div>}
       <span>Emergencias <b>911</b> · Defensa Civil <b>103</b></span>

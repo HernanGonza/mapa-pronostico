@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import PolygonDrawMap from "../components/PolygonDrawMap";
 import { getAvisosCortoPlazoVigentes, getMunicipiosGeojson } from "../api";
+import { alCambiarDemo } from "../lib/demo";
+import SelloDemo from "../components/SelloDemo";
 
 // Un color por aviso, para distinguirlos cuando hay varios. El primero es el
 // violeta del SMN/ACP de siempre; el resto contrasta con él y con el verde de
@@ -32,7 +34,8 @@ export default function EmbedAvisosCortoPlazoPage() {
     }
     cargar();
     const timer = setInterval(cargar, 60 * 1000);
-    return () => { cancelado = true; clearInterval(timer); };
+    const dejar = alCambiarDemo(cargar); // modo demostración: al prender/apagar, se ve en el momento
+    return () => { cancelado = true; clearInterval(timer); dejar(); };
   }, []);
 
   // Si un aviso vence entre dos consultas, se saca igual en el momento.
@@ -51,6 +54,7 @@ export default function EmbedAvisosCortoPlazoPage() {
 
   return (
     <div className="aviso-embed">
+      <SelloDemo />
       {error && avisos && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
       <div className="aviso-embed__mapa">
         <PolygonDrawMap poligonos={poligonos} onChange={() => {}} municipios={municipios} readOnly colorPoligono={COLORES[0]} encuadrar={!!soloId} />

@@ -1,4 +1,5 @@
 import { API_URL } from "./config";
+import { enDemo, leerDemo, acpDePrueba, alertaDePrueba, smnDePrueba } from "./lib/demo";
 
 // El back setea el cookie de sesión como httpOnly — hace falta pedirle al
 // fetch que lo mande (y lo reciba) aunque front y back vivan en orígenes
@@ -273,7 +274,12 @@ export async function getAlertasMeteorologicasActual(){const r=await fetch(`${AP
 /** Publica el mapa manual para `periodo`, visible hasta `vigenteHasta` (ISO); `reemplazar`: ids de vigentes que saca. */
 export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[]}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar}),...CON_SESION}));}
 /** Publicaciones manuales vigentes (público, lo usa el iframe). [] = ninguna. */
-export async function getAlertasMeteorologicasVigentes(){return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/vigentes`,{cache:"no-store"}))).publicaciones;}
+export async function getAlertasMeteorologicasVigentes(){
+  const reales=(await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/vigentes`,{cache:"no-store"}))).publicaciones;
+  // Modo demostración (?demo=1, ver lib/demo.js): se suma la alerta de prueba si está activada.
+  if(!enDemo()||!leerDemo().alerta)return reales;
+  return [...reales,...alertaDePrueba((await getAlertasMeteorologicasCatalogo()).departamentos)];
+}
 export async function despublicarAlertaMeteorologica(id){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${id}/despublicar`,{method:"POST",...CON_SESION}));}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
@@ -311,11 +317,13 @@ export async function generarAvisoEspecial({ texto, emitidoEn, imagen }, { vista
 }
 /** Avisos publicados y todavía vigentes (público, lo usa el iframe). [] = ninguno. */
 export async function getAvisosCortoPlazoVigentes() {
-  return (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;
+  const reales = (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;
+  return enDemo() && leerDemo().acp ? [...reales, ...acpDePrueba()] : reales; // modo demostración
 }
 /** Alertas del SMN publicadas en el embebido y todavía vigentes (público). [] = ninguna. */
 export async function getAlertasSmnPublicadas() {
-  return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas`, { cache: "no-store" }))).alertas;
+  const reales = (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas`, { cache: "no-store" }))).alertas;
+  return enDemo() && leerDemo().smn ? [...reales, ...smnDePrueba()] : reales; // modo demostración
 }
 export async function getAlertasSmnPublicadasPanel() {
   return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/panel`, { cache: "no-store", ...CON_SESION }))).alertas;

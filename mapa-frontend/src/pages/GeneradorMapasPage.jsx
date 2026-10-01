@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CloudSun, CalendarDays, Flame, Radar, CloudLightning, Bell, PenLine, Megaphone, Waves, Droplets } from "lucide";
+import { CloudSun, CalendarDays, Flame, Radar, CloudLightning, Bell, PenLine, Megaphone, Waves, Droplets, Presentation } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import BrandHeader from "../components/BrandHeader";
 import { useAuth } from "../context/AuthContext";
@@ -53,6 +53,12 @@ const OPCIONES = [
     icono: Megaphone,
     titulo: "Aviso especial",
     descripcion: "Texto libre con una captura de radar o satélite: placas de feed e historias.",
+  },
+  {
+    to: "/panel/demostracion",
+    icono: Presentation,
+    titulo: "Demostración",
+    descripcion: "Avisos y alertas de prueba para mostrar la pantalla de transmisión y los mapas (no se ven en el sitio público).",
   },
   {
     to: "/panel/inundaciones",
