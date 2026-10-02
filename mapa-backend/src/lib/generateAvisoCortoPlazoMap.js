@@ -1,5 +1,5 @@
 const path = require('path');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const { ZONAS, dibujarMapaConPoligono } = require('./misionesVectorMap');
 const { errorDePoligono } = require('./avisosCortoPlazo');
 
@@ -24,9 +24,7 @@ const { errorDePoligono } = require('./avisosCortoPlazo');
  */
 const DIR = path.join(__dirname, '../../data/alertas');
 const ASSETS_DIR = path.join(DIR, 'aviso-corto-plazo');
-// Familia propia (mismo archivo .ttf que generateAlertaMap.js, registrado
-// bajo otro nombre) para no depender de que ese módulo se haya cargado antes.
-registerFont(path.join(DIR, 'OakSans-Bold.ttf'), { family: 'AvisoCortoPlazoPlaca', weight: 'bold' });
+const { OAK_SANS } = require('./fuentes');
 
 const TITULO = 'Aviso a muy corto plazo';
 const FONDOS = {
@@ -115,7 +113,7 @@ async function generateAvisoCortoPlazoMap({ texto, fondo = 'tormenta', tamano = 
   const parrafos = texto.trim().split('\n').map((l) => l.trim()).filter(Boolean);
   let tamanoFuente = FUENTE_TEXTO_MAX[tamano], lineas, lineH, textoAltura;
   for (;;) {
-    ctx.font = `bold ${tamanoFuente}px AvisoCortoPlazoPlaca`;
+    ctx.font = `bold ${tamanoFuente}px ${OAK_SANS}`;
     lineas = parrafos.flatMap((p) => ajustarLineas(ctx, p, L.w));
     lineH = tamanoFuente * 1.35;
     textoAltura = lineas.length * lineH;

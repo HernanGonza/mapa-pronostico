@@ -1,5 +1,6 @@
 const path = require("path");
-const { createCanvas, loadImage, registerFont } = require("canvas");
+const { createCanvas, loadImage } = require("canvas");
+const { OAK_SANS } = require("./fuentes");
 const { categorias, errorDeZonas } = require("./riesgoIncendios");
 const DIR = path.join(__dirname, "../../data/ecosotat");
 
@@ -17,8 +18,6 @@ let plantilla;
 async function cargarPlantilla() {
   if (plantilla) return plantilla;
   plantilla = (async () => {
-    registerFont(path.join(DIR, "OakSans-Regular.ttf"), { family: "EcoReporte", weight: "normal" });
-    registerFont(path.join(DIR, "OakSans-Bold.ttf"), { family: "EcoReporte", weight: "bold" });
     const image = await loadImage(path.join(DIR, "misiones.png"));
     const canvas = createCanvas(image.width, image.height);
     const ctx = canvas.getContext("2d"); ctx.drawImage(image, 0, 0);
@@ -90,7 +89,7 @@ async function generateRiesgoMap({ zonas, fecha }) {
   ctx.fillStyle="#1a1a1a";ctx.textAlign="center";ctx.textBaseline="middle";
   let tamano=90;
   do {
-    ctx.font=`bold ${tamano}px "EcoReporte"`;
+    ctx.font=`bold ${tamano}px ${OAK_SANS}`;
     if(ctx.measureText(texto).width<=CAJA_FECHA.w-40 || tamano<=24) break;
     tamano-=2;
   } while(true);

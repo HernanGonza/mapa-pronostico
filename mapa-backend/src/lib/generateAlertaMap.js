@@ -1,11 +1,10 @@
 const path = require('path');
 const fs = require('fs');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const { categorias, iconos, errorDeZonas, errorDeIconos } = require('./alertasMeteorologicas');
 const { PLACAS_DIR, dibujarMapaEnRecuadro } = require('./misionesVectorMap');
 const DIR = path.join(__dirname, '../../data/alertas');
-registerFont(path.join(DIR, 'OakSans-Regular.ttf'), {family:'AlertaPlaca'});
-registerFont(path.join(DIR, 'OakSans-Bold.ttf'), {family:'AlertaPlaca',weight:'bold'});
+const { OAK_SANS } = require('./fuentes');
 // Material fuente: Placas-Alertas-Separadas/ en la raíz del repo (assets
 // separados por capa, provistos por diseño) — se copió tal cual a
 // data/alertas/placas-2025/ para que el backend no dependa de una carpeta
@@ -86,8 +85,8 @@ function loadFondos() {
 // --- Caja "NIVEL DE ALERTA" (referencias) ---------------------------------
 const nivelesSvgCrudo = fs.readFileSync(path.join(PLACAS_DIR, 'NIVELES DE ALERTA.svg'), 'utf8');
 // El SVG trae el texto en <text>/<tspan> con font-family "Oak Sans" — pero
-// esa tipografía sólo está registrada para node-canvas (registerFont más
-// arriba), no a nivel del sistema operativo, así que si rasterizamos el SVG
+// esa tipografía sólo está registrada para node-canvas (fuentes.js), no a
+// nivel del sistema operativo, así que si rasterizamos el SVG
 // tal cual el texto sale con una tipografía cualquiera del sistema. Se saca
 // el <text> del SVG (sólo queda la caja translúcida + los 4 círculos, que
 // no dependen de ninguna fuente) y el texto se dibuja aparte con
@@ -137,7 +136,7 @@ function dibujarTitulo(ctx, titulo, tamano, width) {
   const h = tamano === 'feed' ? 330 : 430;
   ctx.save();
   ctx.fillStyle = '#172332'; ctx.fillRect(0, 0, width, h);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 116px AlertaPlaca';
+  ctx.fillStyle = '#fff'; ctx.font = `bold 116px ${OAK_SANS}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(titulo.trim().toLocaleUpperCase('es-AR'), width / 2, h * 0.72, width - 380);
   ctx.restore();
@@ -166,10 +165,10 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   const nivelesImg = await rasterizarNiveles(niv.w*2, nivH*2);
   ctx.drawImage(nivelesImg, niv.x, niv.y, niv.w, nivH);
   ctx.fillStyle='#fff';
-  ctx.font=`bold ${NIVELES_TEXTO.titulo.size*nivEscala}px AlertaPlaca`;
+  ctx.font=`bold ${NIVELES_TEXTO.titulo.size*nivEscala}px ${OAK_SANS}`;
   ctx.textAlign='left';ctx.textBaseline='alphabetic';
   ctx.fillText('NIVEL DE ALERTA', niv.x+NIVELES_TEXTO.titulo.x*nivEscala, niv.y+NIVELES_TEXTO.titulo.y*nivEscala);
-  ctx.font=`${NIVELES_TEXTO.size*nivEscala}px AlertaPlaca`;
+  ctx.font=`${NIVELES_TEXTO.size*nivEscala}px ${OAK_SANS}`;
   categorias.forEach((c,i)=>{
     const lineas = ajustarLineas(ctx, c.accion, NIVELES_TEXTO.maxWidth*nivEscala);
     const x0 = niv.x+NIVELES_TEXTO.filaX*nivEscala, y0 = niv.y+NIVELES_TEXTO.filaY[i]*nivEscala;
@@ -187,7 +186,7 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   const anchoPeriodo=p.w-140, altoPeriodo=p.h-60;
   let tamanoFuente=tamanoPeriodo, lineasPeriodo, lineHPeriodo;
   for(;;){
-    ctx.font=`bold ${tamanoFuente}px AlertaPlaca`;
+    ctx.font=`bold ${tamanoFuente}px ${OAK_SANS}`;
     lineasPeriodo=parrafosPeriodo.flatMap(parrafo=>ajustarLineas(ctx,parrafo,anchoPeriodo));
     lineHPeriodo=tamanoFuente*1.15;
     if(lineasPeriodo.length*lineHPeriodo<=altoPeriodo||tamanoFuente<=FUENTE_PERIODO_MIN)break;
@@ -221,7 +220,7 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
   const escalaCantidad = Math.max(1, Math.min(1.8, 1.8 - (cantidadElegidos - 1) * (0.8 / 3)));
   const iw=ic.iw*escalaCantidad, ih=Math.round(iw*324/350), fontSize=ic.fontSize*escalaCantidad, escalaFuente=fontSize/38;
   const gap=ic.gap*escalaCantidad, rowH=ic.rowH*escalaCantidad;
-  ctx.font=`bold ${fontSize}px AlertaPlaca`;
+  ctx.font=`bold ${fontSize}px ${OAK_SANS}`;
   const columnas = cantidadElegidos > 4 ? 2 : 1;
   const filasPorColumna = Math.ceil(cantidadElegidos / columnas);
   const anchoTextoMax = Math.max(...iconos.map(i => ctx.measureText(i.nombre).width));
@@ -232,7 +231,7 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
     const x = ic.x + columna * anchoColumna, y = ic.y0 + fila * rowH;
     ctx.drawImage(symbols[icon.id],0,0,350,324,x,y,iw,ih);
     const tx=x+iw+gap, baseline=y+ih/2+Math.round(13*escalaFuente);
-    ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px AlertaPlaca`;ctx.fillText(icon.nombre,tx,baseline);
+    ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px ${OAK_SANS}`;ctx.fillText(icon.nombre,tx,baseline);
     const tw=ctx.measureText(icon.nombre).width;
     // Subrayado: un color, o dos mitades (categoria2) si se eligió un segundo color.
     const uy=baseline+Math.round(12*escalaFuente), uh=Math.max(4,Math.round(7*escalaFuente)), color2=elegido.categoria2?colorPorCategoria.get(elegido.categoria2):null;

@@ -16,9 +16,9 @@ const { createCanvas, loadImage, registerFont } = require('canvas');
  * Servicio Meteorológico Nacional" (ver scripts/limpiar-fondos-aviso-especial.py).
  */
 const ASSETS_DIR = path.join(__dirname, '../../data/alertas/aviso-especial');
-// Familias propias (mismos .ttf de Oak Sans, registrados con otro nombre) para no
-// depender del orden en que se cargan los otros generadores.
-registerFont(path.join(__dirname, '../../data/alertas/OakSans-Bold.ttf'), { family: 'AvisoEspecialTexto', weight: 'bold' });
+// El texto usa la Oak Sans compartida (ver fuentes.js); el título, la ExtraBold, que es
+// otro archivo y por eso puede tener nombre propio sin pisar a nadie.
+const { OAK_SANS } = require('./fuentes');
 registerFont(path.join(ASSETS_DIR, 'OakSans-ExtraBold.ttf'), { family: 'AvisoEspecialTitulo', weight: 'bold' });
 
 const TITULO = 'AVISO';
@@ -155,13 +155,13 @@ function prepararCaptura(img, w, h) {
  */
 function ajustarTexto(ctx, parrafos, emision, anchoMax, altoMax, fuenteMax) {
   for (let fuente = fuenteMax; fuente >= FUENTE_MIN; fuente -= 2) {
-    ctx.font = `bold ${fuente}px AvisoEspecialTexto`;
+    ctx.font = `bold ${fuente}px ${OAK_SANS}`;
     const lineas = parrafos.flatMap((p) => ajustarLineas(ctx, p, anchoMax));
     if (lineas.some((l) => ctx.measureText(l).width > anchoMax)) continue;
     // La línea de emisión va siempre en un renglón: arranca en 82 % del texto y se achica si hace falta.
     let fuenteEmision = Math.round(fuente * 0.82);
     for (;;) {
-      ctx.font = `bold ${fuenteEmision}px AvisoEspecialTexto`;
+      ctx.font = `bold ${fuenteEmision}px ${OAK_SANS}`;
       if (ctx.measureText(emision).width <= anchoMax || fuenteEmision <= 16) break;
       fuenteEmision -= 1;
     }
@@ -238,13 +238,13 @@ async function generateAvisoEspecial({ texto, emitidoEn, imagen, tamano = 'feed'
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   let y = cajaY + CAJA.padV;
-  ctx.font = `bold ${t.fuente}px AvisoEspecialTexto`;
+  ctx.font = `bold ${t.fuente}px ${OAK_SANS}`;
   for (const linea of t.lineas) {
     ctx.fillText(linea, W / 2, y + (t.fuente * INTERLINEA) / 2);
     y += t.fuente * INTERLINEA;
   }
   y += GAP_EMISION;
-  ctx.font = `bold ${t.fuenteEmision}px AvisoEspecialTexto`;
+  ctx.font = `bold ${t.fuenteEmision}px ${OAK_SANS}`;
   ctx.fillText(emision, W / 2, y + (t.fuenteEmision * INTERLINEA) / 2);
 
   return canvas.toBuffer('image/png');
