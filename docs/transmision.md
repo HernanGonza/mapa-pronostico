@@ -76,6 +76,23 @@ Aparecen en «Transmitir a» con ese nombre. (Vimeo requiere un plan pago con vi
 
 ---
 
+## Qué se ve en /tv (Configuración → Pantalla TV)
+
+Desde el panel (**Configuración → Pantalla TV**, sólo superadmin) se elige qué pantallas pasan
+en /tv, en qué orden, con qué título y cuántos segundos cada una. También se suman:
+
+- **Videos** (MP4 o WebM, hasta 500 MB): a pantalla completa, sin sonido, duran lo que dure el video.
+- **Imágenes** (JPG, PNG o WebP, hasta 20 MB; conviene 16:9): en el área de los mapas, enteras.
+- **Páginas de otro sitio** (una dirección `https://`). Muchos sitios no se dejan mostrar dentro
+  de otra página: si en la vista previa del panel queda en blanco, ese sitio no sirve.
+
+Al guardar, /tv (y la transmisión) lo toma **sola en menos de 20 s, sin recargar**. Los avisos a
+muy corto plazo y las alertas siguen cortando la rotación como siempre. Las pantallas apagadas
+no se cargan (no gastan CPU). Los archivos subidos quedan en el volumen `tv_archivos` del
+backend; los que se quitan de la lista se borran solos al guardar.
+
+---
+
 ## Cómo funciona
 
 El servicio `transmision` del `docker-compose.yml` (carpeta `transmision/`):
