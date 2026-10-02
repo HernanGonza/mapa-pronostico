@@ -212,6 +212,55 @@ async function crearUsuario({
   }
 }
 
+/**
+ * Edición desde la pantalla "Usuarios" (solo superadmin). `password` es
+ * opcional: si viene, se cambia y se cierran las sesiones abiertas de esa
+ * persona (como en la recuperación). El rol se lee de la base en cada
+ * pedido, así que un cambio de rol rige al instante sin cerrar sesiones.
+ * Nunca deja el sistema sin superadmin: si se le saca el rol al último,
+ * falla. Devuelve `null` si el usuario no existe.
+ */
+async function editarUsuario(id, { email, password = null, nombre, apellido, telefono, dni, puesto = null, dependencia = null, rol }) {
+  await init();
+  const pool = store.getPool();
+  if (!pool) throw new Error("Falta DATABASE_URL");
+  if (!ROLES.includes(rol)) throw new Error(`Rol inválido: ${rol}`);
+  const hash = password ? await argon2Hash(password) : null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Bloquea a los superadmin para que dos ediciones simultáneas no los degraden a todos.
+    const { rows: supers } = await client.query(
+      `SELECT u.id FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE r.nombre = 'superadmin' FOR UPDATE OF u`
+    );
+    const eraSuper = supers.some((s) => String(s.id) === String(id));
+    if (eraSuper && rol !== "superadmin" && supers.length <= 1) {
+      throw Object.assign(new Error("Tiene que quedar al menos un superadmin"), { status: 400 });
+    }
+    const { rows } = await client.query(
+      `WITH u AS (
+         UPDATE usuarios SET
+           email = $2, nombre = $3, apellido = $4, telefono = $5, dni = $6, puesto = $7,
+           dependencia = $8, rol_id = (SELECT id FROM roles WHERE nombre = $9),
+           password_hash = COALESCE($10, password_hash)
+         WHERE id = $1
+         RETURNING *
+       )
+       SELECT ${CAMPOS_USUARIO} FROM u JOIN roles r ON r.id = u.rol_id`,
+      [id, String(email).trim().toLowerCase(), nombre, apellido, telefono, dni, puesto, dependencia, rol, hash]
+    );
+    if (rows.length && hash) await client.query("DELETE FROM sesiones WHERE usuario_id = $1", [id]);
+    await client.query("COMMIT");
+    return rows[0] || null;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (err.code === "23505") throw Object.assign(new Error("Ya existe un usuario con ese email"), { status: 409 });
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /** Usuarios dados de alta, para la tabla de la pantalla "Usuarios". */
 async function listarUsuarios() {
   await init();
@@ -294,6 +343,7 @@ async function borrarSesion(token) {
 module.exports = {
   init,
   crearUsuario,
+  editarUsuario,
   listarUsuarios,
   verificarCredenciales,
   crearSesion,

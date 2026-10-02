@@ -134,6 +134,7 @@ mismos destinos. Queda en espera (sin consumir casi nada) hasta que se lo inicia
 |---|---|---|
 | `TRANSMISION_SALIDA` | `1280x720` | Resolución que reciben las plataformas y tamaño en que dibuja Chromium (`854x480` gasta menos CPU; `1920x1080`, mucha más). |
 | `TRANSMISION_FPS` | `25` | Cuadros por segundo. |
+| `TRANSMISION_CPUS` | `2.5` | Tope de núcleos para el contenedor (el servidor tiene 4 y lo comparte con el alertador). |
 | `TRANSMISION_BITRATE` | `3000k` | Calidad del video (1080p: `5000k`–`6000k`). |
 | `YOUTUBE_RTMP_URL` | `rtmp://a.rtmp.youtube.com/live2` | RTMPS si el 1935 está cerrado. |
 | `FACEBOOK_HORAS_POR_VIVO` | `7.75` | Cada cuánto se renueva el vivo de Facebook (su límite es 8 h). |

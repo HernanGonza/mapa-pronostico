@@ -76,6 +76,9 @@ services:
     restart: unless-stopped
     # Un init de verdad como PID 1: recolecta los procesos zombie de Chromium (chrome_crashpad).
     init: true
+    # Tope de CPU: el acercamiento de los mapas (WebGL por software) se come los 4 núcleos
+    # mientras está al aire; así siempre queda margen para el backend y el alertador de focos.
+    cpus: ${TRANSMISION_CPUS:-2.5}
     environment:
       TRANSMISION_TOKEN: ${TRANSMISION_TOKEN:-}
       # Destinos: sólo se ofrecen los que tienen clave. Ver docs/transmision.md.

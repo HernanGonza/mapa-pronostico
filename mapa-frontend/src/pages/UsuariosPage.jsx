@@ -4,7 +4,7 @@ import { Link, Navigate } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import PasswordChecklist, { passwordValida } from "../components/PasswordChecklist";
 import { useAuth } from "../context/AuthContext";
-import { crearUsuarioPanel, listarUsuariosPanel } from "../api";
+import { crearUsuarioPanel, editarUsuarioPanel, listarUsuariosPanel } from "../api";
 
 const ETIQUETA_ROL = { superadmin: "Superadmin", admin: "Admin", usuario: "Usuario" };
 
@@ -41,6 +41,8 @@ export default function UsuariosPage() {
   const [recargar, setRecargar] = useState(0);
   const [busqueda, setBusqueda] = useState("");
   const [recuperar, setRecuperar] = useState(null);
+  // Usuario que se está editando (null = el formulario da de alta uno nuevo).
+  const [editando, setEditando] = useState(null);
 
   useEffect(() => {
     listarUsuariosPanel()
@@ -60,6 +62,29 @@ export default function UsuariosPage() {
     };
   }
 
+  function empezarEdicion(u) {
+    setError(null);
+    setMensajeOk(null);
+    setRecuperar(null);
+    setEditando(u);
+    setForm({
+      ...VACIO,
+      ...Object.fromEntries(Object.keys(VACIO).map((k) => [k, u[k] ?? ""])),
+      password: "",
+      repetirPassword: "",
+      rol: u.rol,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelarEdicion() {
+    setEditando(null);
+    setError(null);
+    setForm({ ...VACIO, rol: asignables[asignables.length - 1] || "usuario" });
+  }
+
+  // Al editar, la contraseña vacía deja la que tenía.
+  const cambiaPassword = !editando || form.password.length > 0 || form.repetirPassword.length > 0;
   const passwordOk = passwordValida(form.password);
   const repiteOk = form.repetirPassword.length > 0 && form.password === form.repetirPassword;
   const dniOk = dniValido(form.dni);
@@ -68,14 +93,20 @@ export default function UsuariosPage() {
     e.preventDefault();
     setError(null);
     setMensajeOk(null);
-    if (!passwordOk) return setError("La contraseña no cumple los requisitos mínimos.");
-    if (!repiteOk) return setError("Las contraseñas no coinciden.");
+    if (cambiaPassword && !passwordOk) return setError("La contraseña no cumple los requisitos mínimos.");
+    if (cambiaPassword && !repiteOk) return setError("Las contraseñas no coinciden.");
     if (!dniOk) return setError("El DNI tiene que tener 7 u 8 dígitos, sin puntos.");
 
     setCargando(true);
     try {
-      const nuevo = await crearUsuarioPanel(form);
-      setMensajeOk(`Usuario creado: ${nuevo.email}`);
+      if (editando) {
+        const editado = await editarUsuarioPanel(editando.id, form);
+        setMensajeOk(`Cambios guardados: ${editado.email}`);
+        setEditando(null);
+      } else {
+        const nuevo = await crearUsuarioPanel(form);
+        setMensajeOk(`Usuario creado: ${nuevo.email}`);
+      }
       setForm({ ...VACIO, rol: asignables[asignables.length - 1] || "usuario" });
       setRecargar((n) => n + 1);
     } catch (err) {
@@ -101,10 +132,11 @@ export default function UsuariosPage() {
 
       <main id="contenido-principal" tabIndex={-1} className="usuarios-panel">
         <section className="usuarios-form-card">
-          <h1>Crear usuario</h1>
+          <h1>{editando ? "Editar usuario" : "Crear usuario"}</h1>
           <p className="admin-panel__hint">
-            No hay alta pública — el usuario queda listo para entrar apenas se
-            crea, con este email y contraseña.
+            {editando
+              ? "Si dejás la contraseña vacía, sigue con la que tiene. Si la cambiás, se le cierran las sesiones abiertas."
+              : "No hay alta pública — el usuario queda listo para entrar apenas se crea, con este email y contraseña."}
           </p>
 
           {error && <div className="alert alert--error" role="alert">{error}</div>}
@@ -170,22 +202,23 @@ export default function UsuariosPage() {
             <div className="usuarios-form-grid">
               <label className="field">
                 <span>Contraseña</span>
-                <input type="password" autoComplete="new-password" required disabled={cargando} {...campo("password")} />
+                <input type="password" autoComplete="new-password" required={!editando} disabled={cargando} placeholder={editando ? "Sin cambios" : undefined} {...campo("password")} />
               </label>
               <label className="field">
                 <span>Repetir contraseña</span>
                 <input
                   type="password"
                   autoComplete="new-password"
-                  required
+                  required={cambiaPassword}
                   disabled={cargando}
+                  placeholder={editando ? "Sin cambios" : undefined}
                   {...campo("repetirPassword")}
                 />
               </label>
             </div>
 
-            <PasswordChecklist password={form.password} />
-            {form.repetirPassword && (
+            {cambiaPassword && <PasswordChecklist password={form.password} />}
+            {cambiaPassword && form.repetirPassword && (
               <p className={`password-checklist__match ${repiteOk ? "is-ok" : ""}`}>
                 <span className="password-checklist__marca">{repiteOk ? "✓" : "○"}</span>
                 Las contraseñas coinciden
@@ -193,8 +226,13 @@ export default function UsuariosPage() {
             )}
 
             <button className="btn btn--primary" type="submit" disabled={cargando}>
-              {cargando ? "Creando…" : "Crear usuario"}
+              {editando ? (cargando ? "Guardando…" : "Guardar cambios") : cargando ? "Creando…" : "Crear usuario"}
             </button>
+            {editando && (
+              <button className="btn" type="button" disabled={cargando} onClick={cancelarEdicion}>
+                Cancelar
+              </button>
+            )}
           </form>
         </section>
 
@@ -215,7 +253,7 @@ export default function UsuariosPage() {
                   <th>Puesto</th>
                   <th>Dependencia</th>
                   <th>DNI / Teléfono</th>
-                  <th>Acceso</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,7 +265,10 @@ export default function UsuariosPage() {
                     <td>{u.puesto || "—"}</td>
                     <td>{u.dependencia || "—"}</td>
                     <td>{u.dni || "—"}<br />{u.telefono || "Sin teléfono"}</td>
-                    <td><button className="btn" type="button" disabled={!!recuperar} onClick={() => setRecuperar(u)}>Recuperar acceso</button></td>
+                    <td>
+                      <button className="btn" type="button" disabled={cargando || editando?.id === u.id} onClick={() => empezarEdicion(u)}>Editar</button>{" "}
+                      <button className="btn" type="button" disabled={!!recuperar} onClick={() => setRecuperar(u)}>Recuperar acceso</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

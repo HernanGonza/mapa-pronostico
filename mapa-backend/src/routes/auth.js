@@ -145,6 +145,53 @@ router.post(
   }
 );
 
+router.put(
+  "/auth/usuarios/:id",
+  requireAuth,
+  requireRole("superadmin"),
+  express.json(),
+  async (req, res) => {
+    if (!/^[1-9][0-9]{0,17}$/.test(req.params.id)) return res.status(400).json({ error: "Usuario inválido" });
+    const { email, password, repetirPassword, nombre, apellido, telefono, dni, puesto, dependencia, rol } = req.body || {};
+
+    if (!email || !nombre || !apellido || !telefono || !dni || !rol) {
+      return res.status(400).json({ error: "Faltan campos obligatorios" });
+    }
+    // La contraseña es opcional al editar: vacía = queda la que tenía.
+    if (password || repetirPassword) {
+      if (password !== repetirPassword) return res.status(400).json({ error: "Las contraseñas no coinciden" });
+      if (!auth.validarPassword(password)) {
+        return res.status(400).json({ error: "La contraseña no cumple los requisitos mínimos" });
+      }
+    }
+    if (!auth.validarDni(dni)) {
+      return res.status(400).json({ error: "El DNI tiene que tener 7 u 8 dígitos, sin puntos" });
+    }
+    if (!auth.puedeCrearRol(req.usuario.rol, rol)) {
+      return res.status(403).json({ error: "No tenés permiso para asignar ese rol" });
+    }
+
+    try {
+      const usuario = await auth.editarUsuario(req.params.id, {
+        email,
+        password: password || null,
+        nombre,
+        apellido,
+        telefono,
+        dni,
+        puesto: puesto || null,
+        dependencia: dependencia || null,
+        rol,
+      });
+      if (!usuario) return res.status(404).json({ error: "El usuario no existe" });
+      res.json(usuario);
+    } catch (err) {
+      if (!err.status) console.error(err);
+      res.status(err.status || 500).json({ error: err.status ? err.message : "No se pudo guardar el usuario" });
+    }
+  }
+);
+
 const recoveryLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
   message: { error: "Demasiados intentos. Probá de nuevo en 15 minutos." },

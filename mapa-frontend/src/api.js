@@ -259,6 +259,16 @@ export async function crearUsuarioPanel(datos) {
   return handleJson(res);
 }
 
+export async function editarUsuarioPanel(id, datos) {
+  const res = await fetch(`${API_URL}/api/auth/usuarios/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datos),
+    ...CON_SESION,
+  });
+  return handleJson(res);
+}
+
 // --- Alertas de incendio (NASA FIRMS, vía nuestro sistema de alertas) -----
 
 /** Última tanda recibida por webhook (`null` si todavía no llegó ninguna). */
