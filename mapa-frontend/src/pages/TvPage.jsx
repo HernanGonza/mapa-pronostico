@@ -22,15 +22,18 @@ import "../tv.css";
  *   (Configuración → Pantalla TV; ver lib/tvPantallas.js): se relee cada CONSULTA_ROTACION y
  *   cambia sola, sin recargar. Ahí también se suman videos, imágenes y páginas de otros sitios.
  *
- * Los iframes propios quedan montados y sólo cambia cuál se ve (opacity, no display:none:
- * los mapas se rompen si se cargan ocultos), así nunca se ve una recarga. Las páginas de otros
- * sitios se montan sólo cuando están por verse (no se sabe cuánto gastan). Cada embebido
- * ya se actualiza solo cada minuto; la página entera se recarga cada 6 h para aguantar 24/7.
+ * Para no gastar CPU en el servidor de transmisión, sólo quedan montadas la pantalla al aire y
+ * la siguiente (que se carga oculta mientras tanto, así nunca se ve una recarga), más la
+ * anterior durante el fundido. Se ocultan con opacity, no display:none: los mapas se rompen si
+ * se cargan ocultos. El iframe oculto lleva data-pulso="no" y el mapa de focos apaga su
+ * pulso (PointsMap). Cada embebido se actualiza solo cada minuto; la página entera se recarga
+ * cada 8 h para aguantar 24/7.
  */
 const CONSULTA_ROTACION = 20_000;
 const DURACION_URGENTE = 20_000;
 const CONSULTA_URGENTES = 30_000;
-const RECARGA_COMPLETA = 6 * 3600_000;
+const RECARGA_COMPLETA = 8 * 3600_000;
+const FUNDIDO = 1500; // un poco más que la transición de .tv-pantalla (tv.css)
 // En OBS el navegador deja reproducir con sonido; en Chrome normal un video con sonido no
 // arranca solo (se reintenta sin sonido).
 const CON_SONIDO = false;
@@ -95,7 +98,7 @@ function Pantalla({ paginas, visible, duracion }) {
       const k = p.escala || 1;
       return <div key={p.src} className="tv-pantalla__marco" style={{ width: p.ancho || "100%" }}>
         {/* Otro sitio: sin permiso para navegar /tv ni abrir ventanas. */}
-        <iframe ref={(el) => { iframes.current[i] = el; }} src={p.externa ? p.src : enDemo() ? conDemo(p.src) : p.src} title={p.src} tabIndex={-1}
+        <iframe ref={(el) => { iframes.current[i] = el; }} data-pulso={visible ? undefined : "no"} src={p.externa ? p.src : enDemo() ? conDemo(p.src) : p.src} title={p.src} tabIndex={-1}
           sandbox={p.externa ? "allow-scripts allow-same-origin" : undefined} allow={p.externa ? "autoplay" : undefined} referrerPolicy={p.externa ? "no-referrer" : undefined}
           style={k === 1 ? undefined : { width: `${100 / k}%`, height: `${100 / k}%`, transform: `scale(${k})` }} />
       </div>;
@@ -133,8 +136,6 @@ export default function TvPage() {
   const [vuelta, setVuelta] = useState(0); // cuenta cada pase, aunque sea la misma pantalla (una sola activa)
   const [urgentes, setUrgentes] = useState([]);
   const [indiceUrgente, setIndiceUrgente] = useState(0);
-  // Embebidos urgentes ya cargados: quedan montados para no recargarlos al volver a mostrarlos.
-  const montados = useRef(new Set());
 
   useEffect(() => {
     document.title = "Alerta Temprana · Misiones — Transmisión";
@@ -174,9 +175,20 @@ export default function TvPage() {
   const actual = activas.find((p) => p.id === actualId) || activas[0];
   const posicion = activas.indexOf(actual);
   const proxima = activas[(posicion + 1) % activas.length];
-  const anterior = activas[(posicion - 1 + activas.length) % activas.length];
   const proximaRef = useRef(proxima);
   proximaRef.current = proxima;
+
+  // La que acaba de salir sigue montada hasta que termina el fundido.
+  const [saliendoId, setSaliendoId] = useState(null);
+  const previoId = useRef(actual.id);
+  useEffect(() => {
+    if (previoId.current === actual.id) return undefined;
+    setSaliendoId(previoId.current);
+    previoId.current = actual.id;
+    const t = setTimeout(() => setSaliendoId(null), FUNDIDO);
+    return () => clearTimeout(t);
+  }, [actual.id]);
+  const montada = (p) => p === actual || p === proxima || p.id === saliendoId;
 
   const hayUrgente = urgentes.length > 0;
   const siguiente = () => { setActualId(proximaRef.current.id); setVuelta((v) => v + 1); };
@@ -193,7 +205,6 @@ export default function TvPage() {
   }, [urgentes.length]);
 
   const urgente = hayUrgente ? urgentes[indiceUrgente % urgentes.length] : null;
-  if (urgente) montados.current.add(urgente.src);
   return <div className={`tv${urgente ? " tv--urgente" : ""}`} style={urgente ? { "--tv-urgente": urgente.color } : undefined}>
     <header className="tv-cabecera">
       <img src="/brand/ecologia-flor.png" alt="" />
@@ -204,14 +215,15 @@ export default function TvPage() {
 
     <main className="tv-contenido">
       {activas.map((p) => {
+        if (!montada(p)) return null;
         const visible = !urgente && p === actual;
         if (p.tipo === "embebido") return <Pantalla key={p.id} paginas={p.paginas} visible={visible} duracion={duracionDe(p)} />;
         if (p.tipo === "imagen") return <ImagenPantalla key={p.id} src={urlArchivoTv(p.src)} titulo={p.titulo} visible={visible} />;
-        // Otro sitio: montado sólo mientras está por verse, al aire o terminando el fundido.
-        if (p.tipo === "pagina" && [actual, proxima, anterior].includes(p)) return <Pantalla key={p.id} paginas={[{ src: p.src, externa: true }]} visible={visible} duracion={duracionDe(p)} />;
+        if (p.tipo === "pagina") return <Pantalla key={p.id} paginas={[{ src: p.src, externa: true }]} visible={visible} duracion={duracionDe(p)} />;
         return null;
       })}
-      {[...montados.current].map((src) => <Pantalla key={src} paginas={[{ src }]} visible={urgente?.src === src} duracion={DURACION_URGENTE} />)}
+      {/* Lo urgente vigente (suele ser uno o dos): montado mientras siga vigente, para no recargarlo al rotar. */}
+      {urgentes.map((u) => <Pantalla key={u.src} paginas={[{ src: u.src }]} visible={urgente?.src === u.src} duracion={DURACION_URGENTE} />)}
       {urgente && <aside className="tv-urgente" role="alert">
         <span className="tv-urgente__etiqueta">⚠ {urgente.etiqueta}</span>
         <h2>{urgente.titulo}</h2>

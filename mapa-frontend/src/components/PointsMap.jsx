@@ -162,6 +162,9 @@ const PointsMap = forwardRef(function PointsMap(
     };
     syncRef.current = sync;
     map.on('style.load', () => { estiloListo = true; sync(); });
+    // En /tv, el iframe que no está al aire lleva data-pulso="no": el pulso se apaga y no gasta CPU.
+    const marco = (() => { try { return window.frameElement; } catch { return null; } })();
+    const puedeAnimar = () => !document.hidden && marco?.dataset.pulso !== 'no' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && puntosRef.current?.features?.length;
     let ultimoCuadro = 0;
     const animar = (tiempo) => {
       animacionRef.current = null;
@@ -172,16 +175,23 @@ const PointsMap = forwardRef(function PointsMap(
         map.setPaintProperty('focos-eco', 'circle-radius', radio * escala);
         map.setPaintProperty('focos-eco', 'circle-opacity', opacidad);
       }
-      if (!document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && puntosRef.current?.features?.length) animacionRef.current = requestAnimationFrame(animar);
+      if (puedeAnimar()) animacionRef.current = requestAnimationFrame(animar);
     };
     const iniciarAnimacion = () => {
-      if (!animacionRef.current && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && puntosRef.current?.features?.length) {
+      if (!animacionRef.current && puedeAnimar()) {
         animacionRef.current = requestAnimationFrame(animar);
       }
     };
     iniciarAnimacionRef.current = iniciarAnimacion;
     map.on('style.load', iniciarAnimacion);
     document.addEventListener('visibilitychange', iniciarAnimacion);
+    const pulso = marco && new MutationObserver(() => {
+      if (marco.dataset.pulso !== 'no') return iniciarAnimacion();
+      cancelAnimationFrame(animacionRef.current);
+      animacionRef.current = null;
+      if (map.getLayer('focos-eco')) map.setPaintProperty('focos-eco', 'circle-opacity', 0); // sin el halo a medio pulso
+    });
+    pulso?.observe(marco, { attributes: true, attributeFilter: ['data-pulso'] });
     iniciarAnimacion();
     map.on('mouseenter', 'focos-punto', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'focos-punto', () => { map.getCanvas().style.cursor = ''; });
@@ -194,7 +204,7 @@ const PointsMap = forwardRef(function PointsMap(
     ro.observe(mapContainerRef.current);
     // Los listeners ya están instalados cuando empieza la carga del estilo.
     map.setStyle(BASEMAP_STYLE, { transformStyle: prepararEstilo });
-    return () => { ro.disconnect(); document.removeEventListener('visibilitychange', iniciarAnimacion); cancelAnimationFrame(animacionRef.current); animacionRef.current = null; iniciarAnimacionRef.current = null; syncRef.current = null; mapRef.current = null; map.remove(); };
+    return () => { ro.disconnect(); pulso?.disconnect(); document.removeEventListener('visibilitychange', iniciarAnimacion); cancelAnimationFrame(animacionRef.current); animacionRef.current = null; iniciarAnimacionRef.current = null; syncRef.current = null; mapRef.current = null; map.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
