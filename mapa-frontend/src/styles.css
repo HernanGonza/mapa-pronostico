@@ -465,8 +465,7 @@ html:has(.embed-risk--pronostico), body:has(.embed-risk--pronostico) { overflow:
   margin-top: 2px;
 }
 
-/* Extendido: todavía no hay fuente de datos, queda en blanco a propósito
-   — la estructura de 3 días ya está lista para cuando la haya. */
+/* Extendido: los días del pronóstico de 3 días de la zona del municipio. */
 .municipio-popover__extendido {
   margin-top: 12px;
   padding-top: 10px;

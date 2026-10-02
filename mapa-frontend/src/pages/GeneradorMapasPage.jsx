@@ -34,7 +34,7 @@ const OPCIONES = [
     to: "/panel/alertas-meteorologicas",
     icono: CloudLightning,
     titulo: "Alertas meteorológicas",
-    descripcion: "Mapa de alertas por departamento, placas para redes y recomendaciones.",
+    descripcion: "Mapa de alertas por departamento y placas para redes.",
   },
   {
     to: "/panel/alertas-automaticas",

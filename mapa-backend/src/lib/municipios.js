@@ -68,13 +68,24 @@ function resolverEstacionesConCoordenadas(filasPronostico) {
  * - `esOficial: false` → se muestra el dato de la estación más cercana,
  *   con `estacionReferencia` y `distanciaKm` para dejarlo claro en el UI.
  */
-function armarMunicipiosConPronostico(filasPronostico) {
+/** Días del pronóstico extendido de una zona, sin "Hoy" (ese ya es el
+ * pronóstico del día de la tarjeta). [] si no hay extendido o zona. */
+function extendidoDeZona(extendido, zona) {
+  const dias = (extendido?.zonas || []).find((z) => z.zona === zona)?.dias || [];
+  return dias
+    .filter((d) => d.etiqueta !== "Hoy" && d.tmin !== undefined)
+    .map(({ etiqueta, fecha, tmin, tmax, condicion }) => ({ etiqueta, fecha: fecha || null, tmin, tmax, condicion }));
+}
+
+/** `extendido` (opcional): el pronóstico de 3 días; cada municipio lleva el
+ * de la ZONA de su localidad de referencia. */
+function armarMunicipiosConPronostico(filasPronostico, extendido = null) {
   const municipios = loadMunicipios();
   const estaciones = filasPronostico ? resolverEstacionesConCoordenadas(filasPronostico) : [];
 
   return municipios.map((m) => {
     if (estaciones.length === 0) {
-      return { ...m, esOficial: false, estacionReferencia: null, distanciaKm: null, pronostico: null };
+      return { ...m, esOficial: false, estacionReferencia: null, distanciaKm: null, pronostico: null, extendido: [] };
     }
 
     let mejor = null;
@@ -98,7 +109,9 @@ function armarMunicipiosConPronostico(filasPronostico) {
         TMIN: mejor.TMIN,
         TMAX: mejor.TMAX,
         CONDICION: mejor.CONDICION,
+        ZONA: mejor.ZONA || null,
       },
+      extendido: extendidoDeZona(extendido, mejor.ZONA),
     };
   });
 }

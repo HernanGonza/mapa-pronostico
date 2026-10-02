@@ -154,11 +154,11 @@ export async function getMapaActual() {
  * Vista previa (sin publicar) de los 79 municipios con los datos que el
  * operador está editando en ese momento.
  */
-export async function getMapaPreview(filas) {
+export async function getMapaPreview(filas, extendido = null) {
   const res = await fetch(`${API_URL}/api/pronostico/mapa-preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filas }),
+    body: JSON.stringify({ filas, extendido }),
     ...CON_SESION,
   });
   const data = await handleJson(res);
@@ -341,12 +341,6 @@ export async function getAlertasMeteorologicasVigentes(){
 export async function despublicarAlertaMeteorologica(id){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${id}/despublicar`,{method:"POST",...CON_SESION}));}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
-}
-export async function generarRecomendaciones(payload) {
-  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/recomendaciones`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload), ...CON_SESION,
-  }));
 }
 export async function generarAvisoCortoPlazo(payload) {
   return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/generar`, {

@@ -28,11 +28,17 @@ function tableToRows(table) {
  */
 function buildForecastRows(tables) {
   const [north, center, south] = tables;
+  // ZONA de cada localidad = la tabla de la que viene. Es sólo el valor
+  // inicial: en el panel se puede cambiar, y decide qué pronóstico
+  // extendido muestra la tarjeta de cada municipio.
+  const conZona = (table, zona) => tableToRows(table || []).map((r) => ({ ...r, ZONA: zona }));
   return [
-    ...tableToRows(north),
-    ...tableToRows(center),
-    ...tableToRows(south),
+    ...conZona(north, "Norte"),
+    ...conZona(center, "Centro"),
+    ...conZona(south, "Sur"),
   ];
 }
 
-module.exports = { buildForecastRows, tableToRows };
+const ZONAS_PRONOSTICO = ["Norte", "Centro", "Sur"];
+
+module.exports = { buildForecastRows, tableToRows, ZONAS_PRONOSTICO };

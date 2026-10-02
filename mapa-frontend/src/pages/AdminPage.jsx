@@ -30,6 +30,9 @@ import {
 } from "../lib/condiciones";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
+// Placa del pronóstico para redes: desactivada (pedido 02/10). Poner en true para volver a mostrarla.
+const PLACA_REDES_ACTIVA = false;
+
 const CAMPOS = [
   ["TMIN", "Mín"],
   ["TMAX", "Máx"],
@@ -61,13 +64,13 @@ function calcularCambios(editadas, publicadas) {
       cambios.push({ localidad: row.LOCALIDAD, campo: "nueva", de: "—", a: "fila nueva" });
       continue;
     }
-    for (const campo of ["TMIN", "TMAX", "CONDICION"]) {
-      if (String(antes[campo]).trim() !== String(row[campo]).trim()) {
+    for (const campo of ["TMIN", "TMAX", "CONDICION", "ZONA"]) {
+      if (String(antes[campo] ?? "").trim() !== String(row[campo] ?? "").trim()) {
         cambios.push({
           localidad: row.LOCALIDAD,
           campo,
-          de: String(antes[campo]),
-          a: String(row[campo]),
+          de: String(antes[campo] ?? "—"),
+          a: String(row[campo] ?? "—"),
         });
       }
     }
@@ -118,12 +121,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (!filas) return;
     const t = setTimeout(() => {
-      getMapaPreview(filas)
+      getMapaPreview(filas, extendido)
         .then(setMunicipiosPreview)
         .catch((err) => setError(err.message));
     }, 400);
     return () => clearTimeout(t);
-  }, [filas]);
+  }, [filas, extendido]);
 
   const hayInvalidos = useMemo(
     () =>
@@ -222,7 +225,7 @@ export default function AdminPage() {
         {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={cargar}>{filas ? "Cargar o corregir el pronóstico" : "Cargar el pronóstico del día"}</button>
-          <button className="btn btn--block" disabled={!filas || hayInvalidos} onClick={crearPlaca}>Crear placa para redes</button>
+          {PLACA_REDES_ACTIVA && <button className="btn btn--block" disabled={!filas || hayInvalidos} onClick={crearPlaca}>Crear placa para redes</button>}
           <button className="btn btn--block" disabled={!filas || hayInvalidos || !fechaPronostico} onClick={revisarYPublicar}>{sucio ? "Revisar y publicar" : "Republicar"}</button>
           <button className="btn btn--block" onClick={enviarPorCorreo}>Enviar por email</button>
           <button className="btn btn--ghost btn--block" disabled={!filas} onClick={onCapturarDesdeElMapa}>Capturar mapa actual</button>

@@ -5,7 +5,7 @@ const os = require("os");
 const fs = require("fs");
 
 const { extractDocxTables, extractDocxParagraphs } = require("../lib/docxTables");
-const { buildForecastRows } = require("../lib/parseForecast");
+const { buildForecastRows, ZONAS_PRONOSTICO } = require("../lib/parseForecast");
 const { buildExtendedForecast, hayExtendido } = require("../lib/parseForecastExtendido");
 const { generateForecastMap, generateForecastMapHistorias } = require("../lib/generateMap");
 const { nowInArgentina } = require("../lib/dateUtils");
@@ -39,6 +39,10 @@ function errorDeFilas(filas) {
     if (tmin > tmax) return `Fila ${i + 1}: TMIN no puede superar TMAX`;
     if (typeof f.CONDICION !== "string" || !f.CONDICION.trim() || f.CONDICION.length > 100) {
       return `Fila ${i + 1}: CONDICION inválida`;
+    }
+    // Opcional: los pronósticos publicados antes de que existiera no la traen.
+    if (f.ZONA != null && f.ZONA !== "" && !ZONAS_PRONOSTICO.includes(f.ZONA)) {
+      return `Fila ${i + 1}: ZONA inválida (Norte, Centro o Sur)`;
     }
   }
   return null;
@@ -283,7 +287,7 @@ router.get("/geo/:archivo", (req, res) => {
 router.get("/pronostico/mapa", async (req, res) => {
   try {
     const actual = await obtenerActual();
-    const municipios = armarMunicipiosConPronostico(actual ? actual.filas : null);
+    const municipios = armarMunicipiosConPronostico(actual ? actual.filas : null, actual?.extendido);
     res.json({ publicadoEn: actual ? actual.publicadoEn : null, fechaPronostico: actual?.fechaPronostico || null, municipios });
   } catch (err) {
     console.error(err);
@@ -298,10 +302,10 @@ router.get("/pronostico/mapa", async (req, res) => {
  * No toca el store.
  */
 router.post("/pronostico/mapa-preview", requireAuth, express.json(), (req, res) => {
-  const { filas } = req.body || {};
+  const { filas, extendido } = req.body || {};
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });
-  const municipios = armarMunicipiosConPronostico(filas);
+  const municipios = armarMunicipiosConPronostico(filas, extendido);
   res.json({ municipios });
 });
 

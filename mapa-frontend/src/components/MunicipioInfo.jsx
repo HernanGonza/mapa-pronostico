@@ -1,13 +1,8 @@
 import WeatherIcon from "./WeatherIcon";
 
-// Placeholder mientras no haya una fuente de datos para el extendido —
-// se muestra igual la estructura de 3 días para que quede lista cuando
-// Alerta Temprana empiece a mandarlo.
-const DIAS_EXTENDIDO = [0, 1, 2];
-
 export default function MunicipioInfo({ municipio, onCerrar }) {
   if (!municipio) return null;
-  const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico } =
+  const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [] } =
     municipio;
 
   return (
@@ -60,19 +55,23 @@ export default function MunicipioInfo({ municipio, onCerrar }) {
         </p>
       )}
 
-      <div className="municipio-popover__extendido">
-        <span className="municipio-popover__extendido-titulo">
-          Próximos días
-        </span>
-        <div className="municipio-popover__extendido-dias">
-          {DIAS_EXTENDIDO.map((i) => (
-            <div className="municipio-popover__dia" key={i}>
-              <span className="municipio-popover__dia-nombre">—</span>
-              <span className="municipio-popover__dia-temp">—°/—°</span>
-            </div>
-          ))}
+      {/* Pronóstico extendido de la zona (norte, centro o sur) de la localidad de referencia. */}
+      {extendido.length > 0 && (
+        <div className="municipio-popover__extendido">
+          <span className="municipio-popover__extendido-titulo">
+            Próximos días{pronostico?.ZONA ? ` · zona ${pronostico.ZONA.toLowerCase()}` : ""}
+          </span>
+          <div className="municipio-popover__extendido-dias">
+            {extendido.map((d) => (
+              <div className="municipio-popover__dia" key={d.etiqueta + (d.fecha || "")} title={d.condicion}>
+                <span className="municipio-popover__dia-nombre">{d.etiqueta}</span>
+                <WeatherIcon condicion={d.condicion} size={32} title={d.condicion} />
+                <span className="municipio-popover__dia-temp">{d.tmin}°/{d.tmax}°</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

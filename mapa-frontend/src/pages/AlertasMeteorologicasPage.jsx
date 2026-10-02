@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import BrandHeader from '../components/BrandHeader';
 import EmbedShare from '../components/EmbedShare';
 import RiesgoMap from '../components/RiesgoMap';
-import { editarMapaAlertas, crearPlacaMapaAlertas, crearPlacaRecomendaciones, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
+import { editarMapaAlertas, crearPlacaMapaAlertas, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
 import * as api from '../api';
 import { confirmar } from '../lib/ui';
 
@@ -20,12 +20,11 @@ export default function AlertasMeteorologicasPage() {
   useNotificacion(mensaje);
   // Valores con los que arrancan los asistentes (se actualizan con lo último que se generó).
   const [periodo, setPeriodo] = useState('Próximas 24 horas'), [fondo, setFondo] = useState('tormenta'), [titulo, setTitulo] = useState('Alerta meteorológica'), [tamanoPeriodo, setTamanoPeriodo] = useState(64);
-  const [recomendaciones, setRecomendaciones] = useState('');
   // Publicaciones que se ven ahora en el mapa público (cada una se saca sola al vencer).
   const [vigentes, setVigentes] = useState(null), [despublicando, setDespublicando] = useState(null);
   const cargarVigentes = () => api.getAlertasMeteorologicasVigentes().then(setVigentes).catch(e => { setVigentes([]); setError(e.message); });
   useEffect(() => { cargarVigentes(); const t = setInterval(cargarVigentes, 60000); return () => clearInterval(t); }, []);
-  const [iconos, setIconos] = useState([]), [imagenes, setImagenes] = useState(null), [imagenesRecomendaciones, setImagenesRecomendaciones] = useState(null), [vista, setVista] = useState('mapa');
+  const [iconos, setIconos] = useState([]), [imagenes, setImagenes] = useState(null), [vista, setVista] = useState('mapa');
 
   useEffect(() => {
     let vivo = true;
@@ -58,16 +57,6 @@ export default function AlertasMeteorologicasPage() {
       return placa;
     },
   });
-  const crearRecomendaciones = () => crearPlacaRecomendaciones({
-    inicial: { titulo, fondo, texto: recomendaciones, imagen: null },
-    vistaPrevia: (c) => api.generarRecomendaciones({ ...c, vistaPrevia: true }),
-    guardar: async (c, token) => {
-      const placa = await api.generarRecomendaciones({ ...c, imagen: null, confirmarToken: token });
-      setTitulo(c.titulo); setFondo(c.fondo); setRecomendaciones(c.texto);
-      setImagenesRecomendaciones(comoImagenes(placa)); setVista('recomendaciones');
-      return placa;
-    },
-  });
   const revisarYPublicar = () => publicarAlertasPorPasos({
     cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], periodoSugerido: periodo,
     publicar: async (opciones) => {
@@ -94,7 +83,6 @@ export default function AlertasMeteorologicasPage() {
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={editarMapa}>Editar mapa</button>
           <button className="btn btn--block" onClick={crearPlacaMapa}>Crear placa del mapa</button>
-          <button className="btn btn--block" onClick={crearRecomendaciones}>Crear placa de recomendaciones</button>
           <button className="btn btn--block" disabled={!catalogo} onClick={revisarYPublicar}>{republicar ? "Republicar" : "Revisar y publicar"}</button>
         </div>
         <p className="admin-panel__hint">La placa del mapa usa los niveles y fenómenos que ves a la derecha. Al publicar elegís para cuándo es y hasta cuándo se muestra: después se saca sola.</p>
@@ -111,7 +99,7 @@ export default function AlertasMeteorologicasPage() {
         <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />
       </>}
     </section>
-    <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenes} recomendaciones={imagenesRecomendaciones}>
+    <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenes}>
       {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
     </PlacaPreview>
   </div>;

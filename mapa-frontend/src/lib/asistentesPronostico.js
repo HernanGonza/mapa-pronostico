@@ -15,6 +15,7 @@ export const tempInvalida = (v) => {
   const n = Number(v);
   return !Number.isInteger(n) || n < -15 || n > 55;
 };
+const ZONAS = ["Norte", "Centro", "Sur"];
 export const filaInvalida = (r) => tempInvalida(r.TMIN) || tempInvalida(r.TMAX) || Number(r.TMIN) > Number(r.TMAX) || !esCondicionConocida(r.CONDICION);
 
 const pasoArchivo = (parse) => ({
@@ -31,7 +32,10 @@ const pasoArchivo = (parse) => ({
       const boton = popup.querySelector(".swal2-confirm"); boton.disabled = true;
       try {
         const { filas, extendido } = await parse(archivo);
-        s.filas = filas; s.extendido = extendido || null;
+        // La zona viene de la tabla del .docx; si una localidad ya tenía otra asignada a mano, se respeta.
+        const zonaAnterior = new Map((s.filas || []).filter((r) => r.ZONA).map((r) => [r.LOCALIDAD, r.ZONA]));
+        s.filas = filas.map((r) => ({ ...r, ZONA: zonaAnterior.get(r.LOCALIDAD) || r.ZONA }));
+        s.extendido = extendido || null;
         estado.textContent = `✓ ${filas.length} localidades leídas${extendido ? ", con pronóstico extendido" : ""}.`;
       } catch (e) { estado.textContent = `✗ ${e.message}`; entrada.value = ""; }
       finally { boton.disabled = false; }
@@ -42,22 +46,25 @@ const pasoArchivo = (parse) => ({
 });
 
 const pasoLocalidades = {
-  pregunta: "Revisá y corregí las localidades", ayuda: "Son los puntos que reporta el .docx; el resto de los municipios toma el dato del más cercano. Mínima y máxima en °C.",
-  html: (s) => `<div class="paso-tabla"><table class="paso-localidades"><thead><tr><th>Localidad</th><th>Mín</th><th>Máx</th><th>Condición</th></tr></thead><tbody>${s.filas.map((r, i) => `<tr>
+  pregunta: "Revisá y corregí las localidades", ayuda: "Son los puntos que reporta el .docx; el resto de los municipios toma el dato del más cercano. Mínima y máxima en °C. La zona decide qué pronóstico extendido muestra la tarjeta de cada municipio.",
+  html: (s) => `<div class="paso-tabla"><table class="paso-localidades"><thead><tr><th>Localidad</th><th>Mín</th><th>Máx</th><th>Condición</th><th>Zona</th></tr></thead><tbody>${s.filas.map((r, i) => `<tr>
       <td>${esc(r.LOCALIDAD)}</td>
       <td><input type="number" class="paso-celda" data-i="${i}" data-campo="TMIN" value="${esc(r.TMIN)}" aria-label="Mínima de ${esc(r.LOCALIDAD)}"></td>
       <td><input type="number" class="paso-celda" data-i="${i}" data-campo="TMAX" value="${esc(r.TMAX)}" aria-label="Máxima de ${esc(r.LOCALIDAD)}"></td>
-      <td><select class="paso-select" data-i="${i}" data-campo="CONDICION" aria-label="Condición de ${esc(r.LOCALIDAD)}">${esCondicionConocida(r.CONDICION) ? "" : `<option value="">${esc(r.CONDICION || "(elegir)")} — sin reconocer</option>`}${CONDICIONES_CANONICAS.map((c) => `<option value="${esc(c)}" ${c === condicionCanonica(r.CONDICION) ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>`,
+      <td><select class="paso-select" data-i="${i}" data-campo="CONDICION" aria-label="Condición de ${esc(r.LOCALIDAD)}">${esCondicionConocida(r.CONDICION) ? "" : `<option value="">${esc(r.CONDICION || "(elegir)")} — sin reconocer</option>`}${CONDICIONES_CANONICAS.map((c) => `<option value="${esc(c)}" ${c === condicionCanonica(r.CONDICION) ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></td>
+      <td><select class="paso-select" data-i="${i}" data-campo="ZONA" aria-label="Zona de ${esc(r.LOCALIDAD)}">${ZONAS.includes(r.ZONA) ? "" : `<option value="">(elegir)</option>`}${ZONAS.map((z) => `<option value="${z}" ${z === r.ZONA ? "selected" : ""}>${z}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>`,
   alMostrar: (popup) => {
     popup.querySelectorAll(".paso-celda").forEach((el) => el.addEventListener("input", () => el.classList.toggle("is-invalid", tempInvalida(el.value))));
   },
   leer: (popup, s) => ({ filas: s.filas.map((r, i) => {
     const v = (campo) => popup.querySelector(`[data-i="${i}"][data-campo="${campo}"]`).value;
-    return { ...r, TMIN: v("TMIN"), TMAX: v("TMAX"), CONDICION: v("CONDICION") };
+    return { ...r, TMIN: v("TMIN"), TMAX: v("TMAX"), CONDICION: v("CONDICION"), ZONA: v("ZONA") };
   }) }),
   validar: (s) => {
     const mala = s.filas.find(filaInvalida);
-    return mala ? `Revisá ${mala.LOCALIDAD}: temperaturas fuera de rango (−15 a 55), mínima mayor que la máxima o condición sin reconocer.` : null;
+    if (mala) return `Revisá ${mala.LOCALIDAD}: temperaturas fuera de rango (−15 a 55), mínima mayor que la máxima o condición sin reconocer.`;
+    const sinZona = s.filas.find((r) => !ZONAS.includes(r.ZONA));
+    return sinZona ? `Elegí la zona de ${sinZona.LOCALIDAD} (norte, centro o sur).` : null;
   },
 };
 
