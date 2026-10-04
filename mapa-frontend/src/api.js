@@ -527,3 +527,26 @@ export async function publicarEnRedes(payload) {
   }
   return handleJson(res);
 }
+
+// --- Informes diarios (en desarrollo, sólo superadmin) ---
+export async function recolectarInformeDiario({ fecha, desde, hasta }) {
+  return handleJson(await fetch(`${API_URL}/api/informes-diarios/recolectar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha, desde, hasta }), cache: "no-store", ...CON_SESION }));
+}
+export async function getInformesDiarios() {
+  return (await handleJson(await fetch(`${API_URL}/api/informes-diarios`, { cache: "no-store", ...CON_SESION }))).informes;
+}
+export async function getInformeDiario(id) {
+  return handleJson(await fetch(`${API_URL}/api/informes-diarios/${id}`, { cache: "no-store", ...CON_SESION }));
+}
+export async function guardarInformeDiario(informe) {
+  return handleJson(await fetch(`${API_URL}/api/informes-diarios`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(informe), ...CON_SESION }));
+}
+/** Excel con todo lo que trajeron las estaciones, en crudo (descarga el archivo). */
+export async function descargarExcelInformeDiario(datos) {
+  const r = await fetch(`${API_URL}/api/informes-diarios/excel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datos }), ...CON_SESION });
+  if (!r.ok) { let m = `Error ${r.status}`; try { m = (await r.json()).error || m; } catch { /* sin cuerpo */ } throw new Error(m); }
+  const nombre = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "")?.[1] || "informe-diario.xlsx";
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a"); a.href = url; a.download = nombre; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}

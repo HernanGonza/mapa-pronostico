@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
-import { Users, Presentation, RadioTower, Tv, Radar, Bell, Waves, Droplets, CloudSun } from "lucide";
+import { Users, Presentation, RadioTower, Tv, Radar, Bell, Waves, Droplets, CloudSun, FileText } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
 
@@ -10,6 +10,7 @@ const EN_DESARROLLO = [
   { to: "/panel/alertas-automaticas", icono: Bell, titulo: "Alertas automáticas (SMN)", descripcion: "Avisos del SMN por período y zona, en revisión." },
   { to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Placas de alerta por inundación." },
   { to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
+  { to: "/panel/informes-diarios", icono: FileText, titulo: "Informes diarios", descripcion: "Qué pasó un día (por ejemplo, una tormenta) según las estaciones oficiales del INTA y SiNaRaMe, con lo que emitió el SMN: informe con mapa, tabla y gráficos, en PDF." },
   { to: "/panel/generador-pronosticos", icono: CloudSun, titulo: "Generador de pronósticos", descripcion: "Recolección de datos de las distintas fuentes que se usan para armar el pronóstico." },
 ];
 

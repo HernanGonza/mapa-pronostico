@@ -544,3 +544,26 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .paso-estilos-tarjeta .paso-opciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .paso-estilos-tarjeta .paso-opcion__caja img { width: 100%; height: auto; max-height: none; aspect-ratio: 54 / 38; object-fit: cover; border-radius: 6px; }
 @media (max-width: 640px) { .paso-estilos-tarjeta .paso-opciones { grid-template-columns: 1fr; } }
+/* Informes diarios: formulario a la izquierda, informe a la derecha. */
+.informes-form { display: grid; gap: 10px; margin-bottom: 16px; }
+.informes-form__horas { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.informes-form__horas legend { padding: 0; margin-bottom: 4px; font-weight: 600; font-size: 13px; }
+.informes-form__atajos { display: flex; flex-wrap: wrap; gap: 6px; }
+.informes-form__atajos .btn { padding: 5px 10px; font-size: 12.5px; }
+.informes-vista { grid-area: map; min-height: 0; padding: 20px 24px 40px; overflow: auto; display: grid; gap: 14px; align-content: start; }
+.informes-vista h2 { margin: 10px 0 0; font-size: 16px; }
+.informes-acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.informes-acciones small { color: var(--text-muted); }
+.informes-texto { min-height: 220px; }
+.informes-mapa { max-width: 640px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.informes-mapa__svg { display: block; width: 100%; height: auto; }
+.informes-tabla { max-height: none; }
+.informes-tabla td, .informes-tabla th { font-size: 13px; white-space: nowrap; }
+.informes-graficos { display: grid; gap: 10px; max-width: 640px; background: #fff; padding: 4px; border-radius: var(--radius-sm); }
+.informes-grafico { margin: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #fff; }
+.informes-grafico svg { display: block; width: 100%; height: auto; }
+.informes-grafico figcaption { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 10px 8px; font-size: 11.5px; color: #3a4a42; }
+.informes-grafico figcaption i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; vertical-align: -1px; }
+.informes-avisos { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
+.informes-avisos small { color: var(--text-muted); }
+.informes-fuente { color: var(--text-muted); font-size: 12px; }

@@ -14,6 +14,7 @@ Correr en orden:
 | `004_avisos_corto_plazo.sql` | ACP: `nivel` (del titular del SMN), `partes` (textos por partes), `nivel_placa` y `nivel_origen` |
 | `005_avisos_especiales.sql` | Aviso especial: `titulo`, `subtitulo` (2.ª línea en color) y `nivel` |
 | `006_pronostico_placas.sql` | Placa del pronóstico sobre foto: `fondo`, `etiqueta`, `frase` y `estilo_tarjeta` |
+| `007_informes_diarios.sql` | Informes diarios: tabla nueva `informes_diarios` (rango desde/hasta con fecha y hora, texto y todos los datos juntados) |
 
 ```bash
 for f in migracionesNuevas/0*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done
