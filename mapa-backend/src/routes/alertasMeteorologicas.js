@@ -80,21 +80,21 @@ router.get('/alertas-meteorologicas/publicaciones/:id/eventos',requireAuth,async
   try{res.set('Cache-Control','no-store').json({eventos:await s.eventos(id)});}catch(e){console.error(e);res.status(500).json({error:'No se pudo leer el historial.'});}
 });
 // «Crear placa para redes» de una alerta: la placa del mapa (generateAlertaMap), guardada como una
-// placa más de la tarjeta (tipo 'mapa'). `datos`: { zonas, iconos, periodo, fondo, titulo, tamanoPeriodo }.
+// placa más de la tarjeta (tipo 'mapa'). `datos`: { zonas, iconos, periodo, fondo, tamanoPeriodo } (el título es fijo).
 function errorDePlacaMapa(d){
-  const { errorDeTitulo, TITULO_PREDETERMINADO, errorDeTamanoPeriodo, TAMANO_PERIODO_PREDETERMINADO, MAX_PERIODO } = require('../lib/generateAlertaMap');
+  const { errorDeTamanoPeriodo, TAMANO_PERIODO_PREDETERMINADO, MAX_PERIODO } = require('../lib/generateAlertaMap');
   if(!d||typeof d!=='object')return 'Faltan los datos de la placa.';
-  return errorDeZonas(d.zonas)||errorDeIconos(d.iconos||[])||errorDeTitulo(d.titulo===undefined?TITULO_PREDETERMINADO:d.titulo)
+  return errorDeZonas(d.zonas)||errorDeIconos(d.iconos||[])
     ||errorDeTamanoPeriodo(d.tamanoPeriodo===undefined?TAMANO_PERIODO_PREDETERMINADO:d.tamanoPeriodo)
     ||(typeof d.periodo!=='string'||!d.periodo.trim()||d.periodo.length>MAX_PERIODO||!['tormenta','nubes'].includes(d.fondo)?'Revisá período y fondo.':null);
 }
 const ORDEN_NIVEL={Verde:0,Amarillo:1,Naranja:2,Rojo:3};
 function normalizarPlacaMapa(d){
-  const { TITULO_PREDETERMINADO, TAMANO_PERIODO_PREDETERMINADO } = require('../lib/generateAlertaMap');
+  const { TAMANO_PERIODO_PREDETERMINADO } = require('../lib/generateAlertaMap');
   const zonas=normalizarZonas(d.zonas),iconos=normalizarIconos(d.iconos||[]);
   // El nivel de la placa (para su color en la tarjeta): el más alto de los departamentos.
   const nivel=zonas.map(z=>z.categoria).reduce((a,b)=>(ORDEN_NIVEL[b]||0)>(ORDEN_NIVEL[a]||0)?b:a,'Verde');
-  return {tipo:'mapa',nivel,datos:{zonas,iconos,periodo:d.periodo,fondo:d.fondo,titulo:d.titulo===undefined?TITULO_PREDETERMINADO:d.titulo,tamanoPeriodo:d.tamanoPeriodo===undefined?TAMANO_PERIODO_PREDETERMINADO:d.tamanoPeriodo}};
+  return {tipo:'mapa',nivel,datos:{zonas,iconos,periodo:d.periodo,fondo:d.fondo,tamanoPeriodo:d.tamanoPeriodo===undefined?TAMANO_PERIODO_PREDETERMINADO:d.tamanoPeriodo}};
 }
 async function generarPlacaMapa(d){
   const {generateAlertaMap}=require('../lib/generateAlertaMap');
@@ -133,31 +133,31 @@ router.post('/alertas-meteorologicas/publicaciones/:id/despublicar',requireAuth,
 // registro de "se generó una placa"). Sube las dos al bucket de Storage
 // y graba quién/cuándo/con qué parámetros en alertas_meteo_placas.
 router.post('/alertas-meteorologicas/placa',requireAuth,express.json(),async(req,res)=>{
-  const {zonas,periodo,fondo,titulo,iconos:iconosElegidos=[],tamanoPeriodo}=req.body||{};
-  const { errorDeTitulo, TITULO_PREDETERMINADO, errorDeTamanoPeriodo, TAMANO_PERIODO_PREDETERMINADO, MAX_PERIODO } = require('../lib/generateAlertaMap');
+  const {zonas,periodo,fondo,iconos:iconosElegidos=[],tamanoPeriodo}=req.body||{};
+  const { errorDeTamanoPeriodo, TAMANO_PERIODO_PREDETERMINADO, MAX_PERIODO } = require('../lib/generateAlertaMap');
   const tamanoPeriodoFinal = tamanoPeriodo === undefined ? TAMANO_PERIODO_PREDETERMINADO : tamanoPeriodo;
-  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTitulo(titulo === undefined ? TITULO_PREDETERMINADO : titulo)||errorDeTamanoPeriodo(tamanoPeriodoFinal);
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTamanoPeriodo(tamanoPeriodoFinal);
   if(error||typeof periodo!=='string'||!periodo.trim()||periodo.length>MAX_PERIODO||!['tormenta','nubes'].includes(fondo))return res.status(400).json({error:error||'Revisá período y fondo.'});
   try {
     const {generateAlertaMap}=require('../lib/generateAlertaMap');
     const zonasNorm=normalizarZonas(zonas),iconosNorm=normalizarIconos(iconosElegidos);
     await require('../lib/placasPendientes').resolver(req,res,{
       generar:async()=>{const [feedPng,historiasPng]=await Promise.all([
-        generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'feed',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
-        generateAlertaMap({zonas:zonasNorm,periodo,fondo,titulo,tamano:'historias',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
+        generateAlertaMap({zonas:zonasNorm,periodo,fondo,tamano:'feed',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
+        generateAlertaMap({zonas:zonasNorm,periodo,fondo,tamano:'historias',iconos:iconosNorm,tamanoPeriodo:tamanoPeriodoFinal}),
       ]);return {feedPng,historiasPng};},
       guardar:(pngs)=>placas.crear({zonas:zonasNorm,iconos:iconosNorm,periodo,fondo,usuarioId:req.usuario.usuarioId,...pngs}),
     });
   }catch(e){console.error(e);res.status(500).json({error:'No se pudo generar la placa.'});}
 });
 router.post('/alertas-meteorologicas/recomendaciones',requireAuth,express.json({limit:'8mb'}),async(req,res)=>{
-  const { texto, fondo, imagen, titulo } = req.body || {};
+  const { texto, fondo, imagen } = req.body || {};
   const { generateRecomendaciones, errorDeRecomendaciones } = require('../lib/generateAlertaMap');
-  const error = errorDeRecomendaciones(texto, fondo, imagen, titulo);
+  const error = errorDeRecomendaciones(texto, fondo, imagen);
   if (error) return res.status(400).json({ error });
   try {
     await require('../lib/placasPendientes').resolver(req,res,{
-      generar:async()=>({feedPng:await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'feed' }),historiasPng:await generateRecomendaciones({ texto, fondo, imagen, titulo, tamano: 'historias' })}),
+      generar:async()=>({feedPng:await generateRecomendaciones({ texto, fondo, imagen, tamano: 'feed' }),historiasPng:await generateRecomendaciones({ texto, fondo, imagen, tamano: 'historias' })}),
       guardar:(pngs)=>placas.crearRecomendaciones({ ...pngs, fondo }),
     });
   } catch (e) {

@@ -6,18 +6,10 @@ import { publicarEnRedes } from "./publicarEnRedes";
 /**
  * Asistentes de "Alertas meteorológicas" (todo dentro de un modal, paso a paso):
  *  - editarMapaAlertas:        nivel de cada departamento → fenómenos → se aplica al mapa (borrador).
- *  - crearPlacaMapaAlertas:    niveles → fenómenos (con 1 o 2 colores) → título → período → tamaño → fondo → vista previa → confirmar.
+ *  - crearPlacaMapaAlertas:    niveles → fenómenos (con 1 o 2 colores) → período → tamaño → fondo → vista previa → confirmar.
  *  - publicarAlertasPorPasos:  revisar los cambios → para cuándo + vigencia → publicar en el mapa público.
  */
 const FONDOS = [{ valor: "tormenta", titulo: "Tormenta", detalle: "Cielo oscuro" }, { valor: "nubes", titulo: "Nubes", detalle: "Fondo claro con nubes" }];
-const MAX_TITULO = 60;
-
-const pasoTitulo = (aviso) => ({
-  pregunta: "¿Qué título lleva la placa?", ayuda: aviso || "Hasta 60 caracteres, en una línea.",
-  html: (s) => `<input class="paso-input" id="paso-titulo" maxlength="${MAX_TITULO}" value="${esc(s.titulo)}" data-foco autocomplete="off">`,
-  leer: (popup) => ({ titulo: popup.querySelector("#paso-titulo").value.trim() }),
-  validar: (s) => (s.titulo ? null : "Escribí un título."),
-});
 const pasoFondo = {
   pregunta: "¿Qué fondo le ponemos?",
   html: (s) => opciones({ nombre: "fondo", tipo: "radio", items: FONDOS.map((f) => ({ ...f, marcada: s.fondo === f.valor })) }),
@@ -42,11 +34,10 @@ export function editarMapaAlertas({ catalogo, zonas, iconos, aplicar }) {
 export function crearPlacaMapaAlertas({ catalogo, inicial, vistaPrevia, guardar }) {
   const rango = catalogo.tamanoPeriodo || { min: 30, max: 100, predeterminado: 64 };
   const maxPeriodo = catalogo.maxPeriodo ?? 600;
-  const cuerpo = (s) => ({ zonas: s.zonas, iconos: s.iconos, periodo: s.periodo, fondo: s.fondo, titulo: s.titulo, tamanoPeriodo: s.tamanoPeriodo });
+  const cuerpo = (s) => ({ zonas: s.zonas, iconos: s.iconos, periodo: s.periodo, fondo: s.fondo, tamanoPeriodo: s.tamanoPeriodo });
   const pasos = [
     pasoNiveles({ catalogo, idComoTexto: true, permitirVacio: false, etiqueta: (c) => `${c.nombre} · ${c.accion}`, ayuda: "El color de alerta de cada departamento en la placa." }),
     pasoFenomenos({ catalogo }),
-    pasoTitulo("Se aplica a la placa del mapa. Hasta 60 caracteres."),
     { pregunta: "¿Qué período cubre?", ayuda: "Por ejemplo: «Próximas 24 horas». La letra se achica sola si el texto es largo.",
       html: (s) => `<textarea class="paso-texto" id="paso-periodo" maxlength="${maxPeriodo}" rows="4" data-foco>${esc(s.periodo)}</textarea>`,
       leer: (popup) => ({ periodo: popup.querySelector("#paso-periodo").value }),
@@ -58,7 +49,7 @@ export function crearPlacaMapaAlertas({ catalogo, inicial, vistaPrevia, guardar 
     pasoFondo,
     pasoVistaPrevia({ clave: (s) => JSON.stringify(cuerpo(s)), generar: (s) => vistaPrevia(cuerpo(s)) }),
   ];
-  const enviar = async (s) => resultadoPlaca(await guardar(cuerpo(s), s.vista.token), `${s.titulo}\n\n${s.periodo}`);
+  const enviar = async (s) => resultadoPlaca(await guardar(cuerpo(s), s.vista.token), `Alerta meteorológica\n\n${s.periodo}`);
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: inicial, ancho: 760 });
 }
 

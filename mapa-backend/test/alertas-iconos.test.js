@@ -25,7 +25,7 @@ test("la placa dibuja el subrayado en dos mitades cuando hay segundo color", asy
   const zonas = loadDepartamentos().map((d) => ({ id: String(d.id), categoria: "Verde" }));
   const hex = (n) => { const h = categorias.find((c) => c.nombre === n).color; return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); };
   const [AM, NA] = [hex("Amarillo"), hex("Naranja")];
-  const png = await generateAlertaMap({ zonas, periodo: "Próximas 24 horas", fondo: "tormenta", titulo: "Alerta", tamano: "feed",
+  const png = await generateAlertaMap({ zonas, periodo: "Próximas 24 horas", fondo: "tormenta", tamano: "feed",
     iconos: normalizarIconos([{ id: "tormentas", categoria: "Amarillo", categoria2: "Naranja" }]), tamanoPeriodo: 64 });
   const img = await loadImage(png);
   const c = createCanvas(img.width, img.height), ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0);

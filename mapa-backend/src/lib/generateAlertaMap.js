@@ -111,11 +111,8 @@ async function rasterizarNiveles(w, h) {
   }
   return nivelesCache.get(key);
 }
-const TITULO_PREDETERMINADO = 'Alerta meteorológica';
-function errorDeTitulo(titulo) {
-  return typeof titulo !== 'string' || !titulo.trim() || titulo.length > 60 || /[\r\n]/.test(titulo)
-    ? 'Escribí un título de hasta 60 caracteres, en una sola línea.' : null;
-}
+// El título es fijo: «ALERTA METEOROLÓGICA», el que viene impreso en el fondo (el fenómeno lo dicen
+// los íconos). Ya no se puede cambiar.
 // Tamaño de letra del período (pill blanca), ajustable a mano desde el
 // panel: tamanoPeriodo es el tamaño de la variante de 1 línea, el de 2-3
 // líneas se escala en la misma proporción (48/64) que tenía el valor fijo
@@ -129,27 +126,14 @@ function errorDeTamanoPeriodo(tamanoPeriodo) {
   return typeof tamanoPeriodo !== 'number' || !Number.isFinite(tamanoPeriodo) || tamanoPeriodo < TAMANO_PERIODO_MIN || tamanoPeriodo > TAMANO_PERIODO_MAX
     ? `El tamaño de letra del período tiene que estar entre ${TAMANO_PERIODO_MIN} y ${TAMANO_PERIODO_MAX}.` : null;
 }
-// El encabezado original forma parte del PNG. Un panel opaco lo sustituye
-// por completo cuando se elige otro título, sin tocar el pie institucional.
-function dibujarTitulo(ctx, titulo, tamano, width) {
-  if (titulo === TITULO_PREDETERMINADO) return;
-  const h = tamano === 'feed' ? 330 : 430;
-  ctx.save();
-  ctx.fillStyle = '#172332'; ctx.fillRect(0, 0, width, h);
-  ctx.fillStyle = '#fff'; ctx.font = `bold 116px ${OAK_SANS}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(titulo.trim().toLocaleUpperCase('es-AR'), width / 2, h * 0.72, width - 380);
-  ctx.restore();
-}
-async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='tormenta',tamano='feed',iconos:iconosElegidos=[],titulo=TITULO_PREDETERMINADO,tamanoPeriodo=TAMANO_PERIODO_PREDETERMINADO}) {
-  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||errorDeTitulo(titulo);if(error)throw new Error(error);
+async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='tormenta',tamano='feed',iconos:iconosElegidos=[],tamanoPeriodo=TAMANO_PERIODO_PREDETERMINADO}) {
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos);if(error)throw new Error(error);
   if(!['tormenta','nubes'].includes(fondo)||!TAMANOS.includes(tamano)||typeof periodo!=='string'||!periodo.trim()||periodo.length>MAX_PERIODO)throw new Error('Período, fondo o tamaño inválido.');
   const layout = LAYOUTS[tamano];
   const [fondos, symbols] = await Promise.all([loadFondos(), loadSymbols()]);
   const fondoImg = fondos[`${fondo}:${tamano}`];
   const canvas=createCanvas(fondoImg.width,fondoImg.height),ctx=canvas.getContext('2d');
   ctx.drawImage(fondoImg,0,0);
-  dibujarTitulo(ctx,titulo,tamano,canvas.width);
 
   // Mapa: se rasteriza a un tamaño generoso (según el ancho del recuadro
   // donde va) y se dibuja centrado ahí, conservando el aspect ratio real
@@ -242,8 +226,7 @@ async function generateAlertaMap({zonas,periodo='Próximas 24 horas',fondo='torm
 }
 const MAX_RECOMENDACIONES = 2400;
 const MAX_IMAGEN_BYTES = 5 * 1024 * 1024;
-function errorDeRecomendaciones(texto, fondo, imagen = null, titulo = TITULO_PREDETERMINADO) {
-  if (errorDeTitulo(titulo)) return errorDeTitulo(titulo);
+function errorDeRecomendaciones(texto, fondo, imagen = null) {
   if (imagen !== null) {
     if (typeof imagen !== 'string' || imagen.length > Math.ceil(MAX_IMAGEN_BYTES / 3) * 4 + 40 ||
         !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(imagen) ||
@@ -256,8 +239,8 @@ function errorDeRecomendaciones(texto, fondo, imagen = null, titulo = TITULO_PRE
   return null;
 }
 
-async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'feed', imagen = null, titulo = TITULO_PREDETERMINADO }) {
-  const error = errorDeRecomendaciones(texto, fondo, imagen, titulo);
+async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'feed', imagen = null }) {
+  const error = errorDeRecomendaciones(texto, fondo, imagen);
   if (error || !TAMANOS.includes(tamano)) throw Object.assign(new Error(error || 'Tamaño inválido.'), { status: 400 });
   const puppeteer = require('puppeteer-core');
   const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || ['/usr/bin/chromium', '/usr/bin/google-chrome'].find(p => fs.existsSync(p));
@@ -272,14 +255,7 @@ async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'fe
     const height = tamano === 'feed' ? 2813 : 4000;
     await page.setViewport({ width: 2250, height, deviceScaleFactor: 1 });
     const font = fs.readFileSync(path.join(DIR, 'OakSans-Regular.ttf')).toString('base64');
-    let bg = fs.readFileSync(path.join(PLACAS_DIR, FONDOS[fondo][tamano])).toString('base64');
-    if (titulo !== TITULO_PREDETERMINADO) {
-      const fondoImg = await loadImage(Buffer.from(bg, 'base64'));
-      const canvas = createCanvas(fondoImg.width, fondoImg.height), ctx = canvas.getContext('2d');
-      ctx.drawImage(fondoImg, 0, 0);
-      dibujarTitulo(ctx, titulo, tamano, canvas.width);
-      bg = canvas.toBuffer('image/png').toString('base64');
-    }
+    const bg = fs.readFileSync(path.join(PLACAS_DIR, FONDOS[fondo][tamano])).toString('base64');
     const top = tamano === 'feed' ? 520 : 760;
     const bottom = tamano === 'feed' ? 2200 : 3200;
     await page.setContent(`<style>
@@ -313,4 +289,4 @@ async function generateRecomendaciones({ texto, fondo = 'tormenta', tamano = 'fe
   } finally { await browser.close(); }
 }
 
-module.exports={generateAlertaMap,generateRecomendaciones,errorDeRecomendaciones,errorDeTitulo,TITULO_PREDETERMINADO,MAX_RECOMENDACIONES,TAMANOS,errorDeTamanoPeriodo,TAMANO_PERIODO_PREDETERMINADO,TAMANO_PERIODO_MIN,TAMANO_PERIODO_MAX,MAX_PERIODO};
+module.exports={generateAlertaMap,generateRecomendaciones,errorDeRecomendaciones,MAX_RECOMENDACIONES,TAMANOS,errorDeTamanoPeriodo,TAMANO_PERIODO_PREDETERMINADO,TAMANO_PERIODO_MIN,TAMANO_PERIODO_MAX,MAX_PERIODO};
