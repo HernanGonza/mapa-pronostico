@@ -1,9 +1,9 @@
-import { opciones, leerOpciones, asistente, htmlAreaConIconos, activarAreaConIconos, pasoVistaPrevia, htmlPlacaLista } from "./pasos";
+import { opciones, leerOpciones, asistente, pasoVistaPrevia, htmlPlacaLista } from "./pasos";
 import { esc } from "./ui";
 
 /**
  * Crear la placa de un aviso a muy corto plazo, paso a paso y todo dentro de un modal:
- * elegir aviso del SMN (o "dibujar a mano") → fondo → texto (con íconos) → vista previa
+ * elegir aviso del SMN (o "dibujar a mano") → fondo → fenómeno → emisión → validez → zonas → vista previa
  * (pantalla completa) → confirmar y generar → placa lista. El título es siempre "Aviso a
  * muy corto plazo" (ya viene impreso en el fondo), no es un paso del asistente.
  * La página aporta:
@@ -16,10 +16,72 @@ import { esc } from "./ui";
  *   guardar(valores, token, { finSmn }) → la placa guardada (finSmn: hasta cuándo rige el aviso del SMN elegido)
  *   publicar(placa, finSmn) → abre publicarAvisoPorPasos (desde la placa lista, «Publicar en el mapa público»)
  */
-const MAX_TEXTO = 2400;
 const FONDOS = { tormenta: ["Tormenta", "Cielo oscuro, para alertas de tormenta"], nubes: ["Nubes", "Fondo claro con nubes"] };
 export const TITULO = "Aviso a muy corto plazo";
-const valoresDe = (s) => ({ texto: s.texto, fondo: s.fondo, poligono: s.poligono, smnId: s.avisoId && s.avisoId !== "manual" ? s.avisoId : null });
+const valoresDe = (s) => ({ partes: partesDe(s), fondo: s.fondo, poligono: s.poligono, smnId: s.avisoId && s.avisoId !== "manual" ? s.avisoId : null });
+const partesDe = (s) => ({ fenomeno: s.fenomeno, emision: s.emision, validez: s.validez, zonas: s.zonas });
+/** El texto completo del aviso por partes, igual al que arma el backend (textoDePartes). */
+export function textoDePartes({ fenomeno, emision, validez, zonas }) {
+  const [f, h] = emision.split("T"), [a, m, d] = f.split("-");
+  return [fenomeno.toLocaleUpperCase("es-AR"), `${d}/${m}/${a} a las ${h}hs`, `Validez hasta: ${validez}`, zonas].filter(Boolean).join("\n");
+}
+
+// --- Textos del aviso por partes (cada una en su paso), sugeridos desde el aviso del SMN ---
+
+const NUMEROS = ["", "Una", "Dos", "Tres", "Cuatro", "Cinco", "Seis"];
+/** "Una (1) hora desde la emisión", "Dos (2) horas desde la emisión"… */
+export const validezEnHoras = (h) => `${NUMEROS[h] || h} (${h}) ${h === 1 ? "hora" : "horas"} desde la emisión`;
+// El SMN escribe en mayúsculas y sin tildes: se corrigen las palabras de siempre.
+const TILDES = { RAFAGA: "RÁFAGA", RAFAGAS: "RÁFAGAS", CAIDA: "CAÍDA", ELECTRICA: "ELÉCTRICA", ELECTRICAS: "ELÉCTRICAS", PRECIPITACION: "PRECIPITACIÓN", PRECIPITACIONES: "PRECIPITACIONES", AREA: "ÁREA", AREAS: "ÁREAS", RAPIDA: "RÁPIDA", RAPIDAS: "RÁPIDAS", ACUMULACION: "ACUMULACIÓN" };
+export const conTildes = (t) => String(t || "").replace(/[A-ZÑ]+/g, (w) => TILDES[w] || w);
+const normalizar = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bgral\b\.?/g, "general").replace(/[.\s]+/g, " ").trim();
+const tituloPropio = (t) => t.toLowerCase().replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toUpperCase()).replace(/\bDe\b/g, "de");
+/**
+ * Departamentos de Misiones de un área del SMN ("CORRIENTES: ITUZAINGO - SANTO TOME. MISIONES:
+ * APOSTOLES - CANDELARIA - LEANDRO N.  ALEM"), con el nombre bien escrito si está en `departamentos`.
+ */
+export function zonasDeMisiones(area, departamentos = []) {
+  const partes = String(area || "").split(/(?:^|\.\s+)([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]+):\s*/);
+  let lista = null;
+  for (let i = 1; i < partes.length; i += 2) if (/misiones/i.test(partes[i])) lista = partes[i + 1];
+  if (lista == null) lista = partes.length === 1 ? partes[0] : "";
+  const porNombre = new Map(departamentos.map((d) => [normalizar(d.nombre), d.nombre]));
+  return lista.replace(/\.\s*$/, "").split(/\s+-\s+/).map((n) => n.trim()).filter(Boolean)
+    .map((n) => porNombre.get(normalizar(n)) || tituloPropio(n)).join(" - ");
+}
+/** Partes sugeridas para un aviso del SMN (o en blanco si se dibuja a mano). */
+export function partesSugeridas(aviso, departamentos) {
+  const emision = aviso?.emitidoEn ? new Date(aviso.emitidoEn) : new Date();
+  const horas = aviso?.fin ? Math.max(1, Math.round((Date.parse(aviso.fin) - emision.getTime()) / HORA)) : 1;
+  return {
+    fenomeno: conTildes(aviso?.fenomeno || ""), emision: valorLocal(emision), validez: validezEnHoras(horas),
+    zonas: aviso ? zonasDeMisiones(aviso.zona, departamentos) : "",
+  };
+}
+
+function pasosDeTextos() {
+  return [
+    { pregunta: "¿Qué fenómeno?", ayuda: "Va primero, en mayúsculas y del color del nivel. Se sugiere el del SMN: revisalo.",
+      html: (s) => `<textarea class="paso-texto" id="paso-fenomeno" maxlength="300" rows="3" placeholder="Tormentas fuertes con lluvias intensas, ráfagas y caída de granizo" data-foco>${esc(s.fenomeno || "")}</textarea>`,
+      leer: (popup) => ({ fenomeno: popup.querySelector("#paso-fenomeno").value.trim() }),
+      validar: (s) => (s.fenomeno ? null : "Escribí el fenómeno.") },
+    { pregunta: "¿Cuándo se emitió?", ayuda: "Sale como «03/10/2026 a las 18:04hs». Se sugiere la hora del aviso del SMN.",
+      html: (s) => `<label class="paso-etiqueta">Fecha y hora de emisión<input type="datetime-local" class="paso-input" id="paso-emision" value="${esc(s.emision || "")}" data-foco></label>
+        <div class="paso-vigencia__rapidas"><button type="button" class="btn" data-ahora>Ahora</button></div>`,
+      alMostrar: (popup) => popup.querySelector("[data-ahora]").addEventListener("click", () => { popup.querySelector("#paso-emision").value = valorLocal(new Date()); }),
+      leer: (popup) => ({ emision: popup.querySelector("#paso-emision").value }),
+      validar: (s) => (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s.emision || "") ? null : "Elegí la fecha y la hora.") },
+    { pregunta: "¿Hasta cuándo es válido?", ayuda: "Sale como «Validez hasta: …».",
+      html: (s) => `<label class="paso-etiqueta">Validez hasta<input class="paso-input" id="paso-validez" maxlength="120" value="${esc(s.validez || "")}" data-foco></label>
+        <div class="paso-vigencia__rapidas" role="group" aria-label="Atajos">${[1, 2, 3].map((h) => `<button type="button" class="btn" data-validez="${h}">${validezEnHoras(h).replace(" desde la emisión", "")}</button>`).join("")}</div>`,
+      alMostrar: (popup) => popup.querySelectorAll("[data-validez]").forEach((b) => b.addEventListener("click", () => { popup.querySelector("#paso-validez").value = validezEnHoras(Number(b.dataset.validez)); })),
+      leer: (popup) => ({ validez: popup.querySelector("#paso-validez").value.trim() }),
+      validar: (s) => (s.validez ? null : "Escribí la validez.") },
+    { pregunta: "¿Qué zonas?", ayuda: "Los departamentos afectados, separados con « - ». Se sugieren los del aviso del SMN. Si lo dejás vacío, no sale.",
+      html: (s) => `<textarea class="paso-texto" id="paso-zonas" maxlength="400" rows="3" placeholder="25 de Mayo - Cainguás - Guaraní" data-foco>${esc(s.zonas || "")}</textarea>`,
+      leer: (popup) => ({ zonas: popup.querySelector("#paso-zonas").value.trim() }) },
+  ];
+}
 
 const fechaHora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
@@ -30,7 +92,7 @@ function publicadoDe(aviso, publicados) {
   return publicados.find((p) => (p.smnId ? p.smnId === aviso.id : JSON.stringify(p.poligono) === poligono));
 }
 
-function pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publicados }) {
+function pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publicados, departamentos }) {
   const hayDibujo = puntosDibujados.length >= 3;
   const items = [
     ...avisos.map((a) => {
@@ -46,29 +108,26 @@ function pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publi
     ayuda: "Llegan por RSS del SMN; a veces hay más de uno vigente al mismo tiempo. Elegí cuál se convierte en placa.",
     omitir: () => avisos.length === 0,
     html: (s) => opciones({ nombre: "aviso", tipo: "radio", items: items.map((it) => ({ ...it, marcada: !it.deshabilitada && s.avisoId === it.valor })) }),
-    leer: (popup) => {
+    leer: (popup, s) => {
       const elegido = leerOpciones(popup, "aviso")[0];
-      if (elegido === "manual") return { avisoId: "manual", poligono: puntosDibujados, finSmn: null };
+      // Al cambiar de aviso se vuelven a sugerir los textos (si es el mismo, quedan los editados).
+      if (elegido === "manual") return { avisoId: "manual", poligono: puntosDibujados, finSmn: null, ...(s.avisoId !== "manual" ? partesSugeridas(null) : {}) };
       const aviso = avisos.find((a) => a.id === elegido);
       if (!aviso) return { avisoId: null, poligono: [] };
-      onSeleccionarPoligono(aviso.poligono);
-      return { avisoId: aviso.id, poligono: aviso.poligono, texto: aviso.texto, finSmn: aviso.fin };
+      onSeleccionarPoligono(aviso.poligono, aviso);
+      return { avisoId: aviso.id, poligono: aviso.poligono, finSmn: aviso.fin, ...(s.avisoId !== aviso.id ? partesSugeridas(aviso, departamentos) : {}) };
     },
     validar: (s) => (Array.isArray(s.poligono) && s.poligono.length >= 3 ? null : "Elegí un aviso o dibujá el área a mano."),
   };
 }
 
-export function crearAvisoPorPasos({ inicial, avisos, puntosDibujados, onSeleccionarPoligono, publicados = [], vistaPrevia, guardar, publicar }) {
+export function crearAvisoPorPasos({ inicial, avisos, puntosDibujados, onSeleccionarPoligono, publicados = [], departamentos = [], vistaPrevia, guardar, publicar }) {
   const pasos = [
-    pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publicados }),
+    pasoElegirAviso({ avisos, puntosDibujados, onSeleccionarPoligono, publicados, departamentos }),
     { pregunta: "¿Qué fondo le ponemos?",
       html: (s) => opciones({ nombre: "fondo", tipo: "radio", items: Object.entries(FONDOS).map(([valor, [titulo, detalle]]) => ({ valor, titulo, detalle, marcada: s.fondo === valor })) }),
       leer: (popup) => ({ fondo: leerOpciones(popup, "fondo")[0] || "tormenta" }) },
-    { pregunta: "Escribí el aviso", ayuda: `Se sugiere el texto del SMN — revisalo y ajustalo si hace falta. Hasta ${MAX_TEXTO} caracteres. Podés sumar íconos.`,
-      html: (s) => htmlAreaConIconos({ id: "paso-texto", valor: s.texto, max: MAX_TEXTO, placeholder: "Escribí acá el aviso a muy corto plazo…" }),
-      alMostrar: (popup) => activarAreaConIconos(popup, "paso-texto", MAX_TEXTO),
-      leer: (popup) => ({ texto: popup.querySelector("#paso-texto").value }),
-      validar: (s) => (s.texto.trim() ? null : "Escribí el texto del aviso.") },
+    ...pasosDeTextos(),
     pasoVistaPrevia({ clave: (s) => JSON.stringify(valoresDe(s)), generar: (s) => vistaPrevia(valoresDe(s)) }),
   ];
 
@@ -81,7 +140,8 @@ export function crearAvisoPorPasos({ inicial, avisos, puntosDibujados, onSelecci
     };
   };
 
-  return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: inicial, ancho: 760 });
+  // Sin avisos del SMN (se dibuja a mano) el paso de elegir se salta: los textos arrancan en blanco.
+  return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: { ...partesSugeridas(null), ...inicial }, ancho: 760 });
 }
 
 // --- Publicar en el mapa público, con vigencia ---

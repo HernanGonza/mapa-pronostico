@@ -78,6 +78,7 @@ export async function asistente({ pasos, estado: inicial = {}, enviar, textoEnvi
     confirmButtonText: primero.L.length === 1 ? textoEnviar : "Siguiente →", denyButtonText: "← Atrás", showDenyButton: false, showCloseButton: true,
     allowOutsideClick: false, allowEscapeKey: () => !Swal.isLoading(),
     didOpen: (popup) => {
+      popup.style.setProperty("--ancho", `${ancho}px`); // el ancho de cada asistente (con tope en la pantalla, ver modern.css)
       popup.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
         const t = e.target;

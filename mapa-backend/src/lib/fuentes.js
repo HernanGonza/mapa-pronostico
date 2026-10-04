@@ -15,8 +15,12 @@ const { registerFont } = require('canvas');
 const DIR = path.join(__dirname, '../../data/alertas');
 registerFont(path.join(DIR, 'OakSans-Regular.ttf'), { family: 'Oak Sans' });
 registerFont(path.join(DIR, 'OakSans-Bold.ttf'), { family: 'Oak Sans', weight: 'bold' });
+// La ExtraBold, para títulos: otro archivo, así que lleva familia propia sin pisar a la de arriba.
+registerFont(path.join(DIR, 'aviso-especial', 'OakSans-ExtraBold.ttf'), { family: 'Oak Sans Titulo', weight: 'bold' });
 
 /** Para armar `ctx.font`, ej. `bold 38px ${OAK_SANS}`. */
 const OAK_SANS = '"Oak Sans"';
+/** Títulos de placa (Oak Sans ExtraBold), siempre con `bold`: `bold 120px ${OAK_SANS_TITULO}`. */
+const OAK_SANS_TITULO = '"Oak Sans Titulo"';
 
-module.exports = { OAK_SANS };
+module.exports = { OAK_SANS, OAK_SANS_TITULO };

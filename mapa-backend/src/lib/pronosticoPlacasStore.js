@@ -29,6 +29,12 @@ async function init() {
          historias_path    text NOT NULL
        )`
     )
+    // Placa sobre foto (estilo nuevo): qué foto de fondo, qué etiqueta y qué frase llevó.
+    // NULL en las de antes (sobre el mapa crema).
+    .then(() => p.query(`ALTER TABLE pronostico_placas ADD COLUMN IF NOT EXISTS fondo integer`))
+    .then(() => p.query(`ALTER TABLE pronostico_placas ADD COLUMN IF NOT EXISTS etiqueta text`))
+    .then(() => p.query(`ALTER TABLE pronostico_placas ADD COLUMN IF NOT EXISTS frase text`))
+    .then(() => p.query(`ALTER TABLE pronostico_placas ADD COLUMN IF NOT EXISTS estilo_tarjeta text`))
     .then(() => console.log("[pronosticoPlacasStore] Postgres listo (tabla pronostico_placas)"))
     .catch((e) => {
       initPromise = null;
@@ -49,7 +55,7 @@ function nombresArchivos(fecha) {
   };
 }
 
-async function crear({ fechaPronostico = null, usuarioId = null, feedPng, historiasPng }) {
+async function crear({ fechaPronostico = null, usuarioId = null, fondo = null, etiqueta = null, frase = null, estiloTarjeta = null, feedPng, historiasPng }) {
   const base = baseRuta();
   const nombres = nombresArchivos(fechaPronostico);
   const feedPath = `${base}/${nombres.feedNombre}`;
@@ -60,14 +66,27 @@ async function crear({ fechaPronostico = null, usuarioId = null, feedPng, histor
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `INSERT INTO pronostico_placas (generado_por, fecha_pronostico, feed_path, historias_path)
-       VALUES ($1,$2,$3,$4)
+      `INSERT INTO pronostico_placas (generado_por, fecha_pronostico, feed_path, historias_path, fondo, etiqueta, frase, estilo_tarjeta)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING id, generado_en`,
-      [usuarioId, fechaPronostico || null, feedPath, historiasPath]
+      [usuarioId, fechaPronostico || null, feedPath, historiasPath, fondo == null ? null : Number(fondo), etiqueta || null, frase || null, fondo == null ? null : estiloTarjeta || null]
     );
     return { id: Number(rows[0].id), ...nombres, generadoEn: rows[0].generado_en.toISOString(), feedUrl: urlPublica(feedPath), historiasUrl: urlPublica(historiasPath) };
   }
   return { id: null, ...nombres, generadoEn: new Date().toISOString(), feedUrl: urlPublica(feedPath), historiasUrl: urlPublica(historiasPath) };
 }
 
-module.exports = { init, crear };
+/** La última placa generada (para mostrarla en la pestaña «Placa para redes»), o null. */
+async function ultima() {
+  if (!store.usaPostgres()) return null;
+  await init();
+  const { rows } = await store.getPool().query(
+    `SELECT id, generado_en, fecha_pronostico, feed_path, historias_path, fondo, etiqueta, frase FROM pronostico_placas ORDER BY generado_en DESC LIMIT 1`
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return { id: Number(r.id), generadoEn: r.generado_en.toISOString(), fondo: r.fondo, etiqueta: r.etiqueta, frase: r.frase,
+    feedUrl: urlPublica(r.feed_path), historiasUrl: urlPublica(r.historias_path), feedNombre: r.feed_path.split("/").pop(), historiasNombre: r.historias_path.split("/").pop() };
+}
+
+module.exports = { init, crear, ultima };

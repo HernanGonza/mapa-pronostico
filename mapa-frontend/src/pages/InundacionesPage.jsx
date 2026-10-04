@@ -9,7 +9,7 @@ import BrandHeader from "../components/BrandHeader";
 export default function InundacionesPage() {
   return (
     <div className="admin-layout risk-layout">
-      <BrandHeader subtitulo="Inundaciones"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
+      <BrandHeader subtitulo="Inundaciones"><Link to="/panel/configuracion" className="btn-link">← Configuración</Link></BrandHeader>
       <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading">
           <h1>Inundaciones</h1>

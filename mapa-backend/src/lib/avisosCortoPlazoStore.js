@@ -41,6 +41,16 @@ async function init() {
     // De qué aviso del SMN salió (id del CAP + info + zona); NULL si se dibujó a
     // mano. Sirve para marcar en el panel cuáles avisos del SMN ya están publicados.
     .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS smn_id text`))
+    // Nivel del aviso del SMN del que salió (de su titular, "AVISO NARANJA…"); NULL si no lo
+    // decía o se dibujó a mano: entonces el color sale de la alerta vigente (ver colorAcp.js).
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS nivel text`))
+    // El aviso por partes (fenómeno, emisión, validez, zonas) si se armó con el asistente; `texto`
+    // sigue guardando el texto completo. NULL en los de texto libre.
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS partes jsonb`))
+    // Con qué nivel/color salió la placa y de dónde salió: 'titular' (lo decía el aviso del SMN),
+    // 'alerta' (cruce con la alerta vigente) o NULL (sin alerta: violeta). Para estadísticas.
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS nivel_placa text`))
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS nivel_origen text`))
     .then(() => console.log("[avisosCortoPlazoStore] Postgres listo (tabla avisos_corto_plazo)"))
     .catch((e) => {
       initPromise = null;
@@ -62,7 +72,7 @@ function nombresArchivos(fondo) {
   };
 }
 
-async function crear({ poligono, titulo, texto, fondo, smnId = null, usuarioId = null, feedPng, historiasPng }) {
+async function crear({ poligono, titulo, texto, partes = null, fondo, smnId = null, nivel = null, nivelPlaca = null, nivelOrigen = null, usuarioId = null, feedPng, historiasPng }) {
   const base = baseRuta();
   const nombres = nombresArchivos(fondo);
   const feedPath = `${base}/${nombres.feedNombre}`;
@@ -73,10 +83,10 @@ async function crear({ poligono, titulo, texto, fondo, smnId = null, usuarioId =
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `INSERT INTO avisos_corto_plazo (generado_por, titulo, texto, fondo, poligono, feed_path, historias_path, smn_id)
-       VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
+      `INSERT INTO avisos_corto_plazo (generado_por, titulo, texto, fondo, poligono, feed_path, historias_path, smn_id, nivel, partes, nivel_placa, nivel_origen)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10::jsonb,$11,$12)
        RETURNING id, generado_en`,
-      [usuarioId, titulo, texto, fondo, JSON.stringify(poligono), feedPath, historiasPath, smnId]
+      [usuarioId, titulo, texto, fondo, JSON.stringify(poligono), feedPath, historiasPath, smnId, nivel, partes && JSON.stringify(partes), nivelPlaca, nivelOrigen]
     );
     return {
       id: Number(rows[0].id),
@@ -100,7 +110,7 @@ async function obtenerHistorial(limite = 20) {
   await init();
   const p = store.getPool();
   const { rows } = await p.query(
-    `SELECT a.id, a.generado_en, a.publicado_en, a.vigente_hasta, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path, a.smn_id,
+    `SELECT a.id, a.generado_en, a.publicado_en, a.vigente_hasta, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path, a.smn_id, a.nivel,
             u.email AS generado_por_email
        FROM avisos_corto_plazo a
        LEFT JOIN usuarios u ON u.id = a.generado_por
@@ -122,6 +132,7 @@ function filaAAviso(r) {
     fondo: r.fondo,
     poligono: r.poligono,
     smnId: r.smn_id ?? null,
+    nivelSmn: r.nivel ?? null,
     generadoPorEmail: r.generado_por_email,
     feedUrl: urlPublica(r.feed_path),
     historiasUrl: urlPublica(r.historias_path),
@@ -150,7 +161,7 @@ async function publicar(id, vigenteHasta) {
   if (!p) throw Object.assign(new Error("No hay base de datos disponible para publicar."), { status: 503 });
   const { rows } = await p.query(
     `UPDATE avisos_corto_plazo SET publicado_en = now(), vigente_hasta = $2 WHERE id = $1
-       RETURNING id, generado_en, publicado_en, vigente_hasta, titulo, texto, fondo, poligono, feed_path, historias_path, smn_id,
+       RETURNING id, generado_en, publicado_en, vigente_hasta, titulo, texto, fondo, poligono, feed_path, historias_path, smn_id, nivel,
          (SELECT email FROM usuarios WHERE id = generado_por) AS generado_por_email`,
     [id, new Date(vigenteHasta)]
   );
@@ -177,7 +188,7 @@ async function obtenerVigentes() {
   await init();
   const p = store.getPool();
   const { rows } = await p.query(
-    `SELECT a.id, a.generado_en, a.publicado_en, a.vigente_hasta, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path, a.smn_id,
+    `SELECT a.id, a.generado_en, a.publicado_en, a.vigente_hasta, a.titulo, a.texto, a.fondo, a.poligono, a.feed_path, a.historias_path, a.smn_id, a.nivel,
             u.email AS generado_por_email
        FROM avisos_corto_plazo a
        LEFT JOIN usuarios u ON u.id = a.generado_por

@@ -10,14 +10,15 @@ const { normalize } = require("./normalizeText");
  */
 
 const GRUPOS = {
-  despejado: "#efd44e",
-  parcial: "#c7d3a1",
-  nublado: "#9aa89d",
-  lloviznas: "#a7c7e7",
-  lluvias: "#3371c6",
-  intensas: "#10234b",
-  chaparrones: "#7283c8",
-  tormentas: "#c9346c",
+  // Paleta del 04/10/2026 (igual que mapa-frontend/src/lib/condiciones.js).
+  despejado: "#FFD000",
+  parcial: "#A2C2D6",
+  nublado: "#B0B5B8",
+  lloviznas: "#4CAF50",
+  lluvias: "#2196F3",
+  intensas: "#FF9800",
+  chaparrones: "#1565C0",
+  tormentas: "#9C27B0",
 };
 
 const SIN_DATO = "#c9d3a3";

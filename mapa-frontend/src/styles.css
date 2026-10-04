@@ -1688,3 +1688,49 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
   color: var(--text); background: var(--surface);
 }
 .cuencas-tarjetas-embed > .embed-warning { position: static; margin: 0 0 12px; }
+
+/* Mapas de alertas meteorológicas y de riesgo de incendios, embebido y panel (RiesgoMap, risk-legends--pie): las referencias de
+   color son un pie flotante fino que cubre todo el ancho, pegado abajo; los fenómenos van en
+   lista debajo de la tarjeta del título (map-encabezado). Los créditos suben para no quedar tapados. */
+.map-encabezado { position: absolute; top: 16px; left: 16px; z-index: 5; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: calc(100% - 86px); pointer-events: none; }
+.map-encabezado .map-title { position: static; max-width: 100%; }
+.base-map--embed .map-encabezado { top: 8px; left: 8px; max-width: min(260px, calc(100% - 72px)); }
+.map-encabezado .weather-legend { padding: 6px 9px; border-radius: 9px; box-shadow: 0 2px 10px #16332526; }
+.map-encabezado .weather-legend strong { margin-bottom: 4px; font-size: 10.5px; }
+.map-encabezado .weather-legend ul { grid-template-columns: 1fr; gap: 3px; }
+.map-encabezado .weather-legend li { gap: 5px; }
+.map-encabezado .weather-legend__icon { width: 24px; height: 22.2px; }
+.map-encabezado .weather-legend__icon img { width: 154.2px; height: 22.2px; }
+.map-encabezado .weather-legend__label { padding-bottom: 2px; border-bottom-width: 2px; font-size: 10px; }
+.base-map .map-legend:has(.risk-legends--pie) { left: 0; right: 0; bottom: 0; width: auto; max-width: none; }
+.base-map:has(.risk-legends--pie) .maplibregl-ctrl-bottom-right { bottom: 75px; }
+.risk-legends--pie { gap: 6px; }
+.base-map .risk-legends--pie > .risk-legend:not(.weather-legend) { padding: 10px 12px 8px; border: 0; border-top: 1px solid #d8e2dc; border-radius: 0; box-shadow: 0 -2px 12px #16332512; background: rgba(255,255,255,.94); }
+.risk-legends--pie > .risk-legend:not(.weather-legend) strong { display: none; }
+/* La fuente (SMN…) sigue a la vista: un renglón chico debajo de la escala. */
+.base-map .risk-legends--pie > .risk-legend:not(.weather-legend) small { display: block; max-width: none; margin-top: 7px; font-size: 9px; line-height: 1.2; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.base-map .risk-legends--pie .risk-legend__scale > div { min-width: 0; padding: 0; }
+.base-map .risk-legends--pie .risk-legend__scale i { height: 6px; margin-bottom: 3px; }
+.base-map .risk-legends--pie .risk-legend__scale span { display: block; font-size: 9.5px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.base-map .risk-legends--pie .risk-legend__scale .risk-legend__accion { display: inline; }
+@media (max-width: 520px), (max-height: 600px) {
+  .base-map--embed .map-legend:has(.risk-legends--pie) { left: 0; right: 0; bottom: 0; max-width: none; }
+  .base-map--embed .risk-legends--pie .risk-legend__scale span { font-size: 8.5px; }
+  /* En el cuadro chico, sólo el nivel (sin «· Seguí instrucciones oficiales»), y los créditos más chicos. */
+  .base-map--embed .risk-legends--pie .risk-legend__scale .risk-legend__accion { display: none; }
+  .base-map--embed .risk-legends--pie > .risk-legend:not(.weather-legend) small { font-size: 7.5px; }
+  .base-map--embed:has(.risk-legends--pie) .maplibregl-ctrl-bottom-right { bottom: 71px; }
+}
+
+/* Pronóstico: las condiciones no son una escala, así que cada una lleva su barrita separada; en el
+   cuadro chico van en dos filas de 4. */
+.base-map .risk-legends--pie .risk-legend__scale--condiciones { gap: 6px; }
+.base-map .risk-legends--pie .risk-legend__scale--condiciones > div i { border-radius: 3px; }
+/* Sin renglón de fuente la franja es más baja: los créditos del mapa bajan lo mismo. */
+.base-map:has(.risk-legend__scale--condiciones) .maplibregl-ctrl-bottom-right { bottom: 52px; }
+@media (max-width: 520px), (max-height: 600px) {
+  .base-map--embed .risk-legends--pie .risk-legend__scale--condiciones { flex-wrap: wrap; row-gap: 4px; }
+  .base-map--embed .risk-legends--pie .risk-legend__scale--condiciones > div { flex: 1 0 calc(25% - 6px); }
+  .base-map--embed .risk-legends--pie .risk-legend__scale--condiciones span { white-space: normal; line-height: 1.1; }
+  .base-map--embed:has(.risk-legend__scale--condiciones) .maplibregl-ctrl-bottom-right { bottom: 78px; }
+}

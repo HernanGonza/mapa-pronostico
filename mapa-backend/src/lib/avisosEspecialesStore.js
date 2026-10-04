@@ -30,6 +30,10 @@ async function init() {
          historias_path text NOT NULL
        )`
     )
+    // Título de dos líneas y nivel (color de la 2.ª línea), como las placas de las alertas.
+    .then(() => p.query(`ALTER TABLE avisos_especiales ADD COLUMN IF NOT EXISTS titulo text`))
+    .then(() => p.query(`ALTER TABLE avisos_especiales ADD COLUMN IF NOT EXISTS subtitulo text`))
+    .then(() => p.query(`ALTER TABLE avisos_especiales ADD COLUMN IF NOT EXISTS nivel text`))
     .then(() => console.log("[avisosEspecialesStore] Postgres listo (tabla avisos_especiales)"))
     .catch((e) => {
       initPromise = null;
@@ -41,7 +45,7 @@ async function init() {
 /** "AAAA-MM-DDTHH:mm" → "AAAA-MM-DD-HHmm", para el nombre de los archivos. */
 const sello = (emitidoEn) => emitidoEn.replace("T", "-").replace(":", "");
 
-async function crear({ texto, emitidoEn, usuarioId = null, feedPng, historiasPng }) {
+async function crear({ texto, emitidoEn, titulo = null, subtitulo = null, nivel = null, usuarioId = null, feedPng, historiasPng }) {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
   const base = `avisos-especiales/${stamp}-${crypto.randomBytes(3).toString("hex")}`;
   const nombres = { feedNombre: `aviso-especial-feed-${sello(emitidoEn)}.png`, historiasNombre: `aviso-especial-historias-${sello(emitidoEn)}.png` };
@@ -55,10 +59,10 @@ async function crear({ texto, emitidoEn, usuarioId = null, feedPng, historiasPng
   if (!p) return { id: null, ...nombres, generadoEn: new Date().toISOString(), ...urls };
   // emitidoEn es hora de Misiones (sin horario de verano: siempre -03:00).
   const { rows } = await p.query(
-    `INSERT INTO avisos_especiales (generado_por, texto, emitido_en, feed_path, historias_path)
-     VALUES ($1,$2,$3,$4,$5)
+    `INSERT INTO avisos_especiales (generado_por, texto, emitido_en, feed_path, historias_path, titulo, subtitulo, nivel)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
      RETURNING id, generado_en`,
-    [usuarioId, texto, `${emitidoEn}:00-03:00`, feedPath, historiasPath]
+    [usuarioId, texto, `${emitidoEn}:00-03:00`, feedPath, historiasPath, titulo, subtitulo || null, nivel || null]
   );
   return { id: Number(rows[0].id), ...nombres, generadoEn: rows[0].generado_en.toISOString(), ...urls };
 }

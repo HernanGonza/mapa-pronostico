@@ -15,7 +15,7 @@ const cuando = (iso) => new Date(iso).toLocaleString("es-AR");
 function htmlResultados(resultados) {
   if (!resultados.length) return "";
   return `<ul class="paso-lista">${resultados.map((r) => `<li class="${r.ok ? "ok" : "fallo"}"><strong>${r.ok ? "✓" : "✗"} ${NOMBRE[r.destino]} · ${NOMBRE[r.formato]}</strong> — ${
-    r.ok ? (r.permalink ? `<a href="${esc(r.permalink)}" target="_blank" rel="noreferrer">ver publicación</a>` : "publicado") : esc(r.error)}</li>`).join("")}</ul>`;
+    r.ok ? (r.permalink ? `<a href="${esc(r.permalink)}" target="_blank" rel="noreferrer">ver publicación</a>` : "publicado") + (r.aviso ? ` · ${esc(r.aviso)}` : "") : esc(r.error)}</li>`).join("")}</ul>`;
 }
 
 export async function publicarEnRedes({ feedUrl, historiasUrl, epigrafe = "" }) {

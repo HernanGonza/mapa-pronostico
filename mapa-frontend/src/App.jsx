@@ -57,7 +57,7 @@ export default function App() {
           />
           <Route path="/panel/mapas" element={<RutaProtegida><GeneradorMapasPage /></RutaProtegida>} />
           <Route path="/panel/historico" element={<RutaProtegida><HistoricoPage /></RutaProtegida>} />
-          <Route path="/panel/generador-pronosticos" element={<RutaProtegida><GeneradorPronosticosPage /></RutaProtegida>} />
+          <Route path="/panel/generador-pronosticos" element={<RutaProtegida soloSuperadmin><GeneradorPronosticosPage /></RutaProtegida>} />
           <Route path="/panel/configuracion" element={<RutaProtegida><ConfiguracionPage /></RutaProtegida>} />
           <Route
             path="/panel/pronostico"
@@ -78,17 +78,17 @@ export default function App() {
           <Route
             path="/panel/alertas-incendios"
             element={
-              <RutaProtegida>
+              <RutaProtegida soloSuperadmin>
                 <AlertasIncendiosPage />
               </RutaProtegida>
             }
           />
           <Route path="/panel/alertas-meteorologicas" element={<RutaProtegida><AlertasMeteorologicasPage /></RutaProtegida>} />
-          <Route path="/panel/alertas-automaticas" element={<RutaProtegida><AlertasAutomaticasPage /></RutaProtegida>} />
+          <Route path="/panel/alertas-automaticas" element={<RutaProtegida soloSuperadmin><AlertasAutomaticasPage /></RutaProtegida>} />
           <Route path="/panel/avisos-corto-plazo" element={<RutaProtegida><AvisosCortoPlazoPage /></RutaProtegida>} />
           <Route path="/panel/aviso-especial" element={<RutaProtegida><AvisoEspecialPage /></RutaProtegida>} />
-          <Route path="/panel/inundaciones" element={<RutaProtegida><InundacionesPage /></RutaProtegida>} />
-          <Route path="/panel/cuencas" element={<RutaProtegida><CuencasPage /></RutaProtegida>} />
+          <Route path="/panel/inundaciones" element={<RutaProtegida soloSuperadmin><InundacionesPage /></RutaProtegida>} />
+          <Route path="/panel/cuencas" element={<RutaProtegida soloSuperadmin><CuencasPage /></RutaProtegida>} />
           <Route path="/panel/pronostico-3-dias" element={<RutaProtegida><PronosticoExtendidoPage /></RutaProtegida>} />
           <Route path="/panel/usuarios" element={<RutaProtegida><UsuariosPage /></RutaProtegida>} />
           <Route path="/panel/demostracion" element={<RutaProtegida><DemostracionPage /></RutaProtegida>} />

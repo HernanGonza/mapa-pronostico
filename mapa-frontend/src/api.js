@@ -195,6 +195,15 @@ export async function generarPronosticoPlaca(filas, fechaPronostico, extra = {})
     body: JSON.stringify({ ...(filas ? { filas, fechaPronostico } : { fechaPronostico }), ...extra }), ...CON_SESION,
   }));
 }
+/** La última placa del pronóstico generada (o null). */
+export async function getUltimaPlacaPronostico() {
+  return (await handleJson(await fetch(`${API_URL}/api/pronostico/placas/ultima`, { cache: "no-store", ...CON_SESION }))).placa;
+}
+/** Las fotos de fondo de la placa del pronóstico (las de las placas diarias) y sus etiquetas. */
+export async function getFondosPronostico() {
+  return handleJson(await fetch(`${API_URL}/api/pronostico/fondos`, { cache: "no-store", ...CON_SESION }));
+}
+export const urlFondoPronostico = (id) => `${API_URL}/api/pronostico/fondos/${id}.jpg`;
 export async function renderPngEnBack(filas) {
   const res = await fetch(`${API_URL}/api/pronostico/render-png`, {
     method: "POST",
@@ -330,7 +339,9 @@ export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/ap
 export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
 export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
 /** Publica el mapa manual para `periodo`, visible hasta `vigenteHasta` (ISO); `reemplazar`: ids de vigentes que saca. */
-export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[]}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar}),...CON_SESION}));}
+export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[],enFilaDe=null}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar,enFilaDe}),...CON_SESION}));}
+/** Panel: { vigentes, enFila } — las que se ven y las que esperan a que termine otra. */
+export async function getAlertasMeteorologicasPendientes(){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/pendientes`,{cache:"no-store",...CON_SESION}));}
 /** Publicaciones manuales vigentes (público, lo usa el iframe). [] = ninguna. */
 export async function getAlertasMeteorologicasVigentes(){
   const reales=(await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/vigentes`,{cache:"no-store"}))).publicaciones;
@@ -339,6 +350,26 @@ export async function getAlertasMeteorologicasVigentes(){
   return [...reales,...alertaDePrueba((await getAlertasMeteorologicasCatalogo()).departamentos)];
 }
 export async function despublicarAlertaMeteorologica(id){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${id}/despublicar`,{method:"POST",...CON_SESION}));}
+/** Placas de una alerta publicada (vigencia, recomendaciones, aviso de alerta): { tipo, nivel, datos } + vistaPrevia o confirmarToken. */
+export async function generarPlacaAlerta(publicacionId, payload) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/placas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), ...CON_SESION }));
+}
+/** Con qué arrancar cada placa: { ultimos: { [tipo]: datos }, recomendaciones, iconos, limites }. */
+export async function getUltimosPlacasAlerta() {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placas/ultimos`, { cache: 'no-store', ...CON_SESION }));
+}
+export const urlIconoPlacaAlerta = (nombre) => `${API_URL}/api/alertas-meteorologicas/placas/iconos/${nombre}.png`;
+/** Fija una alerta (vigente o en fila) en el mapa público; null = automático por vigencia. */
+export async function fijarAlertaMeteorologica(id) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/fijada`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }), ...CON_SESION }));
+}
+/** Saca una placa de la tarjeta de su alerta (no la borra de las redes). */
+export async function eliminarPlacaAlerta(id) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placas/${id}`, { method: 'DELETE', ...CON_SESION }));
+}
+export async function cambiarVigenciaAlerta(publicacionId, vigenteHasta) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/vigencia`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vigenteHasta }), ...CON_SESION }));
+}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }
@@ -359,10 +390,13 @@ export async function despublicarAvisoCortoPlazo(id) {
 }
 /** Aviso especial (texto libre + captura). `opciones`: { vistaPrevia: true } o { confirmarToken }
  * — al confirmar no se reenvía la imagen: el backend guarda la vista previa ya generada. */
-export async function generarAvisoEspecial({ texto, emitidoEn, imagen }, { vistaPrevia = false, confirmarToken = null } = {}) {
+export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = "", subtitulo = "", nivel = "" }, { vistaPrevia = false, confirmarToken = null } = {}) {
   const form = new FormData();
   form.append("texto", texto);
   form.append("emitidoEn", emitidoEn);
+  form.append("titulo", titulo);
+  form.append("subtitulo", subtitulo);
+  form.append("nivel", nivel || "");
   if (confirmarToken) form.append("confirmarToken", confirmarToken);
   else { form.append("imagen", imagen); if (vistaPrevia) form.append("vistaPrevia", "true"); }
   return handleJson(await fetch(`${API_URL}/api/avisos-especiales/generar`, { method: "POST", body: form, ...CON_SESION }));

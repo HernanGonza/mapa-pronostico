@@ -1,57 +1,35 @@
-const path = require('path');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 
 /**
  * Placa de "Aviso especial": aviso corto de texto libre (ej. "se están formando
- * tormentas en Paraguay en dirección a Misiones") con una captura de radar o
- * satélite que sube el operador. Es una placa aparte de Alerta Meteorológica y de
- * Aviso a muy corto plazo: no hay mapa ni polígono, la imagen subida ocupa ese lugar.
+ * tormentas en Paraguay en dirección a Misiones") con una captura de radar o satélite que
+ * sube el operador. Mismo estilo que las placas de las alertas (generatePlacasAlerta.js):
  *
- * De arriba hacia abajo: título fijo "AVISO" → tarjeta con la imagen (marco blanco,
- * esquinas redondeadas, sombra) → caja oscura con el texto y la línea "Aviso emitido
- * el …" → pie fijo (Emergencias 911 + logos), que ya viene en el fondo.
- *
- * Los fondos (data/alertas/aviso-especial/*.png) son los de rayos de Alerta
- * Meteorológica limpiados una sola vez, sin el título viejo ni la línea "Fuente
- * Servicio Meteorológico Nacional" (ver scripts/limpiar-fondos-aviso-especial.py).
+ *  - Título de dos líneas editables: la 1.ª blanca ("AVISO ESPECIAL") y la 2.ª, opcional, del
+ *    color del nivel ("POR TORMENTAS"), con la raya blanca debajo.
+ *  - La captura en una tarjeta con marco blanco, lo más grande que deje el texto.
+ *  - Debajo, las filas con ícono, sin caja (directo sobre la foto, como las otras placas): la
+ *    nube con el texto y el reloj con "Aviso emitido el 04/10/2026 a las 10:30hs.".
+ *  - Nivel opcional (amarillo / naranja / rojo): pinta la 2.ª línea del título; sin nivel, blanca.
+ * Toda la letra es Oak Sans (ExtraBold en el título). Fondos: los de rayos limpios de
+ * data/alertas/aviso-especial (los mismos de las placas de alertas).
  */
-const ASSETS_DIR = path.join(__dirname, '../../data/alertas/aviso-especial');
-// El texto usa la Oak Sans compartida (ver fuentes.js); el título, la ExtraBold, que es
-// otro archivo y por eso puede tener nombre propio sin pisar a nadie.
-const { OAK_SANS } = require('./fuentes');
-registerFont(path.join(ASSETS_DIR, 'OakSans-ExtraBold.ttf'), { family: 'AvisoEspecialTitulo', weight: 'bold' });
+const { dibujarTitulo, planearFilas, dibujarFilas, loadFondos: fondosAlertas, LAYOUTS, COLOR } = require('./generatePlacasAlerta');
 
-const TITULO = 'AVISO';
+const TITULO = 'AVISO ESPECIAL';
 const TAMANOS = ['feed', 'historias'];
-const MAX_TEXTO = 500;
+const MAX_TEXTO = 500, MAX_TITULO = 40;
+const NIVELES = ['Amarillo', 'Naranja', 'Rojo'];
 
-// Medidas en px sobre los fondos (2250×2813 feed, 2250×4000 historias).
-//  tituloY / tituloAlto: borde superior y alto de las mayúsculas de "AVISO".
-//  imagen: caja máxima de la captura (sin el marco) — se ajusta sin recortar.
-//  pie: dónde empieza "Emergencias 911…" (impreso en el fondo): nada puede pasar de ahí.
-// Si se cambian los fondos por otros con el pie en otra altura, hay que volver a medir `pie`.
-const LAYOUTS = {
-  feed: { tituloY: 200, tituloAlto: 165, imagen: { w: 1700, h: 950 }, pie: 2303, fuenteMax: 110 },
-  historias: { tituloY: 280, tituloAlto: 165, imagen: { w: 1900, h: 1450 }, pie: 3458, fuenteMax: 120 },
-};
-const AIRE_TITULO = 90; // entre el título y la tarjeta (no se tienen que tocar)
-const AIRE = 60; // entre tarjeta y caja de texto, y entre la caja y "Emergencias…"
+// Caja máxima de la captura (sin el marco); se ajusta sin recortar y se achica si el texto no entra.
+const IMAGEN = { feed: { w: 1750, h: 880 }, historias: { w: 1870, h: 1400 } };
+const AIRE = 70; // entre la tarjeta de la captura y las filas
 const MARCO = 16, RADIO_TARJETA = 24;
-const CAJA = { x: 150, padH: 80, padV: 64, radio: 32, color: 'rgba(10,14,22,0.745)' };
-// Letra pensada para leerse en el celular (la placa se ve a ~400 px de ancho).
-const FUENTE_MIN = 48, FUENTE_COMODA = 76;
-const INTERLINEA = 1.3, GAP_EMISION = 40;
-// Si el texto no entra con letra cómoda, la imagen se achica de a pasos (hasta 60 %).
-const ESCALAS_IMAGEN = [1, 0.9, 0.8, 0.7, 0.6];
+// Si el texto no entra con letra cómoda, la imagen se achica de a pasos (hasta la mitad).
+const ESCALAS_IMAGEN = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
+const FUENTE_COMODA = { feed: 70, historias: 84 };
 
-let fondosPromise;
-function loadFondos() {
-  if (!fondosPromise) {
-    fondosPromise = Promise.all(TAMANOS.map(async (t) => [t, await loadImage(path.join(ASSETS_DIR, `${t}.png`))])).then(Object.fromEntries);
-    fondosPromise.catch(() => { fondosPromise = null; });
-  }
-  return fondosPromise;
-}
+const loadFondos = fondosAlertas;
 
 const RE_EMITIDO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 /** "AAAA-MM-DDTHH:mm" (hora de Misiones, como sale de <input type="datetime-local">). */
@@ -60,25 +38,14 @@ function lineaEmision(emitidoEn) {
   return `Aviso emitido el ${d}/${m}/${a} a las ${hh}:${mm}hs.`;
 }
 
-function errorDeAvisoEspecial({ texto, emitidoEn }) {
+function errorDeAvisoEspecial({ texto, emitidoEn, titulo = TITULO, subtitulo = '', nivel = null }) {
   if (typeof texto !== 'string' || !texto.trim() || texto.length > MAX_TEXTO) return `Escribí el aviso (hasta ${MAX_TEXTO} caracteres).`;
   const f = typeof emitidoEn === 'string' && RE_EMITIDO.exec(emitidoEn);
   if (!f || Number.isNaN(Date.parse(`${emitidoEn}:00-03:00`)) || +f[2] < 1 || +f[2] > 12 || +f[3] < 1 || +f[3] > 31 || +f[4] > 23 || +f[5] > 59) return 'Elegí la fecha y hora de emisión.';
+  if (typeof titulo !== 'string' || !titulo.trim() || titulo.length > MAX_TITULO) return `Escribí el título (hasta ${MAX_TITULO} caracteres).`;
+  if (typeof subtitulo !== 'string' || subtitulo.length > MAX_TITULO) return `La segunda línea del título admite hasta ${MAX_TITULO} caracteres.`;
+  if (nivel != null && nivel !== '' && !NIVELES.includes(nivel)) return 'Nivel inválido.';
   return null;
-}
-
-/** Corta palabra por palabra según el ancho (con `ctx.font` ya seteado). Una palabra
- * sola más ancha que la caja queda en su renglón (se detecta después como "no entra"). */
-function ajustarLineas(ctx, texto, maxWidth) {
-  const palabras = texto.split(/\s+/).filter(Boolean), lineas = [];
-  let actual = '';
-  for (const palabra of palabras) {
-    const prueba = actual ? `${actual} ${palabra}` : palabra;
-    if (ctx.measureText(prueba).width > maxWidth && actual) { lineas.push(actual); actual = palabra; }
-    else actual = prueba;
-  }
-  if (actual) lineas.push(actual);
-  return lineas;
 }
 
 /** Tamaño de la imagen dentro de la caja, sin recortar (contain), agrandando si es chica. */
@@ -149,104 +116,59 @@ function prepararCaptura(img, w, h) {
 }
 
 /**
- * Busca el tamaño de letra más grande (≤ fuenteMax) con el que el texto + la línea de
- * emisión entran en `altoMax` usando a lo sumo el 80 % (el resto queda de aire).
- * Devuelve null si ni con la letra mínima entra.
- */
-function ajustarTexto(ctx, parrafos, emision, anchoMax, altoMax, fuenteMax) {
-  for (let fuente = fuenteMax; fuente >= FUENTE_MIN; fuente -= 2) {
-    ctx.font = `bold ${fuente}px ${OAK_SANS}`;
-    const lineas = parrafos.flatMap((p) => ajustarLineas(ctx, p, anchoMax));
-    if (lineas.some((l) => ctx.measureText(l).width > anchoMax)) continue;
-    // La línea de emisión va siempre en un renglón: arranca en 82 % del texto y se achica si hace falta.
-    let fuenteEmision = Math.round(fuente * 0.82);
-    for (;;) {
-      ctx.font = `bold ${fuenteEmision}px ${OAK_SANS}`;
-      if (ctx.measureText(emision).width <= anchoMax || fuenteEmision <= 16) break;
-      fuenteEmision -= 1;
-    }
-    const alto = lineas.length * fuente * INTERLINEA + GAP_EMISION + fuenteEmision * INTERLINEA;
-    if (alto <= altoMax * 0.8) return { fuente, lineas, fuenteEmision, alto };
-  }
-  return null;
-}
-
-/**
  * Genera la placa en un formato. `imagen`: Buffer (PNG/JPEG) o una imagen ya cargada
  * con loadImage (para no decodificarla dos veces al generar feed + historias).
  */
-async function generateAvisoEspecial({ texto, emitidoEn, imagen, tamano = 'feed' }) {
-  const error = errorDeAvisoEspecial({ texto, emitidoEn }) || (TAMANOS.includes(tamano) ? null : 'Tamaño inválido.');
+async function generateAvisoEspecial({ texto, emitidoEn, imagen, titulo = TITULO, subtitulo = '', nivel = null, tamano = 'feed' }) {
+  const error = errorDeAvisoEspecial({ texto, emitidoEn, titulo, subtitulo, nivel }) || (TAMANOS.includes(tamano) ? null : 'Tamaño inválido.');
   if (error) throw Object.assign(new Error(error), { status: 400 });
   const img = Buffer.isBuffer(imagen) ? await cargarCaptura(imagen) : imagen;
   const fondo = (await loadFondos())[tamano];
-  const L = LAYOUTS[tamano];
-  const W = fondo.width;
+  const L = LAYOUTS[tamano], W = fondo.width;
   const canvas = createCanvas(W, fondo.height), ctx = canvas.getContext('2d');
   ctx.drawImage(fondo, 0, 0);
+  const color = COLOR[nivel] || '#fff';
 
-  // 1) Título fijo, centrado: el tamaño se calcula para que las mayúsculas midan tituloAlto.
-  ctx.font = 'bold 200px AvisoEspecialTitulo';
-  const alto200 = ctx.measureText(TITULO).actualBoundingBoxAscent;
-  ctx.font = `bold ${Math.round((200 * L.tituloAlto) / alto200)}px AvisoEspecialTitulo`;
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 4;
-  ctx.fillText(TITULO, W / 2, L.tituloY + L.tituloAlto);
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  // 1) Título (como las placas de alertas).
+  const mayus = (t) => t.trim().toLocaleUpperCase('es-AR');
+  const { zonaY, zonaH } = dibujarTitulo(ctx, W, L, [mayus(titulo), subtitulo.trim() ? mayus(subtitulo) : ''], color);
 
-  // 2) Reparto del espacio: la imagen lo más grande posible; si el texto no entra con
-  // letra cómoda, se achica la imagen de a pasos antes de achicar más la letra.
-  const parrafos = texto.trim().split('\n').map((l) => l.trim()).filter(Boolean);
-  const emision = lineaEmision(emitidoEn);
-  // Ningún renglón pasa del 92 % del ancho de la caja.
-  const cajaW = W - 2 * CAJA.x, anchoTexto = Math.min(cajaW * 0.92, cajaW - 2 * CAJA.padH);
-  const tarjetaY = L.tituloY + L.tituloAlto + AIRE_TITULO;
-  let plan = null;
+  // 2) Reparto: la captura lo más grande posible; si el texto no entra con letra cómoda, se
+  // achica la captura de a pasos antes de achicar más la letra.
+  const filas = [
+    { icono: 'tormenta', texto: texto.trim() },
+    { icono: 'reloj', texto: lineaEmision(emitidoEn) },
+  ];
+  let elegido = null;
   for (const escala of ESCALAS_IMAGEN) {
-    const tam = contener(img.width, img.height, L.imagen.w * escala, L.imagen.h * escala);
-    const zonaY = tarjetaY + tam.h + 2 * MARCO + AIRE, zonaH = L.pie - AIRE - zonaY;
-    const t = ajustarTexto(ctx, parrafos, emision, anchoTexto, zonaH - 2 * CAJA.padV, L.fuenteMax);
-    if (t) plan = { tam, zonaY, zonaH, t };
-    if (t && t.fuente >= FUENTE_COMODA) break;
+    const tam = contener(img.width, img.height, IMAGEN[tamano].w * escala, IMAGEN[tamano].h * escala);
+    const alto = tam.h + 2 * MARCO + AIRE;
+    const plan = planearFilas(ctx, W, L, filas, zonaH - alto);
+    if (plan) elegido = { tam, alto, plan };
+    if (plan && plan.f >= FUENTE_COMODA[tamano]) break;
   }
-  if (!plan) throw Object.assign(new Error('El texto es demasiado largo para la placa: acortalo un poco.'), { status: 400 });
-  const { tam, zonaY, zonaH, t } = plan;
+  if (!elegido) throw Object.assign(new Error('El texto es demasiado largo para la placa: acortalo un poco.'), { status: 400 });
+  const { tam, alto, plan } = elegido;
+  // El bloque (captura + filas) queda centrado en la zona libre.
+  const libre = zonaH - alto - plan.total, arriba = zonaY + Math.max(0, libre * 0.35);
 
-  // 3) Tarjeta de la imagen: sombra, marco blanco redondeado y la captura mejorada adentro.
-  const tw = tam.w + 2 * MARCO, th = tam.h + 2 * MARCO, tx = Math.round((W - tw) / 2);
+  // 3) Tarjeta de la captura: sombra, marco blanco redondeado y la captura mejorada adentro.
+  const tw = tam.w + 2 * MARCO, th = tam.h + 2 * MARCO, tx = Math.round((W - tw) / 2), ty = Math.round(arriba);
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.47)'; ctx.shadowBlur = 32; ctx.shadowOffsetY = 20;
   ctx.fillStyle = '#fff';
-  rectRedondeado(ctx, tx, tarjetaY, tw, th, RADIO_TARJETA);
+  rectRedondeado(ctx, tx, ty, tw, th, RADIO_TARJETA);
   ctx.fill();
   ctx.restore();
   ctx.save();
-  rectRedondeado(ctx, tx + MARCO, tarjetaY + MARCO, tam.w, tam.h, Math.max(4, RADIO_TARJETA - MARCO));
+  rectRedondeado(ctx, tx + MARCO, ty + MARCO, tam.w, tam.h, Math.max(4, RADIO_TARJETA - MARCO));
   ctx.clip();
-  ctx.drawImage(prepararCaptura(img, tam.w, tam.h), tx + MARCO, tarjetaY + MARCO);
+  ctx.drawImage(prepararCaptura(img, tam.w, tam.h), tx + MARCO, ty + MARCO);
   ctx.restore();
 
-  // 4) Caja de texto, del alto justo del contenido, centrada en lo que queda hasta el pie.
-  const cajaH = Math.round(t.alto + 2 * CAJA.padV), cajaY = Math.round(zonaY + (zonaH - cajaH) / 2);
-  ctx.fillStyle = CAJA.color;
-  rectRedondeado(ctx, CAJA.x, cajaY, cajaW, cajaH, CAJA.radio);
-  ctx.fill();
-
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  let y = cajaY + CAJA.padV;
-  ctx.font = `bold ${t.fuente}px ${OAK_SANS}`;
-  for (const linea of t.lineas) {
-    ctx.fillText(linea, W / 2, y + (t.fuente * INTERLINEA) / 2);
-    y += t.fuente * INTERLINEA;
-  }
-  y += GAP_EMISION;
-  ctx.font = `bold ${t.fuenteEmision}px ${OAK_SANS}`;
-  ctx.fillText(emision, W / 2, y + (t.fuenteEmision * INTERLINEA) / 2);
-
+  // 4) Filas, sin caja, en lo que queda debajo de la captura.
+  const filasY = ty + th + AIRE;
+  await dibujarFilas(ctx, W, plan, filasY, zonaY + zonaH - filasY, color);
   return canvas.toBuffer('image/png');
 }
 
@@ -260,10 +182,10 @@ async function cargarCaptura(buffer) {
 }
 
 /** Feed + historias de una sola vez (la captura se decodifica una vez). */
-async function generarAvisoEspecialAmbos({ texto, emitidoEn, imagen }) {
+async function generarAvisoEspecialAmbos({ texto, emitidoEn, imagen, titulo, subtitulo, nivel }) {
   const img = await cargarCaptura(imagen);
-  const [feedPng, historiasPng] = await Promise.all(TAMANOS.map((tamano) => generateAvisoEspecial({ texto, emitidoEn, imagen: img, tamano })));
+  const [feedPng, historiasPng] = await Promise.all(TAMANOS.map((tamano) => generateAvisoEspecial({ texto, emitidoEn, imagen: img, titulo, subtitulo, nivel, tamano })));
   return { feedPng, historiasPng };
 }
 
-module.exports = { generateAvisoEspecial, generarAvisoEspecialAmbos, errorDeAvisoEspecial, lineaEmision, contener, TITULO, MAX_TEXTO, TAMANOS };
+module.exports = { generateAvisoEspecial, generarAvisoEspecialAmbos, errorDeAvisoEspecial, lineaEmision, contener, TITULO, MAX_TEXTO, MAX_TITULO, TAMANOS };

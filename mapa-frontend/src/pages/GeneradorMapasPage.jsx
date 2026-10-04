@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CloudSun, CalendarDays, Flame, Radar, CloudLightning, Bell, PenLine, Megaphone, Waves, Droplets } from "lucide";
+import { CloudSun, CalendarDays, Flame, CloudLightning, PenLine, Megaphone } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import BrandHeader from "../components/BrandHeader";
 import { useAuth } from "../context/AuthContext";
@@ -25,22 +25,10 @@ const OPCIONES = [
     descripcion: "Mapa de peligro de incendios forestales.",
   },
   {
-    to: "/panel/alertas-incendios",
-    icono: Radar,
-    titulo: "Focos de calor",
-    descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS).",
-  },
-  {
     to: "/panel/alertas-meteorologicas",
     icono: CloudLightning,
     titulo: "Alertas meteorológicas",
     descripcion: "Mapa de alertas por departamento y placas para redes.",
-  },
-  {
-    to: "/panel/alertas-automaticas",
-    icono: Bell,
-    titulo: "Alertas automáticas (SMN)",
-    descripcion: "Avisos del SMN por período y zona, en revisión.",
   },
   {
     to: "/panel/avisos-corto-plazo",
@@ -53,18 +41,6 @@ const OPCIONES = [
     icono: Megaphone,
     titulo: "Aviso especial",
     descripcion: "Texto libre con una captura de radar o satélite: placas de feed e historias.",
-  },
-  {
-    to: "/panel/inundaciones",
-    icono: Waves,
-    titulo: "Inundaciones",
-    descripcion: "Placas de alerta por inundación.",
-  },
-  {
-    to: "/panel/cuencas",
-    icono: Droplets,
-    titulo: "Monitor de cuencas",
-    descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones).",
   },
 ];
 
@@ -86,7 +62,8 @@ export default function GeneradorMapasPage() {
       <main id="contenido-principal" tabIndex={-1}>
       <div className="panel-intro"><h1>Generador de mapas</h1><p>Elegí un reporte para editar sus datos, revisar el mapa y publicar. Las placas para redes se generan y descargan desde la vista previa.</p></div>
       <div className="panel-botonera">
-        {OPCIONES.map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado={["/panel/alertas-automaticas", "/panel/inundaciones", "/panel/cuencas"].includes(op.to) ? "En desarrollo" : null} />)}
+        {/* Focos de calor, alertas automáticas, inundaciones y cuencas: en Configuración (sólo superadmin). */}
+        {OPCIONES.map((op, i) => <PanelBoton key={op.to} op={op} indice={i} />)}
       </div>
       </main>
     </div>

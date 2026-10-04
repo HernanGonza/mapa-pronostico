@@ -54,3 +54,15 @@ test("imagen inválida o un texto imposible de acomodar dan error 400", { timeou
   const renglones = Array.from({ length: 90 }, (_, i) => `r${i}`).join("\n"); // < MAX_TEXTO pero 90 renglones
   await assert.rejects(generarAvisoEspecialAmbos({ texto: renglones, emitidoEn: EMITIDO, imagen: captura(800, 600) }), { status: 400, message: /demasiado largo/ });
 });
+
+test("título de dos líneas y nivel: se validan y la placa sale con cualquiera de los niveles", { timeout: 60000 }, async () => {
+  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso especial", subtitulo: "Por tormentas", nivel: "Naranja" }), null);
+  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso", subtitulo: "", nivel: null }), null);
+  assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: " " }), /título/);
+  assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, subtitulo: "x".repeat(41) }), /segunda línea/);
+  assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, nivel: "Violeta" }), /Nivel/);
+  for (const nivel of [null, "Amarillo", "Rojo"]) {
+    const { feedPng } = await generarAvisoEspecialAmbos({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso especial", subtitulo: nivel ? "Por tormentas" : "", nivel, imagen: captura(1280, 720) });
+    assert.deepEqual(await medidas(feedPng), [2250, 2813], String(nivel));
+  }
+});

@@ -53,7 +53,27 @@ async function init() {
        -- periodo = para cuándo es (lo que se lee en la tarjeta del embebido).
        -- Las publicadas antes de esto (vigente_hasta NULL) ya no se muestran.
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS vigente_hasta timestamptz;
-       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS periodo text`
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS periodo text;
+       -- En fila: no aparece hasta que deja de estar vigente la publicación en_fila_de
+       -- (porque venció o porque se despublicó). NULL = aparece al publicarse.
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS en_fila_de bigint REFERENCES alertas_meteo_publicaciones(id);
+       -- Fijada a mano desde el panel: mientras esté vigente, el embebido muestra sólo ésta
+       -- (aunque esté en fila). Sin ninguna fijada, se muestran las vigentes por fecha.
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS fijada boolean NOT NULL DEFAULT false;
+       -- Última vez que se le cambió la vigencia desde el panel (NULL = nunca).
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS actualizada_en timestamptz;
+       -- Historial de lo que se le hizo a cada alerta después de publicarla (para estadísticas e
+       -- histórico): cambios de vigencia (antes/después, y las de la fila que se corrieron), fijar /
+       -- desfijar, despublicar y las placas generadas, editadas o eliminadas. Una fila por evento.
+       CREATE TABLE IF NOT EXISTS alertas_meteo_eventos (
+         id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+         publicacion_id bigint NOT NULL REFERENCES alertas_meteo_publicaciones(id),
+         evento         text NOT NULL,
+         detalle        jsonb NOT NULL DEFAULT '{}'::jsonb,
+         usuario_id     bigint REFERENCES usuarios(id),
+         en             timestamptz NOT NULL DEFAULT now()
+       );
+       CREATE INDEX IF NOT EXISTS alertas_meteo_eventos_pub_idx ON alertas_meteo_eventos (publicacion_id, en)`
     )
     .then(() => console.log("[alertasMeteorologicasStore] Postgres listo (publicaciones normalizadas)"))
     .catch((e) => {
@@ -64,30 +84,48 @@ async function init() {
 }
 
 const MAX_PERIODO_PUBLICACION = 120;
-function errorDePublicacion({ vigenteHasta, periodo, reemplazar = [] }) {
+// Las que van en fila pueden ser para dentro de unos días (ej.: la del domingo).
+const MAX_DIAS_EN_FILA = 7;
+function errorDePublicacion({ vigenteHasta, periodo, reemplazar = [], enFilaDe = null }) {
   if (typeof periodo !== "string" || !periodo.trim() || periodo.length > MAX_PERIODO_PUBLICACION) return `Escribí para cuándo es la alerta (hasta ${MAX_PERIODO_PUBLICACION} caracteres).`;
   if (!Array.isArray(reemplazar) || reemplazar.some((id) => !Number.isInteger(id) || id <= 0)) return "Publicaciones a reemplazar inválidas.";
-  return errorDeVigencia(vigenteHasta);
+  if (enFilaDe == null) return errorDeVigencia(vigenteHasta);
+  if (!Number.isInteger(enFilaDe) || enFilaDe <= 0) return "Alerta de la fila inválida.";
+  if (reemplazar.length) return "Una alerta en fila no reemplaza a otras.";
+  const t = Date.parse(vigenteHasta);
+  if (typeof vigenteHasta !== "string" || Number.isNaN(t)) return "Elegí hasta cuándo está vigente la alerta.";
+  if (t <= Date.now()) return "La vigencia tiene que ser una fecha y hora futura.";
+  if (t > Date.now() + MAX_DIAS_EN_FILA * 24 * 3600 * 1000) return `La vigencia no puede superar los ${MAX_DIAS_EN_FILA} días.`;
+  return null;
 }
 
 /**
  * Publica el mapa hasta `vigenteHasta` (se saca solo después). `reemplazar`: ids de
  * publicaciones vigentes que ésta reemplaza (se despublican en la misma transacción),
- * para no duplicar la alerta de hoy cuando se corrige.
+ * para no duplicar la alerta de hoy cuando se corrige; las que estaban en fila detrás
+ * de una reemplazada pasan a esperar a ésta. `enFilaDe`: id de una publicación todavía
+ * vigente (o en fila); ésta aparece recién cuando aquélla deja de estar vigente.
  */
-async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [] } = {}) {
+async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null } = {}) {
   await init();
   const p = store.getPool();
   if (p) {
     const client = await p.connect();
     try {
       await client.query("BEGIN");
-      if (reemplazar.length) await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = ANY($1::bigint[]) AND vigente_hasta > now()`, [reemplazar]);
+      if (enFilaDe != null) {
+        const { rowCount } = await client.query(`SELECT 1 FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now()`, [enFilaDe]);
+        if (!rowCount) throw Object.assign(new Error("La alerta detrás de la que iba en fila ya no está vigente. Volvé a publicar."), { status: 409 });
+      }
+      const { rows: reemplazadas } = reemplazar.length
+        ? await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = ANY($1::bigint[]) AND vigente_hasta > now() RETURNING id`, [reemplazar])
+        : { rows: [] };
       const { rows } = await client.query(
-        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo) VALUES ($1,$2,$3) RETURNING id, publicado_en, vigente_hasta`,
-        [usuarioId, vigenteHasta, periodo.trim()]
+        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de) VALUES ($1,$2,$3,$4) RETURNING id, publicado_en, vigente_hasta`,
+        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe]
       );
       const { id, publicado_en } = rows[0];
+      if (reemplazar.length) await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $1 WHERE en_fila_de = ANY($2::bigint[])`, [id, reemplazar]);
       for (const z of zonas) {
         await client.query(
           `INSERT INTO alertas_meteo_publicacion_departamentos (publicacion_id, departamento_id, categoria) VALUES ($1,$2,$3)`,
@@ -100,8 +138,10 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
           [id, i.id, i.categoria, i.categoria2 || null]
         );
       }
+      await registrarEvento(client, { publicacionId: id, evento: "publicada", usuarioId, detalle: { vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, reemplaza: reemplazadas.map((r) => Number(r.id)) } });
+      for (const r of reemplazadas) await registrarEvento(client, { publicacionId: r.id, evento: "reemplazada", usuarioId, detalle: { por: Number(id) } });
       await client.query("COMMIT");
-      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), zonas, iconos };
+      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, zonas, iconos };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -131,7 +171,7 @@ async function actual() {
 }
 
 /** Zonas e íconos de una publicación. */
-async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo }) {
+async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, en_fila_de, fijada, actualizada_en }) {
     const [{ rows: zonas }, { rows: iconos }] = await Promise.all([
       p.query(
         `SELECT departamento_id AS id, categoria FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`,
@@ -144,30 +184,160 @@ async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo }) {
     ]);
     // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
     return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null,
-      zonas, iconos: iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)) };
+      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, zonas, iconos: iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)) };
 }
 
-/** Las publicaciones que se ven ahora en el embebido (más vieja primero). */
-async function vigentes() {
+/**
+ * Las que todavía no vencieron, separadas en las que se ven ahora en el embebido
+ * (más vieja primero) y las que esperan en fila (la que esperan sigue vigente).
+ */
+async function pendientes() {
   await init();
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
+      `SELECT id, publicado_en, vigente_hasta, periodo, en_fila_de, fijada, actualizada_en FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
     );
-    return Promise.all(rows.map((r) => conDetalle(p, r)));
+    const ids = new Set(rows.map((r) => String(r.id)));
+    const esperando = (r) => r.en_fila_de != null && ids.has(String(r.en_fila_de));
+    const [vigentes, enFila] = await Promise.all([rows.filter((r) => !esperando(r)), rows.filter(esperando)].map((rs) => Promise.all(rs.map((r) => conDetalle(p, r)))));
+    return { vigentes, enFila };
   }
   const x = await actual();
-  return x && Date.parse(x.vigenteHasta) > Date.now() ? [x] : [];
+  return { vigentes: x && Date.parse(x.vigenteHasta) > Date.now() ? [x] : [], enFila: [] };
 }
 
-/** La saca del embebido antes de que venza. */
-async function despublicar(id) {
+/**
+ * Las publicaciones que se ven ahora en el embebido (más vieja primero): la fijada a mano
+ * si hay una (aunque esté en fila); si no, todas las vigentes por fecha (si se superponen,
+ * el embebido las muestra con páginas).
+ */
+async function vigentes() {
+  const { vigentes: v, enFila } = await pendientes();
+  const fijada = [...v, ...enFila].find((x) => x.fijada);
+  return fijada ? [fijada] : v;
+}
+
+/**
+ * Anota un evento en el historial de la alerta (ver alertas_meteo_eventos). `db`: el pool o el
+ * cliente de una transacción abierta (así el evento queda en la misma transacción).
+ */
+async function registrarEvento(db, { publicacionId, evento, detalle = {}, usuarioId = null }) {
+  await db.query(`INSERT INTO alertas_meteo_eventos (publicacion_id, evento, detalle, usuario_id) VALUES ($1,$2,$3::jsonb,$4)`,
+    [publicacionId, evento, JSON.stringify(detalle), usuarioId]);
+}
+
+/** Historial de una alerta, del más viejo al más nuevo (para el histórico). */
+async function eventos(publicacionId) {
+  await init();
+  const p = store.getPool();
+  if (!p) return [];
+  const { rows } = await p.query(
+    `SELECT e.evento, e.detalle, e.en, u.email AS usuario_email FROM alertas_meteo_eventos e LEFT JOIN usuarios u ON u.id = e.usuario_id
+      WHERE e.publicacion_id = $1 ORDER BY e.en, e.id`, [publicacionId]);
+  return rows.map((r) => ({ evento: r.evento, detalle: r.detalle, en: r.en.toISOString(), usuarioEmail: r.usuario_email }));
+}
+
+/** Fija una publicación (vigente o en fila) en el embebido; `id` null = volver a lo automático. */
+async function fijar(id, usuarioId = null) {
+  await init();
+  const p = store.getPool();
+  if (!p) throw Object.assign(new Error("No hay base de datos disponible."), { status: 503 });
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    if (id != null) {
+      const { rowCount } = await client.query(`SELECT 1 FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now() FOR UPDATE`, [id]);
+      if (!rowCount) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    }
+    const { rows: antes } = await client.query(`UPDATE alertas_meteo_publicaciones SET fijada = false WHERE fijada RETURNING id`);
+    if (id != null) await client.query(`UPDATE alertas_meteo_publicaciones SET fijada = true WHERE id = $1`, [id]);
+    for (const r of antes) if (Number(r.id) !== id) await registrarEvento(client, { publicacionId: r.id, evento: "desfijada", usuarioId });
+    if (id != null && !antes.some((r) => Number(r.id) === id)) await registrarEvento(client, { publicacionId: id, evento: "fijada", usuarioId });
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * La saca del embebido antes de que venza (o de la fila, si todavía no apareció).
+ * Las que esperaban a ésta pasan a esperar a la que esperaba ella: si ésta ya se
+ * veía, aparecen ahora.
+ */
+async function despublicar(id, usuarioId = null) {
   await init();
   const p = store.getPool();
   if (!p) { if (fs.existsSync(FILE)) fs.rmSync(FILE); return; }
-  const { rowCount } = await p.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = $1 AND vigente_hasta > now()`, [id]);
-  if (!rowCount) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: previa } = await client.query(`SELECT vigente_hasta FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now() FOR UPDATE`, [id]);
+    const { rows } = await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = $1 AND vigente_hasta > now() RETURNING en_fila_de`, [id]);
+    if (!rows.length) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $2 WHERE en_fila_de = $1`, [id, rows[0].en_fila_de]);
+    await registrarEvento(client, { publicacionId: id, evento: "despublicada", usuarioId, detalle: { ibaHasta: previa[0]?.vigente_hasta?.toISOString() ?? null } });
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
-module.exports = { init, publicar, actual, vigentes, despublicar, errorDePublicacion, MAX_PERIODO_PUBLICACION };
+/** Error de una vigencia nueva para una alerta ya publicada (o en fila), o null. */
+function errorDeCambioVigencia(vigenteHasta) {
+  const t = Date.parse(vigenteHasta);
+  if (typeof vigenteHasta !== "string" || Number.isNaN(t)) return "Elegí hasta cuándo está vigente la alerta.";
+  if (t <= Date.now()) return "La vigencia tiene que ser una fecha y hora futura.";
+  if (t > Date.now() + MAX_DIAS_EN_FILA * 24 * 3600 * 1000) return `La vigencia no puede superar los ${MAX_DIAS_EN_FILA} días.`;
+  return null;
+}
+
+/**
+ * Cambia hasta cuándo se ve una alerta publicada (o en fila), sin tocar su mapa. Las que
+ * esperan en fila detrás de ella (y las de detrás de ésas) se corren lo mismo: aparecen
+ * cuando ésta termina, así que conservan cuánto duran.
+ */
+async function cambiarVigencia(id, vigenteHasta, usuarioId = null) {
+  const error = errorDeCambioVigencia(vigenteHasta);
+  if (error) throw Object.assign(new Error(error), { status: 400 });
+  await init();
+  const p = store.getPool();
+  if (!p) {
+    const x = await actual();
+    if (!x || x.id !== id || Date.parse(x.vigenteHasta) <= Date.now()) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    fs.writeFileSync(FILE, JSON.stringify({ ...x, vigenteHasta: new Date(vigenteHasta).toISOString() }));
+    return;
+  }
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(`SELECT vigente_hasta FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now() FOR UPDATE`, [id]);
+    if (!rows.length) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    const { rows: corridas } = await client.query(
+      `WITH RECURSIVE detras AS (
+         SELECT id FROM alertas_meteo_publicaciones WHERE en_fila_de = $1 AND vigente_hasta > now()
+         UNION SELECT a.id FROM alertas_meteo_publicaciones a JOIN detras d ON a.en_fila_de = d.id WHERE a.vigente_hasta > now()
+       )
+       UPDATE alertas_meteo_publicaciones SET vigente_hasta = vigente_hasta + ($2::timestamptz - $3::timestamptz) WHERE id IN (SELECT id FROM detras)
+       RETURNING id, vigente_hasta`,
+      [id, new Date(vigenteHasta), rows[0].vigente_hasta]
+    );
+    await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = $2, actualizada_en = now() WHERE id = $1`, [id, new Date(vigenteHasta)]);
+    await registrarEvento(client, { publicacionId: id, evento: "vigencia_cambiada", usuarioId,
+      detalle: { antes: rows[0].vigente_hasta.toISOString(), despues: new Date(vigenteHasta).toISOString(), corridas: corridas.map((r) => ({ id: Number(r.id), hasta: r.vigente_hasta.toISOString() })) } });
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { init, publicar, actual, pendientes, vigentes, despublicar, cambiarVigencia, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };

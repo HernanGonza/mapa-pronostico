@@ -11,7 +11,7 @@ const SIN_DATO = "#d5dbd5";
 const BaseMap = forwardRef(function BaseMap({
   poligonos, datos = [], colorDe, renderInfo, campoEtiqueta = "nombre",
   leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false,
-  regionLabel = 'Misiones', embed = false,
+  regionLabel = 'Misiones', embed = false, bajoTitulo = null,
 }, ref) {
   const containerRef = useRef(null);
   const rootRef = useRef(null);
@@ -150,8 +150,12 @@ const BaseMap = forwardRef(function BaseMap({
   if (!webglOk) return <div className="base-map base-map--fallback">Tu navegador necesita WebGL activo para mostrar el mapa.</div>;
   return <div className={`base-map${embed ? " base-map--embed" : ""}`} ref={rootRef}>
     <div ref={containerRef} className="base-map__canvas-container" />
-    {titulo && <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
-      <div><strong>{titulo}</strong><span className="map-title__meta" title={fechaPublicacion || undefined}>{metaTitulo}</span></div></div>}
+    {titulo && (() => {
+      const tarjeta = <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} />
+        <div><strong>{titulo}</strong><span className="map-title__meta" title={fechaPublicacion || undefined}>{metaTitulo}</span></div></div>;
+      // `bajoTitulo`: algo que va justo debajo de la tarjeta del título (ej. los fenómenos de una alerta).
+      return bajoTitulo ? <div className="map-encabezado">{tarjeta}{bajoTitulo}</div> : tarjeta;
+    })()}
     {(!ready || error) && <div className="map-status" role="status" data-capture-ignore>{error || "Cargando mapa…"}</div>}
     {activo && renderInfo && <div className="map-info" data-capture-ignore>{renderInfo(activo, { onCerrar: () => setSelected(null) })}</div>}
     {leyenda && <div className="map-legend">{leyenda}</div>}

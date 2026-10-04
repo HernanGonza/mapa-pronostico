@@ -1,5 +1,7 @@
 import { leerFuente, reconciliar, vigentes, ultimaEmision, colores } from './cap.mjs';
 import * as store from './store.mjs';
+import colorAcp from '../colorAcp.js';
+import alertasManuales from '../alertasMeteorologicasStore.js';
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
@@ -49,5 +51,16 @@ export async function obtenerActual() {
       // avisos sueltos de corta duración: se muestran todos los vigentes.
       error: errores[fuente] || null, alertas: vigentes(fuente === 'SAT' ? ultimaEmision(r?.datos || []) : r?.datos || []) };
   }));
-  return { fuente: 'SMN · RSS/CAP', alcance: process.env.SMN_SCOPE || 'argentina', intervaloSegundos: INTERVALO / 1000, colores, fuentes };
+  // Los ACP no traen nivel en `severity`: va el de su titular («AVISO NARANJA…») o, si
+  // no lo dice, el de la alerta (SMN o manual) en cuya vigencia caen (ver colorAcp.js). `acpAhora`: el de un ACP que se cree ya.
+  const manuales = await alertasManuales.pendientes().then(colorAcp.intervalosManuales).catch(() => []);
+  const intervalos = [...colorAcp.intervalosSmn(fuentes.SAT?.alertas), ...manuales];
+  if (fuentes.ACP) fuentes.ACP.alertas = fuentes.ACP.alertas.map(r => ({ ...r, infos: r.infos.map(i => ({ ...i, ...colorAcp.colorDeAcp(intervalos, i.inicio, i.fin, colorAcp.nivelDeTitulo(i.titulo) || colorAcp.nivelDeTitulo(i.evento)) })) }));
+  // Si los ACP vigentes ya dicen su nivel en el titular, el de ahora es el más alto de ésos.
+  const ahora = Date.now(), niveles = { Amarillo: 1, Naranja: 2, Rojo: 3 };
+  const delTitular = (fuentes.ACP?.alertas || []).flatMap(r => r.infos)
+    .filter(i => Date.parse(i.inicio) <= ahora && Date.parse(i.fin) > ahora && colorAcp.nivelDeTitulo(i.titulo))
+    .map(i => i.nivel).sort((a, b) => niveles[b] - niveles[a])[0] || null;
+  const acpAhora = colorAcp.colorDeAcp(intervalos, new Date(ahora).toISOString(), undefined, delTitular);
+  return { fuente: 'SMN · RSS/CAP', acpAhora, alcance: process.env.SMN_SCOPE || 'argentina', intervaloSegundos: INTERVALO / 1000, colores, fuentes };
 }

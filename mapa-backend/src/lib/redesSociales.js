@@ -181,12 +181,31 @@ async function urlParaInstagram(jpeg, formato, urlBucket) {
   return urlBucket;
 }
 
+/**
+ * Cuentas que van siempre en Instagram (fijo, no se edita desde el panel): colaboradoras
+ * en el feed (cada una recibe una invitación y tiene que aceptarla) y mencionadas en las
+ * historias (mención sin sticker: les llega la notificación). Tienen que ser públicas.
+ */
+const CUENTAS_INSTAGRAM = ["ecologiamisiones", "martinrecaman"];
+
 async function publicarInstagram(imagenUrl, formato, epigrafe) {
   const cuenta = env("META_IG_USER_ID");
   const params = { image_url: imagenUrl };
   if (formato === "historias") params.media_type = "STORIES";
   else params.caption = epigrafe || "";
-  const contenedor = await graph("POST", `${cuenta}/media`, params);
+  const etiquetas = formato === "historias"
+    ? { user_tags: JSON.stringify(CUENTAS_INSTAGRAM.map((username) => ({ username }))) }
+    : { collaborators: JSON.stringify(CUENTAS_INSTAGRAM) };
+  let contenedor, aviso = null;
+  try {
+    contenedor = await graph("POST", `${cuenta}/media`, { ...params, ...etiquetas });
+  } catch (e) {
+    // Que una cuenta no se pueda etiquetar (privada, renombrada…) no frena la placa: sale sin ellas.
+    if (/token/i.test(e.message)) throw e;
+    console.warn(`[redes] instagram/${formato}: no se pudo etiquetar a ${CUENTAS_INSTAGRAM.join(", ")}, se publica sin:`, e.message);
+    contenedor = await graph("POST", `${cuenta}/media`, params);
+    aviso = `sin ${formato === "historias" ? "mencionar" : "colaboradores"} (${e.message})`;
+  }
   // Instagram procesa el contenedor de forma asíncrona: hay que esperar FINISHED.
   let estadoContenedor = "IN_PROGRESS";
   for (let i = 0; i < 20 && estadoContenedor === "IN_PROGRESS"; i++) {
@@ -199,7 +218,7 @@ async function publicarInstagram(imagenUrl, formato, epigrafe) {
   try {
     permalink = (await graph("GET", publicado.id, { fields: "permalink" })).permalink || null;
   } catch { /* el post ya salió; el enlace es un extra */ }
-  return { externoId: String(publicado.id), permalink };
+  return { externoId: String(publicado.id), permalink, ...(aviso && { aviso }) };
 }
 
 async function publicarTelegram(buffer, formato, epigrafe) {
@@ -259,4 +278,4 @@ async function publicar({ feedUrl, historiasUrl, epigrafe, destinos, formatos })
   return porDestino.flat();
 }
 
-module.exports = { FORMATOS, DESTINOS, DIMENSIONES, graphBase, estado, esUrlDePlaca, errorDePedido, convertirAJpeg, mensajeDeMeta, publicar };
+module.exports = { CUENTAS_INSTAGRAM, FORMATOS, DESTINOS, DIMENSIONES, graphBase, estado, esUrlDePlaca, errorDePedido, convertirAJpeg, mensajeDeMeta, publicar };

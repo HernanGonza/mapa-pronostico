@@ -8,7 +8,7 @@ destino y epígrafe, y desde ahí se publica sin bajar ni subir archivos a mano.
 | Destino | Cómo funciona | Configuración |
 |---|---|---|
 | Facebook (página) | Graph API de Meta: foto en el feed e historia de página | `META_PAGE_ID`, `META_PAGE_ACCESS_TOKEN` |
-| Instagram | Graph API de Meta: publicación de feed e historia | `META_IG_USER_ID` (+ el token de arriba) |
+| Instagram | Graph API de Meta: publicación de feed e historia. Siempre suma a @ecologiamisiones y @martinrecaman: colaboradoras en el feed (tienen que aceptar la invitación) y mencionadas en la historia (`CUENTAS_INSTAGRAM` en `lib/redesSociales.js`) | `META_IG_USER_ID` (+ el token de arriba) |
 | Telegram | Bot API: el bot manda la foto a un canal/grupo | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 | WhatsApp | Abre WhatsApp Web con el epígrafe y los enlaces a las imágenes (no publica solo) | `WHATSAPP_NUMERO` (opcional) |
 

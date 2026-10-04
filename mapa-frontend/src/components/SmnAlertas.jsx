@@ -204,8 +204,8 @@ export default function SmnAlertas() {
       <h2>{dia ? `Avisos · ${etiquetaDia(dia)}` : 'Avisos vigentes'} ({infos.length})</h2>
       {infos.length === 0 && <p className="admin-panel__hint">No hay avisos vigentes en la respuesta del SMN.</p>}
       <div className="smn-avisos">
-        {infos.map(info => <article key={info.id} className="smn-aviso" style={{ '--smn-color': data.colores[info.categoria] }}>
-          <div className="smn-aviso__cabecera"><strong>{info.titulo}</strong><span className="smn-aviso__categoria">{info.categoria === 'ACP' ? 'ACP · muy corto plazo' : info.categoria}</span></div>
+        {infos.map(info => <article key={info.id} className="smn-aviso" style={{ '--smn-color': info.color || data.colores[info.categoria] }}>
+          <div className="smn-aviso__cabecera"><strong>{info.titulo}</strong><span className="smn-aviso__categoria">{info.categoria === 'ACP' ? `ACP · muy corto plazo${info.nivel ? ` · bajo alerta ${info.nivel.toLowerCase()}` : ''}` : info.categoria}</span></div>
           <p>{info.zonas.map(z => z.nombre).join(' · ')}</p>
           <p>{fecha(info.inicio)} — {fecha(info.fin)}</p>
           {info.descripcion && <p>{info.descripcion}</p>}
@@ -224,7 +224,7 @@ export default function SmnAlertas() {
 
     <div className="admin-map-area">
       {base ? <BaseMap poligonos={{ type: 'FeatureCollection', features }} datos={datos}
-        colorDe={d => data.colores[d?.categoria]} regionLabel={data?.alcance === 'argentina' ? 'Argentina · prueba' : 'Misiones'}
+        colorDe={d => d?.color || data.colores[d?.categoria]} regionLabel={data?.alcance === 'argentina' ? 'Argentina · prueba' : 'Misiones'}
         titulo={dia ? `SMN · ${etiquetaDia(dia)}` : 'SMN · avisos vigentes'} publicadoEn={emision || last}
         leyenda={<div className="risk-legend"><strong>{infos.length} {infos.length === 1 ? 'aviso' : 'avisos'}{dia ? ` · ${etiquetaDia(dia)}` : ' vigentes'}</strong>
           <div className="risk-legend__scale">{Object.entries(data?.colores || {}).map(([name, color]) => <div key={name}><i style={{ background: color }} /><span>{name}</span></div>)}</div>

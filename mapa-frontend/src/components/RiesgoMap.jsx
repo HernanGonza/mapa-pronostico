@@ -5,7 +5,7 @@ export function LeyendaRiesgo({ categorias, titulo = "Riesgo de incendios forest
   return <div className="risk-legend">
     <strong>{titulo}</strong>
     <div className="risk-legend__scale">{categorias.map(c => <div key={c.nombre}>
-      <i style={{ background: c.color }} /><span title={c.descripcion}>{c.nombre}{c.accion ? ` · ${c.accion}` : ''}</span>
+      <i style={{ background: c.color }} /><span title={c.descripcion}>{c.nombre}{c.accion && <span className="risk-legend__accion"> · {c.accion}</span>}</span>
     </div>)}</div>
     <small>{fuente}</small>
   </div>;
@@ -35,9 +35,13 @@ const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicad
   const nombreMapa = titulo || (esMeteorologica ? "Alertas meteorológicas" : "Riesgo de incendios forestales");
   const colorDe = useCallback(d => catalogo.categorias.find(c => c.nombre === d?.categoria)?.color, [catalogo]);
   const datos = catalogo.departamentos.map(d => ({ ...d, ...zonas.find(z => String(z.id) === String(d.id)) }));
+  // Alertas meteorológicas y riesgo de incendios (embebido y panel, igual): las referencias de color
+  // van como una franja fina abajo, de lado a lado (tipo pie, con la fuente), y los fenómenos de una
+  // alerta en lista debajo de la tarjeta del título (arriba a la izquierda); así el mapa se ve entero.
   return <BaseMap ref={ref} poligonos={geo} datos={datos} colorDe={colorDe}
     titulo={nombreMapa} publicadoEn={publicadoEn}
-    leyenda={<div className="risk-legends"><LeyendaFenomenos iconos={iconos} catalogo={catalogo} /><LeyendaRiesgo categorias={catalogo.categorias} titulo={nombreMapa}
+    bajoTitulo={esMeteorologica ? <LeyendaFenomenos iconos={iconos} catalogo={catalogo} /> : null}
+    leyenda={<div className="risk-legends risk-legends--pie"><LeyendaRiesgo categorias={catalogo.categorias} titulo={nombreMapa}
       fuente={esMeteorologica ? "Fuente: SMN, consulta de modelos y datos meteorológicos, Equipo Técnico de la DGAT" : undefined} /></div>}
     renderInfo={(d, { onCerrar }) => <div className="municipio-popover" role="dialog" aria-label={d.nombre}>
       <button className="municipio-popover__close" onClick={onCerrar} aria-label="Cerrar">✕</button>

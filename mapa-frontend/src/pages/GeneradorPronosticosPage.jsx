@@ -10,7 +10,7 @@ export default function GeneradorPronosticosPage() {
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Generador de pronósticos">
-        <Link to="/panel" className="btn-link">← Panel</Link>
+        <Link to="/panel/configuracion" className="btn-link">← Configuración</Link>
       </BrandHeader>
       <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading">

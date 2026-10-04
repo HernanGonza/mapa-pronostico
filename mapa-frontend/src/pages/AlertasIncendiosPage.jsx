@@ -42,8 +42,8 @@ export default function AlertasIncendiosPage() {
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Focos de calor · NASA FIRMS">
-        <Link to="/panel/mapas" className="btn-link">
-          ← Panel
+        <Link to="/panel/configuracion" className="btn-link">
+          ← Configuración
         </Link>
       </BrandHeader>
 

@@ -17,12 +17,12 @@ import {
   enviarPronosticoPorCorreo as enviarCorreo,
   publicar,
   generarPronosticoPlaca,
+  getUltimaPlacaPronostico,
   getActual,
   getMapaPreview,
   getMunicipiosGeojson,
 } from "../api";
 import {
-  CONDICIONES_CANONICAS,
   colorPorCondicion,
   condicionCanonica,
   esCondicionConocida,
@@ -30,8 +30,9 @@ import {
 } from "../lib/condiciones";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
-// Placa del pronóstico para redes: desactivada (pedido 02/10). Poner en true para volver a mostrarla.
-const PLACA_REDES_ACTIVA = false;
+// Placa del pronóstico para redes: estuvo desactivada (pedido 02/10); vuelve el 04/10 con el estilo
+// nuevo, sobre las fotos de las placas diarias.
+const PLACA_REDES_ACTIVA = true;
 
 const CAMPOS = [
   ["TMIN", "Mín"],
@@ -96,7 +97,12 @@ export default function AdminPage() {
   const [fechaPronostico, setFechaPronostico] = useState(new Date().toISOString().slice(0, 10));
   const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
-  useEffect(() => { setImagenes(null); }, [filas, fechaPronostico]);
+  // «Placa para redes» muestra siempre la última placa generada (también al volver a la página).
+  useEffect(() => {
+    let vivo = true;
+    getUltimaPlacaPronostico().then((placa) => { if (vivo && placa) setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre }); }).catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   const mapaRef = useRef(null);
   // El .docx que se cargó en esta sesión: se adjunta tal cual al enviar el pronóstico por correo.
   const [docx, setDocx] = useState(null);
@@ -155,10 +161,10 @@ export default function AdminPage() {
     aplicar: ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e || extendido || null); setError(null); },
   });
   const crearPlaca = () => crearPlacaPronostico({
-    epigrafe: `Previsión del tiempo · ${fechaPronostico.split("-").reverse().join("/")}`,
-    vistaPrevia: () => generarPronosticoPlaca(filas, fechaPronostico, { vistaPrevia: true }),
-    guardar: async (token) => {
-      const placa = await generarPronosticoPlaca(filas, fechaPronostico, { confirmarToken: token });
+    epigrafe: `Previsión del tiempo · ${fechaPronostico.split("-").reverse().join("/")}`, filas,
+    vistaPrevia: (valores) => generarPronosticoPlaca(filas, fechaPronostico, { ...valores, vistaPrevia: true }),
+    guardar: async (token, valores) => {
+      const placa = await generarPronosticoPlaca(filas, fechaPronostico, { ...valores, confirmarToken: token });
       setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
       setVista("placa");
       return placa;

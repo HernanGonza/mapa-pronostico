@@ -68,8 +68,8 @@ function agregarMunicipios(map, datos) {
  * coordenadas (no como captura de pantalla): la placa se dibuja entera en
  * el servidor, sobre el mapa vectorial de Alerta Meteorológica (ver
  * generateAvisoCortoPlazoMap) — este mapa es sólo para que el operador
- * elija/dibuje el área. `colorPoligono` es el violeta propio del SMN/ACP
- * (#8b3fc4, ver alertas automáticas) en avisos a muy corto plazo; en otros
+ * elija/dibuje el área. `colorPoligono` es, en avisos a muy corto plazo, el
+ * color de la alerta vigente (violeta #8b3fc4 si no hay; ver colorAcp.js del backend); en otros
  * usos (HistoricoPage) queda el rosa/magenta de siempre. `poligonos`
  * (`[{ puntos, color, cartel: { titulo, texto, pie } }]`) reemplaza a `puntos`
  * para mostrar varios a la vez, sólo lectura, cada uno con su color; el
@@ -205,6 +205,16 @@ const PolygonDrawMap = forwardRef(function PolygonDrawMap({ puntos = [], poligon
     mapRef.current?.getSource("poligono-dibujo")?.setData(datosDibujo());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puntos, poligonos, listo]);
+
+  // El color puede llegar después de cargar el mapa (avisos ACP: el de la alerta vigente).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!listo || !map) return;
+    const color = ["coalesce", ["get", "color"], colorPoligono];
+    map.setPaintProperty("poligono-relleno", "fill-color", color);
+    map.setPaintProperty("poligono-linea", "line-color", color);
+    map.setPaintProperty("poligono-puntos", "circle-stroke-color", colorPoligono);
+  }, [colorPoligono, listo]);
 
   // `encuadrar`: centra la vista en los polígonos (la pantalla de transmisión muestra un aviso
   // por vez). Recién después deja el mapa en window.__map, para que /tv lo acerque despacio

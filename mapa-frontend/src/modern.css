@@ -188,7 +188,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (max-width: 560px) { .redes-swal__previa, .redes-swal__grupos { grid-template-columns: 1fr; } }
 
 /* --- Asistente paso a paso (lib/pasos.js): una pregunta por pantalla, tipo Typeform --- */
-.swal-eco--asistente { width: min(680px, 94vw) !important; padding: 28px 30px 22px; text-align: left; }
+.swal-eco--asistente { width: min(var(--ancho, 680px), 94vw) !important; padding: 28px 30px 22px; text-align: left; }
 .swal-eco--asistente .swal2-title { justify-content: flex-start; padding: 8px 0 4px; text-align: left; font-size: clamp(22px, 3.2vw, 28px); line-height: 1.15; letter-spacing: -0.02em; }
 .swal-eco--asistente .swal2-html-container { margin: 6px 0 0; padding: 0; text-align: left; overflow: visible; }
 .swal-eco--asistente .swal2-actions { justify-content: flex-end; margin-top: 22px; }
@@ -355,12 +355,12 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 /* --- Asistente del pronóstico --- */
 .paso-etiqueta { display: grid; gap: 6px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
 .paso-docx-estado { margin: 0; color: var(--text-muted); font-size: 13.5px; }
-.paso-tabla { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.paso-tabla { max-height: min(58vh, 520px); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .paso-localidades { width: 100%; }
 .paso-localidades th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; background: var(--surface-2); text-align: left; }
 .paso-localidades td { padding: 5px 8px; border-top: 1px solid var(--border); font-size: 13.5px; }
 .paso-localidades td:first-child { font-weight: 600; white-space: nowrap; }
-.paso-celda { width: 72px; padding: 7px 8px; border: 1.5px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.paso-celda { width: 84px; min-width: 84px; padding: 7px 8px; font-size: 15px; text-align: center; border: 1.5px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 .paso-celda.is-invalid { border-color: var(--danger); background: var(--danger-soft); }
 .paso-localidades .paso-select { min-width: 190px; padding: 7px 30px 7px 10px; }
 .paso p { margin: 0; }
@@ -487,3 +487,60 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .tvcfg-subida progress { width: 100%; }
 .tvcfg-pagina { display: grid; gap: 8px; margin-top: 16px; padding: 12px; border: 1px dashed var(--border-strong, var(--border)); border-radius: var(--radius-sm); }
 .tvcfg-pagina__titulo { font-weight: 700; }
+
+/* Placas de una alerta publicada (tarjetas de la pila en Alertas meteorológicas; ver asistentePlacasAlerta.js). */
+.alerta-nivel { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 99px; background: var(--nivel, #999); color: #1d2a22; font-size: 12px; font-weight: 700; vertical-align: 1px; }
+.alerta-placas { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.avisos-lista .alerta-placas li { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border-left: 4px solid var(--nivel, var(--border)); background: var(--surface); box-shadow: none; }
+/* Alto fijo (feed 4:5): si no, al cargar empujan la lista y un clic cae en otra tarjeta. */
+.alerta-placas img { width: 64px; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 4px; display: block; background: #24324a; }
+.alerta-placas div { display: grid; gap: 4px; justify-items: start; font-size: 13px; }
+.paso-filas { display: grid; gap: 8px; }
+.paso-fila { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2, var(--surface)); }
+.paso-fila .paso-input { width: auto; padding: 8px 10px; font-size: 15px; }
+.paso-fila__nombre { flex: 1 1 180px; }
+.paso-fila__texto { flex: 1 1 260px; }
+.paso-fila__hora { width: 84px !important; text-align: center; }
+.paso-fila__a { color: var(--text-muted); }
+.paso-fila__quitar { min-width: 40px; font-size: 20px; font-weight: 700; line-height: 1; }
+.paso-fila__agregar { justify-self: start; }
+.paso-fila__icono { width: 52px; height: 52px; border-radius: 8px; background: #24324a; object-fit: contain; }
+.paso-fila__icono-elegir { display: grid; gap: 4px; }
+.paso-fila__subir { padding: 4px 8px; font-size: 13px; cursor: pointer; }
+.paso-niveles .paso-opcion__caja, .paso-niveles input:checked + .paso-opcion__caja { border-left: 8px solid var(--nivel); }
+/* Tarjetas de la pila: se tocan para ver esa alerta en el mapa de la página. */
+.avisos-lista li.alerta-tarjeta { position: relative; cursor: pointer; transition: box-shadow .15s, border-color .15s; }
+.avisos-lista li.alerta-tarjeta:hover { border-color: var(--border-strong); }
+.avisos-lista li.alerta-tarjeta:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.avisos-lista li.alerta-tarjeta--elegida { border: 2px solid var(--accent); box-shadow: var(--shadow-card), 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.alerta-tarjeta > small { display: block; margin-top: 2px; }
+.alerta-tarjeta__viendo { float: right; margin: -2px 0 4px 8px; padding: 1px 8px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
+.alerta-mapa-publico { margin: 0 0 10px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-2, var(--surface)); color: var(--text-muted); font-size: 13px; }
+.alerta-mapa-publico--fijada { color: var(--text); border-left: 4px solid var(--accent); }
+/* Embebido de alertas: páginas cuando se superponen varias. */
+.alertas-embed__paginas { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 10px 8px; flex: none; font-size: 13px; color: var(--text-muted); }
+.alertas-embed__paginas button { min-width: 34px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface-2); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.alertas-embed__paginas button:disabled { opacity: .4; cursor: default; }
+.alerta-placas__redes { padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); font-size: 12px; font-weight: 700; }
+.alerta-placas__redes--anterior { background: var(--surface-2, var(--surface)); color: var(--text-muted); font-weight: 600; }
+.alerta-placas__acciones { display: flex; flex-wrap: wrap; gap: 4px; }
+.alerta-placas__acciones .btn { padding: 4px 10px; font-size: 13px; }
+.alerta-nivel--proximo { background: transparent; border: 2px solid var(--nivel); color: var(--text); font-weight: 600; }
+.alerta-borrador__aviso { margin: 8px 0 0; padding: 6px 10px; border-left: 3px solid var(--border-strong); background: var(--surface); color: var(--text-muted); font-size: 13px; line-height: 1.4; }
+/* Revisión de localidades: el select de condición (agrupado por color) con su cuadradito de color al lado. */
+.paso-localidades .cond-cell { gap: 8px; }
+.paso-localidades .cond-cell select { min-width: 220px; padding: 7px 30px 7px 10px; font-size: inherit; }
+.paso-localidades .cond-swatch { width: 18px; height: 18px; border-radius: 4px; }
+/* Placa del pronóstico: galería de fotos de fondo por condición. */
+.paso-fondos__tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.paso-fondos__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; max-height: min(52vh, 460px); overflow: auto; padding: 2px; }
+.paso-fondo { position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; }
+.paso-fondo[hidden] { display: none; }
+.paso-fondo input { position: absolute; opacity: 0; }
+.paso-fondo img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border: 3px solid transparent; border-radius: 8px; }
+.paso-fondo input:checked + img { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.paso-fondo input:focus-visible + img { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Placa del pronóstico: estilos de tarjeta, en fila y con la muestra grande. */
+.paso-estilos-tarjeta .paso-opciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.paso-estilos-tarjeta .paso-opcion__caja img { width: 100%; height: auto; max-height: none; aspect-ratio: 54 / 38; object-fit: cover; border-radius: 6px; }
+@media (max-width: 640px) { .paso-estilos-tarjeta .paso-opciones { grid-template-columns: 1fr; } }

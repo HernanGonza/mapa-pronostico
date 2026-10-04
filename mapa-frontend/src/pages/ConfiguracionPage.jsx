@@ -1,8 +1,17 @@
 import { Link } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
-import { Users, Presentation, RadioTower, Tv } from "lucide";
+import { Users, Presentation, RadioTower, Tv, Radar, Bell, Waves, Droplets, CloudSun } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
+
+// Sólo para el superadmin (las rutas también lo exigen, ver RutaProtegida soloSuperadmin).
+const EN_DESARROLLO = [
+  { to: "/panel/alertas-incendios", icono: Radar, titulo: "Focos de calor", descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS)." },
+  { to: "/panel/alertas-automaticas", icono: Bell, titulo: "Alertas automáticas (SMN)", descripcion: "Avisos del SMN por período y zona, en revisión." },
+  { to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Placas de alerta por inundación." },
+  { to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
+  { to: "/panel/generador-pronosticos", icono: CloudSun, titulo: "Generador de pronósticos", descripcion: "Recolección de datos de las distintas fuentes que se usan para armar el pronóstico." },
+];
 
 export default function ConfiguracionPage() {
   const { usuario } = useAuth();
@@ -26,6 +35,12 @@ export default function ConfiguracionPage() {
         ) : (
           <p className="admin-panel__hint">Tu cuenta no tiene opciones de configuración disponibles.</p>
         )}
+        {esSuperadmin && <>
+          <div className="panel-intro"><h2>En desarrollo</h2><p>Pantallas en desarrollo o de poco uso: no aparecen en el panel para el resto de los usuarios.</p></div>
+          <div className="panel-botonera">
+            {EN_DESARROLLO.map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado="En desarrollo" />)}
+          </div>
+        </>}
       </main>
     </div>
   );

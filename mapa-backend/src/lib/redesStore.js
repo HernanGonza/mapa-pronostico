@@ -55,6 +55,7 @@ async function exitosasDe(placaUrls) {
     [urls]
   );
   return rows.map((r) => ({
+    placaUrl: r.placa_url,
     destino: r.destino,
     formato: r.formato,
     creadoEn: r.creado_en.toISOString(),

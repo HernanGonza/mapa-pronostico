@@ -24,7 +24,8 @@ export default function AvisoEspecialPage() {
 
   // Al crear otro, arranca con el texto del anterior (suelen ser avisos de seguimiento), pero
   // con la hora de ahora y sin imagen: la captura casi siempre es nueva.
-  const crear = () => crearAvisoEspecialPorPasos({ inicial: ultimo ? { texto: ultimo.texto } : {}, vistaPrevia, guardar });
+  const crear = () => crearAvisoEspecialPorPasos({ inicial: ultimo ? { texto: ultimo.texto, titulo: ultimo.titulo, subtitulo: ultimo.subtitulo, nivel: ultimo.nivel } : {}, vistaPrevia, guardar });
+  const epigrafe = ultimo ? `${[ultimo.titulo, ultimo.subtitulo].filter(Boolean).join(" ")}\n\n${ultimo.texto}` : "";
 
   const placa = ultimo?.placa;
   return (
@@ -38,7 +39,7 @@ export default function AvisoEspecialPage() {
         <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crear}>Crear aviso especial</button>
         {ultimo && (
           <div className="avisos-lista avisos-lista--pendiente">
-            <h2>Último aviso generado</h2>
+            <h2>Último aviso generado: {[ultimo.titulo, ultimo.subtitulo].filter(Boolean).join(" ")}</h2>
             <p className="avisos-lista__texto">{ultimo.texto}</p>
           </div>
         )}
@@ -47,7 +48,7 @@ export default function AvisoEspecialPage() {
         <div className="placa-content">
           <div className="placa-preview">
             {placa ? <>
-              <PublicarEnRedes className="btn btn--primary" feedUrl={placa.feedUrl} historiasUrl={placa.historiasUrl} epigrafe={`Aviso especial\n\n${ultimo.texto}`} />
+              <PublicarEnRedes unaVez className="btn btn--primary" feedUrl={placa.feedUrl} historiasUrl={placa.historiasUrl} epigrafe={epigrafe} />
               <div className="placa-preview-grid">
                 {[["feed", "Feed"], ["historias", "Historias"]].map(([formato, nombre]) => (
                   <figure key={formato}>
@@ -57,7 +58,7 @@ export default function AvisoEspecialPage() {
                   </figure>
                 ))}
               </div>
-            </> : <div className="admin-map-area__vacio" role="status">Tocá «Crear aviso especial»: escribís el texto, elegís la hora de emisión y subís la captura. Acá vas a ver y descargar las placas.</div>}
+            </> : <div className="admin-map-area__vacio" role="status">Tocá «Crear aviso especial»: elegís el título y el nivel, escribís el texto, la hora de emisión y subís la captura. Acá vas a ver y descargar las placas.</div>}
           </div>
         </div>
       </div>

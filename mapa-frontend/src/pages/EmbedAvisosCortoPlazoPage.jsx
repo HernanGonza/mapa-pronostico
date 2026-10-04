@@ -4,11 +4,13 @@ import { getAvisosCortoPlazoVigentes, getMunicipiosGeojson } from "../api";
 import { alCambiarDemo } from "../lib/demo";
 import SelloDemo from "../components/SelloDemo";
 
-// Un color por aviso, para distinguirlos cuando hay varios. El primero es el
-// violeta del SMN/ACP de siempre; el resto contrasta con él y con el verde de
-// los municipios.
+// Cada aviso viene con el color de la alerta en cuya vigencia cae (ver
+// colorAcp.js del backend: el SMN no trae nivel para los ACP). Si no cae en
+// ninguna alerta (sin `nivel`), uno por aviso para distinguirlos: el primero es
+// el violeta del SMN/ACP de siempre; el resto contrasta con él y con el verde
+// de los municipios.
 const COLORES = ["#8b3fc4", "#e0701b", "#1d7fa8", "#c9346c", "#b8940f", "#2f8f5b"];
-const colorDe = (i) => COLORES[i % COLORES.length];
+const colorDe = (a, i) => (a.nivel && a.color) || COLORES[i % COLORES.length];
 
 const hora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
@@ -48,7 +50,7 @@ export default function EmbedAvisosCortoPlazoPage() {
   // Más viejo primero: así el primero publicado conserva su color aunque se sumen otros.
   const ordenados = [...vigentes].sort((x, y) => Date.parse(x.publicadoEn) - Date.parse(y.publicadoEn));
   const poligonos = ordenados.map((a, i) => ({
-    puntos: a.poligono, color: colorDe(i),
+    puntos: a.poligono, color: colorDe(a, i),
     cartel: { titulo: a.titulo, texto: a.texto, pie: `Vigente hasta el ${hora(a.vigenteHasta)}` },
   }));
 
@@ -70,7 +72,7 @@ export default function EmbedAvisosCortoPlazoPage() {
             <strong>Avisos a muy corto plazo</strong>
             <ul>
               {ordenados.map((a, i) => (
-                <li key={a.id}><i style={{ background: colorDe(i) }} aria-hidden="true" />Vigente hasta el {hora(a.vigenteHasta)}</li>
+                <li key={a.id}><i style={{ background: colorDe(a, i) }} aria-hidden="true" />{a.nivel && <>Alerta {a.nivel.toLowerCase()} · </>}Vigente hasta el {hora(a.vigenteHasta)}</li>
               ))}
             </ul>
             <small>Pasá el mouse o tocá un área para leer el aviso.</small>

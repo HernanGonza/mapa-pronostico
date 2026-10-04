@@ -115,3 +115,40 @@ test("Telegram manda la imagen como archivo y el epígrafe largo va aparte", asy
   assert.equal(r.ok, true);
   assert.deepEqual(enviados, [["sendPhoto", "@canal"], ["sendMessage", "@canal"], ["sendPhoto", "-100123"], ["sendMessage", "-100123"]]);
 });
+
+test("Instagram: colaboradores fijos en el feed, menciones en historias, y si fallan sale igual", async () => {
+  const medias = [];
+  let rechazar = false;
+  global.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    const json = (o, status = 200) => ({ ok: status < 400, status, headers: new Headers(), json: async () => o });
+    if (u.startsWith(PREFIJO)) return { ok: true, status: 200, headers: new Headers(), arrayBuffer: async () => png(2250, 4000) };
+    if (u.startsWith("https://storage.test/storage/v1/object/placas/")) return json({});
+    if (u.endsWith("/PAG/photos")) return json({ id: "F1" });
+    if (u.includes("/F1?")) return json({ images: [{ width: 1080, source: "https://scontent.test/grande.jpg" }] });
+    if (u.endsWith("/IG/media")) {
+      const c = Object.fromEntries(opts.body); medias.push(c);
+      if (rechazar && (c.collaborators || c.user_tags)) return json({ error: { code: 100, message: "usuario inválido" } }, 400);
+      return json({ id: "C1" });
+    }
+    if (u.includes("/C1?")) return json({ status_code: "FINISHED" });
+    if (u.endsWith("/IG/media_publish")) return json({ id: "M1" });
+    if (u.includes("/M1?")) return json({ permalink: "https://instagram.test/p/1" });
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  const { CUENTAS_INSTAGRAM } = redes();
+  const pedido = { feedUrl: `${PREFIJO}f.png`, historiasUrl: `${PREFIJO}h.png`, epigrafe: "Alerta", destinos: ["instagram"], formatos: ["feed", "historias"] };
+  const res = await redes().publicar(pedido);
+  assert.ok(res.every((r) => r.ok && !r.aviso));
+  assert.deepEqual(JSON.parse(medias[0].collaborators), CUENTAS_INSTAGRAM);
+  assert.equal(medias[0].user_tags, undefined);
+  assert.deepEqual(JSON.parse(medias[1].user_tags), CUENTAS_INSTAGRAM.map((username) => ({ username })));
+  assert.equal(medias[1].collaborators, undefined);
+
+  medias.length = 0; rechazar = true;
+  const conFallo = await redes().publicar({ ...pedido, formatos: ["feed"] });
+  assert.equal(conFallo[0].ok, true);
+  assert.match(conFallo[0].aviso, /sin colaboradores/);
+  assert.equal(medias.length, 2);
+  assert.equal(medias[1].collaborators, undefined);
+});

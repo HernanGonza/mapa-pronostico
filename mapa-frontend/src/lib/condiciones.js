@@ -16,14 +16,16 @@ import { normalize } from "./normalizeText";
  */
 
 export const GRUPOS = {
-  despejado: { label: "Despejado", color: "#efd44e" },
-  parcial: { label: "Parcialmente nublado", color: "#c7d3a1" },
-  nublado: { label: "Nublado / cubierto", color: "#9aa89d" },
-  lloviznas: { label: "Lloviznas", color: "#a7c7e7" },
-  lluvias: { label: "Lluvias", color: "#3371c6" },
-  intensas: { label: "Lluvias intensas", color: "#10234b" },
-  chaparrones: { label: "Chaparrones", color: "#7283c8" },
-  tormentas: { label: "Tormentas", color: "#c9346c" },
+  // Paleta del 04/10/2026: cielo (sin lluvia) y después de menor a mayor intensidad. El orden es
+  // el de la leyenda. Tiene que coincidir con mapa-backend/src/lib/condiciones.js (la placa).
+  despejado: { label: "Despejado", color: "#FFD000" },
+  parcial: { label: "Parcialmente nublado", color: "#A2C2D6" },
+  nublado: { label: "Nublado / cubierto", color: "#B0B5B8" },
+  lloviznas: { label: "Lloviznas", color: "#4CAF50" },
+  lluvias: { label: "Lluvias", color: "#2196F3" },
+  chaparrones: { label: "Chaparrones", color: "#1565C0" },
+  intensas: { label: "Lluvias intensas", color: "#FF9800" },
+  tormentas: { label: "Tormentas", color: "#9C27B0" },
 };
 
 export const SIN_DATO = { label: "Sin dato", color: "#c9d3a3" };
@@ -57,6 +59,23 @@ export const CONDICIONES_CANONICAS = CONDICIONES.map((c) => c.nombre);
 
 /** Grupos en el orden en que se muestran en la leyenda del mapa. */
 export const LEYENDA = Object.entries(GRUPOS).map(([id, g]) => ({ id, ...g }));
+
+// Cómo se lee cada condición en el <select> (los nombres canónicos son los de los archivos de
+// ícono, sin tildes). Sólo para mostrar: el valor que se guarda sigue siendo el canónico.
+const TILDES = { debiles: "débiles" };
+export const etiquetaCondicion = (nombre) => {
+  const t = String(nombre).split(" ").map((p) => TILDES[p] || p).join(" ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
+/**
+ * Las condiciones agrupadas por color, en el orden de la leyenda: para el <select> con <optgroup>,
+ * así se ve en qué color del mapa cae cada una.
+ *   [{ id, label, color, condiciones: [{ nombre, etiqueta }] }]
+ */
+export const CONDICIONES_POR_GRUPO = LEYENDA.map((g) => ({
+  ...g, condiciones: CONDICIONES.filter((c) => c.grupo === g.id).map((c) => ({ nombre: c.nombre, etiqueta: etiquetaCondicion(c.nombre) })),
+}));
 
 /**
  * Color con el que se pinta el municipio en el mapa. Cae a `SIN_DATO` si

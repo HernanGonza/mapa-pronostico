@@ -1,4 +1,4 @@
-import { CONDICIONES_CANONICAS, colorPorCondicion, condicionCanonica, esCondicionConocida } from "../lib/condiciones";
+import { CONDICIONES_POR_GRUPO, colorPorCondicion, condicionCanonica, esCondicionConocida } from "../lib/condiciones";
 
 const ZONA_NOMBRES = ["Sur", "Centro", "Norte"];
 const MAX_DIAS = 3;
@@ -84,7 +84,8 @@ export default function PronosticoExtendidoEditor({ extendido, onChange, disable
                       <span className="cond-swatch" style={{ background: colorPorCondicion(d.condicion) }} />
                       <select aria-label={`Condición ${z.zona}`} value={condicionCanonica(d.condicion) || ""} className={esCondicionConocida(d.condicion) ? "" : "is-invalid"} onChange={(e) => actualizarDia(zonaIdx, diaIdx, "condicion", e.target.value)}>
                         {!esCondicionConocida(d.condicion) && <option value="">{d.condicion || "(elegir)"}</option>}
-                        {CONDICIONES_CANONICAS.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {/* Agrupadas por el color del mapa, como la leyenda. */}
+                        {CONDICIONES_POR_GRUPO.map((g) => <optgroup key={g.id} label={g.label}>{g.condiciones.map((c) => <option key={c.nombre} value={c.nombre}>{c.etiqueta}</option>)}</optgroup>)}
                       </select>
                     </div>
                   </label>

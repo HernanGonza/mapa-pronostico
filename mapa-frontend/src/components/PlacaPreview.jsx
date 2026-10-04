@@ -22,7 +22,8 @@ export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, 
       <div className="placa-map" style={{ visibility: vista === 'mapa' ? 'visible' : 'hidden' }} aria-hidden={vista !== 'mapa'} inert={vista !== 'mapa' ? '' : undefined}>{children}</div>
       {vista !== 'mapa' && <div className="placa-preview">
         {conjunto ? <>
-        <PublicarEnRedes className="btn btn--primary" feedUrl={conjunto.feed} historiasUrl={conjunto.historias} epigrafe={epigrafe ?? `${titulo.charAt(0).toUpperCase()}${titulo.slice(1)} · Ministerio de Ecología y RNR de Misiones`} />
+        {/* Igual que en las tarjetas: marcado y deshabilitado si esta placa ya salió en redes. */}
+        <PublicarEnRedes unaVez className="btn btn--primary" feedUrl={conjunto.feed} historiasUrl={conjunto.historias} epigrafe={epigrafe ?? `${titulo.charAt(0).toUpperCase()}${titulo.slice(1)} · Ministerio de Ecología y RNR de Misiones`} />
         <div className="placa-preview-grid">
           {['feed', 'historias'].filter(formato => conjunto[formato]).map(formato => <figure key={formato}>
             <a className="btn btn--primary" href={`${conjunto[formato]}?download=${encodeURIComponent(conjunto[`${formato}Nombre`])}`}>Descargar {formato}</a>

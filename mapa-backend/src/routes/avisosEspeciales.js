@@ -3,7 +3,7 @@ const multer = require("multer");
 const requireAuth = require("../middleware/requireAuth");
 const avisos = require("../lib/avisosEspecialesStore");
 const pendientes = require("../lib/placasPendientes");
-const { generarAvisoEspecialAmbos, errorDeAvisoEspecial } = require("../lib/generateAvisoEspecial");
+const { generarAvisoEspecialAmbos, errorDeAvisoEspecial, TITULO } = require("../lib/generateAvisoEspecial");
 
 const router = express.Router();
 const TIPOS = ["image/png", "image/jpeg"];
@@ -14,17 +14,19 @@ const upload = multer({
 });
 
 // Genera feed + historias del aviso especial (texto libre + captura de radar/satélite).
-// multipart/form-data: texto, emitidoEn ("AAAA-MM-DDTHH:mm", hora de Misiones), imagen
+// multipart/form-data: texto, emitidoEn ("AAAA-MM-DDTHH:mm", hora de Misiones), titulo, subtitulo y nivel (opcionales), imagen
 // (JPG/PNG) y vistaPrevia=true — o, para guardar la vista previa ya revisada,
 // confirmarToken + texto + emitidoEn (sin imagen: no se vuelve a generar).
 router.post("/avisos-especiales/generar", requireAuth, upload.single("imagen"), async (req, res) => {
   const { texto, emitidoEn, confirmarToken } = req.body || {};
-  const error = errorDeAvisoEspecial({ texto, emitidoEn }) || (confirmarToken || req.file ? null : "Subí la imagen de radar o satélite (JPG o PNG).");
+  // Título de dos líneas y nivel (opcionales; sin título va "AVISO ESPECIAL").
+  const titulo = req.body?.titulo || TITULO, subtitulo = req.body?.subtitulo || "", nivel = req.body?.nivel || null;
+  const error = errorDeAvisoEspecial({ texto, emitidoEn, titulo, subtitulo, nivel }) || (confirmarToken || req.file ? null : "Subí la imagen de radar o satélite (JPG o PNG).");
   if (error) return res.status(400).json({ error });
   try {
     await pendientes.resolver(req, res, {
-      generar: () => generarAvisoEspecialAmbos({ texto, emitidoEn, imagen: req.file.buffer }),
-      guardar: (pngs) => avisos.crear({ texto, emitidoEn, usuarioId: req.usuario.usuarioId, ...pngs }),
+      generar: () => generarAvisoEspecialAmbos({ texto, emitidoEn, titulo, subtitulo, nivel, imagen: req.file.buffer }),
+      guardar: (pngs) => avisos.crear({ texto, emitidoEn, titulo, subtitulo, nivel, usuarioId: req.usuario.usuarioId, ...pngs }),
     });
   } catch (e) {
     if (!e.status) console.error(e);

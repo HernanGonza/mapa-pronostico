@@ -412,4 +412,5 @@ async function generateForecastMapHistorias({ forecastRows, date = new Date() })
   return canvas.toBuffer("image/png");
 }
 
-module.exports = { generateForecastMap, generateForecastMapHistorias, MATERIALES_DIR };
+// Piezas que reusa la placa nueva sobre foto (generatePronosticoFoto.js).
+module.exports = { generateForecastMap, generateForecastMapHistorias, MATERIALES_DIR, MUNICIPIOS_GEOJSON_PATH, trazarGeometria, ubicarTarjeta, roundedRect, truncarTexto, detectarSiluetaProvincia, SEMILLA_LAT, SEMILLA_LNG };

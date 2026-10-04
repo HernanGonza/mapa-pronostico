@@ -36,7 +36,7 @@ export default function CuencasPage() {
 
   return <div className="admin-layout cuencas-claro">
     <BrandHeader subtitulo="Monitor de cuencas">
-      <Link to="/panel/mapas" className="btn-link">← Panel</Link>
+      <Link to="/panel/configuracion" className="btn-link">← Configuración</Link>
     </BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading">

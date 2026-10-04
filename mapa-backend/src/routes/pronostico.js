@@ -193,6 +193,18 @@ router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) =
     if (errorFilas) return res.status(400).json({ error: errorFilas });
     const placas = require("../lib/pronosticoPlacasStore");
     const fecha = nowInArgentina();
+    // Estilo nuevo: sobre una de las fotos de las placas diarias, con etiqueta y frase (ver
+    // generatePronosticoFoto). Sin `fondo`, la placa de siempre sobre el mapa crema.
+    const { fondo = null, etiqueta = null, frase = "", estiloTarjeta = "oscura" } = req.body || {};
+    if (fondo != null) {
+      const foto = require("../lib/generatePronosticoFoto");
+      const error = foto.errorDePlacaFoto({ fondo, etiqueta, frase, estiloTarjeta });
+      if (error) return res.status(400).json({ error });
+      return await require("../lib/placasPendientes").resolver(req, res, {
+        generar: () => foto.generarPlacaPronosticoFotoAmbos({ forecastRows: filas, date: fecha, fondo, etiqueta, frase, estiloTarjeta }),
+        guardar: (pngs) => placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, fondo, etiqueta, frase, estiloTarjeta, ...pngs }),
+      });
+    }
     await require("../lib/placasPendientes").resolver(req, res, {
       generar: async () => {
         const outputPath = path.join(os.tmpdir(), `mapa_prono_feed_${Date.now()}.png`);
@@ -208,6 +220,39 @@ router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) =
     console.error(err);
     res.status(500).json({ error: "No se pudo generar la placa." });
   }
+});
+
+/** GET /api/pronostico/placas/ultima — la última placa generada ({ placa: null } si no hay). */
+router.get("/pronostico/placas/ultima", requireAuth, async (req, res) => {
+  try { res.set("Cache-Control", "no-store").json({ placa: await require("../lib/pronosticoPlacasStore").ultima() }); }
+  catch (e) { console.error(e); res.status(500).json({ error: "No se pudo leer la última placa." }); }
+});
+
+/**
+ * GET /api/pronostico/fondos
+ * Las fotos de fondo de la placa (las de las placas diarias, limpias), con su etiqueta, para
+ * elegir en el asistente. Las miniaturas salen de /api/pronostico/fondos/:id.jpg.
+ */
+router.get("/pronostico/fondos", requireAuth, (req, res) => {
+  const { FONDOS, ETIQUETAS, ESTILOS_TARJETA, MAX_FRASE } = require("../lib/generatePronosticoFoto");
+  res.json({ fondos: FONDOS, etiquetas: Object.entries(ETIQUETAS).map(([id, e]) => ({ id, texto: e.texto })), estilos: Object.keys(ESTILOS_TARJETA), maxFrase: MAX_FRASE });
+});
+// Miniatura (360 px de ancho) de una foto de fondo; se arma una vez y queda en memoria.
+const miniaturas = new Map();
+router.get("/pronostico/fondos/:id.jpg", async (req, res) => {
+  const { FONDOS, FONDOS_DIR } = require("../lib/generatePronosticoFoto");
+  const id = Number(req.params.id);
+  if (!FONDOS.some((f) => f.id === id)) return res.status(404).end();
+  try {
+    if (!miniaturas.has(id)) {
+      const { createCanvas, loadImage } = require("canvas");
+      const img = await loadImage(path.join(FONDOS_DIR, `${id}.jpg`));
+      const c = createCanvas(360, Math.round((360 * img.height) / img.width));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      miniaturas.set(id, c.toBuffer("image/jpeg", { quality: 0.8 }));
+    }
+    res.set("Cache-Control", "public, max-age=86400").type("jpeg").send(miniaturas.get(id));
+  } catch (e) { console.error(e); res.status(500).end(); }
 });
 
 /**

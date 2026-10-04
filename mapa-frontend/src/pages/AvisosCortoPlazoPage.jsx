@@ -9,9 +9,10 @@ import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
 import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
-import { crearAvisoPorPasos, publicarAvisoPorPasos, TITULO } from "../lib/asistenteAviso";
+import { crearAvisoPorPasos, publicarAvisoPorPasos, textoDePartes, TITULO } from "../lib/asistenteAviso";
 
-const COLOR_ACP = "#8b3fc4"; // mismo violeta que "Alertas automáticas (SMN)" para avisos ACP.
+// Violeta de los ACP mientras no hay alerta vigente; si hay, el backend manda su color (`acpAhora`).
+const VIOLETA_ACP = "#8b3fc4";
 
 /** Avisos ACP vigentes del RSS/CAP del SMN, uno por cada zona con polígono
  * (a veces hay más de uno al mismo tiempo — el asistente deja elegir cuál). */
@@ -30,6 +31,9 @@ function avisosAcpDe(data) {
             titulo: info.titulo,
             zona: zona.nombre,
             fin: info.fin,
+            emitidoEn: alerta.emitidoEn,
+            fenomeno: info.descripcion || info.evento || info.titulo,
+            color: info.color, // el de su nivel (titular del SMN o alerta vigente; ver colorAcp.js)
             poligono: zona.geometry.coordinates[0].slice(0, -1),
             texto: [info.descripcion, info.instrucciones].filter(Boolean).join("\n\n"),
           });
@@ -50,7 +54,9 @@ export default function AvisosCortoPlazoPage() {
   const [mensaje, setMensaje] = useState("");
   useNotificacion(mensaje);
   const [municipios, setMunicipios] = useState(null);
+  const [departamentos, setDepartamentos] = useState([]); // para escribir bien las zonas que manda el SMN
   const [avisosAcp, setAvisosAcp] = useState([]);
+  const [colorAcp, setColorAcp] = useState(VIOLETA_ACP); // el de la alerta vigente: así sale el polígono en la placa
   // Sólo lo que importa acá: los avisos vigentes en el mapa público y la placa
   // recién generada (sin publicar). El historial va a vivir en el histórico.
   const [vigentes, setVigentes] = useState(null);
@@ -60,6 +66,7 @@ export default function AvisosCortoPlazoPage() {
   const cargarVigentes = () => api.getAvisosCortoPlazoVigentes().then(setVigentes).catch((e) => { setVigentes([]); setError(e.message); });
   useEffect(() => {
     api.getMunicipiosGeojson().then(setMunicipios).catch(() => {});
+    api.getAlertasMeteorologicasCatalogo().then((c) => setDepartamentos(c.departamentos || [])).catch(() => {});
     cargarVigentes();
     // Refresca para que un aviso que venció desaparezca de la lista solo.
     const timer = setInterval(cargarVigentes, 60000);
@@ -67,12 +74,12 @@ export default function AvisosCortoPlazoPage() {
   }, []);
 
   // Lista de avisos ACP vigentes: se refresca sola cada 60s (mismo intervalo
-  // que "Alertas automáticas") para que "Crear placa" siempre ofrezca lo
+  // que "Alertas automáticas") para que "Nuevo aviso a corto plazo" siempre ofrezca lo
   // último que llegó por RSS, sin depender de que alguien recargue la página.
   useEffect(() => {
     let cancelado = false;
     async function refrescar() {
-      try { const data = await api.getSmnAlertas(); if (!cancelado) setAvisosAcp(avisosAcpDe(data)); }
+      try { const data = await api.getSmnAlertas(); if (!cancelado) { setAvisosAcp(avisosAcpDe(data)); setColorAcp(data.acpAhora?.color || VIOLETA_ACP); } }
       catch { /* deja la lista anterior */ }
     }
     refrescar();
@@ -86,10 +93,11 @@ export default function AvisosCortoPlazoPage() {
   const vistaPrevia = (valores) => api.generarAvisoCortoPlazo({ ...valores, vistaPrevia: true });
   async function guardarPlaca(valores, token, { finSmn }) {
     const placa = await api.generarAvisoCortoPlazo({ ...valores, confirmarToken: token });
-    setPuntos(valores.poligono); setTexto(valores.texto); setFondo(valores.fondo);
+    const texto = textoDePartes(valores.partes);
+    setPuntos(valores.poligono); setTexto(texto); setFondo(valores.fondo);
     setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
     setVista("recomendaciones");
-    setGenerada({ ...placa, ...valores, finSmn });
+    setGenerada({ ...placa, ...valores, texto, finSmn });
     return placa;
   }
 
@@ -102,7 +110,7 @@ export default function AvisosCortoPlazoPage() {
     // `poligono` va en el estado inicial (no sólo en el paso "elegir aviso"):
     // si no hay avisos del SMN vigentes, ese paso se salta entero y el único
     // origen del polígono es lo ya dibujado a mano en el mapa de la página.
-    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, puntosDibujados: puntos, onSeleccionarPoligono: cambiarPuntos, publicados: vigentes || [], vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
+    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, departamentos, puntosDibujados: puntos, onSeleccionarPoligono: (poligono, aviso) => { cambiarPuntos(poligono); if (aviso?.color) setColorAcp(aviso.color); }, publicados: vigentes || [], vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
   }
 
   // Publicar (o cambiarle la vigencia a uno ya publicado) es un asistente con el paso de vigencia.
@@ -131,17 +139,17 @@ export default function AvisosCortoPlazoPage() {
       <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading">
           <h1>Avisos a muy corto plazo</h1>
-          <p>Tocá «Crear placa» y elegí el aviso vigente del SMN: el polígono y el texto se completan solos. Si el SMN no trajo polígono, dibujalo a mano sobre los límites municipales.</p>
+          <p>Tocá «Nuevo aviso a corto plazo» y elegí el aviso vigente del SMN: el polígono y los textos se completan solos. Si el SMN no trajo polígono, dibujalo a mano sobre los límites municipales.</p>
         </div>
         <PublicationStatus changed={generadaSinPublicar} published={vigentes?.length > 0}>
           {vigentes === null ? null : vigentes.length ? `${vigentes.length} aviso${vigentes.length === 1 ? "" : "s"} vigente${vigentes.length === 1 ? "" : "s"}` : "Sin avisos vigentes en el mapa público"}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
-        <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crearPlaca}>Crear placa</button>
+        <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crearPlaca}>Nuevo aviso a corto plazo</button>
         <p className="admin-panel__hint">
           {avisosAcp.length > 0
-            ? `${avisosAcp.length} aviso(s) del SMN vigente(s) — tocá «Crear placa» para elegir cuál.`
-            : "Sin avisos del SMN vigentes por ahora: dibujá la zona afectada en el mapa y tocá «Crear placa»."}
+            ? `${avisosAcp.length} aviso(s) del SMN vigente(s) — tocá «Nuevo aviso a corto plazo» para elegir cuál.`
+            : "Sin avisos del SMN vigentes por ahora: dibujá la zona afectada en el mapa y tocá «Nuevo aviso a corto plazo»."}
         </p>
 
         {generadaSinPublicar && (
@@ -163,7 +171,7 @@ export default function AvisosCortoPlazoPage() {
                   <small>Publicado el {hora(a.publicadoEn)}{a.generadoPorEmail && <> · {a.generadoPorEmail}</>} · <a href={a.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={a.historiasUrl} target="_blank" rel="noreferrer">historias</a></small>
                   <div className="avisos-lista__acciones">
                     <button type="button" className="btn" onClick={() => abrirPublicar(a, { vigenteHasta: a.vigenteHasta })}>Cambiar vigencia</button>
-                    <PublicarEnRedes feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={`${a.titulo}\n\n${a.texto}`} />
+                    <PublicarEnRedes unaVez feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={`${a.titulo}\n\n${a.texto}`} />
                     <button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(a)}>{despublicando === a.id ? "Despublicando…" : "Despublicar"}</button>
                   </div>
                 </li>
@@ -174,7 +182,7 @@ export default function AvisosCortoPlazoPage() {
         <EmbedShare path="/embed/avisos-corto-plazo" title="Aviso a muy corto plazo · Misiones" />
       </section>
       <PlacaPreview vista={vista} onVista={setVista} titulo="aviso a muy corto plazo" imagenes={undefined} recomendaciones={imagenes} labelRecomendaciones="Placa generada" epigrafe={`${TITULO}\n\n${texto}`}>
-        <PolygonDrawMap puntos={puntos} onChange={cambiarPuntos} municipios={municipios} colorPoligono={COLOR_ACP} />
+        <PolygonDrawMap puntos={puntos} onChange={cambiarPuntos} municipios={municipios} colorPoligono={colorAcp} />
       </PlacaPreview>
     </div>
   );

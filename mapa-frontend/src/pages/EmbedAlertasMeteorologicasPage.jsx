@@ -21,7 +21,8 @@ const fechaHora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: AR,
 // sola): las por departamentos armadas a mano en /panel/alertas-meteorologicas
 // (puede haber varias: hoy, mañana…) y las del SMN publicadas desde
 // /panel/alertas-automaticas. Al elegir una
-// tarjeta, el mapa muestra esa alerta y abajo va su descripción.
+// tarjeta (o pasar de página), el mapa muestra esa alerta y abajo va su descripción. Si en el
+// panel se fijó una a mano, se ve sólo ésa; si no, todas las vigentes según su vigencia.
 export default function EmbedAlertasMeteorologicasPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -49,20 +50,25 @@ export default function EmbedAlertasMeteorologicasPage() {
   const manualesVigentes = data.manuales.filter((m) => Date.parse(m.vigenteHasta) > ahora);
   // ?id=manual-<id> | smn-<id>: sólo esa alerta (la pantalla de transmisión /tv muestra cada una por separado).
   const soloId = new URLSearchParams(window.location.search).get("id");
+  // Fijada a mano desde el panel: se ve sólo ésa (ni las otras manuales ni las del SMN).
+  const fijada = manualesVigentes.find((m) => m.fijada);
   const tarjetas = [
     // Todo verde no es una alerta: no lleva tarjeta (se ve el mapa verde, sin cartel).
-    ...manualesVigentes.filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "manual", manual: m })),
-    ...data.smn.filter((a) => Date.parse(a.vigenteHasta) > ahora).map((a) => ({ clave: `smn-${a.id}`, tipo: "smn", alerta: a })),
+    ...(fijada ? [fijada] : manualesVigentes).filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "manual", manual: m })),
+    ...(fijada ? [] : data.smn.filter((a) => Date.parse(a.vigenteHasta) > ahora).map((a) => ({ clave: `smn-${a.id}`, tipo: "smn", alerta: a }))),
   ].filter((t) => !soloId || t.clave === soloId);
   // Sin alertas: el mapa con los departamentos en verde, igual que los otros mapas del sitio.
   if (!tarjetas.length) {
-    const verde = manualesVigentes.at(-1);
+    const verde = fijada || manualesVigentes.at(-1);
     const zonas = verde?.zonas || data.catalogo.departamentos.map((d) => ({ id: String(d.id), categoria: "Verde" }));
     return <div className="embed-risk"><SelloDemo />{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
       <RiesgoMap embed geo={data.geo} zonas={zonas} iconos={[]} catalogo={data.catalogo} publicadoEn={verde?.publicadoEn} titulo="Alertas meteorológicas · Sin alertas vigentes" />
     </div>;
   }
   const actual = tarjetas.find((t) => t.clave === elegida) || tarjetas[0];
+  const indice = tarjetas.indexOf(actual);
+  const ir = (paso) => setElegida(tarjetas[(indice + paso + tarjetas.length) % tarjetas.length].clave);
+  const colorDe = (t) => (t.tipo === "smn" ? t.alerta.color || "#888" : colorNivel(t.manual, data.catalogo));
 
   return <div className="alertas-embed">
     <SelloDemo />
@@ -71,17 +77,23 @@ export default function EmbedAlertasMeteorologicasPage() {
         y el cartel le quitaba lugar al mapa en el iframe chico del sitio (371×464). */}
     {tarjetas.length > 1 && <div className="alertas-embed__tarjetas" role="tablist" aria-label="Alertas vigentes">
       {tarjetas.map((t) => <button key={t.clave} type="button" role="tab" aria-selected={t === actual} className="alertas-embed__tarjeta"
-        style={{ "--alerta-color": t.tipo === "smn" ? t.alerta.color || "#888" : "#2f8f5b" }} onClick={() => setElegida(t.clave)}>
+        style={{ "--alerta-color": colorDe(t) }} onClick={() => setElegida(t.clave)}>
         {t.tipo === "smn" ? <>
           <strong>{t.alerta.titulo}</strong>
           <span className="alertas-embed__nivel">Nivel {t.alerta.categoria}</span>
           <small>{periodo(t.alerta.inicio, t.alerta.fin)}</small>
         </> : <>
           <strong>{t.manual.periodo}</strong>
-          <span className="alertas-embed__nivel">Alerta por departamentos</span>
+          <span className="alertas-embed__nivel">Alerta {FEMENINO[nivelManual(t.manual)] || ""} por departamentos</span>
           <small>Publicada el {fechaHora(t.manual.publicadoEn)}</small>
         </>}
       </button>)}
+    </div>}
+    {/* Se superponen varias: páginas para pasar de una a otra (además de las tarjetas). */}
+    {tarjetas.length > 1 && <div className="alertas-embed__paginas" aria-label="Páginas">
+      <button type="button" onClick={() => ir(-1)} aria-label="Alerta anterior">‹</button>
+      <span>{indice + 1} de {tarjetas.length}</span>
+      <button type="button" onClick={() => ir(1)} aria-label="Alerta siguiente">›</button>
     </div>}
     <div className="alertas-embed__mapa">
       {actual.tipo === "smn"
@@ -98,6 +110,12 @@ export default function EmbedAlertasMeteorologicasPage() {
     </div>}
   </div>;
 }
+
+const ORDEN = { Amarillo: 1, Naranja: 2, Rojo: 3 };
+const FEMENINO = { Amarillo: "amarilla", Naranja: "naranja", Rojo: "roja" };
+/** Nivel de una publicación manual: el más alto de sus departamentos. */
+const nivelManual = (m) => (m.zonas || []).map((z) => z.categoria).reduce((a, b) => ((ORDEN[b] || 0) > (ORDEN[a] || 0) ? b : a), "Verde");
+const colorNivel = (m, catalogo) => catalogo.categorias.find((c) => c.nombre === nivelManual(m))?.color || "#2f8f5b";
 
 /** Una publicación manual es una alerta si algún departamento no está en verde (ni gris, sin dato). */
 const esAlerta = (m) => (m.zonas || []).some((z) => z.categoria && !["Verde", "Gris"].includes(z.categoria));

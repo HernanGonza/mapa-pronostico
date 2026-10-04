@@ -6,11 +6,16 @@ import { Link } from 'react-router-dom';
 import BrandHeader from '../components/BrandHeader';
 import EmbedShare from '../components/EmbedShare';
 import RiesgoMap from '../components/RiesgoMap';
-import { editarMapaAlertas, crearPlacaMapaAlertas, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
+import { editarMapaAlertas, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
 import * as api from '../api';
 import { confirmar } from '../lib/ui';
+import PublicarEnRedes from '../components/PublicarEnRedes';
+import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
 
 const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+/** Las 17 zonas de una publicación para el mapa de la página (sin dato o gris = verde). */
+const zonasDe = (catalogo, pub) => catalogo.departamentos.map(d => { const z = pub?.zonas?.find(x => String(x.id) === String(d.id)); return { id: String(d.id), categoria: z?.categoria === 'Gris' ? 'Verde' : z?.categoria || 'Verde' }; });
 
 const comoImagenes = (p) => ({ feed: p.feedUrl, historias: p.historiasUrl, feedNombre: p.feedNombre, historiasNombre: p.historiasNombre });
 
@@ -19,10 +24,16 @@ export default function AlertasMeteorologicasPage() {
   const [error, setError] = useState(''), [mensaje, setMensaje] = useState('');
   useNotificacion(mensaje);
   // Valores con los que arrancan los asistentes (se actualizan con lo último que se generó).
-  const [periodo, setPeriodo] = useState('Próximas 24 horas'), [fondo, setFondo] = useState('tormenta'), [titulo, setTitulo] = useState('Alerta meteorológica'), [tamanoPeriodo, setTamanoPeriodo] = useState(64);
-  // Publicaciones que se ven ahora en el mapa público (cada una se saca sola al vencer).
-  const [vigentes, setVigentes] = useState(null), [despublicando, setDespublicando] = useState(null);
-  const cargarVigentes = () => api.getAlertasMeteorologicasVigentes().then(setVigentes).catch(e => { setVigentes([]); setError(e.message); });
+  const [periodo] = useState('Próximas 24 horas');
+  // Publicaciones que se ven ahora en el mapa público (cada una se saca sola al vencer)
+  // y las que esperan en fila a que termine otra.
+  const [pendientes, setPendientes] = useState(null), [despublicando, setDespublicando] = useState(null);
+  const vigentes = pendientes?.vigentes, enFila = pendientes?.enFila || [];
+  const cargarVigentes = () => api.getAlertasMeteorologicasPendientes().then(setPendientes).catch(e => { setPendientes({ vigentes: [], enFila: [] }); setError(e.message); });
+  // «Nueva alerta»: borrador en blanco que no corrige la publicada (por defecto va en fila).
+  const [nueva, setNueva] = useState(false);
+  // La tarjeta de la pila que se está viendo en el mapa de la página (null = borrador nuevo).
+  const [seleccionada, setSeleccionada] = useState(null), [fijando, setFijando] = useState(false);
   useEffect(() => { cargarVigentes(); const t = setInterval(cargarVigentes, 60000); return () => clearInterval(t); }, []);
   const [iconos, setIconos] = useState([]), [imagenes, setImagenes] = useState(null), [vista, setVista] = useState('mapa');
 
@@ -31,9 +42,8 @@ export default function AlertasMeteorologicasPage() {
     Promise.all([api.getAlertasMeteorologicasCatalogo(), api.getAlertasMeteorologicasGeojson(), api.getAlertasMeteorologicasActual()]).then(([c, g, p]) => {
       if (!vivo) return;
       setCatalogo(c); setGeo(g); setPublicado(p);
-      setZonas(c.departamentos.map(d => { const z = p?.zonas?.find(x => String(x.id) === String(d.id)); return { id: String(d.id), categoria: z?.categoria === 'Gris' ? 'Verde' : z?.categoria || 'Verde' }; }));
-      setIconos(p?.iconos || []);
-      if (c.tamanoPeriodo?.predeterminado) setTamanoPeriodo(c.tamanoPeriodo.predeterminado);
+      setZonas(zonasDe(c, p));
+      setIconos(p?.iconos || []); setSeleccionada(p?.id ?? null);
     }).catch(e => { if (vivo) setError(e.message); });
     return () => { vivo = false; };
   }, []);
@@ -45,33 +55,139 @@ export default function AlertasMeteorologicasPage() {
   const republicar = !!publicado && !cambios;
   const detalle = zonasCambiadas.map(z => ({ nombre: catalogo?.departamentos.find(d => String(d.id) === String(z.id))?.nombre || String(z.id), antes: antes(z.id), despues: z.categoria }));
 
-  const editarMapa = () => editarMapaAlertas({ catalogo, zonas, iconos, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
-  const crearPlacaMapa = () => crearPlacaMapaAlertas({
-    catalogo, inicial: { zonas, iconos, titulo, periodo, fondo, tamanoPeriodo },
-    vistaPrevia: (c) => api.generarPlaca({ ...c, vistaPrevia: true }),
-    guardar: async (c, token) => {
-      const placa = await api.generarPlaca({ ...c, confirmarToken: token });
-      setZonas(c.zonas); setIconos(c.iconos); // el mapa de la página refleja lo que salió en la placa
-      setTitulo(c.titulo); setPeriodo(c.periodo); setFondo(c.fondo); setTamanoPeriodo(c.tamanoPeriodo);
-      setImagenes(comoImagenes(placa)); setVista('placa');
-      return placa;
-    },
-  });
+  // «Nueva alerta»: borrador en blanco (aparece arriba de la pila) y directo a armar el mapa.
+  async function nuevaAlerta() {
+    if (cambios && !(await confirmar({ titulo: '¿Empezar una alerta nueva?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Empezar de cero' }))) return;
+    const blanco = catalogo.departamentos.map(d => ({ id: String(d.id), categoria: 'Verde' }));
+    setZonas(blanco); setIconos([]);
+    setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null);
+    editarMapaAlertas({ catalogo, zonas: blanco, iconos: [], aplicar: (z, i) => { setZonas(z); setIconos(i); } });
+  }
+  // «Editar mapa» de una tarjeta: arma un borrador con el mapa de esa alerta (al publicarlo, la reemplaza).
+  async function editarMapaDe(v) {
+    if (v.id !== seleccionada && !(await verEnMapa(v))) return;
+    const base = v.id === seleccionada ? { zonas, iconos } : { zonas: zonasDe(catalogo, v), iconos: v.iconos || [] };
+    editarMapaAlertas({ catalogo, ...base, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
+  }
+  // «Placa para redes» (derecha): la recién generada o, si no, la última de la alerta elegida.
+  const ultimaMapa = [...(vigentes || []), ...enFila].find(v => v.id === seleccionada)?.placas?.find(p => p.tipo === 'mapa');
+  const imagenesPlaca = imagenes || (ultimaMapa ? comoImagenes(ultimaMapa) : null);
+  // Todo verde no es una alerta: no se publica (para sacar una publicada está «Despublicar»).
+  const todoVerde = zonas.length > 0 && zonas.every(z => !z.categoria || z.categoria === 'Verde');
+  const editarBorrador = () => editarMapaAlertas({ catalogo, zonas, iconos, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
+  // Descartar el borrador: vuelve a la alerta que se estaba corrigiendo (o a la primera de la pila).
+  function descartar() {
+    const volver = nueva ? (vigentes || [])[0] || enFila[0] || null : publicado;
+    setNueva(false); setImagenes(null); setVista('mapa');
+    setZonas(volver ? zonasDe(catalogo, volver) : catalogo.departamentos.map(d => ({ id: String(d.id), categoria: 'Verde' })));
+    setIconos(volver?.iconos || []); setPublicado(volver); setSeleccionada(volver?.id ?? null);
+  }
+  // «Crear placa para redes» de una alerta: la placa del mapa, guardada en su tarjeta (y a la derecha, en «Placa para redes»).
+  const crearPlacaParaRedes = (v) => placaMapaPorPasos({ pub: v, catalogo, alTerminar: (placa) => { setImagenes(comoImagenes(placa)); setVista('placa'); cargarVigentes(); } });
   const revisarYPublicar = () => publicarAlertasPorPasos({
-    cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], periodoSugerido: periodo,
+    cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], enFila, nueva, corrige: nueva ? null : publicado?.id ?? null, periodoSugerido: publicado?.periodo || periodo,
     publicar: async (opciones) => {
       const pub = await api.publicarAlertasMeteorologicas(zonas, iconos, opciones);
-      setPublicado(pub); await cargarVigentes(); setMensaje('Publicado. El mapa público ya muestra este mapa.');
+      setPublicado(pub); setNueva(false); setSeleccionada(pub.id); await cargarVigentes();
+      setMensaje(pub.enFilaDe ? 'Quedó en fila: aparece sola cuando termine la anterior.' : 'Publicado. El mapa público ya muestra este mapa.');
       return pub;
     },
   });
+  const periodoDe = (id) => [...(vigentes || []), ...enFila].find(x => x.id === id)?.periodo || 'la anterior';
   async function despublicar(v) {
-    if (!(await confirmar({ titulo: '¿Sacar la alerta del mapa público?', texto: 'Deja de mostrarse ahora, sin esperar a que venza.', confirmar: 'Despublicar' }))) return;
+    const esperando = enFila.includes(v), siguiente = enFila.find(x => x.enFilaDe === v.id);
+    const ok = await confirmar(esperando
+      ? { titulo: '¿Sacar la alerta de la fila?', texto: 'No va a aparecer en el mapa público.', confirmar: 'Sacar de la fila' }
+      : { titulo: '¿Sacar la alerta del mapa público?', texto: `Deja de mostrarse ahora, sin esperar a que venza.${siguiente ? ` En su lugar aparece «${siguiente.periodo}».` : ''}`, confirmar: 'Despublicar' });
+    if (!ok) return;
     setDespublicando(v.id); setError('');
-    try { await api.despublicarAlertaMeteorologica(v.id); await cargarVigentes(); setMensaje('Listo: la alerta ya no se muestra en el mapa público.'); }
+    try { await api.despublicarAlertaMeteorologica(v.id); await cargarVigentes(); setMensaje(esperando ? 'Listo: la alerta salió de la fila.' : siguiente ? `Listo: ahora se muestra «${siguiente.periodo}».` : 'Listo: la alerta ya no se muestra en el mapa público.'); }
     catch (e) { setError(e.message); }
     finally { setDespublicando(null); }
   }
+
+  // Tocar una tarjeta de la pila: el mapa de la página pasa a mostrar esa alerta (y «Editar
+  // mapa» / «Republicar» trabajan sobre ella). Así se vuelve a una anterior después de «Nueva alerta».
+  async function verEnMapa(v) {
+    if (v.id === seleccionada) return true;
+    if (cambios && !(await confirmar({ titulo: '¿Ver otra alerta?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Ver la otra' }))) return false;
+    setZonas(zonasDe(catalogo, v)); setIconos(v.iconos || []); setPublicado(v); setNueva(false);
+    setSeleccionada(v.id); setImagenes(null); setVista('mapa');
+    return true;
+  }
+  const alTocarTarjeta = (v) => (e) => { if (e.target.closest('button, a, input, label')) return; verEnMapa(v); };
+  const alTeclaTarjeta = (v) => (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); verEnMapa(v); } };
+  // Qué se ve en el mapa público: la fijada a mano o, si no hay, las vigentes por fecha.
+  const fijada = [...(vigentes || []), ...enFila].find(x => x.fijada);
+  async function fijar(v) {
+    setFijando(true); setError('');
+    try {
+      await api.fijarAlertaMeteorologica(v ? v.id : null); await cargarVigentes();
+      setMensaje(v ? `Listo: el mapa público muestra sólo «${v.periodo}».` : 'Listo: el mapa público vuelve a mostrar las alertas según su vigencia.');
+    } catch (e) { setError(e.message); }
+    finally { setFijando(false); }
+  }
+  const botonFijar = (v) => v.fijada
+    ? <button type="button" className="btn" disabled={fijando} onClick={() => fijar(null)}>Desfijar (volver a automático)</button>
+    : <button type="button" className="btn" disabled={fijando} onClick={() => fijar(v)}>Fijar en el mapa público</button>;
+  const propsTarjeta = (v) => ({ className: `alerta-tarjeta${v.id === seleccionada ? ' alerta-tarjeta--elegida' : ''}`, onClick: alTocarTarjeta(v), onKeyDown: alTeclaTarjeta(v), tabIndex: 0, 'aria-current': v.id === seleccionada || undefined, title: 'Tocá la tarjeta para ver esta alerta en el mapa' });
+  const estadoPublico = fijada
+    ? <p className="alerta-mapa-publico alerta-mapa-publico--fijada">📌 El mapa público muestra sólo «{fijada.periodo}» (fijada a mano).</p>
+    : vigentes?.length > 1 ? <p className="alerta-mapa-publico">El mapa público muestra las {vigentes.length} vigentes, con páginas para pasar de una a otra.</p>
+    : vigentes?.length === 1 ? <p className="alerta-mapa-publico">El mapa público muestra «{vigentes[0].periodo}» según su vigencia.</p> : null;
+
+  // Botones y placas de cada tarjeta de la pila (vigente o en fila): placas nuevas de esa alerta.
+  const colorNivel = (n) => catalogo?.categorias.find(c => c.nombre === n)?.color;
+  const asistentePlaca = (fn, v) => fn({ pub: v, catalogo, alTerminar: cargarVigentes });
+  const accionesPlacas = (v) => <>
+    <button type="button" className="btn btn--primary" onClick={() => crearPlacaParaRedes(v)}>Crear placa para redes</button>
+    <button type="button" className="btn" onClick={() => editarMapaDe(v)}>Editar mapa</button>
+    <button type="button" className="btn" onClick={() => asistentePlaca(cambiarVigenciaPorPasos, v)}>Cambiar vigencia</button>
+    <button type="button" className="btn" onClick={() => asistentePlaca(recomendacionesPorPasos, v)}>Recomendaciones</button>
+    <button type="button" className="btn" onClick={() => asistentePlaca(avisoDeAlertaPorPasos, v)}>Aviso de alerta</button>
+    <button type="button" className="btn" onClick={() => asistentePlaca(actualizacionNivelPorPasos, v)}>Actualización de nivel</button>
+  </>;
+  const REDES = { facebook: 'Facebook', instagram: 'Instagram', telegram: 'Telegram' };
+  const dondeSalio = (redes) => [...new Set(redes.map(r => REDES[r.destino] || r.destino))].join(', ');
+  const [eliminando, setEliminando] = useState(null);
+  async function eliminarPlaca(pl) {
+    const enRedes = pl.redes?.length > 0;
+    const ok = await confirmar({ titulo: `¿Eliminar la placa «${TIPO_PLACA[pl.tipo]}»?`, confirmar: 'Eliminar',
+      texto: enRedes ? `Ya se publicó en redes (${dondeSalio(pl.redes)}): se saca sólo de acá, no de las redes.` : 'Se saca de la tarjeta de la alerta.' });
+    if (!ok) return;
+    setEliminando(pl.id); setError('');
+    try { await api.eliminarPlacaAlerta(pl.id); await cargarVigentes(); setMensaje('Listo: la placa se sacó de la tarjeta.'); }
+    catch (e) { setError(e.message); }
+    finally { setEliminando(null); }
+  }
+  const placasDe = (v) => v.placas?.length > 0 && <ul className="alerta-placas">{v.placas.map(pl => {
+    const actual = (pl.redes || []).filter(r => r.version === 'actual'), anterior = (pl.redes || []).filter(r => r.version === 'anterior');
+    return <li key={pl.id} style={{ '--nivel': colorNivel(pl.nivel) }}>
+      <a href={pl.feedUrl} target="_blank" rel="noreferrer"><img src={pl.feedUrl} alt={`Placa ${TIPO_PLACA[pl.tipo]}`} loading="lazy" /></a>
+      <div>
+        <strong>{TIPO_PLACA[pl.tipo]} · {pl.nivel}</strong>
+        <small>{fechaHora(pl.editadoEn || pl.generadoEn)}{pl.editadoEn && ' (editada)'}{pl.generadoPorEmail && <> · {pl.generadoPorEmail}</>} · <a href={`${pl.feedUrl}?download=${encodeURIComponent(pl.feedNombre)}`}>feed</a> · <a href={`${pl.historiasUrl}?download=${encodeURIComponent(pl.historiasNombre)}`}>historias</a></small>
+        {/* Siempre a la vista si salió en redes (lo dice el servidor al cargar la tarjeta). */}
+        {actual.length > 0 && <span className="alerta-placas__redes">✓ Publicada en redes · {dondeSalio(actual)}</span>}
+        {anterior.length > 0 && <span className="alerta-placas__redes alerta-placas__redes--anterior">La versión anterior se publicó en: {dondeSalio(anterior)}</span>}
+        <div className="alerta-placas__acciones">
+          <PublicarEnRedes unaVez alTerminar={cargarVigentes} className="btn btn--ghost" feedUrl={pl.feedUrl} historiasUrl={pl.historiasUrl} epigrafe={`${TIPO_PLACA[pl.tipo]} · Alerta ${pl.nivel.toLowerCase()}\n\nMinisterio de Ecología y RNR de Misiones`} />
+          <button type="button" className="btn btn--ghost" onClick={() => ASISTENTE_DE[pl.tipo]({ pub: v, catalogo, placa: pl, alTerminar: cargarVigentes })}>Editar</button>
+          <button type="button" className="btn btn--ghost" disabled={eliminando != null} onClick={() => eliminarPlaca(pl)}>{eliminando === pl.id ? 'Eliminando…' : 'Eliminar'}</button>
+        </div>
+      </div>
+    </li>;
+  })}</ul>;
+  // Última actualización: un cambio de vigencia o la última «Actualización de vigencia / de nivel» (generada o editada).
+  const actualizadaEn = (v) => [v.actualizadaEn, ...(v.placas || []).filter(p => p.tipo === 'vigencia' || p.tipo === 'nivel').map(p => p.editadoEn || p.generadoEn)]
+    .filter(Boolean).sort().at(-1) || null;
+  // El nivel de ahora: si una «Actualización de nivel» está en su horario, el de ésa (y avisa el próximo cambio).
+  const horaCorta = (d) => d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const etiquetaNivel = (v) => {
+    const n = nivelDe(v), prox = proximoCambioDeNivel(v);
+    return <><span className="alerta-nivel" style={{ '--nivel': colorNivel(n) }}>{n}</span>
+      {prox && <span className="alerta-nivel alerta-nivel--proximo" style={{ '--nivel': colorNivel(prox.nivel) }} title="Según la «Actualización de nivel»">→ {prox.nivel} desde {horaCorta(prox.inicio)}</span>}</>;
+  };
 
   return <div className="admin-layout risk-layout meteo-layout">
     <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
@@ -81,17 +197,38 @@ export default function AlertasMeteorologicasPage() {
       {!catalogo ? <p>Cargando departamentos…</p> : <>
         <PublicationStatus changed={cambios} published={publicado} />
         <div className="admin-acciones">
-          <button className="btn btn--primary btn--block" onClick={editarMapa}>Editar mapa</button>
-          <button className="btn btn--block" onClick={crearPlacaMapa}>Crear placa del mapa</button>
-          <button className="btn btn--block" disabled={!catalogo} onClick={revisarYPublicar}>{republicar ? "Republicar" : "Revisar y publicar"}</button>
+          <button className="btn btn--primary btn--block" onClick={nuevaAlerta}>Nueva alerta</button>
         </div>
-        <p className="admin-panel__hint">La placa del mapa usa los niveles y fenómenos que ves a la derecha. Al publicar elegís para cuándo es y hasta cuándo se muestra: después se saca sola.</p>
+        <p className="admin-panel__hint">Con «Nueva alerta» armás el mapa; después, en su tarjeta, la publicás en la página (para cuándo es y hasta cuándo se muestra: después se saca sola, o queda en fila detrás de otra). Ya publicada, en la tarjeta creás la placa para redes y las demás placas. Tocá una tarjeta para ver esa alerta en el mapa de la derecha.</p>
+        {(nueva || cambios) && <div className="avisos-lista avisos-lista--pendiente">
+          <h2>{nueva ? 'Alerta nueva · sin publicar' : `Corrección de «${publicado?.periodo || 'la alerta'}» · sin publicar`}</h2>
+          <p className="avisos-lista__texto">{nueva && !cambios ? 'Armá el mapa con «Editar mapa».' : 'El mapa de la derecha muestra este borrador.'}{!nueva && ' Al publicarlo reemplaza a la alerta que estás corrigiendo.'}</p>
+          <div className="avisos-lista__acciones">
+            <button type="button" className="btn btn--primary" disabled={todoVerde || (nueva && !cambios)} onClick={revisarYPublicar}>Publicar en la página</button>
+            <button type="button" className="btn" onClick={editarBorrador}>Editar mapa</button>
+            <button type="button" className="btn btn--ghost" onClick={descartar}>Descartar</button>
+          </div>
+          {todoVerde && <p className="alerta-borrador__aviso">Está todo en verde, así que no es una alerta: para publicarla en la página, poné al menos un departamento en amarillo, naranja o rojo con «Editar mapa».{!nueva && ' Para sacar la alerta del mapa público, usá «Despublicar» en su tarjeta.'}</p>}
+        </div>}
         {vigentes?.length > 0 && <div className="avisos-lista">
           <h2>Vigentes en el mapa público</h2>
-          <ul>{vigentes.map(v => <li key={v.id}>
-            <strong>{v.periodo}</strong>
-            <small>Publicada el {fechaHora(v.publicadoEn)} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
-            <div className="avisos-lista__acciones"><button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Despublicando…' : 'Despublicar'}</button></div>
+          {estadoPublico}
+          <ul>{vigentes.map(v => <li key={v.id} {...propsTarjeta(v)}>
+            {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
+            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'}</strong>
+            <small>Publicada el {fechaHora(v.publicadoEn)}{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
+            <div className="avisos-lista__acciones">{accionesPlacas(v)}{botonFijar(v)}<button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Despublicando…' : 'Despublicar'}</button></div>
+            {placasDe(v)}
+          </li>)}</ul>
+        </div>}
+        {enFila.length > 0 && <div className="avisos-lista">
+          <h2>En fila</h2>
+          <ul>{enFila.map(v => <li key={v.id} {...propsTarjeta(v)}>
+            {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
+            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'}</strong>
+            <small>Aparece cuando termine «{periodoDe(v.enFilaDe)}»{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
+            <div className="avisos-lista__acciones">{accionesPlacas(v)}{botonFijar(v)}<button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Sacando…' : 'Sacar de la fila'}</button></div>
+            {placasDe(v)}
           </li>)}</ul>
         </div>}
         {vigentes?.length === 0 && <p className="admin-panel__hint">No hay alertas por departamento vigentes en el mapa público.</p>}
@@ -99,7 +236,7 @@ export default function AlertasMeteorologicasPage() {
         <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />
       </>}
     </section>
-    <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenes}>
+    <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenesPlaca}>
       {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
     </PlacaPreview>
   </div>;

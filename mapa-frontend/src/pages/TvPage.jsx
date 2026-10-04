@@ -42,6 +42,11 @@ const AR = "America/Argentina/Buenos_Aires";
 const hora = (iso) => new Date(iso).toLocaleTimeString("es-AR", { timeZone: AR, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const diaHora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: AR, weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+/** Texto oscuro sobre colores claros (alerta amarilla), blanco sobre el resto. */
+const textoSobre = (hex) => {
+  const [r, g, b] = (String(hex).match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i) || [0, "0", "0", "0"]).slice(1).map((x) => parseInt(x, 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b > 170 ? "#1d2a22" : "#ffffff";
+};
 const esAlerta = (m) => (m.zonas || []).some((z) => z.categoria && !["Verde", "Gris"].includes(z.categoria));
 
 /** Lo urgente vigente, en el orden en que se muestra: primero los ACP, después las alertas. */
@@ -53,10 +58,11 @@ async function leerUrgentes() {
   ]);
   return [
     ...acp.map((a) => ({ clave: `acp-${a.id}`, tipo: "acp", src: `/embed/avisos-corto-plazo?id=${a.id}`, etiqueta: "Aviso a muy corto plazo",
-      titulo: a.titulo || "Aviso a muy corto plazo", texto: a.texto, pie: `Vigente hasta las ${hora(a.vigenteHasta)}`, color: "#8b3fc4" })),
-    ...manuales.filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "alerta", src: `/embed/alertas-meteorologicas?id=manual-${m.id}`, etiqueta: "Alerta meteorológica",
+      titulo: a.titulo || "Aviso a muy corto plazo", texto: a.texto, pie: `Vigente hasta las ${hora(a.vigenteHasta)}`, color: a.color || "#8b3fc4" })), // el de la alerta en cuya vigencia cae
+    ...(manuales.some((m) => m.fijada) ? manuales.filter((m) => m.fijada) : manuales).filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "alerta", src: `/embed/alertas-meteorologicas?id=manual-${m.id}`, etiqueta: "Alerta meteorológica",
       titulo: m.periodo, texto: "Mirá el nivel de alerta de tu departamento en el mapa.", pie: `Vigente hasta el ${diaHora(m.vigenteHasta)}`, color: "#f67f15" })),
-    ...smn.map((a) => ({ clave: `smn-${a.id}`, tipo: "alerta", src: `/embed/alertas-meteorologicas?id=smn-${a.id}`, etiqueta: `Alerta ${a.categoria} · SMN`,
+    // Con una alerta manual fijada a mano en el panel, se ve sólo ésa (como en el embebido).
+    ...(manuales.some((m) => m.fijada) ? [] : smn).map((a) => ({ clave: `smn-${a.id}`, tipo: "alerta", src: `/embed/alertas-meteorologicas?id=smn-${a.id}`, etiqueta: `Alerta ${a.categoria} · SMN`,
       titulo: a.titulo, texto: a.descripcion, pie: `Hasta el ${diaHora(a.fin)}`, color: a.color || "#f67f15" })),
   ];
 }
@@ -205,7 +211,7 @@ export default function TvPage() {
   }, [urgentes.length]);
 
   const urgente = hayUrgente ? urgentes[indiceUrgente % urgentes.length] : null;
-  return <div className={`tv${urgente ? " tv--urgente" : ""}`} style={urgente ? { "--tv-urgente": urgente.color } : undefined}>
+  return <div className={`tv${urgente ? " tv--urgente" : ""}`} style={urgente ? { "--tv-urgente": urgente.color, "--tv-urgente-texto": textoSobre(urgente.color) } : undefined}>
     <header className="tv-cabecera">
       <img src="/brand/ecologia-flor.png" alt="" />
       <span className="tv-marca"><b>Alerta Temprana</b>Ministerio de Ecología · Misiones</span>
