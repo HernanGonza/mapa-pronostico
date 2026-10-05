@@ -91,6 +91,12 @@ export const urlCapturaTransmision = (t) => `${API_URL}/api/transmision/captura.
 export async function getRotacionTv() {
   return handleJson(await fetch(`${API_URL}/api/tv/rotacion`, { cache: "no-store" }));
 }
+/** Si los ACP / las alertas cortan la rotación de /tv: { acp?, alertas? } → { urgentes }. */
+export async function guardarUrgentesTv(cambio) {
+  return handleJson(await fetch(`${API_URL}/api/tv/urgentes`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cambio), ...CON_SESION,
+  }));
+}
 export async function guardarRotacionTv(pantallas) {
   return handleJson(await fetch(`${API_URL}/api/tv/rotacion`, {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pantallas }), ...CON_SESION,

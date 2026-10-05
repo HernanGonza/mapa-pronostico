@@ -10,6 +10,7 @@ const tv = require("../lib/tvStore");
  * Pantalla de transmisión (/tv): qué se ve y en qué orden (ver lib/tvStore.js).
  *   GET  /api/tv/rotacion            público: lo lee /tv cada 20 s
  *   PUT  /api/tv/rotacion            superadmin: guarda la lista del panel
+ *   PUT  /api/tv/urgentes            superadmin: { acp?, alertas? } si cortan la rotación (se aplica al toque)
  *   POST /api/tv/archivos            superadmin: sube un video o una imagen (campo "archivo")
  *   GET  /api/tv/archivos/<nombre>   público: el archivo (con Range, para los videos)
  */
@@ -44,6 +45,15 @@ router.put("/tv/rotacion", ...soloSuperadmin, express.json({ limit: "200kb" }), 
   } catch (e) {
     if (!e.status) console.error(e);
     res.status(e.status || 500).json({ error: e.status ? e.message : "No se pudo guardar la rotación." });
+  }
+});
+
+router.put("/tv/urgentes", ...soloSuperadmin, express.json({ limit: "2kb" }), async (req, res) => {
+  try {
+    res.json({ urgentes: await tv.guardarUrgentes(req.body, req.usuario.usuarioId) });
+  } catch (e) {
+    if (!e.status) console.error(e);
+    res.status(e.status || 500).json({ error: e.status ? e.message : "No se pudo guardar." });
   }
 });
 

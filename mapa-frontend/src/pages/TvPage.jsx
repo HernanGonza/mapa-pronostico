@@ -15,6 +15,8 @@ import "../tv.css";
  *   (la manual que no sea toda verde, o una del SMN publicada), corta la rotación y lo
  *   muestra a pantalla completa, CADA UNO POR SEPARADO (su propio mapa, con ?id= en el
  *   embebido); si hay varios, rotan entre sí. Al vencer, vuelve sola a la rotación.
+ *   Desde el panel (Pantalla TV) se puede apagar el corte de los ACP y/o de las alertas: entonces
+ *   la rotación sigue (y el video que esté pasando no se corta).
  *
  * - Videos en la rotación: a pantalla completa, duran lo que dure el video y sin sonido
  *   (CON_SONIDO), para no pisar lo que se habla en la transmisión.
@@ -140,7 +142,10 @@ export default function TvPage() {
   const [rotacion, setRotacion] = useState(() => armarRotacion(null));
   const [actualId, setActualId] = useState(null);
   const [vuelta, setVuelta] = useState(0); // cuenta cada pase, aunque sea la misma pantalla (una sola activa)
-  const [urgentes, setUrgentes] = useState([]);
+  const [todosUrgentes, setUrgentes] = useState([]);
+  // Si los ACP / las alertas cortan la rotación (panel → Pantalla TV). Por defecto, sí.
+  const [cortes, setCortes] = useState({ acp: true, alertas: true });
+  const urgentes = useMemo(() => todosUrgentes.filter((u) => (u.tipo === "acp" ? cortes.acp : cortes.alertas)), [todosUrgentes, cortes]);
   const [indiceUrgente, setIndiceUrgente] = useState(0);
 
   useEffect(() => {
@@ -163,6 +168,7 @@ export default function TvPage() {
     let cancelado = false;
     let ultima = "";
     const leer = () => getRotacionTv().then((r) => {
+      if (!cancelado && r.urgentes) setCortes((c) => (c.acp === r.urgentes.acp && c.alertas === r.urgentes.alertas ? c : { acp: r.urgentes.acp !== false, alertas: r.urgentes.alertas !== false }));
       const texto = JSON.stringify(r.pantallas);
       if (cancelado || texto === ultima) return;
       ultima = texto;

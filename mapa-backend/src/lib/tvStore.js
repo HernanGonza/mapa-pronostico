@@ -16,6 +16,10 @@ const auth = require("./auth");
  *   y se sirven en /api/tv/archivos/<nombre>: mismo origen que /tv, así los ve también el
  *   Chromium del servicio de transmisión, adentro de docker.
  *
+ * - `urgentes`: si los avisos a muy corto plazo y las alertas cortan la rotación para verse a
+ *   pantalla completa ({ acp, alertas }, los dos prendidos por defecto). Apagados, /tv sigue con
+ *   la rotación (el video que esté pasando no se corta). Se cambian al toque desde el panel.
+ *
  * Sin DATABASE_URL (desarrollo) se guarda en data/store/tv-rotacion.json.
  */
 
@@ -40,7 +44,8 @@ async function init() {
          pantallas       jsonb NOT NULL,
          actualizado_en  timestamptz NOT NULL DEFAULT now(),
          actualizado_por bigint REFERENCES usuarios(id)
-       )`
+       );
+       ALTER TABLE tv_rotacion ADD COLUMN IF NOT EXISTS urgentes jsonb`
     )
     .then(() => console.log("[tvStore] Postgres listo (tabla tv_rotacion)"))
     .catch((e) => {
@@ -85,14 +90,45 @@ function normalizar(pantallas) {
   });
 }
 
+const URGENTES_PREDETERMINADOS = { acp: true, alertas: true };
+const conUrgentes = (u) => ({ ...URGENTES_PREDETERMINADOS, ...(u && typeof u === "object" ? u : {}) });
+function leerLocal() {
+  try { return JSON.parse(fs.readFileSync(ARCHIVO_LOCAL, "utf8")); } catch { return { pantallas: null, actualizadoEn: null }; }
+}
+function escribirLocal(datos) {
+  fs.mkdirSync(path.dirname(ARCHIVO_LOCAL), { recursive: true });
+  fs.writeFileSync(ARCHIVO_LOCAL, JSON.stringify(datos));
+}
+
 async function obtener() {
+  if (!store.usaPostgres()) { const l = leerLocal(); return { ...l, urgentes: conUrgentes(l.urgentes) }; }
+  await init();
+  const { rows } = await store.getPool().query("SELECT pantallas, actualizado_en, urgentes FROM tv_rotacion WHERE id = 1");
+  // pantallas null = nunca se guardó la lista: /tv usa la rotación de siempre.
+  return rows[0] ? { pantallas: rows[0].pantallas, actualizadoEn: rows[0].actualizado_en.toISOString(), urgentes: conUrgentes(rows[0].urgentes) }
+    : { pantallas: null, actualizadoEn: null, urgentes: conUrgentes(null) };
+}
+
+/** Prende o apaga que los ACP / las alertas corten la rotación. `cambio`: { acp?, alertas? } (booleanos). */
+async function guardarUrgentes(cambio, usuarioId = null) {
+  if (!cambio || typeof cambio !== "object" || !Object.keys(cambio).length || Object.entries(cambio).some(([k, v]) => !(k in URGENTES_PREDETERMINADOS) || typeof v !== "boolean")) {
+    throw error400("Indicá qué cortes de la rotación prender o apagar (acp, alertas).");
+  }
   if (!store.usaPostgres()) {
-    try { return JSON.parse(fs.readFileSync(ARCHIVO_LOCAL, "utf8")); } catch { return { pantallas: null, actualizadoEn: null }; }
+    const l = leerLocal();
+    const urgentes = conUrgentes({ ...l.urgentes, ...cambio });
+    escribirLocal({ ...l, urgentes });
+    return urgentes;
   }
   await init();
-  const { rows } = await store.getPool().query("SELECT pantallas, actualizado_en FROM tv_rotacion WHERE id = 1");
-  // null = nunca se guardó: /tv usa la rotación de siempre.
-  return rows[0] ? { pantallas: rows[0].pantallas, actualizadoEn: rows[0].actualizado_en.toISOString() } : { pantallas: null, actualizadoEn: null };
+  // Si la lista nunca se guardó, la fila se crea con pantallas = null de JSON (la rotación de siempre).
+  const { rows } = await store.getPool().query(
+    `INSERT INTO tv_rotacion (id, pantallas, urgentes, actualizado_por) VALUES (1, 'null'::jsonb, $1::jsonb, $2)
+     ON CONFLICT (id) DO UPDATE SET urgentes = COALESCE(tv_rotacion.urgentes, '{}'::jsonb) || $1::jsonb, actualizado_por = EXCLUDED.actualizado_por
+     RETURNING urgentes`,
+    [JSON.stringify(cambio), usuarioId]
+  );
+  return conUrgentes(rows[0].urgentes);
 }
 
 async function guardar(pantallas, usuarioId = null) {
@@ -100,8 +136,7 @@ async function guardar(pantallas, usuarioId = null) {
   let resultado;
   if (!store.usaPostgres()) {
     resultado = { pantallas: limpias, actualizadoEn: new Date().toISOString() };
-    fs.mkdirSync(path.dirname(ARCHIVO_LOCAL), { recursive: true });
-    fs.writeFileSync(ARCHIVO_LOCAL, JSON.stringify(resultado));
+    escribirLocal({ ...leerLocal(), ...resultado });
   } else {
     await init();
     const { rows } = await store.getPool().query(
@@ -136,4 +171,4 @@ function nombreNuevo(extension) {
   return `${new Date().toISOString().slice(0, 10)}-${crypto.randomBytes(6).toString("hex")}.${extension}`;
 }
 
-module.exports = { init, obtener, guardar, nombreNuevo, DIR_ARCHIVOS, NOMBRE_ARCHIVO, PREFIJO_ARCHIVO };
+module.exports = { init, obtener, guardar, guardarUrgentes, nombreNuevo, DIR_ARCHIVOS, NOMBRE_ARCHIVO, PREFIJO_ARCHIVO };

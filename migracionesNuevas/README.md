@@ -15,11 +15,16 @@ Correr en orden:
 | `005_avisos_especiales.sql` | Aviso especial: `titulo`, `subtitulo` (2.ª línea en color) y `nivel` |
 | `006_pronostico_placas.sql` | Placa del pronóstico sobre foto: `fondo`, `etiqueta`, `frase` y `estilo_tarjeta` |
 | `007_informes_diarios.sql` | Informes diarios: tabla nueva `informes_diarios` (rango desde/hasta con fecha y hora, texto y todos los datos juntados) |
+| `008_tv_urgentes.sql` | Pantalla TV: `urgentes` en `tv_rotacion` (si los ACP y las alertas cortan la rotación) |
 
 ```bash
 for f in migracionesNuevas/0*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done
 ```
 
+- **Correrlas con el mismo usuario que usa el backend (`postgres`, el de la `DATABASE_URL`)**, no desde el
+  editor SQL de Supabase Studio: el editor entra como `supabase_admin` y las tablas nuevas quedan a su
+  nombre; el backend después no puede crear sus índices («must be owner of table») y se cae lo de alertas.
+  Si pasa: `ALTER TABLE alerta_temprana.<tabla> OWNER TO postgres;` (así se arregló el 05/10 con 002, 003 y 007).
 - Se pueden correr más de una vez (todo es `IF NOT EXISTS`) y cada archivo va en una transacción.
 - Probadas en una base vacía con las tablas de antes: la primera vez crean todo, la segunda no
   cambian nada.
