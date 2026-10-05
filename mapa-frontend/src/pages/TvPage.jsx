@@ -29,12 +29,16 @@ import "../tv.css";
  * anterior durante el fundido. Se ocultan con opacity, no display:none: los mapas se rompen si
  * se cargan ocultos. El iframe oculto lleva data-pulso="no" y el mapa de focos apaga su
  * pulso (PointsMap). Cada embebido se actualiza solo cada minuto; la página entera se recarga
- * cada 8 h para aguantar 24/7.
+ * cada 8 h para aguantar 24/7, y también sola cuando se sube una versión nueva del sistema
+ * (VERSION_NUEVA: si no, una /tv abierta seguiría con el código viejo hasta que alguien la refresque).
  */
 const CONSULTA_ROTACION = 20_000;
 const DURACION_URGENTE = 20_000;
 const CONSULTA_URGENTES = 30_000;
 const RECARGA_COMPLETA = 8 * 3600_000;
+const VERSION_NUEVA = 2 * 60_000;
+/** El script principal del build (/assets/index-<hash>.js): cambia con cada versión nueva. */
+const scriptPrincipal = (html) => /\/assets\/index-[\w-]+\.js/.exec(html)?.[0] || null;
 const FUNDIDO = 1500; // un poco más que la transición de .tv-pantalla (tv.css)
 // En OBS el navegador deja reproducir con sonido; en Chrome normal un video con sonido no
 // arranca solo (se reintenta sin sonido).
@@ -151,7 +155,16 @@ export default function TvPage() {
   useEffect(() => {
     document.title = "Alerta Temprana · Misiones — Transmisión";
     const recarga = setTimeout(() => window.location.reload(), RECARGA_COMPLETA);
-    return () => clearTimeout(recarga);
+    // Versión nueva (deploy): se compara el script de esta página con el del index.html actual.
+    // En desarrollo (Vite sin build) no hay /assets/index-…: no se hace nada.
+    const propio = scriptPrincipal(document.documentElement.outerHTML);
+    const version = propio && setInterval(() => {
+      fetch("/", { cache: "no-store" }).then((r) => (r.ok ? r.text() : null)).then((html) => {
+        const actual = html && scriptPrincipal(html);
+        if (actual && actual !== propio) window.location.reload();
+      }).catch(() => {}); // sin red: se reintenta en la próxima
+    }, VERSION_NUEVA);
+    return () => { clearTimeout(recarga); if (version) clearInterval(version); };
   }, []);
 
   useEffect(() => {
