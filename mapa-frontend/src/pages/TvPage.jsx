@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getAvisosCortoPlazoVigentes, getAlertasMeteorologicasVigentes, getAlertasSmnPublicadas, getRotacionTv, urlArchivoTv } from "../api";
 import { PANTALLAS_SISTEMA, armarRotacion, duracionDe } from "../lib/tvPantallas";
 import { enDemo, conDemo, alCambiarDemo } from "../lib/demo";
+import { estadoUrgente, tipoDe, configDe, CONFIG_PREDETERMINADA } from "../lib/tvUrgentes";
 import SelloDemo from "../components/SelloDemo";
 import "../tv.css";
 
@@ -15,8 +16,11 @@ import "../tv.css";
  *   (la manual que no sea toda verde, o una del SMN publicada), corta la rotación y lo
  *   muestra a pantalla completa, CADA UNO POR SEPARADO (su propio mapa, con ?id= en el
  *   embebido); si hay varios, rotan entre sí. Al vencer, vuelve sola a la rotación.
- *   Desde el panel (Pantalla TV) se puede apagar el corte de los ACP y/o de las alertas: entonces
- *   la rotación sigue (y el video que esté pasando no se corta).
+ *   Cuánto quedan fijos se elige en el panel (Pantalla TV, ver lib/tvUrgentes.js): por defecto
+ *   15 minutos cada 60 desde que aparecen; el resto del tiempo (o siempre, si se eligió «sólo
+ *   rotación») no cortan, pero siguen saliendo: cada uno vigente entra a la rotación como una
+ *   pantalla más (su mapa y su cartel, DURACION_URGENTE), al principio de la vuelta. Si se
+ *   superponen y alguno está fijo, se turnan a pantalla completa todos los vigentes.
  *
  * - Videos en la rotación: a pantalla completa, duran lo que dure el video y sin sonido
  *   (CON_SONIDO), para no pisar lo que se habla en la transmisión.
@@ -63,12 +67,13 @@ async function leerUrgentes() {
     getAlertasSmnPublicadas().catch(() => []),
   ]);
   return [
-    ...acp.map((a) => ({ clave: `acp-${a.id}`, tipo: "acp", src: `/embed/avisos-corto-plazo?id=${a.id}`, etiqueta: "Aviso a muy corto plazo",
+    // `desde`: cuándo empezó a verse (de ahí se cuenta cuánto queda fijo).
+    ...acp.map((a) => ({ clave: `acp-${a.id}`, tipo: "acp", desde: a.publicadoEn, src: `/embed/avisos-corto-plazo?id=${a.id}`, etiqueta: "Aviso a muy corto plazo",
       titulo: a.titulo || "Aviso a muy corto plazo", texto: a.texto, pie: `Vigente hasta las ${hora(a.vigenteHasta)}`, color: a.color || "#8b3fc4" })), // el de la alerta en cuya vigencia cae
-    ...(manuales.some((m) => m.fijada) ? manuales.filter((m) => m.fijada) : manuales).filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "alerta", src: `/embed/alertas-meteorologicas?id=manual-${m.id}`, etiqueta: "Alerta meteorológica",
+    ...(manuales.some((m) => m.fijada) ? manuales.filter((m) => m.fijada) : manuales).filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "alerta", desde: m.visibleDesde || m.publicadoEn, src: `/embed/alertas-meteorologicas?id=manual-${m.id}`, etiqueta: "Alerta meteorológica",
       titulo: m.periodo, texto: "Mirá el nivel de alerta de tu departamento en el mapa.", pie: `Vigente hasta el ${diaHora(m.vigenteHasta)}`, color: "#f67f15" })),
     // Con una alerta manual fijada a mano en el panel, se ve sólo ésa (como en el embebido).
-    ...(manuales.some((m) => m.fijada) ? [] : smn).map((a) => ({ clave: `smn-${a.id}`, tipo: "alerta", src: `/embed/alertas-meteorologicas?id=smn-${a.id}`, etiqueta: `Alerta ${a.categoria} · SMN`,
+    ...(manuales.some((m) => m.fijada) ? [] : smn).map((a) => ({ clave: `smn-${a.id}`, tipo: "alerta", desde: [a.publicadoEn, a.inicio].filter((t) => t && Date.parse(t) <= Date.now()).sort().at(-1) || a.publicadoEn, src: `/embed/alertas-meteorologicas?id=smn-${a.id}`, etiqueta: `Alerta ${a.categoria} · SMN`,
       titulo: a.titulo, texto: a.descripcion, pie: `Hasta el ${diaHora(a.fin)}`, color: a.color || "#f67f15" })),
   ];
 }
@@ -147,9 +152,24 @@ export default function TvPage() {
   const [actualId, setActualId] = useState(null);
   const [vuelta, setVuelta] = useState(0); // cuenta cada pase, aunque sea la misma pantalla (una sola activa)
   const [todosUrgentes, setUrgentes] = useState([]);
-  // Si los ACP / las alertas cortan la rotación (panel → Pantalla TV). Por defecto, sí.
-  const [cortes, setCortes] = useState({ acp: true, alertas: true });
-  const urgentes = useMemo(() => todosUrgentes.filter((u) => (u.tipo === "acp" ? cortes.acp : cortes.alertas)), [todosUrgentes, cortes]);
+  // Cuánto quedan fijos los ACP / las alertas (panel → Pantalla TV). Por defecto, el ciclo de 15 cada 60.
+  const [cortes, setCortes] = useState({ acp: CONFIG_PREDETERMINADA, alertas: CONFIG_PREDETERMINADA });
+  // Cuando alguno pasa de fijo a la rotación (o al revés), se vuelve a calcular.
+  const [reloj, setReloj] = useState(() => Date.now());
+  const corta = (u) => estadoUrgente(u.desde, cortes[tipoDe(u)], reloj).fijo;
+  useEffect(() => {
+    const cambios = todosUrgentes.map((u) => estadoUrgente(u.desde, cortes[tipoDe(u)], reloj).hasta).filter((t) => t != null && t > Date.now());
+    if (!cambios.length) return undefined;
+    const t = setTimeout(() => setReloj(Date.now()), Math.min(...cambios) - Date.now() + 500);
+    return () => clearTimeout(t);
+  }, [todosUrgentes, cortes, reloj]);
+  // Si alguno está fijo, la rotación se detiene: se turnan a pantalla completa TODOS los vigentes
+  // (los fijos y los que estaban en su parte de rotación), así ninguno deja de verse mientras se superponen.
+  const hayFijo = todosUrgentes.some(corta);
+  const urgentes = useMemo(() => (hayFijo ? todosUrgentes : []), [todosUrgentes, hayFijo]);
+  // Los que no cortan: van en la rotación, cada uno como una pantalla más.
+  const enRotacion = useMemo(() => (hayFijo ? [] : todosUrgentes)
+    .map((u) => ({ id: `urgente-${u.clave}`, tipo: "urgente", titulo: u.etiqueta, duracion: DURACION_URGENTE / 1000, urgente: u })), [todosUrgentes, cortes, reloj]); // eslint-disable-line react-hooks/exhaustive-deps
   const [indiceUrgente, setIndiceUrgente] = useState(0);
 
   useEffect(() => {
@@ -181,7 +201,10 @@ export default function TvPage() {
     let cancelado = false;
     let ultima = "";
     const leer = () => getRotacionTv().then((r) => {
-      if (!cancelado && r.urgentes) setCortes((c) => (c.acp === r.urgentes.acp && c.alertas === r.urgentes.alertas ? c : { acp: r.urgentes.acp !== false, alertas: r.urgentes.alertas !== false }));
+      if (!cancelado && r.urgentes) {
+        const nuevos = { acp: configDe(r.urgentes.acp), alertas: configDe(r.urgentes.alertas) };
+        setCortes((c) => (JSON.stringify(c) === JSON.stringify(nuevos) ? c : nuevos));
+      }
       const texto = JSON.stringify(r.pantallas);
       if (cancelado || texto === ultima) return;
       ultima = texto;
@@ -194,8 +217,8 @@ export default function TvPage() {
 
   const activas = useMemo(() => {
     const a = rotacion.filter((p) => p.activo);
-    return a.length ? a : [PANTALLAS_SISTEMA.find((p) => p.id === "pronostico")]; // todo apagado: al menos el pronóstico
-  }, [rotacion]);
+    return [...enRotacion, ...(a.length ? a : [PANTALLAS_SISTEMA.find((p) => p.id === "pronostico")])]; // todo apagado: al menos el pronóstico
+  }, [rotacion, enRotacion]);
   // Si la pantalla que estaba al aire se apagó o se quitó, sigue con la primera.
   const actual = activas.find((p) => p.id === actualId) || activas[0];
   const posicion = activas.indexOf(actual);
@@ -230,11 +253,13 @@ export default function TvPage() {
   }, [urgentes.length]);
 
   const urgente = hayUrgente ? urgentes[indiceUrgente % urgentes.length] : null;
-  return <div className={`tv${urgente ? " tv--urgente" : ""}`} style={urgente ? { "--tv-urgente": urgente.color, "--tv-urgente-texto": textoSobre(urgente.color) } : undefined}>
+  // Lo que se muestra con cartel y color de alerta: el que corta, o el de la rotación que está al aire.
+  const cartel = urgente || (actual.tipo === "urgente" ? actual.urgente : null);
+  return <div className={`tv${cartel ? " tv--urgente" : ""}`} style={cartel ? { "--tv-urgente": cartel.color, "--tv-urgente-texto": textoSobre(cartel.color) } : undefined}>
     <header className="tv-cabecera">
       <img src="/brand/ecologia-flor.png" alt="" />
       <span className="tv-marca"><b>Alerta Temprana</b>Ministerio de Ecología · Misiones</span>
-      <h1>{urgente ? urgente.etiqueta : actual.titulo}</h1>
+      <h1>{cartel ? cartel.etiqueta : actual.titulo}</h1>
       <Reloj />
     </header>
 
@@ -244,17 +269,18 @@ export default function TvPage() {
         const visible = !urgente && p === actual;
         if (p.tipo === "embebido") return <Pantalla key={p.id} paginas={p.paginas} visible={visible} duracion={duracionDe(p)} />;
         if (p.tipo === "imagen") return <ImagenPantalla key={p.id} src={urlArchivoTv(p.src)} titulo={p.titulo} visible={visible} />;
+        if (p.tipo === "urgente") return <Pantalla key={p.id} paginas={[{ src: p.urgente.src }]} visible={visible} duracion={duracionDe(p)} />;
         if (p.tipo === "pagina") return <Pantalla key={p.id} paginas={[{ src: p.src, externa: true }]} visible={visible} duracion={duracionDe(p)} />;
         return null;
       })}
       {/* Lo urgente vigente (suele ser uno o dos): montado mientras siga vigente, para no recargarlo al rotar. */}
       {urgentes.map((u) => <Pantalla key={u.src} paginas={[{ src: u.src }]} visible={urgente?.src === u.src} duracion={DURACION_URGENTE} />)}
-      {urgente && <aside className="tv-urgente" role="alert">
-        <span className="tv-urgente__etiqueta">⚠ {urgente.etiqueta}</span>
-        <h2>{urgente.titulo}</h2>
-        {urgente.texto && <p>{urgente.texto}</p>}
-        <strong>{urgente.pie}</strong>
-        {urgentes.length > 1 && <small>{(indiceUrgente % urgentes.length) + 1} de {urgentes.length}</small>}
+      {cartel && <aside className="tv-urgente" role={urgente ? "alert" : undefined}>
+        <span className="tv-urgente__etiqueta">⚠ {cartel.etiqueta}</span>
+        <h2>{cartel.titulo}</h2>
+        {cartel.texto && <p>{cartel.texto}</p>}
+        <strong>{cartel.pie}</strong>
+        {urgente && urgentes.length > 1 && <small>{(indiceUrgente % urgentes.length) + 1} de {urgentes.length}</small>}
       </aside>}
     </main>
 

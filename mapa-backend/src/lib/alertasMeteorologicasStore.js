@@ -62,6 +62,10 @@ async function init() {
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS fijada boolean NOT NULL DEFAULT false;
        -- Última vez que se le cambió la vigencia desde el panel (NULL = nunca).
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS actualizada_en timestamptz;
+       -- Cuándo empezó a verse una que estaba en fila, si fue porque se despublicó la que esperaba
+       -- (ahí se pierde el enlace con ésa). NULL = se calcula: al publicarse, o al vencer la que esperaba.
+       -- La usa /tv para dejarla fija los primeros minutos.
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS visible_desde timestamptz;
        -- Historial de lo que se le hizo a cada alerta después de publicarla (para estadísticas e
        -- histórico): cambios de vigencia (antes/después, y las de la fila que se corrieron), fijar /
        -- desfijar, despublicar y las placas generadas, editadas o eliminadas. Una fila por evento.
@@ -196,11 +200,20 @@ async function pendientes() {
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, en_fila_de, fijada, actualizada_en FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
+      `SELECT id, publicado_en, vigente_hasta, periodo, en_fila_de, fijada, actualizada_en, visible_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
     );
     const ids = new Set(rows.map((r) => String(r.id)));
     const esperando = (r) => r.en_fila_de != null && ids.has(String(r.en_fila_de));
     const [vigentes, enFila] = await Promise.all([rows.filter((r) => !esperando(r)), rows.filter(esperando)].map((rs) => Promise.all(rs.map((r) => conDetalle(p, r)))));
+    // Desde cuándo se ve cada una (para /tv, que la deja fija un rato al aparecer): al publicarse; si
+    // estaba en fila, cuando terminó la que esperaba (venció, se le acortó la vigencia o se despublicó).
+    const guardado = new Map(rows.filter((r) => r.visible_desde).map((r) => [Number(r.id), r.visible_desde]));
+    const previas = vigentes.filter((v) => v.enFilaDe != null).map((v) => v.enFilaDe);
+    const finDe = new Map(previas.length ? (await p.query(`SELECT id, vigente_hasta FROM alertas_meteo_publicaciones WHERE id = ANY($1::bigint[])`, [previas])).rows.map((r) => [Number(r.id), r.vigente_hasta]) : []);
+    for (const v of vigentes) {
+      const fin = guardado.get(v.id) || (v.enFilaDe != null ? finDe.get(v.enFilaDe) : null);
+      v.visibleDesde = fin && fin.getTime() > Date.parse(v.publicadoEn) ? fin.toISOString() : v.publicadoEn;
+    }
     return { vigentes, enFila };
   }
   const x = await actual();
@@ -276,9 +289,15 @@ async function despublicar(id, usuarioId = null) {
   try {
     await client.query("BEGIN");
     const { rows: previa } = await client.query(`SELECT vigente_hasta FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now() FOR UPDATE`, [id]);
+    // ¿Se veía? (no estaba en fila, o la que esperaba ya terminó). Se mira antes de despublicarla.
+    const { rows: seVeia } = await client.query(
+      `SELECT a.en_fila_de IS NULL OR NOT EXISTS (SELECT 1 FROM alertas_meteo_publicaciones b WHERE b.id = a.en_fila_de AND b.vigente_hasta > now()) AS visible
+         FROM alertas_meteo_publicaciones a WHERE a.id = $1`, [id]);
     const { rows } = await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = $1 AND vigente_hasta > now() RETURNING en_fila_de`, [id]);
     if (!rows.length) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
-    await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $2 WHERE en_fila_de = $1`, [id, rows[0].en_fila_de]);
+    // Si se veía, las que la esperaban aparecen ahora: queda anotado cuándo (para /tv).
+    await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $2, visible_desde = CASE WHEN $3 THEN now() ELSE visible_desde END WHERE en_fila_de = $1`,
+      [id, rows[0].en_fila_de, !!seVeia[0]?.visible]);
     await registrarEvento(client, { publicacionId: id, evento: "despublicada", usuarioId, detalle: { ibaHasta: previa[0]?.vigente_hasta?.toISOString() ?? null } });
     await client.query("COMMIT");
   } catch (e) {

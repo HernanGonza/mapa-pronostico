@@ -39,9 +39,17 @@ function cargarConBaseFalsa() {
       if (p) p.vigente_hasta = new Date(Date.now() - 1);
       return { rowCount: p ? 1 : 0, rows: p ? [{ en_fila_de: p.en_fila_de }] : [] };
     }
-    if (sql.includes("SET en_fila_de = $2 WHERE en_fila_de = $1")) {
-      pubs.filter((p) => String(p.en_fila_de) === String(params[0])).forEach((p) => { p.en_fila_de = params[1]; });
+    if (sql.includes("SET en_fila_de = $2, visible_desde = CASE WHEN $3 THEN now() ELSE visible_desde END WHERE en_fila_de = $1")) {
+      pubs.filter((p) => String(p.en_fila_de) === String(params[0])).forEach((p) => { p.en_fila_de = params[1]; if (params[2]) p.visible_desde = new Date(); });
       return { rows: [] };
+    }
+    if (sql.includes("AS visible") && sql.includes("WHERE a.id = $1")) {
+      const a = pubs.find((x) => x.id === String(params[0]));
+      const b = a && a.en_fila_de != null ? pubs.find((x) => x.id === String(a.en_fila_de)) : null;
+      return { rows: a ? [{ visible: a.en_fila_de == null || !b || !(b.vigente_hasta > new Date()) }] : [] };
+    }
+    if (sql.includes("SELECT id, vigente_hasta FROM alertas_meteo_publicaciones WHERE id = ANY")) {
+      return { rows: pubs.filter((p) => params[0].map(String).includes(p.id)).map((p) => ({ id: p.id, vigente_hasta: p.vigente_hasta })) };
     }
     if (sql.includes("SET en_fila_de = $1 WHERE en_fila_de = ANY")) {
       pubs.filter((p) => params[1].map(String).includes(String(p.en_fila_de))).forEach((p) => { p.en_fila_de = params[0]; });
@@ -98,7 +106,12 @@ test("una alerta en fila aparece cuando la anterior vence o se despublica", asyn
   p = await s.pendientes();
   assert.deepEqual(p.vigentes.map((v) => v.periodo), ["Sábado"]);
   assert.deepEqual(p.enFila.map((v) => v.periodo), ["Lunes"]);
+  await new Promise((r) => setTimeout(r, 10));
+  const antes = Date.now();
   await s.despublicar(sabado.id);
-  assert.deepEqual((await s.vigentes()).map((v) => v.id), [lunes.id]);
+  const [visible] = await s.vigentes();
+  assert.equal(visible.id, lunes.id);
+  // Aparece ahora (no cuando se publicó): /tv la deja fija sus primeros minutos desde acá.
+  assert.ok(Date.parse(visible.visibleDesde) >= antes && Date.parse(visible.visibleDesde) > Date.parse(visible.publicadoEn), visible.visibleDesde);
   await assert.rejects(s.publicar([], [], 1, { periodo: "X", vigenteHasta: en(10), enFilaDe: sabado.id }), { status: 409 });
 });

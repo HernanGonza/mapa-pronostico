@@ -470,8 +470,18 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 /* Configuración → Pantalla TV (PantallaTvPage) */
 .tvcfg-lista { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 6px; }
 .tvcfg-fila { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
-.tvcfg-fila--corte { grid-template-columns: auto minmax(0, 1fr); }
 .tvcfg-cortes h2 { margin: 4px 0 8px; font-size: 15px; }
+.tvcfg-cortes__lista { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 10px; }
+.tvcfg-corte { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.tvcfg-corte__modos { display: grid; gap: 4px; }
+.tvcfg-corte__modo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+.tvcfg-corte__modo--elegido { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); }
+.tvcfg-corte__modo input { margin-top: 3px; }
+.tvcfg-corte__modo span { display: grid; gap: 1px; }
+.tvcfg-corte__modo small { color: var(--text-muted); }
+.tvcfg-corte__tiempos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tvcfg-corte__tiempos input { width: 64px; }
+.tvcfg-corte__botones { display: flex; flex-wrap: wrap; gap: 6px; }
 .tvcfg-fila--apagada { opacity: 0.6; }
 .tvcfg-fila__orden { display: grid; justify-items: center; font-size: 12px; font-weight: 700; color: var(--text-muted); }
 .tvcfg-fila__orden .btn { padding: 2px 6px; min-height: 0; }

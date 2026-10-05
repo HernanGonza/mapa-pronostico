@@ -9,6 +9,7 @@ import { confirmar, notificar } from "../lib/ui";
 import { tiempoRelativo } from "../lib/tiempoRelativo";
 import { getRotacionTv, guardarRotacionTv, guardarUrgentesTv, subirArchivoTv } from "../api";
 import { armarRotacion, paraGuardar, nuevoId, DURACION_PREDETERMINADA } from "../lib/tvPantallas";
+import { configDe } from "../lib/tvUrgentes";
 
 /**
  * Configuración → Pantalla TV: qué se ve en la pantalla de transmisión (/tv), en qué orden y
@@ -23,9 +24,44 @@ const TIPOS = {
   pagina: { nombre: "Página web", icono: Globe },
 };
 const CORTES = [
-  { clave: "acp", titulo: "Avisos a muy corto plazo", detalle: "Cuando hay un ACP publicado, corta la rotación y lo muestra a pantalla completa." },
-  { clave: "alertas", titulo: "Alertas meteorológicas", detalle: "Cuando hay una alerta vigente (la nuestra o una del SMN publicada), corta la rotación y la muestra a pantalla completa." },
+  { clave: "acp", titulo: "Avisos a muy corto plazo", cada: "cada ACP publicado" },
+  { clave: "alertas", titulo: "Alertas meteorológicas", cada: "cada alerta vigente (la nuestra o una del SMN publicada)" },
 ];
+const MODOS = [
+  { valor: "ciclo", titulo: "Fijo un rato, después en la rotación", detalle: "Se repite: fijo unos minutos, después pasa a la rotación, y vuelve a quedar fijo cada tanto." },
+  { valor: "fijo", titulo: "Siempre fijo", detalle: "Corta la rotación todo el tiempo que esté vigente." },
+  { valor: "rotacion", titulo: "Sólo en la rotación", detalle: "Nunca corta: sale como una pantalla más, con su mapa y su cartel." },
+];
+
+/** Cómo se muestra un tipo (ACP o alertas) en /tv. Cada cambio se guarda en el momento. */
+function CorteTipo({ c, cfg, ocupado, onCambio }) {
+  const [tiempos, setTiempos] = useState({ fijoMin: cfg.fijoMin, cadaMin: cfg.cadaMin });
+  useEffect(() => { setTiempos({ fijoMin: cfg.fijoMin, cadaMin: cfg.cadaMin }); }, [cfg.fijoMin, cfg.cadaMin]);
+  const tiemposCambiados = tiempos.fijoMin !== cfg.fijoMin || tiempos.cadaMin !== cfg.cadaMin;
+  const ultimoBoton = cfg.ancla && cfg.accion ? `${cfg.accion === "fijar" ? "Fijado" : "Pasado a la rotación"} a mano ${tiempoRelativo(cfg.ancla)}.` : null;
+  return <li className="tvcfg-corte">
+    <strong>{c.titulo}</strong>
+    <div className="tvcfg-corte__modos" role="radiogroup" aria-label={`${c.titulo}: cómo se muestra en /tv`}>
+      {MODOS.map((m) => <label key={m.valor} className={`tvcfg-corte__modo${cfg.modo === m.valor ? " tvcfg-corte__modo--elegido" : ""}`}>
+        <input type="radio" name={`modo-${c.clave}`} checked={cfg.modo === m.valor} disabled={ocupado} onChange={() => onCambio({ modo: m.valor }, `${c.titulo}: ${m.titulo.toLowerCase()}.`)} />
+        <span><b>{m.titulo}</b><small>{m.detalle}</small></span>
+      </label>)}
+    </div>
+    {cfg.modo === "ciclo" && <>
+      <form className="tvcfg-corte__tiempos" onSubmit={(e) => { e.preventDefault(); onCambio(tiempos, `${c.titulo}: fijo ${tiempos.fijoMin} min cada ${tiempos.cadaMin} min.`); }}>
+        <label>Fijo <input type="number" min={1} max={240} value={tiempos.fijoMin} onChange={(e) => setTiempos({ ...tiempos, fijoMin: Number(e.target.value) })} /> minutos</label>
+        <label>cada <input type="number" min={2} max={1440} value={tiempos.cadaMin} onChange={(e) => setTiempos({ ...tiempos, cadaMin: Number(e.target.value) })} /> minutos</label>
+        <button type="submit" className="btn" disabled={!tiemposCambiados || ocupado}>Guardar tiempos</button>
+      </form>
+      <small className="admin-panel__hint">Se cuenta desde que aparece {c.cada}. Para probar rápido: fijo 1 minuto cada 3.</small>
+    </>}
+    <div className="tvcfg-corte__botones">
+      <button type="button" className="btn" disabled={ocupado} onClick={() => onCambio({ accion: "fijar" }, `${c.titulo}: fijos desde ahora (${cfg.fijoMin} min).`)}>Fijar ahora</button>
+      <button type="button" className="btn" disabled={ocupado} onClick={() => onCambio({ accion: "soltar" }, `${c.titulo}: pasan a la rotación desde ahora.`)}>Pasar a la rotación ahora</button>
+    </div>
+    {ultimoBoton && cfg.modo === "ciclo" && <small className="admin-panel__hint">{ultimoBoton}</small>}
+  </li>;
+}
 const sinExtension = (nombre) => nombre.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim().slice(0, 80);
 
 function Fila({ p, indice, total, onCambiar, onMover, onQuitar }) {
@@ -66,7 +102,7 @@ export default function PantallaTvPage() {
   const [subida, setSubida] = useState(null); // { nombre, avance }
   const [pagina, setPagina] = useState({ titulo: "", src: "", duracion: DURACION_PREDETERMINADA });
   const [vistaClave, setVistaClave] = useState(0);
-  const [cortes, setCortes] = useState(null); // { acp, alertas }: si cortan la rotación
+  const [cortes, setCortes] = useState(null); // { acp, alertas }: cómo se muestran (ver CorteTipo)
   const [cambiandoCorte, setCambiandoCorte] = useState(null);
   const archivo = useRef(null);
 
@@ -74,17 +110,17 @@ export default function PantallaTvPage() {
     const l = armarRotacion(r.pantallas);
     setLista(l);
     setGuardado({ texto: JSON.stringify(paraGuardar(l)), actualizadoEn: r.actualizadoEn });
-    setCortes(r.urgentes || { acp: true, alertas: true });
+    setCortes(r.urgentes ? { acp: configDe(r.urgentes.acp), alertas: configDe(r.urgentes.alertas) } : { acp: configDe(), alertas: configDe() });
   }).catch((e) => setError(e.message));
   useEffect(() => { cargar(); }, []);
 
-  // Se guarda en el momento (no espera a «Guardar cambios»): es para cuando hay que apagarlo ya.
-  async function cambiarCorte(clave) {
+  // Se guarda en el momento (no espera a «Guardar cambios»): es para cuando hay que cambiarlo ya.
+  async function cambiarCorte(clave, cambio, mensaje) {
     setCambiandoCorte(clave); setError("");
     try {
-      const { urgentes } = await guardarUrgentesTv({ [clave]: !cortes[clave] });
-      setCortes(urgentes);
-      notificar("success", urgentes[clave] ? "Prendido: vuelve a cortar la rotación (en menos de 20 s)." : "Apagado: la rotación sigue sin cortarse (en menos de 20 s).");
+      const { urgentes } = await guardarUrgentesTv({ [clave]: cambio });
+      setCortes({ acp: configDe(urgentes.acp), alertas: configDe(urgentes.alertas) });
+      notificar("success", `${mensaje} /tv lo toma en menos de 20 s.`);
     } catch (err) { setError(err.message); }
     finally { setCambiandoCorte(null); }
   }
@@ -165,26 +201,17 @@ export default function PantallaTvPage() {
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading">
         <h1>Pantalla TV</h1>
-        <p>Qué se ve en la pantalla de transmisión (<a href="/tv" target="_blank" rel="noreferrer">/tv</a>), en qué orden y cuántos segundos cada cosa. Al guardar, /tv y la transmisión en vivo cambian solas en menos de 20 s, sin recargar. Los avisos a muy corto plazo y las alertas cortan la rotación para verse a pantalla completa, salvo que lo apagues abajo.</p>
+        <p>Qué se ve en la pantalla de transmisión (<a href="/tv" target="_blank" rel="noreferrer">/tv</a>), en qué orden y cuántos segundos cada cosa. Al guardar, /tv y la transmisión en vivo cambian solas en menos de 20 s, sin recargar. Cómo se muestran los avisos a muy corto plazo y las alertas se elige abajo.</p>
       </div>
       {error && <div className="alert alert--error" role="alert">{error}</div>}
       {!lista && !error && <p>Cargando…</p>}
       {lista && <>
         {cortes && <div className="tvcfg-cortes">
-          <h2>Cortar la rotación</h2>
-          <ul className="tvcfg-lista">
-            {CORTES.map((c) => <li key={c.clave} className={`tvcfg-fila tvcfg-fila--corte${cortes[c.clave] ? "" : " tvcfg-fila--apagada"}`}>
-              <label className={`demo-interruptor tvcfg-fila__llave${cortes[c.clave] ? " demo-interruptor--on" : ""}`}>
-                <input type="checkbox" role="switch" checked={cortes[c.clave]} disabled={cambiandoCorte === c.clave} aria-label={`${c.titulo}: cortar la rotación`} onChange={() => cambiarCorte(c.clave)} />
-                <span className="demo-interruptor__llave" aria-hidden="true" />
-              </label>
-              <div className="tvcfg-fila__datos">
-                <strong>{c.titulo}</strong>
-                <small>{cortes[c.clave] ? c.detalle : "Apagado: no corta la rotación; el video o el mapa que esté pasando sigue. (El mapa de alertas igual sale en la rotación si está prendido abajo.)"}</small>
-              </div>
-            </li>)}
+          <h2>Avisos y alertas en /tv</h2>
+          <ul className="tvcfg-cortes__lista">
+            {CORTES.map((c) => <CorteTipo key={c.clave} c={c} cfg={cortes[c.clave]} ocupado={cambiandoCorte === c.clave} onCambio={(cambio, mensaje) => cambiarCorte(c.clave, cambio, mensaje)} />)}
           </ul>
-          <p className="admin-panel__hint">Se guarda en el momento, sin tocar «Guardar cambios».</p>
+          <p className="admin-panel__hint">Cuando está fijo, corta la rotación y se ve a pantalla completa; si no, sale como una pantalla más de la rotación (el video que esté pasando no se corta). Todo se guarda en el momento, sin tocar «Guardar cambios».</p>
           <h2>Rotación</h2>
         </div>}
         {activas === 0 && <div className="alert alert--warn" role="status">No hay ninguna pantalla prendida: /tv muestra el pronóstico.</div>}

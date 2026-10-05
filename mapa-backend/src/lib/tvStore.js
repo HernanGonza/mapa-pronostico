@@ -16,9 +16,8 @@ const auth = require("./auth");
  *   y se sirven en /api/tv/archivos/<nombre>: mismo origen que /tv, así los ve también el
  *   Chromium del servicio de transmisión, adentro de docker.
  *
- * - `urgentes`: si los avisos a muy corto plazo y las alertas cortan la rotación para verse a
- *   pantalla completa ({ acp, alertas }, los dos prendidos por defecto). Apagados, /tv sigue con
- *   la rotación (el video que esté pasando no se corta). Se cambian al toque desde el panel.
+ * - `urgentes`: cómo se muestran los avisos a muy corto plazo y las alertas (fijos a pantalla
+ *   completa, fijos un rato cada tanto, o sólo en la rotación; ver MODOS). Se cambia al toque desde el panel.
  *
  * Sin DATABASE_URL (desarrollo) se guarda en data/store/tv-rotacion.json.
  */
@@ -90,8 +89,25 @@ function normalizar(pantallas) {
   });
 }
 
-const URGENTES_PREDETERMINADOS = { acp: true, alertas: true };
-const conUrgentes = (u) => ({ ...URGENTES_PREDETERMINADOS, ...(u && typeof u === "object" ? u : {}) });
+// Cómo se muestran los ACP y las alertas en /tv, por tipo:
+//   modo "ciclo"    fijos (cortan la rotación) `fijoMin` minutos y después en la rotación, y así
+//                   cada `cadaMin` minutos, contando desde que cada uno empieza a verse, salvo que
+//                   después se toque un botón (`ancla` = cuándo, `accion` = «fijar» / «soltar»).
+//                   La cuenta la hace /tv (mapa-frontend/src/lib/tvUrgentes.js).
+//   modo "fijo"     cortan la rotación todo el tiempo que estén vigentes (como era antes).
+//   modo "rotacion" nunca cortan: van como una pantalla más de la rotación.
+const MODOS = ["ciclo", "fijo", "rotacion"];
+const TIPOS_URGENTES = ["acp", "alertas"];
+const PREDETERMINADO = { modo: "ciclo", fijoMin: 15, cadaMin: 60, ancla: null, accion: null };
+const LIMITES = { fijoMin: [1, 240], cadaMin: [2, 1440] };
+/** Lo guardado → config completa. Lo de antes era un booleano (true = cortaba siempre → ahora el ciclo; false = sólo rotación). */
+function unTipo(v) {
+  if (v === false) return { ...PREDETERMINADO, modo: "rotacion" };
+  if (!v || typeof v !== "object") return { ...PREDETERMINADO };
+  return { ...PREDETERMINADO, ...v };
+}
+const conUrgentes = (u) => Object.fromEntries(TIPOS_URGENTES.map((t) => [t, unTipo(u && typeof u === "object" ? u[t] : undefined)]));
+
 function leerLocal() {
   try { return JSON.parse(fs.readFileSync(ARCHIVO_LOCAL, "utf8")); } catch { return { pantallas: null, actualizadoEn: null }; }
 }
@@ -109,24 +125,50 @@ async function obtener() {
     : { pantallas: null, actualizadoEn: null, urgentes: conUrgentes(null) };
 }
 
-/** Prende o apaga que los ACP / las alertas corten la rotación. `cambio`: { acp?, alertas? } (booleanos). */
-async function guardarUrgentes(cambio, usuarioId = null) {
-  if (!cambio || typeof cambio !== "object" || !Object.keys(cambio).length || Object.entries(cambio).some(([k, v]) => !(k in URGENTES_PREDETERMINADOS) || typeof v !== "boolean")) {
-    throw error400("Indicá qué cortes de la rotación prender o apagar (acp, alertas).");
+/**
+ * Cambia cómo se muestran los ACP / las alertas. `cambio`: { acp?: {...}, alertas?: {...} }, cada uno
+ * con { modo?, fijoMin?, cadaMin?, accion?: "fijar" | "soltar" }. «fijar»: quedan fijos desde ya
+ * (`fijoMin` minutos); «soltar»: pasan a la rotación ya (y vuelven a fijarse en el próximo ciclo).
+ */
+function aplicarCambio(actual, cambio, ahora = Date.now()) {
+  if (!cambio || typeof cambio !== "object" || !Object.keys(cambio).length || Object.keys(cambio).some((k) => !TIPOS_URGENTES.includes(k))) {
+    throw error400("Indicá qué cambiar (acp o alertas).");
   }
+  const nuevo = { ...actual };
+  for (const [tipo, c] of Object.entries(cambio)) {
+    if (!c || typeof c !== "object") throw error400("Cambio inválido.");
+    const x = { ...actual[tipo] };
+    if (c.modo !== undefined) { if (!MODOS.includes(c.modo)) throw error400("Modo inválido."); x.modo = c.modo; }
+    for (const k of ["fijoMin", "cadaMin"]) if (c[k] !== undefined) {
+      const n = Math.round(Number(c[k])), [min, max] = LIMITES[k];
+      if (!Number.isFinite(n) || n < min || n > max) throw error400(`${k === "fijoMin" ? "Los minutos fijo" : "Cada cuántos minutos"}: entre ${min} y ${max}.`);
+      x[k] = n;
+    }
+    if (x.cadaMin <= x.fijoMin) throw error400("El ciclo tiene que ser más largo que el tiempo fijo (por ejemplo: fijo 15 minutos cada 60).");
+    if (c.accion !== undefined) {
+      if (!["fijar", "soltar"].includes(c.accion)) throw error400("Acción inválida.");
+      x.ancla = new Date(ahora).toISOString();
+      x.accion = c.accion;
+      if (x.modo !== "ciclo") x.modo = "ciclo"; // los botones son del ciclo
+    }
+    nuevo[tipo] = x;
+  }
+  return nuevo;
+}
+
+async function guardarUrgentes(cambio, usuarioId = null) {
+  const actual = (await obtener()).urgentes;
+  const urgentes = aplicarCambio(actual, cambio);
   if (!store.usaPostgres()) {
-    const l = leerLocal();
-    const urgentes = conUrgentes({ ...l.urgentes, ...cambio });
-    escribirLocal({ ...l, urgentes });
+    escribirLocal({ ...leerLocal(), urgentes });
     return urgentes;
   }
-  await init();
   // Si la lista nunca se guardó, la fila se crea con pantallas = null de JSON (la rotación de siempre).
   const { rows } = await store.getPool().query(
     `INSERT INTO tv_rotacion (id, pantallas, urgentes, actualizado_por) VALUES (1, 'null'::jsonb, $1::jsonb, $2)
-     ON CONFLICT (id) DO UPDATE SET urgentes = COALESCE(tv_rotacion.urgentes, '{}'::jsonb) || $1::jsonb, actualizado_por = EXCLUDED.actualizado_por
+     ON CONFLICT (id) DO UPDATE SET urgentes = EXCLUDED.urgentes, actualizado_por = EXCLUDED.actualizado_por
      RETURNING urgentes`,
-    [JSON.stringify(cambio), usuarioId]
+    [JSON.stringify(urgentes), usuarioId]
   );
   return conUrgentes(rows[0].urgentes);
 }
@@ -171,4 +213,4 @@ function nombreNuevo(extension) {
   return `${new Date().toISOString().slice(0, 10)}-${crypto.randomBytes(6).toString("hex")}.${extension}`;
 }
 
-module.exports = { init, obtener, guardar, guardarUrgentes, nombreNuevo, DIR_ARCHIVOS, NOMBRE_ARCHIVO, PREFIJO_ARCHIVO };
+module.exports = { init, obtener, guardar, guardarUrgentes, aplicarCambio, conUrgentes, nombreNuevo, DIR_ARCHIVOS, NOMBRE_ARCHIVO, PREFIJO_ARCHIVO };
