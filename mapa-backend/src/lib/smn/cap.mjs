@@ -96,11 +96,16 @@ export function intersecta(a, b) {
   return false;
 }
 /**
+ * ACP (avisos a muy corto plazo): áreas chicas, de una ciudad o un partido; se usa
+ * `intersecta` (basta tocar el departamento). SAT: `solapa`.
+ */
+/**
  * Como `intersecta`, pero exige que se superpongan de verdad (al menos `minKm2`):
  * un aviso de Corrientes que sólo roza el límite con Misiones comparte borde o
  * un punto con el departamento y no debe contarse como aviso de Misiones.
  * Se mide por muestreo en grilla sobre la zona común de ambos.
  */
+export const perteneceA = (fuente, geo, departamento) => fuente === 'ACP' ? intersecta(geo, departamento) : solapa(geo, departamento);
 export function solapa(a, b, minKm2 = 15) {
   if (!intersecta(a, b)) return false;
   for (const pa of rings(a)) for (const pb of rings(b)) {
@@ -127,7 +132,7 @@ export function depurarGuardados(rows, alcance = process.env.SMN_SCOPE || 'argen
   if (alcance !== 'misiones') return rows;
   return rows.map(r => ({ ...r, infos: (r.infos || []).map(i => ({ ...i, zonas: (i.zonas || []).flatMap(z => {
     if (!z.geometry) return [z];
-    const departamentos = provincia.features.filter(f => solapa(z.geometry, f.geometry)).map(f => f.properties.nombre);
+    const departamentos = provincia.features.filter(f => perteneceA(r.fuente, z.geometry, f.geometry)).map(f => f.properties.nombre);
     return departamentos.length ? [{ ...z, departamentos }] : [];
   }) })).filter(i => i.zonas.length) })).filter(r => r.infos.length || r.tipo === 'Cancel');
 }
@@ -151,7 +156,7 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
       const nombreArea = textoPlano(valor(area.areaDesc)) || geocodigos.join(' · ') || (area.circle ? `Área circular (${valor(area.circle)})` : `Área definida por el SMN${campos.length ? ` (${campos.join(', ')})` : ''}`);
       for (const p of array(area.polygon)) {
         const geo = polygon(p);
-        const departamentos = provincia.features.filter(f => solapa(geo, f.geometry)).map(f => f.properties.nombre);
+        const departamentos = provincia.features.filter(f => perteneceA(fuente, geo, f.geometry)).map(f => f.properties.nombre);
         if (departamentos.length || alcance === 'argentina') zonas.push({ nombre: nombreArea || departamentos.join(' · '), departamentos, geocodigos, campos, geometry: geo });
       }
       // ACP: sin polígono no hay forma de confirmar geográficamente que es de
