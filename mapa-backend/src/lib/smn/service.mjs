@@ -1,4 +1,4 @@
-import { leerFuente, reconciliar, vigentes, ultimaEmision, colores } from './cap.mjs';
+import { leerFuente, reconciliar, depurarGuardados, vigentes, ultimaEmision, colores } from './cap.mjs';
 import * as store from './store.mjs';
 import colorAcp from '../colorAcp.js';
 import alertasManuales from '../alertasMeteorologicasStore.js';
@@ -16,7 +16,7 @@ export function actualizarAhora({ read = leerFuente, repository = store, logger 
       const previous = await repository.actual(fuente);
       const received = await read(fuente);
       const alcance = process.env.SMN_SCOPE || 'argentina';
-      const datos = reconciliar((previous?.datos || []).filter(r => r.alcance === alcance), received);
+      const datos = reconciliar(depurarGuardados((previous?.datos || []).filter(r => r.alcance === alcance), alcance), received);
       await repository.guardar(fuente, datos, previous?.revision || null);
       delete errores[fuente];
       const zonasResumen = received.flatMap(r => r.infos || []).flatMap(i => i.zonas || [])

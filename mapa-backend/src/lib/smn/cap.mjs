@@ -117,6 +117,20 @@ export function solapa(a, b, minKm2 = 15) {
   }
   return false;
 }
+/**
+ * Re-aplica el criterio de pertenencia a Misiones sobre avisos YA guardados
+ * (guardados antes de exigir superposición real, cuando un borde en común bastaba).
+ * Recalcula los departamentos de cada zona con polígono y descarta las que ya
+ * no caen en Misiones; las zonas sin polígono (ACP por texto) no se tocan.
+ */
+export function depurarGuardados(rows, alcance = process.env.SMN_SCOPE || 'argentina') {
+  if (alcance !== 'misiones') return rows;
+  return rows.map(r => ({ ...r, infos: (r.infos || []).map(i => ({ ...i, zonas: (i.zonas || []).flatMap(z => {
+    if (!z.geometry) return [z];
+    const departamentos = provincia.features.filter(f => solapa(z.geometry, f.geometry)).map(f => f.properties.nombre);
+    return departamentos.length ? [{ ...z, departamentos }] : [];
+  }) })).filter(i => i.zonas.length) })).filter(r => r.infos.length || r.tipo === 'Cancel');
+}
 export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE || 'argentina') {
   if (!['misiones', 'argentina'].includes(alcance)) throw new Error('SMN_SCOPE debe ser misiones o argentina');
   const a = xml(text).alert;
