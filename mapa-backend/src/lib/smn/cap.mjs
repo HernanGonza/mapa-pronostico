@@ -209,6 +209,24 @@ export function ultimaEmision(rows) {
   return rows.filter(r => ultima - Date.parse(r.emitidoEn) <= VENTANA_EMISION_MS);
 }
 const VENTANA_EMISION_MS = 10 * 60 * 1000;
+/**
+ * El SMN manda una alerta por cada subzona de Misiones (mismo fenómeno, nivel, período y
+ * texto, distinto polígono). Se unen en una sola, con todas las zonas, para verla y
+ * publicarla de una vez. Se juntan los avisos con igual evento, nivel, inicio, fin y descripción.
+ * Si hay varios, el aviso unido queda en el mensaje más reciente.
+ */
+export function unirZonas(alertas) {
+  const texto = t => String(t || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const clave = i => JSON.stringify([texto(i.evento || i.titulo), i.categoria, i.inicio, i.fin, texto(i.descripcion)]);
+  const vistos = new Map();
+  const salida = [...alertas].sort((a, b) => b.emitidoEn.localeCompare(a.emitidoEn)).map(a => ({ ...a, infos: a.infos.flatMap(i => {
+    const k = clave(i), previo = vistos.get(k);
+    if (!previo) { const copia = { ...i, zonas: [...i.zonas] }; vistos.set(k, copia); return [copia]; }
+    for (const z of i.zonas) if (!previo.zonas.some(x => JSON.stringify(x.geometry) === JSON.stringify(z.geometry) && x.nombre === z.nombre)) previo.zonas.push(z);
+    return [];
+  }) })).filter(a => a.infos.length);
+  return salida;
+}
 export function vigentes(rows, now = Date.now()) {
   return rows.map(r => ({ ...r, infos: r.infos.filter(i => Date.parse(i.fin) > now) })).filter(r => r.infos.length);
 }

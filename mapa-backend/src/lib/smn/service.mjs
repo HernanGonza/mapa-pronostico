@@ -1,4 +1,4 @@
-import { leerFuente, reconciliar, depurarGuardados, vigentes, ultimaEmision, colores } from './cap.mjs';
+import { leerFuente, reconciliar, depurarGuardados, unirZonas, vigentes, ultimaEmision, colores } from './cap.mjs';
 import * as store from './store.mjs';
 import colorAcp from '../colorAcp.js';
 import alertasManuales from '../alertasMeteorologicasStore.js';
@@ -50,7 +50,7 @@ export async function obtenerActual() {
       desactualizado: !r || Date.now() - Date.parse(r.consultadoEn) > 2 * INTERVALO,
       // SAT: sólo la última emisión (reemplaza a las anteriores). Los ACP son
       // avisos sueltos de corta duración: se muestran todos los vigentes.
-      error: errores[fuente] || null, alertas: vigentes(fuente === 'SAT' ? ultimaEmision(r?.datos || []) : r?.datos || []) };
+      error: errores[fuente] || null, alertas: fuente === 'SAT' ? unirZonas(vigentes(ultimaEmision(r?.datos || []))) : vigentes(r?.datos || []) };
   }));
   // Los ACP no traen nivel en `severity`: va el de su titular («AVISO NARANJA…») o, si
   // no lo dice, el de la alerta (SMN o manual) en cuya vigencia caen (ver colorAcp.js). `acpAhora`: el de un ACP que se cree ya.
