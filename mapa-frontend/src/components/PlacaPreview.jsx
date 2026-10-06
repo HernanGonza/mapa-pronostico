@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import PublicarEnRedes from './PublicarEnRedes';
 
-export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, onVista, titulo, children, labelRecomendaciones = 'Recomendaciones', epigrafe }) {
+// sinRedes: texto que reemplaza al botón «Publicar en redes» (placas que todavía no se pueden publicar).
+export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, onVista, titulo, children, labelRecomendaciones = 'Recomendaciones', epigrafe, sinRedes = null }) {
   const [url, setUrl] = useState(null);
   useEffect(() => {
     if (!placa) { setUrl(null); return; }
@@ -23,7 +24,8 @@ export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, 
       {vista !== 'mapa' && <div className="placa-preview">
         {conjunto ? <>
         {/* Igual que en las tarjetas: marcado y deshabilitado si esta placa ya salió en redes. */}
-        <PublicarEnRedes unaVez className="btn btn--primary" feedUrl={conjunto.feed} historiasUrl={conjunto.historias} epigrafe={epigrafe ?? `${titulo.charAt(0).toUpperCase()}${titulo.slice(1)} · Ministerio de Ecología y RNR de Misiones`} />
+        {sinRedes ? <p className="admin-panel__hint" role="note">{sinRedes}</p>
+          : <PublicarEnRedes unaVez className="btn btn--primary" feedUrl={conjunto.feed} historiasUrl={conjunto.historias} epigrafe={epigrafe ?? `${titulo.charAt(0).toUpperCase()}${titulo.slice(1)} · Ministerio de Ecología y RNR de Misiones`} />}
         <div className="placa-preview-grid">
           {['feed', 'historias'].filter(formato => conjunto[formato]).map(formato => <figure key={formato}>
             <a className="btn btn--primary" href={`${conjunto[formato]}?download=${encodeURIComponent(conjunto[`${formato}Nombre`])}`}>Descargar {formato}</a>

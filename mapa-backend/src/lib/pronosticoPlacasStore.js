@@ -89,4 +89,18 @@ async function ultima() {
     feedUrl: urlPublica(r.feed_path), historiasUrl: urlPublica(r.historias_path), feedNombre: r.feed_path.split("/").pop(), historiasNombre: r.historias_path.split("/").pop() };
 }
 
-module.exports = { init, crear, ultima };
+/**
+ * ¿Alguna de estas URLs es de una placa del pronóstico? (para no dejar publicarlas en redes mientras
+ * no estén aprobadas; ver routes/redes.js). Las rutas son "placas/<fecha>-<azar>/<archivo>.png".
+ */
+async function esPlacaPronostico(urls) {
+  if (!store.usaPostgres()) return false;
+  const rutas = urls.map((u) => /\/(placas\/[^?#]+)/.exec(String(u || ""))?.[1]).filter(Boolean).map(decodeURIComponent);
+  if (!rutas.length) return false;
+  await init();
+  const { rowCount } = await store.getPool().query(
+    `SELECT 1 FROM pronostico_placas WHERE feed_path = ANY($1::text[]) OR historias_path = ANY($1::text[]) LIMIT 1`, [rutas]);
+  return rowCount > 0;
+}
+
+module.exports = { init, crear, ultima, esPlacaPronostico };

@@ -33,10 +33,20 @@ router.get("/redes/publicaciones", requireAuth, async (req, res) => {
   }
 });
 
+// Las placas del pronóstico diario todavía no están aprobadas para redes (06/10): se pueden generar
+// y descargar para revisarlas, pero no publicar. Cuando se aprueben: true (y PRONOSTICO_EN_REDES en
+// mapa-frontend/src/pages/AdminPage.jsx).
+const PRONOSTICO_EN_REDES = false;
+
 router.post("/redes/publicar", requireAuth, publicarLimiter, express.json({ limit: "20kb" }), async (req, res) => {
   const { feedUrl, historiasUrl, epigrafe, destinos, formatos, forzar } = req.body || {};
   const error = redes.errorDePedido({ feedUrl, historiasUrl, epigrafe, destinos, formatos });
   if (error) return res.status(400).json({ error });
+  if (!PRONOSTICO_EN_REDES) {
+    // Si no se puede comprobar, no se publica (mejor frenar una de más que publicar una no aprobada).
+    const esPronostico = await require("../lib/pronosticoPlacasStore").esPlacaPronostico([feedUrl, historiasUrl]).catch((e) => { console.error(e); return true; });
+    if (esPronostico) return res.status(403).json({ error: "Las placas del pronóstico todavía no están aprobadas para publicarse en redes." });
+  }
   const config = redes.estado();
   const sinConfigurar = destinos.filter((d) => !config[d]);
   if (sinConfigurar.length) return res.status(503).json({ error: `Sin configurar en el servidor: ${sinConfigurar.join(", ")}.` });

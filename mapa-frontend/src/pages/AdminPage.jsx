@@ -33,6 +33,9 @@ import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 // Placa del pronóstico para redes: estuvo desactivada (pedido 02/10); vuelve el 04/10 con el estilo
 // nuevo, sobre las fotos de las placas diarias.
 const PLACA_REDES_ACTIVA = true;
+// …pero todavía NO se publica en redes (06/10: las placas no están aprobadas). Se generan y se
+// descargan para revisarlas. El backend también lo frena (routes/redes.js, PRONOSTICO_EN_REDES).
+const PRONOSTICO_EN_REDES = false;
 
 const CAMPOS = [
   ["TMIN", "Mín"],
@@ -161,6 +164,7 @@ export default function AdminPage() {
     aplicar: ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e || extendido || null); setError(null); },
   });
   const crearPlaca = () => crearPlacaPronostico({
+    enRedes: PRONOSTICO_EN_REDES,
     epigrafe: `Previsión del tiempo · ${fechaPronostico.split("-").reverse().join("/")}`, filas,
     vistaPrevia: (valores) => generarPronosticoPlaca(filas, fechaPronostico, { ...valores, vistaPrevia: true }),
     guardar: async (token, valores) => {
@@ -247,7 +251,8 @@ export default function AdminPage() {
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
-      <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico">
+      <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico"
+        sinRedes={PRONOSTICO_EN_REDES ? null : "Todavía no aprobada para redes: se puede descargar para revisarla, pero no publicar."}>
         {municipiosPreview && municipiosGeojson ? (
           <BaseMap
             ref={mapaRef}

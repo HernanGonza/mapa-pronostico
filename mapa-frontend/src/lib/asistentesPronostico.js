@@ -158,7 +158,7 @@ const pasoEstiloTarjetas = {
  * vista previa → confirmar. `vistaPrevia(valores)` y `guardar(token, valores)`, con
  * valores = { fondo, etiqueta, frase, estiloTarjeta }.
  */
-export async function crearPlacaPronostico({ vistaPrevia, guardar, epigrafe, filas = [] }) {
+export async function crearPlacaPronostico({ vistaPrevia, guardar, epigrafe, filas = [], enRedes = true }) {
   const catalogo = await api.getFondosPronostico();
   const sugerida = etiquetaSugerida(filas);
   const valoresDe = (s) => ({ fondo: s.fondo, etiqueta: s.etiqueta, frase: s.frase || "", estiloTarjeta: s.estiloTarjeta });
@@ -170,8 +170,9 @@ export async function crearPlacaPronostico({ vistaPrevia, guardar, epigrafe, fil
   ];
   const enviar = async (s) => {
     const placa = await guardar(s.vista.token, valoresDe(s));
+    // enRedes = false: la placa todavía no está aprobada para publicarse (sólo se descarga).
     return { tipo: "ok", titulo: "¡La placa está lista!", datos: placa, html: htmlPlacaLista(placa),
-      accion: { texto: "Publicar en redes", alHacer: () => ({ cerrar: true, luego: () => publicarEnRedes({ feedUrl: placa.feedUrl, historiasUrl: placa.historiasUrl, epigrafe }) }) } };
+      ...(enRedes ? { accion: { texto: "Publicar en redes", alHacer: () => ({ cerrar: true, luego: () => publicarEnRedes({ feedUrl: placa.feedUrl, historiasUrl: placa.historiasUrl, epigrafe }) }) } } : {}) };
   };
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: { pestana: sugerida, etiqueta: sugerida, fondo: null, frase: "", estiloTarjeta: "oscura" }, ancho: 980 });
 }
