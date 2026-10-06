@@ -6,7 +6,7 @@ export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
 const FUENTES_ACTIVAS = ['SAT', 'ACP'];
-const cachePorFuente = { SAT: new Map(), ACP: new Map() }; // CAP ya leídos (ver leerFuente)
+const cachePorFuente = { SAT: new Map(), ACP: null }; // CAP ya leídos (ver leerFuente); los ACP se leen como siempre
 
 // Ejecuta una consulta completa bajo demanda. El lock evita que el botón de
 // prueba y el sondeo periódico descarguen el SMN dos veces en paralelo.
