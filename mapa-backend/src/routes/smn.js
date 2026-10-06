@@ -6,12 +6,14 @@ router.get('/alertas-meteorologicas/smn', async (req, res) => {
 router.post('/alertas-meteorologicas/smn/actualizar', async (req, res) => {
   try {
     const s = await import('../lib/smn/service.mjs');
-    await s.actualizarAhora();
+    // La consulta puede tardar minutos si el SMN limita los pedidos (se baja de a uno, con pausa):
+    // se espera un rato razonable y se responde con lo que haya; sigue en segundo plano.
+    const completa = await Promise.race([s.actualizarAhora().then(() => true), new Promise(r => setTimeout(() => r(false), 25000))]);
     let actual = await s.obtenerActual();
     // El SMN puede responder con timeout de forma intermitente. El botón
     // manual hace un segundo intento cuando el primero no dejó SAT vigente.
     const sat = actual?.fuentes?.SAT;
-    if (sat && !sat.alertas.length && sat.error) {
+    if (completa && sat && !sat.alertas.length && sat.error) {
       await new Promise(resolve => setTimeout(resolve, 750));
       await s.actualizarAhora();
       actual = await s.obtenerActual();
