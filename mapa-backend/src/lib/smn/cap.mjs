@@ -270,18 +270,31 @@ export async function descargar(url, { fetchImpl = fetch, timeoutMs = 30000, int
  * si el SMN respondía 429 en uno, se perdía toda la consulta y el reintento volvía a
  * empezar de cero. Ahora los que ya se bajaron se conservan aunque otro falle.
  */
-export async function leerFuente(fuente, download = descargar, cache = null) {
+export async function leerFuente(fuente, download = descargar, cache = null, { pausaMs = 500, esperaTopeMs = 30000 } = {}) {
   const links = enlacesFeed(await download(FEEDS[fuente]));
   if (cache) for (const url of cache.keys()) if (!links.includes(url)) cache.delete(url); // ya no están en el RSS
   const output = new Array(links.length); let next = 0;
-  // Cuatro descargas simultáneas como máximo; falla la fuente completa ante un CAP incompleto.
+  // Con caché (el sondeo real) se baja de a uno, con pausa y esperando ante un 429 del SMN: lo bajado
+  // se conserva y la consulta siguiente sigue desde ahí. Sin caché: cuatro a la vez, falla ante un CAP incompleto.
+  const pausado = !!cache;
+  const dormir = ms => new Promise(r => setTimeout(r, ms));
+  async function bajar(url) {
+    for (let intento = 1; ; intento++) {
+      try { return await download(url); }
+      catch (e) {
+        if (!pausado || !/HTTP 429/.test(e.message) || intento >= 3) throw e;
+        await dormir(esperaTopeMs * intento / 3 + 2000);
+      }
+    }
+  }
   let failure;
-  await Promise.all(Array.from({ length: Math.min(4, links.length) }, async () => {
+  await Promise.all(Array.from({ length: pausado ? 1 : Math.min(4, links.length) }, async () => {
     while (!failure && next < links.length) {
       const n = next++, url = links[n];
       if (cache?.has(url)) { output[n] = cache.get(url); continue; }
-      try { output[n] = normalizarCap(await download(url), fuente, url); cache?.set(url, output[n]); }
+      try { output[n] = normalizarCap(await bajar(url), fuente, url); cache?.set(url, output[n]); }
       catch (e) { failure = e; }
+      if (pausado && !failure) await dormir(pausaMs);
     }
   }));
   if (failure) throw failure;
