@@ -157,7 +157,7 @@ const BaseMap = forwardRef(function BaseMap({
       return bajoTitulo ? <div className="map-encabezado">{tarjeta}{bajoTitulo}</div> : tarjeta;
     })()}
     {(!ready || error) && <div className="map-status" role="status" data-capture-ignore>{error || "Cargando mapa…"}</div>}
-    {activo && renderInfo && <div className="map-info" data-capture-ignore>{renderInfo(activo, { onCerrar: () => setSelected(null) })}</div>}
+    {activo && renderInfo && <div className="map-info" data-capture-ignore>{renderInfo(activo, { onCerrar: () => setSelected(null), fecha: fechaPronostico })}</div>}
     {leyenda && <div className="map-legend">{leyenda}</div>}
   </div>;
 });

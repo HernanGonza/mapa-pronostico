@@ -1,6 +1,21 @@
+import { useEffect, useState } from "react";
+import { getSolDeMunicipio } from "../api";
 import WeatherIcon from "./WeatherIcon";
 
-export default function MunicipioInfo({ municipio, onCerrar }) {
+/** Amanecer y anochecer del municipio en la fecha del pronóstico; si no hay dato, no se muestra nada. */
+function useSol(id, fecha) {
+  const [sol, setSol] = useState(null);
+  useEffect(() => {
+    let vigente = true;
+    setSol(null);
+    if (id) getSolDeMunicipio(id, fecha).then((d) => vigente && setSol(d), () => {});
+    return () => { vigente = false; };
+  }, [id, fecha]);
+  return sol;
+}
+
+export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
+  const sol = useSol(municipio?.id, fecha);
   if (!municipio) return null;
   const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [] } =
     municipio;
@@ -53,6 +68,19 @@ export default function MunicipioInfo({ municipio, onCerrar }) {
         <p className="municipio-popover__ref">
           Sin pronóstico publicado todavía.
         </p>
+      )}
+
+      {sol && (
+        <div className="municipio-popover__sol">
+          <span className="municipio-popover__sol-item" role="group" aria-label={`Salida del sol: ${sol.amanecer}`}>
+            <img className="weather-icon" src="/iconos/sunrise.svg" width={30} height={30} alt="" draggable={false} />
+            <b>{sol.amanecer}</b><span>Amanecer</span>
+          </span>
+          <span className="municipio-popover__sol-item" role="group" aria-label={`Puesta del sol: ${sol.anochecer}`}>
+            <img className="weather-icon" src="/iconos/sunset.svg" width={30} height={30} alt="" draggable={false} />
+            <b>{sol.anochecer}</b><span>Anochecer</span>
+          </span>
+        </div>
       )}
 
       {/* Pronóstico extendido de la zona (norte, centro o sur) de la localidad de referencia. */}

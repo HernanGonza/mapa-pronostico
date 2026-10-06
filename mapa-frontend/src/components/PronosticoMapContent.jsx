@@ -1,7 +1,7 @@
 import MunicipioInfo from "./MunicipioInfo";
 import { colorPorCondicion, LEYENDA } from "../lib/condiciones";
 export const colorPronostico = dato => colorPorCondicion(dato?.pronostico?.CONDICION);
-export const infoPronostico = (dato, { onCerrar }) => <MunicipioInfo municipio={dato} onCerrar={onCerrar} />;
+export const infoPronostico = (dato, { onCerrar, fecha }) => <MunicipioInfo municipio={dato} onCerrar={onCerrar} fecha={fecha} />;
 /** Referencias de color como franja fina abajo, de lado a lado (igual que alertas y riesgo de incendios). */
 export function LeyendaPronostico() {
   return <div className="risk-legends risk-legends--pie"><div className="risk-legend">

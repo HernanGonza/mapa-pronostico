@@ -465,6 +465,25 @@ html:has(.embed-risk--pronostico), body:has(.embed-risk--pronostico) { overflow:
   margin-top: 2px;
 }
 
+/* Amanecer y anochecer: una línea chica, secundaria al pronóstico. */
+.municipio-popover__sol {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+.municipio-popover__sol-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--map-text-muted);
+}
+.municipio-popover__sol-item b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--map-text);
+}
+
 /* Extendido: los días del pronóstico de 3 días de la zona del municipio. */
 .municipio-popover__extendido {
   margin-top: 12px;

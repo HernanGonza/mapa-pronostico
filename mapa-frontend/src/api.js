@@ -31,6 +31,11 @@ async function handleJson(res) {
   return res.json();
 }
 
+/** { amanecer, anochecer } ("HH:MM", hora argentina) de un municipio en una fecha YYYY-MM-DD. Cacheado por municipio+fecha; falla si no hay dato. */
+export function getSolDeMunicipio(municipioId, fecha) {
+  return getEstatico(`${API_URL}/api/sol/${encodeURIComponent(municipioId)}${fecha ? `?fecha=${fecha}` : ""}`);
+}
+
 export async function parseDocx(file) {
   const form = new FormData();
   form.append("pronostico", file);
