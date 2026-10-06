@@ -263,15 +263,24 @@ export async function descargar(url, { fetchImpl = fetch, timeoutMs = 30000, int
   }
   throw ultimo;
 }
-export async function leerFuente(fuente, download = descargar) {
+/**
+ * `cache` (opcional, Map url → resultado): un CAP no cambia nunca bajo su URL, así que
+ * el resultado de cada uno se recuerda (también los que no son de Misiones, como `null`).
+ * Cada consulta sólo baja los enlaces nuevos del RSS: antes bajaba los ~90 cada 5 min y,
+ * si el SMN respondía 429 en uno, se perdía toda la consulta y el reintento volvía a
+ * empezar de cero. Ahora los que ya se bajaron se conservan aunque otro falle.
+ */
+export async function leerFuente(fuente, download = descargar, cache = null) {
   const links = enlacesFeed(await download(FEEDS[fuente]));
+  if (cache) for (const url of cache.keys()) if (!links.includes(url)) cache.delete(url); // ya no están en el RSS
   const output = new Array(links.length); let next = 0;
   // Cuatro descargas simultáneas como máximo; falla la fuente completa ante un CAP incompleto.
   let failure;
   await Promise.all(Array.from({ length: Math.min(4, links.length) }, async () => {
     while (!failure && next < links.length) {
-      const n = next++;
-      try { output[n] = normalizarCap(await download(links[n]), fuente, links[n]); }
+      const n = next++, url = links[n];
+      if (cache?.has(url)) { output[n] = cache.get(url); continue; }
+      try { output[n] = normalizarCap(await download(url), fuente, url); cache?.set(url, output[n]); }
       catch (e) { failure = e; }
     }
   }));

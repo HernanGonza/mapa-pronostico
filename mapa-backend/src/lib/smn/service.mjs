@@ -6,6 +6,7 @@ export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
 const FUENTES_ACTIVAS = ['SAT', 'ACP'];
+const cachePorFuente = { SAT: new Map(), ACP: new Map() }; // CAP ya leídos (ver leerFuente)
 
 // Ejecuta una consulta completa bajo demanda. El lock evita que el botón de
 // prueba y el sondeo periódico descarguen el SMN dos veces en paralelo.
@@ -14,7 +15,7 @@ export function actualizarAhora({ read = leerFuente, repository = store, logger 
   actualizando = Promise.allSettled(FUENTES_ACTIVAS.map(async fuente => {
     try {
       const previous = await repository.actual(fuente);
-      const received = await read(fuente);
+      const received = await read(fuente, undefined, cachePorFuente[fuente]);
       const alcance = process.env.SMN_SCOPE || 'argentina';
       const datos = reconciliar(depurarGuardados((previous?.datos || []).filter(r => r.alcance === alcance), alcance), received);
       await repository.guardar(fuente, datos, previous?.revision || null);
