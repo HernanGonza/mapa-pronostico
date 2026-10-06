@@ -36,6 +36,7 @@ async function pedir(lat, lng, fecha) {
 
 /** { amanecer: "06:10", anochecer: "18:42" } o null si el municipio no existe o la API falla. */
 async function solDeMunicipio(municipioId, fecha = fechaHoyART()) {
+  fecha = String(fecha).slice(0, 10); // tolera un timestamp ISO (la fecha del pronóstico viene de una columna date)
   const municipio = loadMunicipios().find((m) => m.id === municipioId);
   if (!municipio || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(Date.parse(fecha))) return null;
 
