@@ -540,8 +540,8 @@ export async function publicarEnRedes(payload) {
 }
 
 // --- Informes diarios (en desarrollo, sólo superadmin) ---
-export async function recolectarInformeDiario({ fecha, desde, hasta }) {
-  return handleJson(await fetch(`${API_URL}/api/informes-diarios/recolectar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha, desde, hasta }), cache: "no-store", ...CON_SESION }));
+export async function recolectarInformeDiario({ fecha, fechaHasta, desde, hasta }) {
+  return handleJson(await fetch(`${API_URL}/api/informes-diarios/recolectar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha, fechaHasta, desde, hasta }), cache: "no-store", ...CON_SESION }));
 }
 export async function getInformesDiarios() {
   return (await handleJson(await fetch(`${API_URL}/api/informes-diarios`, { cache: "no-store", ...CON_SESION }))).informes;
