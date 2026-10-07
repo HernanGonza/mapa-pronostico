@@ -4,6 +4,7 @@ const rateLimit = require("express-rate-limit");
 const auth = require("../lib/auth");
 const requireAuth = require("../middleware/requireAuth");
 const requireRole = require("../middleware/requireRole");
+const { normalizar: normalizarModulos } = require("../lib/modulos");
 
 const recovery = require("../lib/passwordRecovery");
 const router = express.Router();
@@ -72,7 +73,7 @@ router.post("/auth/logout", async (req, res) => {
 });
 
 router.get("/auth/me", requireAuth, (req, res) => {
-  res.json({ email: req.usuario.email, rol: req.usuario.rol, nombre: req.usuario.nombre });
+  res.json({ email: req.usuario.email, rol: req.usuario.rol, nombre: req.usuario.nombre, modulos: req.usuario.modulos || [] });
 });
 
 // --- Usuarios (alta desde el panel — no hay registro público) -------------
@@ -106,6 +107,7 @@ router.post(
       puesto,
       dependencia,
       rol,
+      modulos,
     } = req.body || {};
 
     if (!email || !password || !nombre || !apellido || !telefono || !dni || !rol) {
@@ -123,6 +125,8 @@ router.post(
     if (!auth.puedeCrearRol(req.usuario.rol, rol)) {
       return res.status(403).json({ error: "No tenés permiso para crear un usuario con ese rol" });
     }
+    const modulosOk = normalizarModulos(modulos);
+    if (!modulosOk) return res.status(400).json({ error: "Módulos inválidos" });
 
     try {
       const usuario = await auth.crearUsuario({
@@ -135,6 +139,7 @@ router.post(
         puesto: puesto || null,
         dependencia: dependencia || null,
         rol,
+        modulos: modulosOk,
       });
       res.status(201).json(usuario);
     } catch (err) {
@@ -152,7 +157,7 @@ router.put(
   express.json(),
   async (req, res) => {
     if (!/^[1-9][0-9]{0,17}$/.test(req.params.id)) return res.status(400).json({ error: "Usuario inválido" });
-    const { email, password, repetirPassword, nombre, apellido, telefono, dni, puesto, dependencia, rol } = req.body || {};
+    const { email, password, repetirPassword, nombre, apellido, telefono, dni, puesto, dependencia, rol, modulos } = req.body || {};
 
     if (!email || !nombre || !apellido || !telefono || !dni || !rol) {
       return res.status(400).json({ error: "Faltan campos obligatorios" });
@@ -170,6 +175,8 @@ router.put(
     if (!auth.puedeCrearRol(req.usuario.rol, rol)) {
       return res.status(403).json({ error: "No tenés permiso para asignar ese rol" });
     }
+    const modulosOk = modulos === undefined ? null : normalizarModulos(modulos); // sin `modulos`: quedan los que tenía
+    if (modulos !== undefined && !modulosOk) return res.status(400).json({ error: "Módulos inválidos" });
 
     try {
       const usuario = await auth.editarUsuario(req.params.id, {
@@ -182,6 +189,7 @@ router.put(
         puesto: puesto || null,
         dependencia: dependencia || null,
         rol,
+        modulos: modulosOk,
       });
       if (!usuario) return res.status(404).json({ error: "El usuario no existe" });
       res.json(usuario);

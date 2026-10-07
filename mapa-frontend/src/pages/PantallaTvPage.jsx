@@ -134,7 +134,7 @@ export default function PantallaTvPage() {
     return () => window.removeEventListener("beforeunload", avisar);
   }, [cambios]);
 
-  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel/configuracion" replace />;
+  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel" replace />;
 
   const cambiar = (i, cambio) => setLista((l) => l.map((p, j) => (j === i ? { ...p, ...cambio } : p)));
   const mover = (i, paso) => setLista((l) => {

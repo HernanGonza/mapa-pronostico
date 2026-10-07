@@ -6,8 +6,8 @@ const informes = require("../lib/informesDiariosStore");
 const requireRole = require("../middleware/requireRole");
 
 const router = express.Router();
-// En desarrollo: sólo el superadmin (como la pantalla, ver Configuración).
-const soloSuperadmin = requireRole("superadmin");
+// En desarrollo: el superadmin y quienes tengan el módulo «informes-diarios» (ver pantalla Usuarios).
+const soloSuperadmin = require("../middleware/requireModulo")("informes-diarios");
 const error = (res, e, texto) => { if (!e.status) console.error(e); const st = [400, 403, 404, 503].includes(e.status) ? e.status : 500; res.status(st).json({ error: st === 500 ? texto : e.message }); };
 
 // Junta los datos de un rango (no guarda nada): { fecha: "AAAA-MM-DD", desde: "HH:MM", fechaHasta?: "AAAA-MM-DD", hasta: "HH:MM" }

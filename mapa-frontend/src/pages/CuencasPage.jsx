@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import MonitorCuencas from "../components/MonitorCuencas";
 import CuencasMap from "../components/CuencasMap";
@@ -36,7 +36,7 @@ export default function CuencasPage() {
 
   return <div className="admin-layout cuencas-claro">
     <BrandHeader subtitulo="Monitor de cuencas">
-      <Link to="/panel/configuracion" className="btn-link">← Configuración</Link>
+      <VolverConfiguracion />
     </BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading">

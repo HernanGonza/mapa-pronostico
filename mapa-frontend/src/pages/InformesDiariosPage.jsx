@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import * as api from "../api";
 import { notificar } from "../lib/ui";
@@ -101,7 +101,7 @@ export default function InformesDiariosPage() {
   }
 
   return <div className="admin-layout informes-layout">
-    <BrandHeader subtitulo="Informes diarios"><Link to="/panel/configuracion" className="btn-link">← Configuración</Link></BrandHeader>
+    <BrandHeader subtitulo="Informes diarios"><VolverConfiguracion /></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading"><h1>Informes diarios</h1>
         <p>Qué pasó un día en Misiones según las estaciones oficiales del INTA y de la red SiNaRaMe (cada 10 minutos) y las del SMN (cada hora, más las temperaturas extremas oficiales), con lo que emitió el SMN. Elegí desde y hasta cuándo (puede ser de un día a otro, hasta 7 días), juntá los datos, revisá el texto y guardalo o bajalo en PDF.</p></div>

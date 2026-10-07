@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import SmnAlertas from "../components/SmnAlertas";
 
@@ -10,9 +10,7 @@ export default function AlertasAutomaticasPage() {
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Alertas automáticas · SMN">
-        <Link to="/panel/configuracion" className="btn-link">
-          ← Configuración
-        </Link>
+        <VolverConfiguracion />
       </BrandHeader>
       <SmnAlertas />
     </div>

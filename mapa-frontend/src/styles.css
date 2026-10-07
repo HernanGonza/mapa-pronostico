@@ -1753,3 +1753,8 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
   .base-map--embed .risk-legends--pie .risk-legend__scale--condiciones span { white-space: normal; line-height: 1.1; }
   .base-map--embed:has(.risk-legend__scale--condiciones) .maplibregl-ctrl-bottom-right { bottom: 78px; }
 }
+
+/* Usuarios: módulos habilitables por usuario */
+.usuarios-modulos { border: 1px solid var(--map-border, rgba(0, 0, 0, 0.15)); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+.usuarios-modulos legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.usuarios-modulos__opcion { display: block; padding: 3px 0; cursor: pointer; }

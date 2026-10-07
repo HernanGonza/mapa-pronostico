@@ -34,7 +34,7 @@ export default function DemostracionPage() {
   const hayAlgo = Object.values(config).some(Boolean);
   const actual = VISTAS.find((v) => v.id === vista);
   // Como Usuarios: sólo superadmin (está dentro de Configuración).
-  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel/configuracion" replace />;
+  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel" replace />;
 
   return <div className="admin-layout">
     <BrandHeader subtitulo="Demostración"><Link to="/panel/configuracion" className="btn-link">← Configuración</Link></BrandHeader>

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import VolverConfiguracion from "../components/VolverConfiguracion";
 import PointsMap from "../components/PointsMap";
 import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
@@ -42,9 +42,7 @@ export default function AlertasIncendiosPage() {
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Focos de calor · NASA FIRMS">
-        <Link to="/panel/configuracion" className="btn-link">
-          ← Configuración
-        </Link>
+        <VolverConfiguracion />
       </BrandHeader>
 
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>

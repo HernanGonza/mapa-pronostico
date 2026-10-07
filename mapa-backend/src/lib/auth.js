@@ -127,6 +127,7 @@ async function init() {
          ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS puesto text;
          ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS dependencia text;
          ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol_id bigint REFERENCES roles(id);
+         ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS modulos text[] NOT NULL DEFAULT '{}';
          DO $$
          BEGIN
            UPDATE usuarios u SET rol_id = r.id FROM roles r WHERE u.rol_id IS NULL AND u.rol = r.nombre;
@@ -144,7 +145,7 @@ async function init() {
 
 // `r.nombre AS rol` mantiene el mismo contrato hacia afuera (rutas y
 // frontend siguen viendo `rol` como string) aunque adentro ya sea una FK.
-const CAMPOS_USUARIO = "u.id, u.email, u.nombre, u.apellido, u.telefono, u.dni, u.puesto, u.dependencia, r.nombre AS rol, u.creado_en";
+const CAMPOS_USUARIO = "u.id, u.email, u.nombre, u.apellido, u.telefono, u.dni, u.puesto, u.dependencia, r.nombre AS rol, u.modulos, u.creado_en";
 
 /**
  * Alta (o reset de contraseña) de un usuario.
@@ -163,6 +164,7 @@ async function crearUsuario({
   puesto = null,
   dependencia = null,
   rol = "usuario",
+  modulos = [],
   permitirActualizar = false,
 }) {
   await init();
@@ -180,6 +182,7 @@ async function crearUsuario({
     puesto,
     dependencia,
     rol,
+    modulos,
   ];
   // `rol_id` se resuelve con una subconsulta a `roles` (ya se validó arriba
   // que `rol` es uno de los 3 válidos). El `INSERT` va en un CTE nombrado
@@ -188,18 +191,18 @@ async function crearUsuario({
   // que en el resto de las consultas.
   const sql = permitirActualizar
     ? `WITH u AS (
-         INSERT INTO usuarios (email, password_hash, nombre, apellido, telefono, dni, puesto, dependencia, rol_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,(SELECT id FROM roles WHERE nombre = $9))
+         INSERT INTO usuarios (email, password_hash, nombre, apellido, telefono, dni, puesto, dependencia, rol_id, modulos)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,(SELECT id FROM roles WHERE nombre = $9),$10)
          ON CONFLICT (email) DO UPDATE SET
            password_hash = EXCLUDED.password_hash, nombre = EXCLUDED.nombre, apellido = EXCLUDED.apellido,
            telefono = EXCLUDED.telefono, dni = EXCLUDED.dni, puesto = EXCLUDED.puesto,
-           dependencia = EXCLUDED.dependencia, rol_id = EXCLUDED.rol_id
+           dependencia = EXCLUDED.dependencia, rol_id = EXCLUDED.rol_id, modulos = usuarios.modulos
          RETURNING *
        )
        SELECT ${CAMPOS_USUARIO} FROM u JOIN roles r ON r.id = u.rol_id`
     : `WITH u AS (
-         INSERT INTO usuarios (email, password_hash, nombre, apellido, telefono, dni, puesto, dependencia, rol_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,(SELECT id FROM roles WHERE nombre = $9))
+         INSERT INTO usuarios (email, password_hash, nombre, apellido, telefono, dni, puesto, dependencia, rol_id, modulos)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,(SELECT id FROM roles WHERE nombre = $9),$10)
          RETURNING *
        )
        SELECT ${CAMPOS_USUARIO} FROM u JOIN roles r ON r.id = u.rol_id`;
@@ -220,7 +223,7 @@ async function crearUsuario({
  * Nunca deja el sistema sin superadmin: si se le saca el rol al último,
  * falla. Devuelve `null` si el usuario no existe.
  */
-async function editarUsuario(id, { email, password = null, nombre, apellido, telefono, dni, puesto = null, dependencia = null, rol }) {
+async function editarUsuario(id, { email, password = null, nombre, apellido, telefono, dni, puesto = null, dependencia = null, rol, modulos = null }) {
   await init();
   const pool = store.getPool();
   if (!pool) throw new Error("Falta DATABASE_URL");
@@ -242,12 +245,12 @@ async function editarUsuario(id, { email, password = null, nombre, apellido, tel
          UPDATE usuarios SET
            email = $2, nombre = $3, apellido = $4, telefono = $5, dni = $6, puesto = $7,
            dependencia = $8, rol_id = (SELECT id FROM roles WHERE nombre = $9),
-           password_hash = COALESCE($10, password_hash)
+           password_hash = COALESCE($10, password_hash), modulos = COALESCE($11, modulos)
          WHERE id = $1
          RETURNING *
        )
        SELECT ${CAMPOS_USUARIO} FROM u JOIN roles r ON r.id = u.rol_id`,
-      [id, String(email).trim().toLowerCase(), nombre, apellido, telefono, dni, puesto, dependencia, rol, hash]
+      [id, String(email).trim().toLowerCase(), nombre, apellido, telefono, dni, puesto, dependencia, rol, hash, modulos]
     );
     if (rows.length && hash) await client.query("DELETE FROM sesiones WHERE usuario_id = $1", [id]);
     await client.query("COMMIT");
@@ -321,7 +324,7 @@ async function obtenerSesion(token) {
   const pool = store.getPool();
   if (!pool) return null;
   const { rows } = await pool.query(
-    `SELECT s.usuario_id, u.email, r.nombre AS rol, u.nombre
+    `SELECT s.usuario_id, u.email, r.nombre AS rol, u.nombre, u.modulos
        FROM sesiones s
        JOIN usuarios u ON u.id = s.usuario_id
        JOIN roles r ON r.id = u.rol_id
@@ -329,7 +332,7 @@ async function obtenerSesion(token) {
     [hashToken(token)]
   );
   if (!rows.length) return null;
-  return { usuarioId: rows[0].usuario_id, email: rows[0].email, rol: rows[0].rol, nombre: rows[0].nombre };
+  return { usuarioId: rows[0].usuario_id, email: rows[0].email, rol: rows[0].rol, nombre: rows[0].nombre, modulos: rows[0].modulos || [] };
 }
 
 async function borrarSesion(token) {

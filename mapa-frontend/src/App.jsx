@@ -58,9 +58,9 @@ export default function App() {
           />
           <Route path="/panel/mapas" element={<RutaProtegida><GeneradorMapasPage /></RutaProtegida>} />
           <Route path="/panel/historico" element={<RutaProtegida><HistoricoPage /></RutaProtegida>} />
-          <Route path="/panel/generador-pronosticos" element={<RutaProtegida soloSuperadmin><GeneradorPronosticosPage /></RutaProtegida>} />
-          <Route path="/panel/configuracion" element={<RutaProtegida><ConfiguracionPage /></RutaProtegida>} />
-          <Route path="/panel/informes-diarios" element={<RutaProtegida soloSuperadmin><InformesDiariosPage /></RutaProtegida>} />
+          <Route path="/panel/generador-pronosticos" element={<RutaProtegida modulo="generador-pronosticos"><GeneradorPronosticosPage /></RutaProtegida>} />
+          <Route path="/panel/configuracion" element={<RutaProtegida soloSuperadmin><ConfiguracionPage /></RutaProtegida>} />
+          <Route path="/panel/informes-diarios" element={<RutaProtegida modulo="informes-diarios"><InformesDiariosPage /></RutaProtegida>} />
           <Route
             path="/panel/pronostico"
             element={
@@ -80,22 +80,22 @@ export default function App() {
           <Route
             path="/panel/alertas-incendios"
             element={
-              <RutaProtegida soloSuperadmin>
+              <RutaProtegida modulo="focos-de-calor">
                 <AlertasIncendiosPage />
               </RutaProtegida>
             }
           />
           <Route path="/panel/alertas-meteorologicas" element={<RutaProtegida><AlertasMeteorologicasPage /></RutaProtegida>} />
-          <Route path="/panel/alertas-automaticas" element={<RutaProtegida soloSuperadmin><AlertasAutomaticasPage /></RutaProtegida>} />
+          <Route path="/panel/alertas-automaticas" element={<RutaProtegida modulo="alertas-automaticas"><AlertasAutomaticasPage /></RutaProtegida>} />
           <Route path="/panel/avisos-corto-plazo" element={<RutaProtegida><AvisosCortoPlazoPage /></RutaProtegida>} />
           <Route path="/panel/aviso-especial" element={<RutaProtegida><AvisoEspecialPage /></RutaProtegida>} />
-          <Route path="/panel/inundaciones" element={<RutaProtegida soloSuperadmin><InundacionesPage /></RutaProtegida>} />
-          <Route path="/panel/cuencas" element={<RutaProtegida soloSuperadmin><CuencasPage /></RutaProtegida>} />
+          <Route path="/panel/inundaciones" element={<RutaProtegida modulo="inundaciones"><InundacionesPage /></RutaProtegida>} />
+          <Route path="/panel/cuencas" element={<RutaProtegida modulo="cuencas"><CuencasPage /></RutaProtegida>} />
           <Route path="/panel/pronostico-3-dias" element={<RutaProtegida><PronosticoExtendidoPage /></RutaProtegida>} />
-          <Route path="/panel/usuarios" element={<RutaProtegida><UsuariosPage /></RutaProtegida>} />
-          <Route path="/panel/demostracion" element={<RutaProtegida><DemostracionPage /></RutaProtegida>} />
-          <Route path="/panel/transmision" element={<RutaProtegida><TransmisionPage /></RutaProtegida>} />
-          <Route path="/panel/pantalla-tv" element={<RutaProtegida><PantallaTvPage /></RutaProtegida>} />
+          <Route path="/panel/usuarios" element={<RutaProtegida soloSuperadmin><UsuariosPage /></RutaProtegida>} />
+          <Route path="/panel/demostracion" element={<RutaProtegida soloSuperadmin><DemostracionPage /></RutaProtegida>} />
+          <Route path="/panel/transmision" element={<RutaProtegida soloSuperadmin><TransmisionPage /></RutaProtegida>} />
+          <Route path="/panel/pantalla-tv" element={<RutaProtegida soloSuperadmin><PantallaTvPage /></RutaProtegida>} />
 
           {/* Esta es la ruta que va en el src del <iframe> del ministerio — pública, sin login */}
           <Route path="/embed/alertas-incendios" element={<EmbedAlertasPage />} />

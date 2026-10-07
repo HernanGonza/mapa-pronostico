@@ -34,7 +34,7 @@ export default function TransmisionPage() {
     return () => clearInterval(t);
   }, [estado?.alAire]);
 
-  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel/configuracion" replace />;
+  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel" replace />;
 
   async function accion(fn, pregunta) {
     if (pregunta && !(await confirmar(pregunta))) return;

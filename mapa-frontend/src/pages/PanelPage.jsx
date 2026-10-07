@@ -2,6 +2,7 @@ import BrandHeader from "../components/BrandHeader";
 import { Layers, ChartLine, Settings } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
+import { modulosDe } from "../lib/modulos";
 
 const OPCIONES = [
   {
@@ -43,7 +44,10 @@ export default function PanelPage() {
       <div className="panel-botonera">
         {/* El histórico sigue en desarrollo pero lo ven todos: los usuarios guían cómo armarlo. El resto de
             lo que está en desarrollo (generador de pronósticos…) va en Configuración, sólo para el superadmin. */}
-        {OPCIONES.map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado={op.to === "/panel/historico" ? "En desarrollo" : null} />)}
+        {/* Configuración (usuarios, módulos, transmisión…) es sólo del superadmin. */}
+        {OPCIONES.filter((op) => op.to !== "/panel/configuracion" || usuario.rol === "superadmin").map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado={op.to === "/panel/historico" ? "En desarrollo" : null} />)}
+        {/* Los módulos que se le habilitaron a este usuario (el superadmin los tiene todos en Configuración). */}
+        {usuario.rol !== "superadmin" && modulosDe(usuario).map((op, i) => <PanelBoton key={op.to} op={op} indice={OPCIONES.length + i} estado="En desarrollo" />)}
       </div>
       </main>
     </div>

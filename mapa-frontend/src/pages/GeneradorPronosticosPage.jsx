@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 
 // Placeholder: todavía no hay recolector de fuentes. La idea es que acá
@@ -10,7 +10,7 @@ export default function GeneradorPronosticosPage() {
   return (
     <div className="admin-layout">
       <BrandHeader subtitulo="Generador de pronósticos">
-        <Link to="/panel/configuracion" className="btn-link">← Configuración</Link>
+        <VolverConfiguracion />
       </BrandHeader>
       <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading">

@@ -5,6 +5,7 @@ import BrandHeader from "../components/BrandHeader";
 import PasswordChecklist, { passwordValida } from "../components/PasswordChecklist";
 import { useAuth } from "../context/AuthContext";
 import { crearUsuarioPanel, editarUsuarioPanel, listarUsuariosPanel } from "../api";
+import { MODULOS } from "../lib/modulos";
 
 const ETIQUETA_ROL = { superadmin: "Superadmin", admin: "Admin", usuario: "Usuario" };
 
@@ -43,6 +44,8 @@ export default function UsuariosPage() {
   const [recuperar, setRecuperar] = useState(null);
   // Usuario que se está editando (null = el formulario da de alta uno nuevo).
   const [editando, setEditando] = useState(null);
+  // Módulos habilitados para el usuario del formulario (el superadmin tiene todos, no se eligen).
+  const [modulos, setModulos] = useState([]);
 
   useEffect(() => {
     listarUsuariosPanel()
@@ -52,7 +55,7 @@ export default function UsuariosPage() {
 
   // Solo `superadmin` tiene acceso a esta pantalla — el back también lo
   // frena (esto es solo para no mostrarla).
-  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel/configuracion" replace />;
+  if (usuario && usuario.rol !== "superadmin") return <Navigate to="/panel" replace />;
 
   function campo(nombre) {
     return {
@@ -67,6 +70,7 @@ export default function UsuariosPage() {
     setMensajeOk(null);
     setRecuperar(null);
     setEditando(u);
+    setModulos(u.modulos || []);
     setForm({
       ...VACIO,
       ...Object.fromEntries(Object.keys(VACIO).map((k) => [k, u[k] ?? ""])),
@@ -79,6 +83,7 @@ export default function UsuariosPage() {
 
   function cancelarEdicion() {
     setEditando(null);
+    setModulos([]);
     setError(null);
     setForm({ ...VACIO, rol: asignables[asignables.length - 1] || "usuario" });
   }
@@ -100,14 +105,15 @@ export default function UsuariosPage() {
     setCargando(true);
     try {
       if (editando) {
-        const editado = await editarUsuarioPanel(editando.id, form);
+        const editado = await editarUsuarioPanel(editando.id, { ...form, modulos });
         setMensajeOk(`Cambios guardados: ${editado.email}`);
         setEditando(null);
       } else {
-        const nuevo = await crearUsuarioPanel(form);
+        const nuevo = await crearUsuarioPanel({ ...form, modulos });
         setMensajeOk(`Usuario creado: ${nuevo.email}`);
       }
       setForm({ ...VACIO, rol: asignables[asignables.length - 1] || "usuario" });
+      setModulos([]);
       setRecargar((n) => n + 1);
     } catch (err) {
       setError(err.message);
@@ -199,6 +205,27 @@ export default function UsuariosPage() {
               </select>
             </label>
 
+            <fieldset className="field usuarios-modulos" disabled={cargando || form.rol === "superadmin"}>
+              <legend>Módulos habilitados</legend>
+              {form.rol === "superadmin" ? (
+                <p className="admin-panel__hint">El superadmin tiene todos los módulos.</p>
+              ) : (
+                <>
+                  {MODULOS.map((m) => (
+                    <label key={m.id} className="usuarios-modulos__opcion">
+                      <input
+                        type="checkbox"
+                        checked={modulos.includes(m.id)}
+                        onChange={(e) => setModulos((ms) => (e.target.checked ? [...ms, m.id] : ms.filter((x) => x !== m.id)))}
+                      />{" "}
+                      {m.titulo}
+                    </label>
+                  ))}
+                  <p className="admin-panel__hint">Además de lo que ve cualquier usuario. Rige apenas se guarda.</p>
+                </>
+              )}
+            </fieldset>
+
             <div className="usuarios-form-grid">
               <label className="field">
                 <span>Contraseña</span>
@@ -250,6 +277,7 @@ export default function UsuariosPage() {
                   <th>Nombre</th>
                   <th>Email</th>
                   <th>Rol</th>
+                  <th>Módulos</th>
                   <th>Puesto</th>
                   <th>Dependencia</th>
                   <th>DNI / Teléfono</th>
@@ -262,6 +290,7 @@ export default function UsuariosPage() {
                     <td>{[u.nombre, u.apellido].filter(Boolean).join(" ") || "—"}</td>
                     <td>{u.email}</td>
                     <td>{ETIQUETA_ROL[u.rol] || u.rol}</td>
+                    <td>{u.rol === "superadmin" ? "Todos" : (u.modulos || []).map((id) => MODULOS.find((m) => m.id === id)?.titulo || id).join(", ") || "—"}</td>
                     <td>{u.puesto || "—"}</td>
                     <td>{u.dependencia || "—"}</td>
                     <td>{u.dni || "—"}<br />{u.telefono || "Sin teléfono"}</td>

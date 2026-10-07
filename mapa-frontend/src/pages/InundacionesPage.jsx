@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 
 // Placeholder: todavía no hay placa base ni mapa de inundaciones (diseño
@@ -9,7 +9,7 @@ import BrandHeader from "../components/BrandHeader";
 export default function InundacionesPage() {
   return (
     <div className="admin-layout risk-layout">
-      <BrandHeader subtitulo="Inundaciones"><Link to="/panel/configuracion" className="btn-link">← Configuración</Link></BrandHeader>
+      <BrandHeader subtitulo="Inundaciones"><VolverConfiguracion /></BrandHeader>
       <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading">
           <h1>Inundaciones</h1>
