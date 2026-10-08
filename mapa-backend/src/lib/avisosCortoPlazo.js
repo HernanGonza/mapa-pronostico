@@ -5,12 +5,12 @@
  * polígono viaja capturado como PNG (`imagen`, ver generateAvisoCortoPlazoMap)
  * y queda en la placa; el polígono en sí se guarda aparte para poder volver
  * a mostrarlo (mapa público, historial). La validación es laxa: alcanza con
- * que sean puntos [lng,lat] razonables dentro de Misiones y alrededores, no
+ * que sean puntos [lng,lat] razonables dentro de una caja amplia alrededor de Misiones (incluye Corrientes, Chaco, Paraguay y sur de Brasil), no
  * hace falta que caigan en la provincia exacta (evita rechazar un trazo que
  * roza el límite). El máximo de puntos es alto porque los polígonos CAP del
  * SMN pueden traer bastantes más vértices que un trazo a mano.
  */
-const LAT_MIN = -30, LAT_MAX = -22, LNG_MIN = -58, LNG_MAX = -52;
+const LAT_MIN = -36, LAT_MAX = -18, LNG_MIN = -66, LNG_MAX = -48;
 const MAX_PUNTOS = 300;
 
 function errorDePoligono(poligono) {
