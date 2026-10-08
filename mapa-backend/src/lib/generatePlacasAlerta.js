@@ -35,7 +35,7 @@ const FUENTE_MIN = 40;
 const INTERLINEA = 1.3;
 const SOMBRA = 'rgba(0,0,0,.55)';
 
-const LIMITES = { zonas: 4, nombreZona: 60, descripcion: 700, nota: 220, fenomeno: 40, items: 7, item: 140, linea: 160, imagen: 400_000 };
+const LIMITES = { zonas: 8, nombreZona: 60, descripcion: 700, nota: 220, fenomeno: 40, items: 7, item: 140, linea: 160, imagen: 400_000 };
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/, RE_HORA = /^([01]?\d|2[0-4]):[0-5]\d$/;
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
@@ -70,6 +70,7 @@ function errorDePlacaAlerta({ tipo, nivel, datos } = {}) {
     for (const z of d.zonas) {
       if (!texto(z?.nombre, LIMITES.nombreZona)) return `Cada zona necesita un nombre (hasta ${LIMITES.nombreZona} caracteres).`;
       if (!RE_FECHA.test(z.fecha || '') || !RE_HORA.test(z.desde || '') || !RE_HORA.test(z.hasta || '')) return `Revisá el día y el horario de «${z.nombre}» (horas como 12:00 o 24:00).`;
+      if (z.nivel != null && z.nivel !== '' && !NIVELES.includes(z.nivel)) return `Elegí el nivel de «${z.nombre}» (amarillo, naranja o rojo).`;
       if ((z.desde2 || z.hasta2) && (!RE_HORA.test(z.desde2 || '') || !RE_HORA.test(z.hasta2 || ''))) return `Revisá el segundo horario de «${z.nombre}» (desde y hasta, como 12:00 o 24:00).`;
     }
     if (!texto(d.descripcion, LIMITES.descripcion)) return `Escribí el texto del fenómeno (hasta ${LIMITES.descripcion} caracteres).`;
@@ -106,7 +107,7 @@ function errorDePlacaAlerta({ tipo, nivel, datos } = {}) {
 /** Sólo los campos que se usan, recortados (lo que se guarda en la base). */
 function normalizarPlacaAlerta({ tipo, nivel, datos: d }) {
   const t = (v) => (typeof v === 'string' ? v.trim() : '');
-  if (tipo === 'vigencia') return { tipo, nivel, datos: { zonas: d.zonas.map((z) => ({ nombre: t(z.nombre), fecha: z.fecha, desde: z.desde, hasta: z.hasta, ...(z.desde2 && z.hasta2 ? { desde2: z.desde2, hasta2: z.hasta2 } : {}) })), descripcion: t(d.descripcion), nota: t(d.nota) } };
+  if (tipo === 'vigencia') return { tipo, nivel, datos: { zonas: d.zonas.map((z) => ({ nombre: t(z.nombre), ...(z.nivel ? { nivel: z.nivel } : {}), fecha: z.fecha, desde: z.desde, hasta: z.hasta, ...(z.desde2 && z.hasta2 ? { desde2: z.desde2, hasta2: z.hasta2 } : {}) })), descripcion: t(d.descripcion), nota: t(d.nota) } };
   if (tipo === 'recomendaciones') return { tipo, nivel, datos: { fenomeno: t(d.fenomeno), items: d.items.map((i) => (i.imagen ? { texto: t(i.texto), imagen: i.imagen } : { texto: t(i.texto), icono: i.icono })) } };
   if (tipo === 'nivel') return { tipo, nivel, datos: { fenomeno: t(d.fenomeno), nivelAnterior: d.nivelAnterior, zona: t(d.zona), vigencia: { fecha: d.vigencia.fecha, desde: d.vigencia.desde, hasta: d.vigencia.hasta }, descripcion: t(d.descripcion) } };
   return { tipo, nivel, datos: { fenomeno: t(d.fenomeno), vigencia: t(d.vigencia), zona: t(d.zona), descripcion: t(d.descripcion), nota: t(d.nota) } };
@@ -120,7 +121,8 @@ function contenido({ tipo, nivel, datos: d }) {
     return {
       titulo: ['ACTUALIZACIÓN DE VIGENCIA', `ALERTA ${nivel.replace(/o$/, 'a').toUpperCase()}`],
       filas: [
-        ...d.zonas.map((z) => ({ icono: 'reloj', titulo: z.nombre.toUpperCase(), texto: lineaVigencia(z) })),
+        // Cada renglón puede ir de su propio nivel (naranja de 00 a 06, amarillo de 06 a 12…): su nombre sale de ese color.
+        ...d.zonas.map((z) => ({ icono: 'reloj', titulo: z.nombre.toUpperCase(), colorTitulo: z.nivel ? COLOR[z.nivel] : undefined, texto: lineaVigencia(z) })),
         { icono: 'tormenta', texto: d.descripcion },
         ...(d.nota ? [{ icono: 'alerta', colorIcono: color, texto: d.nota }] : []),
       ],
@@ -263,7 +265,7 @@ async function dibujarFilas(ctx, W, plan, zonaY, zonaH, color) {
     ctx.shadowColor = SOMBRA; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
     // Si el texto es más bajo que el ícono (recomendaciones), se centra con él.
     let ty = y + Math.max(0, (m.alto - (m.tit.length * f * 1.12 + m.lin.length * f) * INTERLINEA) / 2);
-    ctx.font = `bold ${Math.round(f * 1.12)}px ${OAK_SANS}`; ctx.fillStyle = color;
+    ctx.font = `bold ${Math.round(f * 1.12)}px ${OAK_SANS}`; ctx.fillStyle = m.colorTitulo || color;
     for (const l of m.tit) { ctx.fillText(l, xt, ty + (f * 1.12 * INTERLINEA) / 2); ty += f * 1.12 * INTERLINEA; }
     ctx.font = `${f}px ${OAK_SANS}`; ctx.fillStyle = '#fff';
     for (const l of m.lin) { ctx.fillText(l, xt, ty + (f * INTERLINEA) / 2); ty += f * INTERLINEA; }

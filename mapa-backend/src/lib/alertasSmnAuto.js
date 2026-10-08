@@ -184,7 +184,7 @@ function baseDe(alerta, { RECOMENDACIONES_PREDETERMINADAS, ICONOS, LIMITES }) {
     ultimos: {
       aviso: { fenomeno, vigencia: textoVigencia(alerta.inicio, alerta.fin), zona, descripcion, nota: "" },
       nivel: { fenomeno, nivelAnterior, zona, vigencia: dias[0] || null, descripcion },
-      vigencia: { zonas: dias.map((d) => ({ nombre: recortar(zona, 60), ...d })), descripcion },
+      vigencia: { zonas: dias.map((d) => ({ nombre: recortar(zona, 60), nivel: alerta.categoria, ...d })), descripcion },
       ...(items ? { recomendaciones: { items } } : {}),
     },
     recomendaciones: RECOMENDACIONES_PREDETERMINADAS, iconos: ICONOS, limites: LIMITES,

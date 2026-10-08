@@ -61,6 +61,7 @@ export function proximoCambioDeNivel(pub, ahora = Date.now()) {
 const fenomenoDe = (pub) => (pub?.smn ? String(pub.evento || pub.titulo || "tormenta").toLowerCase() : FENOMENO[pub?.iconos?.[0]?.id] || "tormenta");
 const notaVigencia = (nivel) => `Siguen vigentes las recomendaciones emitidas en la alerta ${enFemenino(nivel).toLowerCase()}.`;
 const NOTA_AVISO = "Estar atentos a las indicaciones de Alertas a Corto Plazo (ACP).";
+const mananaDe = (fecha) => { const [a, m, d] = fecha.split("-").map(Number); return valorLocal(new Date(a, m - 1, d + 1)).slice(0, 10); };
 const hoy = () => valorLocal(new Date()).slice(0, 10);
 const fechaHora = (d) => new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const RE_HORA = /^([01]?\d|2[0-4]):[0-5]\d$/;
@@ -135,17 +136,49 @@ function finDeZona({ fecha, hasta, hasta2 }) {
   return hasta2 && fin(hasta2) > fin(hasta) ? fin(hasta2) : fin(hasta);
 }
 
+/**
+ * Los renglones de «Actualización de vigencia» armados con los horarios por nivel de la alerta (`tramos`, ver
+ * tramosAlerta.js): uno por tramo y por día, cada uno con su nivel («Naranja de 00:00 a 06:00», «Amarillo de 06:00 a 12:00»…).
+ * Toma el departamento de mayor nivel (a igualdad, el de más tramos). null si la alerta no tiene horarios por nivel.
+ */
+function zonasDeTramos(pub, catalogo, limite) {
+  const entradas = Object.entries(pub.tramos || {}).filter(([, l]) => l?.length);
+  if (!entradas.length) return null;
+  const tope = (l) => Math.max(...l.map((t) => ORDEN[t.categoria] || 0));
+  const firma = (l) => JSON.stringify(l.map((t) => [t.categoria, t.hasta]));
+  const [, elegido] = [...entradas].sort(([, a], [, b]) => tope(b) - tope(a) || b.length - a.length)[0];
+  const mismos = entradas.filter(([, l]) => firma(l) === firma(elegido)).map(([id]) => id);
+  const nombres = mismos.map((id) => catalogo.departamentos.find((d) => String(d.id) === id)?.nombre).filter(Boolean);
+  const nombre = mismos.length >= 12 ? "Toda la provincia" : nombres.join(", ").length <= 60 ? nombres.join(", ") : "Varios departamentos";
+  const z2 = (n) => String(n).padStart(2, "0"), dia = (d) => `${d.getFullYear()}-${z2(d.getMonth() + 1)}-${z2(d.getDate())}`;
+  const filas = [];
+  let desde = new Date(pub.publicadoEn || Date.now()); desde.setMinutes(0, 0, 0);
+  for (const t of elegido) {
+    const hasta = new Date(t.hasta);
+    // Un tramo que cruza la medianoche se parte en un renglón por día.
+    for (let ini = new Date(desde); ini < hasta; ) {
+      const finDia = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + 1), fin = hasta < finDia ? hasta : finDia;
+      filas.push({ nombre, nivel: NIVELES.includes(t.categoria) ? t.categoria : null, fecha: dia(ini), desde: `${z2(ini.getHours())}:${z2(ini.getMinutes())}`, hasta: fin.getTime() === finDia.getTime() ? "24:00" : `${z2(fin.getHours())}:${z2(fin.getMinutes())}` });
+      ini = fin;
+    }
+    desde = hasta;
+  }
+  return filas.length ? filas.slice(0, limite) : null;
+}
+
 function pasoZonas(limite) {
   let lista;
   return {
     pregunta: "¿Qué zonas y con qué horario?",
-    ayuda: "Cada zona sale con su reloj y su vigencia («sábado 03/10/2026 de 12:00 a 24:00 horas»). Las horas, como 12:00 o 24:00. Si tiene dos franjas, completá también «y de» (sale «de 00:00 a 06:00 y de 12:00 a 18:00 horas»).",
+    ayuda: "Cada renglón sale con su reloj y su vigencia («sábado 03/10/2026 de 12:00 a 24:00 horas»), con el nombre del color de su nivel. Para que el nivel cambie en el día (naranja de 00:00 a 06:00, amarillo de 06:00 a 12:00, naranja de 12:00 a 18:00…) agregá un renglón por tramo con «+ Agregar zona» y elegí el nivel de cada uno. Las horas, como 12:00 o 24:00.",
     html: () => `<div class="paso-filas" data-lista></div>`,
     alMostrar: (popup, s) => {
       lista = listaEditable({
         popup, items: s.zonas.map((z) => ({ ...z })), min: 1, max: limite, textoAgregar: "Agregar zona",
-        nuevo: (items) => ({ ...items[items.length - 1], nombre: "" }),
+        // El renglón nuevo sigue al último: mismo nombre y día, desde donde terminó el anterior, y el otro nivel.
+        nuevo: (items) => { const u = items[items.length - 1]; return { ...u, desde: u.hasta === "24:00" ? "00:00" : u.hasta, hasta: "24:00", desde2: "", hasta2: "", fecha: u.hasta === "24:00" ? mananaDe(u.fecha) : u.fecha, nivel: u.nivel === "Naranja" ? "Amarillo" : "Naranja" }; },
         fila: (z) => `<input class="paso-input paso-fila__nombre" data-campo="nombre" maxlength="60" placeholder="Ej.: Zona norte" value="${esc(z.nombre)}" aria-label="Zona">
+          <select class="paso-select" data-campo="nivel" aria-label="Nivel">${NIVELES.map((n) => `<option value="${n}" ${n === z.nivel ? "selected" : ""}>${n}</option>`).join("")}</select>
           <input class="paso-input" type="date" data-campo="fecha" value="${esc(z.fecha)}" aria-label="Día">
           <input class="paso-input paso-fila__hora" data-campo="desde" inputmode="numeric" placeholder="12:00" value="${esc(z.desde)}" aria-label="Desde">
           <span class="paso-fila__a">a</span>
@@ -192,10 +225,13 @@ export async function cambiarVigenciaPorPasos({ pub, catalogo, placa: editada = 
   const ahora = new Date(), desde = `${String(ahora.getHours()).padStart(2, "0")}:00`;
   const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: pub.smn ? z.fecha : hoy(), desde: z.desde, hasta: z.hasta, desde2: z.desde2 || "", hasta2: z.hasta2 || "" })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
   const nivel = nivelDe(pub);
+  // Si la alerta tiene horarios por nivel, los renglones salen de ahí (uno por tramo); si no, lo último que se usó.
+  const deTramos = pub.smn ? null : zonasDeTramos(pub, catalogo, base.limites?.zonas || 8);
+  const zonasIniciales = (deTramos || zonas).map((z) => ({ ...z, nivel: z.nivel || nivel }));
   const g = generador(pub, "vigencia", (s) => ({ zonas: s.zonas, descripcion: s.descripcion, nota: s.nota }), editada);
   const pasos = [
     pasoNivel(catalogo),
-    pasoZonas(base.limites?.zonas || 4),
+    pasoZonas(base.limites?.zonas || 8),
     // La vigencia de una alerta del SMN es la del SMN: no se corre desde acá.
     ...(pub.smn ? [] : [pasoVigenciaMapa(pub)]),
     pasoTexto({ pregunta: "¿Qué se espera?", ayuda: "El texto del fenómeno, con la nube de tormenta al lado.", campo: "descripcion", max: base.limites?.descripcion || 700, filas: 8, placeholder: "El área será afectada por lluvias y tormentas fuertes…" }),
@@ -213,8 +249,8 @@ export async function cambiarVigenciaPorPasos({ pub, catalogo, placa: editada = 
   };
   // Editando: arranca con lo de esa placa, y la vigencia del mapa como está (no cambia si no la tocás).
   const estado = editada
-    ? { nivel: editada.nivel, zonas: editada.datos.zonas, descripcion: editada.datos.descripcion, nota: editada.datos.nota, vigenteMapa: valorLocal(new Date(pub.vigenteHasta)) }
-    : { nivel, zonas, descripcion: u.descripcion || base.ultimos?.aviso?.descripcion || "", nota: null };
+    ? { nivel: editada.nivel, zonas: editada.datos.zonas.map((z) => ({ ...z, nivel: z.nivel || editada.nivel })), descripcion: editada.datos.descripcion, nota: editada.datos.nota, vigenteMapa: valorLocal(new Date(pub.vigenteHasta)) }
+    : { nivel, zonas: zonasIniciales, descripcion: u.descripcion || base.ultimos?.aviso?.descripcion || "", nota: null };
   return asistente({ pasos, enviar, textoEnviar: "Confirmar", estado, ancho: 820 });
 }
 
