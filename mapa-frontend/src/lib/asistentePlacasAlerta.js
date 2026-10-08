@@ -3,6 +3,7 @@ import { valorLocal } from "./asistenteAvisoEspecial";
 import { crearPlacaMapaAlertas } from "./asistentesAlertas";
 import { esc } from "./ui";
 import * as api from "../api";
+import { enFemenino } from "./nivelAlerta.js";
 
 /**
  * Placas de una alerta ya publicada, desde su tarjeta en la pila del panel (ver
@@ -54,7 +55,7 @@ export function proximoCambioDeNivel(pub, ahora = Date.now()) {
   return cambiosDeNivel(pub).filter((c) => c.inicio > ahora).sort((x, y) => x.inicio - y.inicio)[0] || null;
 }
 const fenomenoDe = (pub) => FENOMENO[pub?.iconos?.[0]?.id] || "tormenta";
-const notaVigencia = (nivel) => `Siguen vigentes las recomendaciones emitidas en la alerta ${nivel.toLowerCase()}.`;
+const notaVigencia = (nivel) => `Siguen vigentes las recomendaciones emitidas en la alerta ${enFemenino(nivel).toLowerCase()}.`;
 const NOTA_AVISO = "Estar atentos a las indicaciones de Alertas a Corto Plazo (ACP).";
 const hoy = () => valorLocal(new Date()).slice(0, 10);
 const fechaHora = (d) => new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -124,16 +125,17 @@ const resultado = (placa, extra = "", editada = null) => ({ tipo: "ok", titulo: 
 // ---------------------------------------------------------------------------------------------
 
 /** "AAAA-MM-DD" + "HH:MM" (24:00 = medianoche siguiente) → Date local. */
-function finDeZona({ fecha, hasta }) {
-  const [a, m, d] = fecha.split("-").map(Number), [hh, mm] = hasta.split(":").map(Number);
-  return new Date(a, m - 1, d, hh, mm);
+function finDeZona({ fecha, hasta, hasta2 }) {
+  const [a, m, d] = fecha.split("-").map(Number);
+  const fin = (h) => { const [hh, mm] = h.split(":").map(Number); return new Date(a, m - 1, d, hh, mm); };
+  return hasta2 && fin(hasta2) > fin(hasta) ? fin(hasta2) : fin(hasta);
 }
 
 function pasoZonas(limite) {
   let lista;
   return {
     pregunta: "¿Qué zonas y con qué horario?",
-    ayuda: "Cada zona sale con su reloj y su vigencia («sábado 03/10/2026 de 12:00 a 24:00 horas»). Las horas, como 12:00 o 24:00.",
+    ayuda: "Cada zona sale con su reloj y su vigencia («sábado 03/10/2026 de 12:00 a 24:00 horas»). Las horas, como 12:00 o 24:00. Si tiene dos franjas, completá también «y de» (sale «de 00:00 a 06:00 y de 12:00 a 18:00 horas»).",
     html: () => `<div class="paso-filas" data-lista></div>`,
     alMostrar: (popup, s) => {
       lista = listaEditable({
@@ -143,7 +145,11 @@ function pasoZonas(limite) {
           <input class="paso-input" type="date" data-campo="fecha" value="${esc(z.fecha)}" aria-label="Día">
           <input class="paso-input paso-fila__hora" data-campo="desde" inputmode="numeric" placeholder="12:00" value="${esc(z.desde)}" aria-label="Desde">
           <span class="paso-fila__a">a</span>
-          <input class="paso-input paso-fila__hora" data-campo="hasta" inputmode="numeric" placeholder="24:00" value="${esc(z.hasta)}" aria-label="Hasta">`,
+          <input class="paso-input paso-fila__hora" data-campo="hasta" inputmode="numeric" placeholder="24:00" value="${esc(z.hasta)}" aria-label="Hasta">
+          <span class="paso-fila__a">y de</span>
+          <input class="paso-input paso-fila__hora" data-campo="desde2" inputmode="numeric" placeholder="(opcional)" value="${esc(z.desde2 || "")}" aria-label="Segunda franja, desde">
+          <span class="paso-fila__a">a</span>
+          <input class="paso-input paso-fila__hora" data-campo="hasta2" inputmode="numeric" placeholder="(opcional)" value="${esc(z.hasta2 || "")}" aria-label="Segunda franja, hasta">`,
         leerFila: (el) => Object.fromEntries([...el.querySelectorAll("[data-campo]")].map((i) => [i.dataset.campo, i.value.trim()])),
       });
     },
@@ -152,6 +158,7 @@ function pasoZonas(limite) {
       for (const z of s.zonas) {
         if (!z.nombre) return "Ponele nombre a cada zona.";
         if (!z.fecha || !RE_HORA.test(z.desde) || !RE_HORA.test(z.hasta)) return `Revisá el día y las horas de «${z.nombre}» (como 12:00 o 24:00).`;
+        if ((z.desde2 || z.hasta2) && (!RE_HORA.test(z.desde2) || !RE_HORA.test(z.hasta2))) return `Revisá la segunda franja de «${z.nombre}» (desde y hasta, como 12:00 o 24:00).`;
       }
       return null;
     },
@@ -179,7 +186,7 @@ export async function cambiarVigenciaPorPasos({ pub, catalogo, placa: editada = 
   const base = await api.getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.vigencia || {};
   const ahora = new Date(), desde = `${String(ahora.getHours()).padStart(2, "0")}:00`;
-  const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: hoy(), desde: z.desde, hasta: z.hasta })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
+  const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: hoy(), desde: z.desde, hasta: z.hasta, desde2: z.desde2 || "", hasta2: z.hasta2 || "" })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
   const nivel = nivelDe(pub);
   const g = generador(pub, "vigencia", (s) => ({ zonas: s.zonas, descripcion: s.descripcion, nota: s.nota }), editada);
   const pasos = [

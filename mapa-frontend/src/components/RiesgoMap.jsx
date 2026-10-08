@@ -30,7 +30,7 @@ function LeyendaFenomenos({ iconos, catalogo }) {
     </li>)}</ul>
   </div>;
 }
-const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicadoEn, titulo, iconos = [], ...props }, ref) {
+const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicadoEn, titulo, iconos = [], leyendas = {}, ...props }, ref) {
   const esMeteorologica = catalogo.categorias.some(c => c.nombre === "Naranja");
   const nombreMapa = titulo || (esMeteorologica ? "Alertas meteorológicas" : "Riesgo de incendios forestales");
   const colorDe = useCallback(d => catalogo.categorias.find(c => c.nombre === d?.categoria)?.color, [catalogo]);
@@ -46,7 +46,7 @@ const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicad
     renderInfo={(d, { onCerrar }) => <div className="municipio-popover" role="dialog" aria-label={d.nombre}>
       <button className="municipio-popover__close" onClick={onCerrar} aria-label="Cerrar">✕</button>
       <h3>{d.nombre}</h3><p className="risk-category"><i style={{ background: colorDe(d) || "#d5dbd5" }} />{d.categoria || "Sin asignar"}</p>
-      <p>{nombreMapa}</p>
+      <p>{leyendas?.[d.categoria] || nombreMapa}</p>
       {catalogo.categorias.find(c => c.nombre === d.categoria)?.descripcion && <p>{catalogo.categorias.find(c => c.nombre === d.categoria).descripcion}</p>}
       {d.iconos?.length > 0 && <p>{d.iconos.map(id => catalogo.iconos?.find(i => i.id === id)?.nombre || id).join(' · ')}</p>}
     </div>} {...props} />;

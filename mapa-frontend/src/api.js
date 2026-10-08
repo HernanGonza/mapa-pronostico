@@ -381,6 +381,12 @@ export async function eliminarPlacaAlerta(id) {
 export async function cambiarVigenciaAlerta(publicacionId, vigenteHasta) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/vigencia`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vigenteHasta }), ...CON_SESION }));
 }
+export async function cambiarLeyendaAlerta(publicacionId, periodo) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/leyenda`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ periodo }), ...CON_SESION }));
+}
+export async function cambiarLeyendasAlerta(publicacionId, leyendas) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/leyendas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leyendas }), ...CON_SESION }));
+}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }

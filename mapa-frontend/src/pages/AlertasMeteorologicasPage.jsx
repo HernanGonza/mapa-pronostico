@@ -8,9 +8,10 @@ import EmbedShare from '../components/EmbedShare';
 import RiesgoMap from '../components/RiesgoMap';
 import { editarMapaAlertas, publicarAlertasPorPasos } from "../lib/asistentesAlertas";
 import * as api from '../api';
-import { confirmar } from '../lib/ui';
+import { confirmar, pedirTexto, pedirCampos } from '../lib/ui';
 import PublicarEnRedes from '../components/PublicarEnRedes';
 import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
+import { enFemenino } from "../lib/nivelAlerta.js";
 
 const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
@@ -127,6 +128,25 @@ export default function AlertasMeteorologicasPage() {
     } catch (e) { setError(e.message); }
     finally { setFijando(false); }
   }
+  async function cambiarLeyenda(v) {
+    const nueva = await pedirTexto({ titulo: 'Leyenda en el mapa público', texto: 'Es el texto que se lee en el mapa público. No cambia ninguna placa.', valor: v.periodo || '' });
+    if (!nueva) return;
+    if (nueva === (v.periodo || '')) return;
+    setError('');
+    try { await api.cambiarLeyendaAlerta(v.id, nueva); await cargarVigentes(); setMensaje(`Listo: el mapa público ahora dice «${nueva}».`); }
+    catch (e) { setError(e.message); }
+  }
+  // Lo que se lee al tocar un departamento en el mapa público: un campo por cada color que tenga la alerta.
+  async function cambiarLeyendasPorColor(v) {
+    const niveles = ['Rojo', 'Naranja', 'Amarillo'].filter(n => (v.zonas || []).some(z => z.categoria === n));
+    if (!niveles.length) { setError('Esta alerta no tiene departamentos en amarillo, naranja ni rojo.'); return; }
+    const nuevas = await pedirCampos({ titulo: 'Leyendas de los departamentos', texto: 'Es lo que se lee al tocar un departamento en el mapa público, según su color. Vacío = vuelve al texto de la alerta.',
+      campos: niveles.map(n => ({ clave: n, etiqueta: `Alerta ${enFemenino(n).toLowerCase()}`, valor: v.leyendas?.[n] || '' })) });
+    if (!nuevas) return;
+    setError('');
+    try { await api.cambiarLeyendasAlerta(v.id, nuevas); await cargarVigentes(); setMensaje('Listo: el mapa público muestra las leyendas nuevas al tocar los departamentos.'); }
+    catch (e) { setError(e.message); }
+  }
   const botonFijar = (v) => v.fijada
     ? <button type="button" className="btn" disabled={fijando} onClick={() => fijar(null)}>Desfijar (volver a automático)</button>
     : <button type="button" className="btn" disabled={fijando} onClick={() => fijar(v)}>Fijar en el mapa público</button>;
@@ -142,6 +162,8 @@ export default function AlertasMeteorologicasPage() {
   const accionesPlacas = (v) => <>
     <button type="button" className="btn btn--primary" onClick={() => crearPlacaParaRedes(v)}>Crear placa para redes</button>
     <button type="button" className="btn" onClick={() => editarMapaDe(v)}>Editar mapa</button>
+    <button type="button" className="btn" onClick={() => cambiarLeyenda(v)}>Cambiar leyenda</button>
+    <button type="button" className="btn" onClick={() => cambiarLeyendasPorColor(v)}>Leyendas por color</button>
     <button type="button" className="btn" onClick={() => asistentePlaca(cambiarVigenciaPorPasos, v)}>Cambiar vigencia</button>
     <button type="button" className="btn" onClick={() => asistentePlaca(recomendacionesPorPasos, v)}>Recomendaciones</button>
     <button type="button" className="btn" onClick={() => asistentePlaca(avisoDeAlertaPorPasos, v)}>Aviso de alerta</button>
@@ -171,7 +193,7 @@ export default function AlertasMeteorologicasPage() {
         {actual.length > 0 && <span className="alerta-placas__redes">✓ Publicada en redes · {dondeSalio(actual)}</span>}
         {anterior.length > 0 && <span className="alerta-placas__redes alerta-placas__redes--anterior">La versión anterior se publicó en: {dondeSalio(anterior)}</span>}
         <div className="alerta-placas__acciones">
-          <PublicarEnRedes unaVez alTerminar={cargarVigentes} className="btn btn--ghost" feedUrl={pl.feedUrl} historiasUrl={pl.historiasUrl} epigrafe={`${TIPO_PLACA[pl.tipo]} · Alerta ${pl.nivel.toLowerCase()}\n\nMinisterio de Ecología y RNR de Misiones`} />
+          <PublicarEnRedes unaVez alTerminar={cargarVigentes} className="btn btn--ghost" feedUrl={pl.feedUrl} historiasUrl={pl.historiasUrl} epigrafe={`${TIPO_PLACA[pl.tipo]} · Alerta ${enFemenino(pl.nivel).toLowerCase()}\n\nMinisterio de Ecología y RNR de Misiones`} />
           <button type="button" className="btn btn--ghost" onClick={() => ASISTENTE_DE[pl.tipo]({ pub: v, catalogo, placa: pl, alTerminar: cargarVigentes })}>Editar</button>
           <button type="button" className="btn btn--ghost" disabled={eliminando != null} onClick={() => eliminarPlaca(pl)}>{eliminando === pl.id ? 'Eliminando…' : 'Eliminar'}</button>
         </div>

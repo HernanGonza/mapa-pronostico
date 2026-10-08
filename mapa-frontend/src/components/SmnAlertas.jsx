@@ -6,6 +6,7 @@ import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson, getAlertasSmnPub
 import { confirmar } from '../lib/ui';
 import EmbedShare from './EmbedShare';
 import { tiempoRelativo } from '../lib/tiempoRelativo';
+import { enFemenino } from "../lib/nivelAlerta.js";
 
 const AR = 'America/Argentina/Buenos_Aires';
 const fecha = value => new Date(value).toLocaleString('es-AR', { timeZone: AR, hourCycle: 'h23' });
@@ -205,7 +206,7 @@ export default function SmnAlertas() {
       {infos.length === 0 && <p className="admin-panel__hint">No hay avisos vigentes en la respuesta del SMN.</p>}
       <div className="smn-avisos">
         {infos.map(info => <article key={info.id} className="smn-aviso" style={{ '--smn-color': info.color || data.colores[info.categoria] }}>
-          <div className="smn-aviso__cabecera"><strong>{info.titulo}</strong><span className="smn-aviso__categoria">{info.categoria === 'ACP' ? `ACP · muy corto plazo${info.nivel ? ` · bajo alerta ${info.nivel.toLowerCase()}` : ''}` : info.categoria}</span></div>
+          <div className="smn-aviso__cabecera"><strong>{info.titulo}</strong><span className="smn-aviso__categoria">{info.categoria === 'ACP' ? `ACP · muy corto plazo${info.nivel ? ` · bajo alerta ${enFemenino(info.nivel).toLowerCase()}` : ''}` : info.categoria}</span></div>
           <p>{info.zonas.map(z => z.nombre).join(' · ')}</p>
           <p>{fecha(info.inicio)} — {fecha(info.fin)}</p>
           {info.descripcion && <p>{info.descripcion}</p>}

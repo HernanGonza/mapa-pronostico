@@ -4,6 +4,7 @@ import BrandHeader from "../components/BrandHeader";
 import * as api from "../api";
 import { notificar } from "../lib/ui";
 import { exportarInformePdf } from "../lib/exportarPdf";
+import { enFemenino } from "../lib/nivelAlerta.js";
 
 /**
  * Informes diarios (en desarrollo, sólo superadmin, desde Configuración): qué pasó un día en
@@ -83,7 +84,7 @@ export default function InformesDiariosPage() {
   }), [estaciones]);
   const avisos = useMemo(() => ({
     columnas: ["Tipo", "Aviso", "Vigencia"],
-    filas: (informe?.datos?.smn || []).map((a) => [a.fuente === "ACP" ? "Aviso a muy corto plazo" : `Alerta ${a.nivel || ""}`.trim(), a.titulo, `${fechaHora(a.inicio)} a ${fechaHora(a.fin)}`]),
+    filas: (informe?.datos?.smn || []).map((a) => [a.fuente === "ACP" ? "Aviso a muy corto plazo" : `Alerta ${enFemenino(a.nivel)}`.trim(), a.titulo, `${fechaHora(a.inicio)} a ${fechaHora(a.fin)}`]),
   }), [informe]);
 
   const [bajandoExcel, setBajandoExcel] = useState(false);
@@ -160,7 +161,7 @@ export default function InformesDiariosPage() {
         </div>
 
         <h2>Avisos y alertas del SMN ({avisos.filas.length})</h2>
-        {avisos.filas.length ? <ul className="informes-avisos">{(informe.datos.smn || []).map((a, i) => <li key={i}><strong>{a.fuente === "ACP" ? "ACP" : `Alerta ${a.nivel || ""}`}</strong> · {a.titulo} <small>({fechaHora(a.inicio)} a {fechaHora(a.fin)}{a.zonas ? ` · ${a.zonas}` : ""})</small></li>)}</ul>
+        {avisos.filas.length ? <ul className="informes-avisos">{(informe.datos.smn || []).map((a, i) => <li key={i}><strong>{a.fuente === "ACP" ? "ACP" : `Alerta ${enFemenino(a.nivel)}`}</strong> · {a.titulo} <small>({fechaHora(a.inicio)} a {fechaHora(a.fin)}{a.zonas ? ` · ${a.zonas}` : ""})</small></li>)}</ul>
           : <p className="admin-panel__hint">No hay avisos del SMN guardados para ese día.</p>}
         <h2>Lo que publicamos</h2>
         <ul className="informes-avisos">

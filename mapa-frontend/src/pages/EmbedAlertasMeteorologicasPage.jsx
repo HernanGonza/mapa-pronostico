@@ -98,7 +98,7 @@ export default function EmbedAlertasMeteorologicasPage() {
     <div className="alertas-embed__mapa">
       {actual.tipo === "smn"
         ? <MapaAlertaSmn alerta={actual.alerta} geo={data.geo} />
-        : <RiesgoMap key={actual.clave} embed geo={data.geo} zonas={actual.manual.zonas} iconos={actual.manual.iconos || []} catalogo={data.catalogo} publicadoEn={actual.manual.publicadoEn} titulo={`Alertas meteorológicas · ${actual.manual.periodo}`} />}
+        : <RiesgoMap key={actual.clave} embed geo={data.geo} zonas={actual.manual.zonas} iconos={actual.manual.iconos || []} leyendas={actual.manual.leyendas} catalogo={data.catalogo} publicadoEn={actual.manual.publicadoEn} titulo={`Alertas meteorológicas · ${actual.manual.periodo}`} />}
     </div>
     {actual.tipo === "smn" && <div className="alertas-embed__detalle" style={{ "--alerta-color": actual.alerta.color || "#888" }}>
       <h2>{actual.alerta.titulo} · Nivel {actual.alerta.categoria}</h2>

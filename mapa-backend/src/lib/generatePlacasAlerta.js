@@ -39,13 +39,15 @@ const LIMITES = { zonas: 4, nombreZona: 60, descripcion: 700, nota: 220, fenomen
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/, RE_HORA = /^([01]?\d|2[0-4]):[0-5]\d$/;
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
-/** "Vigencia: sábado 03/10/2026 de 12:00 a 24:00 horas". */
-function lineaVigencia({ fecha, desde, hasta }) {
+/** "Vigencia: sábado 03/10/2026 de 12:00 a 24:00 horas" (con un 2.º rango: "de 00:00 a 06:00 y de 12:00 a 18:00 horas"). */
+function lineaVigencia({ fecha, desde, hasta, desde2, hasta2 }) {
   const [a, m, d] = fecha.split('-').map(Number);
   const dia = DIAS[new Date(Date.UTC(a, m - 1, d, 12)).getUTCDay()];
   const z = (n) => String(n).padStart(2, '0');
   const hora = (h) => h.padStart(5, '0');
-  return `Vigencia: ${dia} ${z(d)}/${z(m)}/${a} de ${hora(desde)} a ${hora(hasta)} horas`;
+  const rangos = [`de ${hora(desde)} a ${hora(hasta)}`];
+  if (desde2 && hasta2) rangos.push(`de ${hora(desde2)} a ${hora(hasta2)}`);
+  return `Vigencia: ${dia} ${z(d)}/${z(m)}/${a} ${rangos.join(' y ')} horas`;
 }
 
 /** "Vigencia: 04/10/2026 desde las 00:00 a 06:00 horas." (actualización de nivel). */
@@ -68,6 +70,7 @@ function errorDePlacaAlerta({ tipo, nivel, datos } = {}) {
     for (const z of d.zonas) {
       if (!texto(z?.nombre, LIMITES.nombreZona)) return `Cada zona necesita un nombre (hasta ${LIMITES.nombreZona} caracteres).`;
       if (!RE_FECHA.test(z.fecha || '') || !RE_HORA.test(z.desde || '') || !RE_HORA.test(z.hasta || '')) return `Revisá el día y el horario de «${z.nombre}» (horas como 12:00 o 24:00).`;
+      if ((z.desde2 || z.hasta2) && (!RE_HORA.test(z.desde2 || '') || !RE_HORA.test(z.hasta2 || ''))) return `Revisá el segundo horario de «${z.nombre}» (desde y hasta, como 12:00 o 24:00).`;
     }
     if (!texto(d.descripcion, LIMITES.descripcion)) return `Escribí el texto del fenómeno (hasta ${LIMITES.descripcion} caracteres).`;
     if (d.nota && !texto(d.nota, LIMITES.nota)) return `La nota admite hasta ${LIMITES.nota} caracteres.`;
@@ -103,7 +106,7 @@ function errorDePlacaAlerta({ tipo, nivel, datos } = {}) {
 /** Sólo los campos que se usan, recortados (lo que se guarda en la base). */
 function normalizarPlacaAlerta({ tipo, nivel, datos: d }) {
   const t = (v) => (typeof v === 'string' ? v.trim() : '');
-  if (tipo === 'vigencia') return { tipo, nivel, datos: { zonas: d.zonas.map((z) => ({ nombre: t(z.nombre), fecha: z.fecha, desde: z.desde, hasta: z.hasta })), descripcion: t(d.descripcion), nota: t(d.nota) } };
+  if (tipo === 'vigencia') return { tipo, nivel, datos: { zonas: d.zonas.map((z) => ({ nombre: t(z.nombre), fecha: z.fecha, desde: z.desde, hasta: z.hasta, ...(z.desde2 && z.hasta2 ? { desde2: z.desde2, hasta2: z.hasta2 } : {}) })), descripcion: t(d.descripcion), nota: t(d.nota) } };
   if (tipo === 'recomendaciones') return { tipo, nivel, datos: { fenomeno: t(d.fenomeno), items: d.items.map((i) => (i.imagen ? { texto: t(i.texto), imagen: i.imagen } : { texto: t(i.texto), icono: i.icono })) } };
   if (tipo === 'nivel') return { tipo, nivel, datos: { fenomeno: t(d.fenomeno), nivelAnterior: d.nivelAnterior, zona: t(d.zona), vigencia: { fecha: d.vigencia.fecha, desde: d.vigencia.desde, hasta: d.vigencia.hasta }, descripcion: t(d.descripcion) } };
   return { tipo, nivel, datos: { fenomeno: t(d.fenomeno), vigencia: t(d.vigencia), zona: t(d.zona), descripcion: t(d.descripcion), nota: t(d.nota) } };
@@ -115,7 +118,7 @@ function contenido({ tipo, nivel, datos: d }) {
   const conPunto = (s) => (/[.!?…)]$/.test(s) ? s : `${s}.`);
   if (tipo === 'vigencia') {
     return {
-      titulo: ['ACTUALIZACIÓN DE VIGENCIA', `ALERTA ${nivel.toUpperCase()}`],
+      titulo: ['ACTUALIZACIÓN DE VIGENCIA', `ALERTA ${nivel.replace(/o$/, 'a').toUpperCase()}`],
       filas: [
         ...d.zonas.map((z) => ({ icono: 'reloj', titulo: z.nombre.toUpperCase(), texto: lineaVigencia(z) })),
         { icono: 'tormenta', texto: d.descripcion },
