@@ -87,7 +87,7 @@ export default function AlertasMeteorologicasPage() {
   // «Crear placa para redes» de una alerta: la placa del mapa, guardada en su tarjeta (y a la derecha, en «Placa para redes»).
   const crearPlacaParaRedes = (v) => placaMapaPorPasos({ pub: v, catalogo, alTerminar: (placa) => { setImagenes(comoImagenes(placa)); setVista('placa'); cargarVigentes(); } });
   const revisarYPublicar = () => publicarAlertasPorPasos({
-    cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], enFila, nueva, corrige: nueva ? null : publicado?.id ?? null, periodoSugerido: publicado?.periodo || periodo,
+    catalogo, zonas, cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], enFila, nueva, corrige: nueva ? null : publicado?.id ?? null, periodoSugerido: publicado?.periodo || periodo,
     publicar: async (opciones) => {
       const pub = await api.publicarAlertasMeteorologicas(zonas, iconos, opciones);
       setPublicado(pub); setNueva(false); setSeleccionada(pub.id); await cargarVigentes();

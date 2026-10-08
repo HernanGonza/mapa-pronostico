@@ -3,6 +3,7 @@ const requireAuth = require('../middleware/requireAuth');
 const { loadDepartamentos, DEPARTAMENTOS_GEOJSON_PATH } = require('../lib/departamentos');
 const { categorias, iconos, errorDeZonas, normalizarZonas, errorDeIconos, normalizarIconos } = require('../lib/alertasMeteorologicas');
 const s = require('../lib/alertasMeteorologicasStore');
+const { errorDeTramos, normalizarTramos } = require('../lib/tramosAlerta');
 const placas = require('../lib/placasMeteoStore');
 const placasAlerta = require('../lib/placasAlertaStore');
 const router = express.Router();
@@ -19,9 +20,9 @@ router.get('/alertas-meteorologicas/actual',async(req,res)=>{
 // vigentes que ésta reemplaza. `enFilaDe`: id de una vigente (o en fila); ésta
 // aparece recién cuando aquélla vence o se despublica.
 router.post('/alertas-meteorologicas/publicar',requireAuth,express.json(),async(req,res)=>{
-  const {zonas,iconos:iconosElegidos=[],vigenteHasta,periodo,reemplazar=[],enFilaDe=null}=req.body||{};
-  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||s.errorDePublicacion({vigenteHasta,periodo,reemplazar,enFilaDe});if(error)return res.status(400).json({error});
-  try{res.json(await s.publicar(normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId,{vigenteHasta,periodo,reemplazar,enFilaDe}));}catch(e){if(e.status===409)return res.status(409).json({error:e.message});console.error(e);res.status(500).json({error:'No se pudo publicar.'});}
+  const {zonas,iconos:iconosElegidos=[],vigenteHasta,periodo,reemplazar=[],enFilaDe=null,tramos=null}=req.body||{};
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||s.errorDePublicacion({vigenteHasta,periodo,reemplazar,enFilaDe})||(tramos?errorDeTramos(tramos,new Set(require('../lib/departamentos').loadDepartamentos().map(d=>String(d.id))),vigenteHasta):null);if(error)return res.status(400).json({error});
+  try{res.json(await s.publicar(normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId,{vigenteHasta,periodo,reemplazar,enFilaDe,tramos:tramos?normalizarTramos(tramos):{}}));}catch(e){if(e.status===409)return res.status(409).json({error:e.message});console.error(e);res.status(500).json({error:'No se pudo publicar.'});}
 });
 // Público: las publicaciones vigentes (lo que muestra el embebido). [] = ninguna.
 router.get('/alertas-meteorologicas/vigentes',async(req,res)=>{

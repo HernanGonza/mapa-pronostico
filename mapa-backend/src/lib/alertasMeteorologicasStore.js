@@ -115,7 +115,7 @@ function errorDePublicacion({ vigenteHasta, periodo, reemplazar = [], enFilaDe =
  * de una reemplazada pasan a esperar a ésta. `enFilaDe`: id de una publicación todavía
  * vigente (o en fila); ésta aparece recién cuando aquélla deja de estar vigente.
  */
-async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null } = {}) {
+async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null, tramos = {} } = {}) {
   await init();
   const p = store.getPool();
   if (p) {
@@ -130,8 +130,8 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
         ? await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = ANY($1::bigint[]) AND vigente_hasta > now() RETURNING id`, [reemplazar])
         : { rows: [] };
       const { rows } = await client.query(
-        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de) VALUES ($1,$2,$3,$4) RETURNING id, publicado_en, vigente_hasta`,
-        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe]
+        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id, publicado_en, vigente_hasta`,
+        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos)]
       );
       const { id, publicado_en } = rows[0];
       if (reemplazar.length) await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $1 WHERE en_fila_de = ANY($2::bigint[])`, [id, reemplazar]);
@@ -150,7 +150,7 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
       await registrarEvento(client, { publicacionId: id, evento: "publicada", usuarioId, detalle: { vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, reemplaza: reemplazadas.map((r) => Number(r.id)) } });
       for (const r of reemplazadas) await registrarEvento(client, { publicacionId: r.id, evento: "reemplazada", usuarioId, detalle: { por: Number(id) } });
       await client.query("COMMIT");
-      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, zonas, iconos };
+      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, tramos, zonas, iconos };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -158,7 +158,7 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
       client.release();
     }
   }
-  const x = { id: 1, publicadoEn: new Date().toISOString(), vigenteHasta: new Date(vigenteHasta).toISOString(), periodo: periodo.trim(), zonas, iconos };
+  const x = { id: 1, publicadoEn: new Date().toISOString(), vigenteHasta: new Date(vigenteHasta).toISOString(), periodo: periodo.trim(), tramos, zonas, iconos };
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
   fs.writeFileSync(FILE, JSON.stringify(x));
   return x;

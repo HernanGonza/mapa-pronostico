@@ -1,3 +1,4 @@
+import { pasosVigencias } from "./asistenteVigencias";
 import { esc } from "./ui";
 import { asistente, opciones, leerOpciones, pasoVistaPrevia, htmlPlacaLista } from "./pasos";
 import { pasoNiveles, pasoFenomenos, htmlCambios } from "./pasosMapa";
@@ -76,7 +77,7 @@ const DIAS_EN_FILA = 7;
  *   periodoSugerido: el período de la última placa.
  *   publicar({ periodo, vigenteHasta, reemplazar, enFilaDe }) → la publicación.
  */
-export function publicarAlertasPorPasos({ cambios, sinPublicar, iconosCambiaron, republicar, vigentes = [], enFila = [], nueva = false, corrige = null, periodoSugerido = "", publicar }) {
+export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPublicar, iconosCambiaron, republicar, vigentes = [], enFila = [], nueva = false, corrige = null, periodoSugerido = "", publicar }) {
   const todas = [...vigentes, ...enFila];
   const anterior = (s) => todas.find((v) => String(v.id) === s.aparece);
   // Para la que va en fila: fin del día siguiente al que termina la anterior.
@@ -132,6 +133,9 @@ export function publicarAlertasPorPasos({ cambios, sinPublicar, iconosCambiaron,
       return null;
     },
   };
+  // Vigencias por nivel (si el mapa tiene 2 o más niveles): hasta cuándo vale cada uno y a qué pasa después.
+  const vigencias = pasosVigencias({ catalogo, zonas: () => zonas, soloSiVarios: true,
+    tope: (s) => ({ ms: Date.parse(s.vigencia), texto: fechaHora(new Date(s.vigencia)), local: s.vigencia }) });
   const enFilaInicial = nueva && ultima;
   return asistente({
     // Corrigiendo la publicada, por defecto reemplaza a las vigentes; una alerta nueva va en fila detrás de la última.
@@ -148,10 +152,11 @@ export function publicarAlertasPorPasos({ cambios, sinPublicar, iconosCambiaron,
       pasoAparece,
       pasoReemplazar,
       pasoCuando,
+      ...vigencias.pasos,
     ],
     enviar: async (s) => {
       const v = anterior(s);
-      const pub = await publicar({ periodo: s.periodo, vigenteHasta: new Date(s.vigencia).toISOString(), reemplazar: v ? [] : s.reemplazar, enFilaDe: v ? v.id : null });
+      const pub = await publicar({ periodo: s.periodo, vigenteHasta: new Date(s.vigencia).toISOString(), reemplazar: v ? [] : s.reemplazar, enFilaDe: v ? v.id : null, tramos: vigencias.paraEnviar(s) });
       return { tipo: "ok", titulo: v ? "¡Quedó en fila!" : "¡Publicado!", datos: pub,
         html: v ? `<p>«${esc(pub.periodo)}» aparece en el mapa público cuando termine «${esc(v.periodo || "Alerta publicada")}», y se saca sola el ${esc(fechaHora(pub.vigenteHasta))}.</p>`
           : `<p>El mapa público muestra «${esc(pub.periodo)}» hasta el ${esc(fechaHora(pub.vigenteHasta))}. Después se saca sola.</p>` };
