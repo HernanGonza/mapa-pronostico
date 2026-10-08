@@ -254,7 +254,7 @@ export default function AlertasMeteorologicasPage() {
           {estadoPublico}
           <ul>{vigentes.map(v => <li key={v.id} {...propsTarjeta(v)}>
             {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
-            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'}</strong>
+            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'} <small className="alerta-numero">#{v.id}</small></strong>
             <small>Publicada el {fechaHora(v.publicadoEn)}{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
             <div className="avisos-lista__acciones">{accionesPlacas(v)}{botonFijar(v)}<button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Despublicando…' : 'Despublicar'}</button></div>
             {placasDe(v)}
@@ -264,7 +264,7 @@ export default function AlertasMeteorologicasPage() {
           <h2>En fila</h2>
           <ul>{enFila.map(v => <li key={v.id} {...propsTarjeta(v)}>
             {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
-            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'}</strong>
+            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'} <small className="alerta-numero">#{v.id}</small></strong>
             <small>Aparece cuando termine «{periodoDe(v.enFilaDe)}»{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
             <div className="avisos-lista__acciones">{accionesPlacas(v)}{botonFijar(v)}<button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Sacando…' : 'Sacar de la fila'}</button></div>
             {placasDe(v)}

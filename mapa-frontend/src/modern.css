@@ -594,3 +594,5 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .paso-zona__cabecera { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; }
 .paso-zona .paso-niveles { max-height: none; overflow: visible; }
 .paso-nivel small { font-weight: 400; color: var(--text-muted); }
+
+.alerta-numero { margin-left: 6px; font-weight: 400; color: var(--text-muted); }
