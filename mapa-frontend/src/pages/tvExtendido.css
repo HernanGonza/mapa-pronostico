@@ -1,0 +1,18 @@
+/* Pronóstico de 3 días para la tele (pages/TvExtendidoPage.jsx): todo en unidades de la pantalla para que llene cualquier tamaño. */
+.tvext { box-sizing: border-box; display: flex; flex-direction: column; gap: 1.6vh; width: 100vw; height: 100vh; padding: 2.2vh 2vw; overflow: hidden; background: var(--bg, #f7f2ea); color: var(--text, #1d2a22); }
+.tvext--vacio { align-items: center; justify-content: center; text-align: center; font-size: 3vh; }
+.tvext__cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 2vw; }
+.tvext__cabecera h1 { margin: 0; font-size: 4.6vh; }
+.tvext__cabecera span { color: var(--text-muted, #5b6b61); font-size: 2.2vh; }
+.tvext__dias { display: grid; flex: 1; grid-template-columns: repeat(3, 1fr); gap: 1.6vw; min-height: 0; }
+.tvext__dia { display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; padding: 2vh 1.4vw; border: 1px solid var(--border, #d9d2c3); border-radius: 2vh; background: var(--surface, #fff); }
+.tvext__dia h2 { display: flex; align-items: baseline; justify-content: space-between; gap: 1vw; margin: 0; font-size: 4vh; }
+.tvext__dia h2 small { color: var(--text-muted, #5b6b61); font-size: 2.2vh; font-weight: 500; }
+.tvext__zonas { display: grid; gap: 1.2vh; margin: 0; padding: 0; list-style: none; }
+.tvext__zonas li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1vw; padding: 1.2vh 1vw; border-radius: 1.6vh; background: var(--surface-2, #f3eee3); }
+.tvext__zonas li svg, .tvext__zonas li img { width: 7vh; height: 7vh; }
+.tvext__zonas strong { display: block; font-size: 3vh; }
+.tvext__zonas small { display: block; color: var(--text-muted, #5b6b61); font-size: 2.1vh; }
+.tvext__temp { font-size: 2.6vh; color: var(--text-muted, #5b6b61); white-space: nowrap; }
+.tvext__temp b { color: var(--text, #1d2a22); font-size: 4vh; }
+.tvext__informe { flex: 1; min-height: 0; margin: 0; overflow: hidden; font-size: 2.2vh; line-height: 1.45; }

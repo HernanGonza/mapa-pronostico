@@ -27,6 +27,7 @@ const EmbedHistoricoPage = lazy(() => import("./pages/EmbedHistoricoPage"));
 const InundacionesPage = lazy(() => import("./pages/InundacionesPage"));
 const PronosticoExtendidoPage = lazy(() => import("./pages/PronosticoExtendidoPage"));
 const EmbedPronosticoExtendidoPage = lazy(() => import("./pages/EmbedPronosticoExtendidoPage"));
+const TvExtendidoPage = lazy(() => import("./pages/TvExtendidoPage"));
 const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 const CuencasPage = lazy(() => import("./pages/CuencasPage"));
 const EmbedCuencasMapaPage = lazy(() => import("./pages/EmbedCuencasMapaPage"));
@@ -109,6 +110,7 @@ export default function App() {
           <Route path="/embed/cuencas-tarjetas" element={<EmbedCuencasTarjetasPage />} />
           {/* Pantalla para transmitir por YouTube (OBS → fuente de navegador 1920×1080). Pública. */}
           <Route path="/tv" element={<TvPage />} />
+          <Route path="/tv/extendido" element={<TvExtendidoPage />} />
 
           <Route path="*" element={<Navigate to="/panel" replace />} />
         </Routes>

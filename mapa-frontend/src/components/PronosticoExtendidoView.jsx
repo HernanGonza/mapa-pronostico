@@ -5,7 +5,7 @@ import { fechaLarga, tiempoRelativo } from "../lib/tiempoRelativo";
 /** Reordena {zonas:[{zona,dias:[...]}], informes:[...]} a una lista por
  * día (Hoy/Sábado/Domingo), cada uno con las 3 zonas + el informe
  * narrativo de ese día — así arriba y abajo hablan del mismo día. */
-function porDia(extendido) {
+export function porDia(extendido) {
   const zonas = extendido?.zonas || [];
   const informes = extendido?.informes || [];
   const maxDias = Math.max(0, ...zonas.map((z) => z.dias.length));

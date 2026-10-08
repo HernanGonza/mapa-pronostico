@@ -15,8 +15,8 @@ export const DURACION_PREDETERMINADA = 25; // segundos (los videos duran lo que 
 export const PANTALLAS_SISTEMA = [
   { id: "marca", tipo: "video", titulo: "Misiones", src: "/videos/marca-misiones.mp4", descripcion: "Video institucional Marca Misiones." },
   { id: "pronostico", tipo: "embebido", titulo: "Previsión del tiempo", paginas: [{ src: "/embed" }], descripcion: "Mapa del pronóstico publicado." },
-  // Pensado para un iframe chico: se agranda para que llene la pantalla.
-  { id: "extendido", tipo: "embebido", titulo: "Pronóstico de 3 días", paginas: [{ src: "/embed/pronostico-3-dias", escala: 1.6 }], descripcion: "Pronóstico extendido publicado." },
+  // Página propia para la tele (/tv/extendido): muestra hoy, mañana y pasado a la vez, porque en la tele no se puede tocar para cambiar de día.
+  { id: "extendido", tipo: "embebido", titulo: "Pronóstico de 3 días", paginas: [{ src: "/tv/extendido" }], descripcion: "Pronóstico extendido publicado: hoy, mañana y pasado a la vez." },
   { id: "riesgo", tipo: "embebido", titulo: "Riesgo de incendios forestales", paginas: [{ src: "/embed/riesgo-incendios" }], descripcion: "Mapa de riesgo de incendios publicado." },
   { id: "cuencas", tipo: "embebido", titulo: "Monitor de cuencas", paginas: [{ src: "/embed/cuencas-tarjetas", escala: 1.3 }], descripcion: "Sólo las tarjetas del Paraná, Uruguay e Iguazú." },
   // El mapa de cuencas todavía no está terminado: viene apagado.
