@@ -77,9 +77,9 @@ export function pasosVigencias({ catalogo, zonas, tope, inicial = null, soloSiVa
     s.porNivel = porNivelInicial(zonas(s), primera ? inicial?.tramos : null, tope(s).local);
     s.tramos = primera && inicial?.tramos ? Object.fromEntries(Object.entries(inicial.tramos).map(([id, l]) => [id, l.map((t) => ({ categoria: t.categoria, hasta: aLocal(t.hasta) }))])) : null;
   }
-  const tramosDe = (s) => s.tramos || tramosDesdeNiveles(zonas(s), s.porNivel);
+  const tramosDe = (s) => { preparar(s); return s.tramos || tramosDesdeNiveles(zonas(s), s.porNivel); };
   const porDefecto = (s) => tramosDesdeNiveles(zonas(s), porNivelInicial(zonas(s), null, tope(s).local));
-  const personalizado = (s) => JSON.stringify(tramosDe(s)) !== JSON.stringify(porDefecto(s));
+  const personalizado = (s) => { preparar(s); return JSON.stringify(tramosDe(s)) !== JSON.stringify(porDefecto(s)); };
 
   const pasoPorNivel = {
     omitir: (s) => !niveles(s).length || (soloSiVarios && niveles(s).length < 2),

@@ -4,7 +4,7 @@ const store = require("./store");
 const auth = require("./auth");
 const departamentosStore = require("./departamentosStore");
 const { errorDeVigencia } = require("./avisosCortoPlazoStore");
-const { zonasEn, errorDeTramos, normalizarTramos } = require("./tramosAlerta");
+const { zonasEn, iconosEn, errorDeTramos, normalizarTramos } = require("./tramosAlerta");
 
 /**
  * Publicación del mapa manual de alertas meteorológicas (el que alimenta
@@ -165,7 +165,7 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
 }
 
 /** Lo que va al archivo (sin base de datos): las zonas publicadas, no las resueltas a esta hora. */
-const paraArchivo = ({ zonasBase, ...x }) => ({ ...x, zonas: zonasBase || x.zonas });
+const paraArchivo = ({ zonasBase, iconosBase, ...x }) => ({ ...x, zonas: zonasBase || x.zonas, iconos: iconosBase || x.iconos });
 
 async function actual() {
   await init();
@@ -179,7 +179,7 @@ async function actual() {
   }
   if (!fs.existsSync(FILE)) return null;
   const x = JSON.parse(fs.readFileSync(FILE));
-  return { ...x, iconos: x.iconos || [], tramos: x.tramos || {}, zonasBase: x.zonas, zonas: zonasEn(x.zonas, x.tramos) };
+  return { ...x, tramos: x.tramos || {}, zonasBase: x.zonas, zonas: zonasEn(x.zonas, x.tramos), iconosBase: x.iconos || [], iconos: iconosEn(x.iconos || [], zonasEn(x.zonas, x.tramos)) };
 }
 
 /** Zonas e íconos de una publicación. */
@@ -195,8 +195,10 @@ async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyenda
       ),
     ]);
     // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
+    const iconosBase = iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i));
     return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null, leyendas: leyendas || {}, tramos: tramos || {},
-      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, zonas: zonasEn(zonas, tramos), zonasBase: zonas, iconos: iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)) };
+      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
+      iconos: iconosEn(iconosBase, zonasEn(zonas, tramos)), iconosBase };
 }
 
 /**

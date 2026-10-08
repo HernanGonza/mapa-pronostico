@@ -19,6 +19,8 @@ const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'Am
 /** Las 17 zonas de una publicación para el mapa de la página (sin dato o gris = verde). */
 const zonasDe = (catalogo, pub) => catalogo.departamentos.map(d => { const z = (pub?.zonasBase || pub?.zonas)?.find(x => String(x.id) === String(d.id)); return { id: String(d.id), categoria: z?.categoria === 'Gris' ? 'Verde' : z?.categoria || 'Verde' }; });
 
+// Los íconos publicados (con sus dos colores); `iconos` de la publicación puede traer el color ya resuelto a esta hora.
+const iconosDe = (p) => p?.iconosBase || p?.iconos || [];
 const comoImagenes = (p) => ({ feed: p.feedUrl, historias: p.historiasUrl, feedNombre: p.feedNombre, historiasNombre: p.historiasNombre });
 
 export default function AlertasMeteorologicasPage() {
@@ -45,14 +47,14 @@ export default function AlertasMeteorologicasPage() {
       if (!vivo) return;
       setCatalogo(c); setGeo(g); setPublicado(p);
       setZonas(zonasDe(c, p));
-      setIconos(p?.iconos || []); setSeleccionada(p?.id ?? null);
+      setIconos(iconosDe(p)); setSeleccionada(p?.id ?? null);
     }).catch(e => { if (vivo) setError(e.message); });
     return () => { vivo = false; };
   }, []);
 
   const antes = (id) => (publicado?.zonasBase || publicado?.zonas)?.find(p => String(p.id) === String(id))?.categoria || 'Verde';
   const zonasCambiadas = zonas.filter(z => z.categoria !== antes(z.id));
-  const iconosCambiaron = JSON.stringify(iconos) !== JSON.stringify(publicado?.iconos || []);
+  const iconosCambiaron = JSON.stringify(iconos) !== JSON.stringify(iconosDe(publicado));
   const cambios = zonasCambiadas.length > 0 || iconosCambiaron;
   const republicar = !!publicado && !cambios;
   const detalle = zonasCambiadas.map(z => ({ nombre: catalogo?.departamentos.find(d => String(d.id) === String(z.id))?.nombre || String(z.id), antes: antes(z.id), despues: z.categoria }));
@@ -68,7 +70,7 @@ export default function AlertasMeteorologicasPage() {
   // «Editar mapa» de una tarjeta: arma un borrador con el mapa de esa alerta (al publicarlo, la reemplaza).
   async function editarMapaDe(v) {
     if (v.id !== seleccionada && !(await verEnMapa(v))) return;
-    const base = v.id === seleccionada ? { zonas, iconos } : { zonas: zonasDe(catalogo, v), iconos: v.iconos || [] };
+    const base = v.id === seleccionada ? { zonas, iconos } : { zonas: zonasDe(catalogo, v), iconos: iconosDe(v) };
     editarMapaAlertas({ catalogo, ...base, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
   }
   // «Placa para redes» (derecha): la recién generada o, si no, la última de la alerta elegida.
@@ -82,7 +84,7 @@ export default function AlertasMeteorologicasPage() {
     const volver = nueva ? (vigentes || [])[0] || enFila[0] || null : publicado;
     setNueva(false); setImagenes(null); setVista('mapa');
     setZonas(volver ? zonasDe(catalogo, volver) : catalogo.departamentos.map(d => ({ id: String(d.id), categoria: 'Verde' })));
-    setIconos(volver?.iconos || []); setPublicado(volver); setSeleccionada(volver?.id ?? null);
+    setIconos(iconosDe(volver)); setPublicado(volver); setSeleccionada(volver?.id ?? null);
   }
   // «Crear placa para redes» de una alerta: la placa del mapa, guardada en su tarjeta (y a la derecha, en «Placa para redes»).
   const crearPlacaParaRedes = (v) => placaMapaPorPasos({ pub: v, catalogo, alTerminar: (placa) => { setImagenes(comoImagenes(placa)); setVista('placa'); cargarVigentes(); } });
@@ -113,7 +115,7 @@ export default function AlertasMeteorologicasPage() {
   async function verEnMapa(v) {
     if (v.id === seleccionada) return true;
     if (cambios && !(await confirmar({ titulo: '¿Ver otra alerta?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Ver la otra' }))) return false;
-    setZonas(zonasDe(catalogo, v)); setIconos(v.iconos || []); setPublicado(v); setNueva(false);
+    setZonas(zonasDe(catalogo, v)); setIconos(iconosDe(v)); setPublicado(v); setNueva(false);
     setSeleccionada(v.id); setImagenes(null); setVista('mapa');
     return true;
   }

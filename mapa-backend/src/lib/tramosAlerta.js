@@ -23,6 +23,22 @@ function zonasEn(zonas = [], tramos = {}, ahora = Date.now()) {
   });
 }
 
+/**
+ * Íconos (fenómenos) con el color que corresponde ahora: uno con dos colores (ej. naranja y amarillo) deja
+ * de mostrar el color de un nivel cuando ningún departamento está ya en ese nivel. `zonasActuales`: las
+ * zonas ya resueltas a la hora actual (zonasEn). Si no queda ninguno de sus colores, se dejan como están.
+ */
+function iconosEn(iconos = [], zonasActuales = []) {
+  const presentes = new Set(zonasActuales.map((z) => z.categoria));
+  return iconos.map((i) => {
+    if (!i.categoria2) return i;
+    const quedan = [i.categoria, i.categoria2].filter((c) => presentes.has(c));
+    if (quedan.length === 2 || !quedan.length) return i;
+    const { categoria2, ...resto } = i;
+    return { ...resto, categoria: quedan[0] };
+  });
+}
+
 /** Error de los tramos que manda el panel, o null. `ids`: ids de departamentos válidos; `vigenteHasta`: tope. */
 function errorDeTramos(tramos, ids, vigenteHasta) {
   if (!tramos || typeof tramos !== 'object' || Array.isArray(tramos)) return 'Vigencias inválidas.';
@@ -53,4 +69,4 @@ function normalizarTramos(tramos) {
   return out;
 }
 
-module.exports = { zonasEn, errorDeTramos, normalizarTramos, MAX_TRAMOS };
+module.exports = { zonasEn, iconosEn, errorDeTramos, normalizarTramos, MAX_TRAMOS };

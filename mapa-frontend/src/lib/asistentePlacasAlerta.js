@@ -378,7 +378,7 @@ export function placaMapaPorPasos({ pub, catalogo, placa: editada = null, alTerm
     return { id: String(d.id), categoria: !z || z.categoria === "Gris" ? "Verde" : z.categoria };
   });
   const inicial = editada ? { ...editada.datos }
-    : { zonas, iconos: pub.iconos || [], periodo: pub.periodo || "Próximas 24 horas", fondo: "tormenta", tamanoPeriodo: catalogo.tamanoPeriodo?.predeterminado || 64 };
+    : { zonas, iconos: pub.iconosBase || pub.iconos || [], periodo: pub.periodo || "Próximas 24 horas", fondo: "tormenta", tamanoPeriodo: catalogo.tamanoPeriodo?.predeterminado || 64 };
   return crearPlacaMapaAlertas({
     catalogo, inicial,
     vistaPrevia: (c) => api.generarPlacaAlerta(pub.id, { tipo: "mapa", datos: c, vistaPrevia: true }),

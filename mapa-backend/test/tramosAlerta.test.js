@@ -34,3 +34,14 @@ test('valida los tramos', () => {
 test('normaliza y omite departamentos sin tramos', () => {
   assert.deepEqual(normalizarTramos({ 1: tramos[1], 2: [] }), { 1: tramos[1] });
 });
+
+test('un ícono de dos colores deja el que sigue vigente', () => {
+  const { iconosEn } = require('../src/lib/tramosAlerta');
+  const icono = { id: 'tormenta', categoria: 'Naranja', categoria2: 'Amarillo' };
+  const z = (...c) => c.map((categoria, i) => ({ id: String(i), categoria }));
+  assert.deepEqual(iconosEn([icono], z('Naranja', 'Amarillo')), [icono]);
+  assert.deepEqual(iconosEn([icono], z('Amarillo', 'Amarillo', 'Verde')), [{ id: 'tormenta', categoria: 'Amarillo' }]);
+  assert.deepEqual(iconosEn([icono], z('Naranja', 'Verde')), [{ id: 'tormenta', categoria: 'Naranja' }]);
+  assert.deepEqual(iconosEn([icono], z('Verde')), [icono]);
+  assert.deepEqual(iconosEn([{ id: 'x', categoria: 'Rojo' }], z('Amarillo')), [{ id: 'x', categoria: 'Rojo' }]);
+});
