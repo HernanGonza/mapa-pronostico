@@ -38,11 +38,19 @@ export function fecha(value) {
  * Los textos del SMN vienen con los acentos como entidades escapadas dos veces
  * (`&amp;#xE1;` en el XML → "&#xE1;" después de parsear). Se decodifican acá.
  */
+/**
+ * El SMN escribe «El Dorado» (separado); el departamento es «Eldorado», todo junto. Se corrige en todo
+ * texto que viene del SMN, respetando mayúsculas: «El Dorado» → «Eldorado», «EL DORADO» → «ELDORADO».
+ */
+export function corregirNombres(texto) {
+  if (typeof texto !== 'string') return texto;
+  return texto.replace(/\bEl[ \u00a0]+Dorado\b/gi, m => (m === m.toUpperCase() ? 'ELDORADO' : m[0] === 'E' ? 'Eldorado' : 'eldorado'));
+}
 export function textoPlano(value) {
-  return String(value ?? '')
+  return corregirNombres(String(value ?? '')
     .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(Number(d)))
-    .replace(/&(quot|apos|lt|gt|nbsp|amp);/g, (m, n) => ({ quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', amp: '&' })[n]);
+    .replace(/&(quot|apos|lt|gt|nbsp|amp);/g, (m, n) => ({ quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', amp: '&' })[n]));
 }
 // Marca de las filas leídas con `fecha` ya corregida: las guardadas antes del
 // arreglo (sin la marca) tienen todas las horas 3 h de más.
@@ -122,6 +130,12 @@ export function solapa(a, b, minKm2 = 15) {
   }
   return false;
 }
+/** Corrige «El Dorado» en lo ya guardado (se guardó con el texto del SMN tal cual venía). */
+function corregirGuardado(r) {
+  return { ...r, infos: (r.infos || []).map(i => ({ ...i, titulo: corregirNombres(i.titulo), evento: corregirNombres(i.evento),
+    descripcion: corregirNombres(i.descripcion), instrucciones: corregirNombres(i.instrucciones),
+    zonas: (i.zonas || []).map(z => ({ ...z, nombre: corregirNombres(z.nombre) })) })) };
+}
 /**
  * Re-aplica el criterio de pertenencia a Misiones sobre avisos YA guardados
  * (guardados antes de exigir superposición real, cuando un borde en común bastaba).
@@ -129,6 +143,7 @@ export function solapa(a, b, minKm2 = 15) {
  * no caen en Misiones; las zonas sin polígono (ACP por texto) no se tocan.
  */
 export function depurarGuardados(rows, alcance = process.env.SMN_SCOPE || 'argentina') {
+  rows = rows.map(corregirGuardado);
   if (alcance !== 'misiones') return rows;
   return rows.map(r => ({ ...r, infos: (r.infos || []).map(i => ({ ...i, zonas: (i.zonas || []).flatMap(z => {
     if (!z.geometry) return [z];

@@ -10,6 +10,7 @@ import { editarMapaAlertas, publicarAlertasPorPasos } from "../lib/asistentesAle
 import * as api from '../api';
 import { confirmar, pedirTexto, pedirCampos } from '../lib/ui';
 import PublicarEnRedes from '../components/PublicarEnRedes';
+import MenuAcciones from '../components/MenuAcciones';
 import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, nivelDelMapa, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
 import { vigenciasPorNivelPorPasos } from '../lib/asistenteVigencias';
 import { enFemenino } from "../lib/nivelAlerta.js";
@@ -174,18 +175,48 @@ export default function AlertasMeteorologicasPage() {
   // Botones y placas de cada tarjeta de la pila (vigente o en fila): placas nuevas de esa alerta.
   const colorNivel = (n) => catalogo?.categorias.find(c => c.nombre === n)?.color;
   const asistentePlaca = (fn, v) => fn({ pub: v, catalogo, alTerminar: cargarVigentes });
+  // Acciones de una tarjeta, agrupadas: editar la alerta, crear placas para redes y el resto (menú «⋯»).
   const accionesPlacas = (v) => <>
-    <button type="button" className="btn btn--primary" onClick={() => crearPlacaParaRedes(v)}>Crear placa para redes</button>
-    <button type="button" className="btn" onClick={() => editarMapaDe(v)}>Editar mapa</button>
-    <button type="button" className="btn" onClick={() => republicarDe(v)}>Republicar</button>
-    <button type="button" className="btn" onClick={() => cambiarLeyenda(v)}>Cambiar leyenda</button>
-    <button type="button" className="btn" onClick={() => cambiarLeyendasPorColor(v)}>Leyendas por color</button>
-    <button type="button" className="btn" onClick={() => vigenciasPorNivelPorPasos({ pub: v, catalogo, alTerminar: cargarVigentes })}>Vigencias por nivel</button>
-    <button type="button" className="btn" onClick={() => asistentePlaca(cambiarVigenciaPorPasos, v)}>Cambiar vigencia</button>
-    <button type="button" className="btn" onClick={() => asistentePlaca(recomendacionesPorPasos, v)}>Recomendaciones</button>
-    <button type="button" className="btn" onClick={() => asistentePlaca(avisoDeAlertaPorPasos, v)}>Aviso de alerta</button>
-    <button type="button" className="btn" onClick={() => asistentePlaca(actualizacionNivelPorPasos, v)}>Actualización de nivel</button>
+    <MenuAcciones primario etiqueta="Editar" items={[
+      { texto: 'Colores y fenómenos del mapa', alHacer: () => editarMapaDe(v) },
+      { texto: 'Horarios por nivel', alHacer: () => vigenciasPorNivelPorPasos({ pub: v, catalogo, alTerminar: cargarVigentes }) },
+      { texto: 'Leyenda del título', alHacer: () => cambiarLeyenda(v) },
+      { texto: 'Leyendas por color', alHacer: () => cambiarLeyendasPorColor(v) },
+    ]} />
+    <MenuAcciones etiqueta="Placas para redes" items={[
+      { texto: 'Placa del mapa', alHacer: () => crearPlacaParaRedes(v) },
+      { texto: 'Actualización de vigencia', alHacer: () => asistentePlaca(cambiarVigenciaPorPasos, v) },
+      { texto: 'Recomendaciones', alHacer: () => asistentePlaca(recomendacionesPorPasos, v) },
+      { texto: 'Aviso de alerta', alHacer: () => asistentePlaca(avisoDeAlertaPorPasos, v) },
+      { texto: 'Actualización de nivel', alHacer: () => asistentePlaca(actualizacionNivelPorPasos, v) },
+    ]} />
+    <MenuAcciones etiqueta="Más" titulo="Más acciones" items={[
+      { texto: 'Republicar con otro período y vigencia', alHacer: () => republicarDe(v) },
+      { texto: v.fijada ? 'Desfijar (volver a automático)' : 'Fijar en el mapa público', deshabilitado: fijando, alHacer: () => fijar(v.fijada ? null : v) },
+      { separador: true },
+      { texto: enFila.includes(v) ? 'Sacar de la fila' : 'Despublicar', peligro: true, deshabilitado: despublicando != null, alHacer: () => despublicar(v) },
+    ]} />
   </>;
+  // Horarios de la alerta en una línea por nivel: «Naranja hasta 06:00 → Amarillo hasta 00:00».
+  const horaTramo = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const resumenHorarios = (v) => ['Rojo', 'Naranja', 'Amarillo'].map(n => {
+    const dep = (v.zonasBase || v.zonas || []).find(z => z.categoria === n);
+    if (!dep) return null;
+    const t = v.tramos?.[String(dep.id)];
+    return { nivel: n, texto: t?.length ? t.map(x => `${x.categoria} hasta ${horaTramo(x.hasta)}`).join(' → ') : `${n} hasta ${horaTramo(v.vigenteHasta)}` };
+  }).filter(Boolean);
+  // Tarjeta de una alerta de la pila (vigente o en fila).
+  const tarjeta = (v, esperando) => <li key={v.id} {...propsTarjeta(v)}>
+    <div className="alerta-tarjeta__cab">
+      {etiquetaNivel(v)}<strong>{v.periodo}{v.fijada && ' 📌'}</strong><small className="alerta-numero">#{v.id}</small>
+      <span className="alerta-tarjeta__estado">{esperando ? 'En fila' : 'Se ve ahora'}</span>
+      {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
+    </div>
+    <div className="alerta-tarjeta__resumen">{resumenHorarios(v).map(r => <span key={r.nivel}><i style={{ background: colorNivel(r.nivel) }} />{r.texto}</span>)}</div>
+    <small>{esperando ? <>Aparece cuando termine «{periodoDe(v.enFilaDe)}»</> : <>Publicada el {fechaHora(v.publicadoEn)}</>}{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
+    <div className="avisos-lista__acciones">{accionesPlacas(v)}</div>
+    {placasDe(v)}
+  </li>;
   const REDES = { facebook: 'Facebook', instagram: 'Instagram', telegram: 'Telegram' };
   const dondeSalio = (redes) => [...new Set(redes.map(r => REDES[r.destino] || r.destino))].join(', ');
   const [eliminando, setEliminando] = useState(null);
@@ -235,14 +266,13 @@ export default function AlertasMeteorologicasPage() {
   return <div className="admin-layout risk-layout meteo-layout">
     <BrandHeader subtitulo="Alertas meteorológicas"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
-      <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Asigná el color y los fenómenos de cada departamento con el asistente; el mapa muestra el borrador.</p></div>
+      <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Cada tarjeta es una alerta publicada: se edita, se le sacan placas para redes y se despublica desde ahí.</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
         <PublicationStatus changed={cambios} published={publicado} />
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={nuevaAlerta}>Nueva alerta</button>
         </div>
-        <p className="admin-panel__hint">Con «Nueva alerta» armás el mapa; después, en su tarjeta, la publicás en la página (para cuándo es y hasta cuándo se muestra: después se saca sola, o queda en fila detrás de otra). Ya publicada, en la tarjeta creás la placa para redes y las demás placas. Tocá una tarjeta para ver esa alerta en el mapa de la derecha.</p>
         {(nueva || cambios) && <div className="avisos-lista avisos-lista--pendiente">
           <h2>{nueva ? 'Alerta nueva · sin publicar' : `Corrección de «${publicado?.periodo || 'la alerta'}» · sin publicar`}</h2>
           <p className="avisos-lista__texto">{nueva && !cambios ? 'Armá el mapa con «Editar mapa».' : 'El mapa de la derecha muestra este borrador.'}{!nueva && ' Al publicarlo reemplaza a la alerta que estás corrigiendo.'}</p>
@@ -256,23 +286,11 @@ export default function AlertasMeteorologicasPage() {
         {vigentes?.length > 0 && <div className="avisos-lista">
           <h2>Vigentes en el mapa público</h2>
           {estadoPublico}
-          <ul>{vigentes.map(v => <li key={v.id} {...propsTarjeta(v)}>
-            {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
-            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'} <small className="alerta-numero">#{v.id}</small></strong>
-            <small>Publicada el {fechaHora(v.publicadoEn)}{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
-            <div className="avisos-lista__acciones">{accionesPlacas(v)}{botonFijar(v)}<button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Despublicando…' : 'Despublicar'}</button></div>
-            {placasDe(v)}
-          </li>)}</ul>
+          <ul>{vigentes.map(v => tarjeta(v, false))}</ul>
         </div>}
         {enFila.length > 0 && <div className="avisos-lista">
           <h2>En fila</h2>
-          <ul>{enFila.map(v => <li key={v.id} {...propsTarjeta(v)}>
-            {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
-            <strong>{etiquetaNivel(v)} {v.periodo}{v.fijada && ' 📌'} <small className="alerta-numero">#{v.id}</small></strong>
-            <small>Aparece cuando termine «{periodoDe(v.enFilaDe)}»{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
-            <div className="avisos-lista__acciones">{accionesPlacas(v)}{botonFijar(v)}<button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(v)}>{despublicando === v.id ? 'Sacando…' : 'Sacar de la fila'}</button></div>
-            {placasDe(v)}
-          </li>)}</ul>
+          <ul>{enFila.map(v => tarjeta(v, true))}</ul>
         </div>}
         {vigentes?.length === 0 && <p className="admin-panel__hint">No hay alertas por departamento vigentes en el mapa público.</p>}
         <details><summary>Qué significa cada nivel</summary>{catalogo.categorias.map(c => <p key={c.nombre}><strong>{c.nombre} · {c.accion}</strong><br />{c.descripcion}</p>)}</details>

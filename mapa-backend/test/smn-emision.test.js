@@ -57,3 +57,11 @@ test("los textos del SMN se decodifican (vienen con entidades escapadas)", async
   const { textoPlano } = await import("../src/lib/smn/cap.mjs");
   assert.equal(textoPlano("El &#xE1;rea ser&#xE1; afectada; precipitaci&#243;n &amp; granizo"), "El área será afectada; precipitación & granizo");
 });
+
+test("el SMN escribe «El Dorado» separado: se corrige a «Eldorado»", async () => {
+  const { textoPlano, corregirNombres } = await import("../src/lib/smn/cap.mjs");
+  assert.equal(corregirNombres("Zona El Dorado y EL DORADO, el dorado"), "Zona Eldorado y ELDORADO, eldorado");
+  assert.equal(textoPlano("Lluvias en El&#xA0;Dorado y Montecarlo"), "Lluvias en Eldorado y Montecarlo");
+  assert.equal(corregirNombres("Eldorado"), "Eldorado");
+  assert.equal(corregirNombres("Dorado"), "Dorado");
+});
