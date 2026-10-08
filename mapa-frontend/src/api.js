@@ -390,6 +390,9 @@ export async function cambiarLeyendasAlerta(publicacionId, leyendas) {
 export async function cambiarTramosAlerta(publicacionId, tramos) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/tramos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tramos }), ...CON_SESION }));
 }
+export async function cambiarMapaAlerta(publicacionId, zonas, iconos) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/mapa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zonas, iconos }), ...CON_SESION }));
+}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }

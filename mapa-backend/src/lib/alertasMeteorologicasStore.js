@@ -461,4 +461,44 @@ async function cambiarTramos(id, tramos, usuarioId = null) {
   }
 }
 
-module.exports = { init, publicar, actual, pendientes, vigentes, despublicar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };
+/**
+ * Corrige el mapa (niveles por departamento y fenómenos) de una alerta ya publicada o en fila, sin
+ * republicarla: conserva su id, período, vigencia, leyendas y placas. Los tramos (vigencias individuales)
+ * de los departamentos cuyo nivel cambió se descartan, porque ya no corresponden.
+ */
+async function cambiarMapa(id, zonas, iconos, usuarioId = null) {
+  await init();
+  const p = store.getPool();
+  const cambiaron = (antes, despues) => new Set(despues.filter((z) => antes.find((a) => String(a.id) === String(z.id))?.categoria !== z.categoria).map((z) => String(z.id)));
+  const podar = (tramos, ids) => Object.fromEntries(Object.entries(tramos || {}).filter(([dep]) => !ids.has(dep)));
+  if (!p) {
+    const x = await actual();
+    if (!x || x.id !== id || Date.parse(x.vigenteHasta) <= Date.now()) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    const base = paraArchivo(x);
+    fs.writeFileSync(FILE, JSON.stringify({ ...base, zonas, iconos, tramos: podar(base.tramos, cambiaron(base.zonas, zonas)) }));
+    return;
+  }
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(`SELECT tramos FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now() FOR UPDATE`, [id]);
+    if (!rows.length) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    const { rows: antes } = await client.query(`SELECT departamento_id AS id, categoria FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`, [id]);
+    const { rows: iconosAntes } = await client.query(`SELECT fenomeno_id AS id, categoria, categoria2 FROM alertas_meteo_publicacion_fenomenos WHERE publicacion_id = $1`, [id]);
+    await client.query(`DELETE FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`, [id]);
+    for (const z of zonas) await client.query(`INSERT INTO alertas_meteo_publicacion_departamentos (publicacion_id, departamento_id, categoria) VALUES ($1,$2,$3)`, [id, z.id, z.categoria]);
+    await client.query(`DELETE FROM alertas_meteo_publicacion_fenomenos WHERE publicacion_id = $1`, [id]);
+    for (const i of iconos) await client.query(`INSERT INTO alertas_meteo_publicacion_fenomenos (publicacion_id, fenomeno_id, categoria, categoria2) VALUES ($1,$2,$3,$4)`, [id, i.id, i.categoria, i.categoria2 || null]);
+    const tramos = podar(rows[0].tramos, cambiaron(antes, zonas));
+    await client.query(`UPDATE alertas_meteo_publicaciones SET tramos = $2::jsonb, actualizada_en = now() WHERE id = $1`, [id, JSON.stringify(tramos)]);
+    await registrarEvento(client, { publicacionId: id, evento: "mapa_corregido", usuarioId, detalle: { zonasAntes: antes, zonasDespues: zonas, iconosAntes: iconosAntes.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)), iconosDespues: iconos } });
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { init, publicar, cambiarMapa, actual, pendientes, vigentes, despublicar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };

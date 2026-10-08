@@ -59,6 +59,17 @@ router.post('/alertas-meteorologicas/publicaciones/:id/leyenda',requireAuth,expr
   try{await s.cambiarLeyenda(id,req.body?.periodo,req.usuario.usuarioId);res.json({ok:true});}
   catch(e){if(!e.status)console.error(e);const st=[400,404].includes(e.status)?e.status:500;res.status(st).json({error:st===500?'No se pudo cambiar la leyenda.':e.message});}
 });
+// Corrige el mapa (niveles y fenómenos) de una publicada o en fila sin republicarla.
+router.post('/alertas-meteorologicas/publicaciones/:id/mapa',requireAuth,express.json({limit:'100kb'}),async(req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Id inválido.'});
+  const {zonas,iconos:iconosElegidos=[]}=req.body||{};
+  const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)
+    ||(zonas.every(z=>!z.categoria||['Verde','Gris'].includes(z.categoria))?'Todo verde no es una alerta: para sacarla usá «Despublicar».':null);
+  if(error)return res.status(400).json({error});
+  try{await s.cambiarMapa(id,normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId);res.json({ok:true});}
+  catch(e){if(!e.status)console.error(e);const st=[400,404].includes(e.status)?e.status:500;res.status(st).json({error:st===500?'No se pudo guardar el mapa.':e.message});}
+});
 // Cambia lo que se lee al tocar un departamento en el mapa público, por nivel de alerta.
 router.post('/alertas-meteorologicas/publicaciones/:id/leyendas',requireAuth,express.json(),async(req,res)=>{
   const id=Number(req.params.id);

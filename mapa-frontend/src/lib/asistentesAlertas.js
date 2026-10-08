@@ -21,14 +21,25 @@ const resultadoPlaca = (placa, epigrafe) => ({
   accion: { texto: "Publicar en redes", alHacer: () => ({ cerrar: true, luego: () => publicarEnRedes({ feedUrl: placa.feedUrl, historiasUrl: placa.historiasUrl, epigrafe }) }) },
 });
 
-export function editarMapaAlertas({ catalogo, zonas, iconos, aplicar }) {
+/**
+ * Asistente de niveles y fenómenos. Sin `guardar`, deja el resultado como borrador (`aplicar`); con `guardar(zonas, iconos)`
+ * (una alerta ya publicada) lo guarda directo en esa alerta, sin republicar.
+ */
+export function editarMapaAlertas({ catalogo, zonas, iconos, aplicar, guardar = null }) {
   return asistente({
-    estado: { zonas, iconos }, textoEnviar: "Aplicar al mapa",
+    estado: { zonas, iconos }, textoEnviar: guardar ? "Guardar en la alerta" : "Aplicar al mapa",
     pasos: [
       pasoNiveles({ catalogo, idComoTexto: true, permitirVacio: false, etiqueta: (c) => `${c.nombre} · ${c.accion}`, ayuda: "Asigná el color de alerta a cada departamento. Podés usar «Poner todos en…»." }),
       pasoFenomenos({ catalogo }),
     ],
-    enviar: async (s) => { aplicar(s.zonas, s.iconos); return { tipo: "ok", titulo: "Mapa actualizado", datos: true, html: "<p>El mapa ya muestra el borrador. Cuando esté listo, tocá «Publicar en la página» en su tarjeta.</p>" }; },
+    enviar: async (s) => {
+      if (guardar) {
+        await guardar(s.zonas, s.iconos);
+        return { tipo: "ok", titulo: "Mapa guardado", datos: true, html: "<p>La alerta ya tiene los colores nuevos y el mapa público los muestra. Si le habías puesto vigencias por nivel, revisalas con «Vigencias por nivel»: las de los departamentos que cambiaron de color se borraron.</p>" };
+      }
+      aplicar(s.zonas, s.iconos);
+      return { tipo: "ok", titulo: "Mapa actualizado", datos: true, html: "<p>El mapa ya muestra el borrador. Cuando esté listo, tocá «Publicar en la página» en su tarjeta.</p>" };
+    },
   });
 }
 

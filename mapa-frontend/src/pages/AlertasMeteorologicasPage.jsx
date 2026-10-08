@@ -33,7 +33,7 @@ export default function AlertasMeteorologicasPage() {
   // y las que esperan en fila a que termine otra.
   const [pendientes, setPendientes] = useState(null), [despublicando, setDespublicando] = useState(null);
   const vigentes = pendientes?.vigentes, enFila = pendientes?.enFila || [];
-  const cargarVigentes = () => api.getAlertasMeteorologicasPendientes().then(setPendientes).catch(e => { setPendientes({ vigentes: [], enFila: [] }); setError(e.message); });
+  const cargarVigentes = () => api.getAlertasMeteorologicasPendientes().then(p => { setPendientes(p); return p; }).catch(e => { setPendientes({ vigentes: [], enFila: [] }); setError(e.message); });
   // «Nueva alerta»: borrador en blanco que no corrige la publicada (por defecto va en fila).
   const [nueva, setNueva] = useState(false);
   // La tarjeta de la pila que se está viendo en el mapa de la página (null = borrador nuevo).
@@ -71,7 +71,13 @@ export default function AlertasMeteorologicasPage() {
   async function editarMapaDe(v) {
     if (v.id !== seleccionada && !(await verEnMapa(v))) return;
     const base = v.id === seleccionada ? { zonas, iconos } : { zonas: zonasDe(catalogo, v), iconos: iconosDe(v) };
-    editarMapaAlertas({ catalogo, ...base, aplicar: (z, i) => { setZonas(z); setIconos(i); } });
+    // Una alerta ya emitida se corrige en el lugar: lo que cambiás queda guardado en ella (y en el mapa público) sin republicar.
+    editarMapaAlertas({ catalogo, ...base, aplicar: (z, i) => { setZonas(z); setIconos(i); }, guardar: async (z, i) => {
+      await api.cambiarMapaAlerta(v.id, z, i);
+      const p = await cargarVigentes();
+      const nueva = p && [...p.vigentes, ...p.enFila].find(x => x.id === v.id);
+      if (nueva) { setPublicado(nueva); setZonas(zonasDe(catalogo, nueva)); setIconos(iconosDe(nueva)); setSeleccionada(nueva.id); setNueva(false); setImagenes(null); }
+    } });
   }
   // «Placa para redes» (derecha): la recién generada o, si no, la última de la alerta elegida.
   const ultimaMapa = [...(vigentes || []), ...enFila].find(v => v.id === seleccionada)?.placas?.find(p => p.tipo === 'mapa');
@@ -88,15 +94,21 @@ export default function AlertasMeteorologicasPage() {
   }
   // «Crear placa para redes» de una alerta: la placa del mapa, guardada en su tarjeta (y a la derecha, en «Placa para redes»).
   const crearPlacaParaRedes = (v) => placaMapaPorPasos({ pub: v, catalogo, alTerminar: (placa) => { setImagenes(comoImagenes(placa)); setVista('placa'); cargarVigentes(); } });
-  const revisarYPublicar = () => publicarAlertasPorPasos({
-    catalogo, zonas, cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, vigentes: vigentes || [], enFila, nueva, corrige: nueva ? null : publicado?.id ?? null, periodoSugerido: publicado?.periodo || periodo,
+  // Publica un mapa en la página: el del borrador (zonas/iconos de la página) o el de una alerta ya emitida (`de`).
+  const abrirPublicacion = ({ zonas: z, iconos: ic, ...resto }) => publicarAlertasPorPasos({
+    catalogo, zonas: z, vigentes: vigentes || [], enFila,
     publicar: async (opciones) => {
-      const pub = await api.publicarAlertasMeteorologicas(zonas, iconos, opciones);
-      setPublicado(pub); setNueva(false); setSeleccionada(pub.id); await cargarVigentes();
+      const pub = await api.publicarAlertasMeteorologicas(z, ic, opciones);
+      setPublicado(pub); setNueva(false); setSeleccionada(pub.id); setZonas(zonasDe(catalogo, pub)); setIconos(iconosDe(pub)); await cargarVigentes();
       setMensaje(pub.enFilaDe ? 'Quedó en fila: aparece sola cuando termine la anterior.' : 'Publicado. El mapa público ya muestra este mapa.');
       return pub;
-    },
-  });
+    }, ...resto });
+  const revisarYPublicar = () => abrirPublicacion({ zonas, iconos, cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, nueva, corrige: nueva ? null : publicado?.id ?? null, periodoSugerido: publicado?.periodo || periodo });
+  // «Republicar» de una tarjeta: vuelve a publicar el mapa de esa alerta (reemplazándola), con otro período y vigencia.
+  async function republicarDe(v) {
+    if (!(await verEnMapa(v))) return;
+    abrirPublicacion({ zonas: zonasDe(catalogo, v), iconos: iconosDe(v), cambios: [], sinPublicar: false, iconosCambiaron: false, republicar: true, nueva: false, corrige: v.id, periodoSugerido: v.periodo || periodo });
+  }
   const periodoDe = (id) => [...(vigentes || []), ...enFila].find(x => x.id === id)?.periodo || 'la anterior';
   async function despublicar(v) {
     const esperando = enFila.includes(v), siguiente = enFila.find(x => x.enFilaDe === v.id);
@@ -165,6 +177,7 @@ export default function AlertasMeteorologicasPage() {
   const accionesPlacas = (v) => <>
     <button type="button" className="btn btn--primary" onClick={() => crearPlacaParaRedes(v)}>Crear placa para redes</button>
     <button type="button" className="btn" onClick={() => editarMapaDe(v)}>Editar mapa</button>
+    <button type="button" className="btn" onClick={() => republicarDe(v)}>Republicar</button>
     <button type="button" className="btn" onClick={() => cambiarLeyenda(v)}>Cambiar leyenda</button>
     <button type="button" className="btn" onClick={() => cambiarLeyendasPorColor(v)}>Leyendas por color</button>
     <button type="button" className="btn" onClick={() => vigenciasPorNivelPorPasos({ pub: v, catalogo, alTerminar: cargarVigentes })}>Vigencias por nivel</button>
