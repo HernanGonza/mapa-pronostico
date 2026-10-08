@@ -12,7 +12,7 @@ import { tiempoRelativo } from "../lib/tiempoRelativo";
  * lleva a su pantalla. La lista va sobre <body> para que no la corte el borde de la cabecera.
  */
 // Qué es cada notificación (la etiqueta de la lista). Al sumar un tipo nuevo (alertas automáticas…), se agrega acá.
-const TIPOS = { acp: { etiqueta: "ACP", detalle: "Aviso a muy corto plazo" }, alerta: { etiqueta: "Alerta", detalle: "Alerta meteorológica" } };
+const TIPOS = { acp: { etiqueta: "ACP", detalle: "Aviso a muy corto plazo" }, alerta: { etiqueta: "Alerta", detalle: "Alerta meteorológica" }, "alerta-smn": { etiqueta: "SMN", detalle: "Alerta automática del SMN" } };
 const tipoDe = (tipo) => TIPOS[tipo] || { etiqueta: String(tipo).toUpperCase(), detalle: String(tipo) };
 
 export default function NotificacionesMenu() {

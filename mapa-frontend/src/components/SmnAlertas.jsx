@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BaseMap from './BaseMap';
 import { API_URL } from '../config';
-import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson, getAlertasSmnPublicadasPanel, publicarAlertaSmn, despublicarAlertaSmn } from '../api';
+import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson, getAlertasSmnPublicadasPanel, publicarAlertaSmn, despublicarAlertaSmn, generarPlacaAlertaSmn } from '../api';
 import { confirmar } from '../lib/ui';
 import EmbedShare from './EmbedShare';
 import { tiempoRelativo } from '../lib/tiempoRelativo';
@@ -28,6 +28,16 @@ function etiquetaDia(dia) {
   const hoy = diaAR(Date.now());
   const nombre = new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-AR', { timeZone: 'UTC', weekday: 'short', day: '2-digit', month: '2-digit' });
   return dia === hoy ? `Hoy · ${nombre}` : dia === sumarDia(hoy) ? `Mañana · ${nombre}` : nombre;
+}
+
+// Qué cambió el SMN en una actualización (ver alertasSmnAuto.diferencias).
+function cambioTexto(c) {
+  const partes = [];
+  if (c.tipos?.includes('nivel')) partes.push(`nivel ${c.antes.categoria} → ${c.despues.categoria}`);
+  if (c.tipos?.includes('vigencia')) partes.push(`vigencia hasta el ${horaCorta(c.despues.fin)}`);
+  if (c.tipos?.includes('zonas')) partes.push('zonas');
+  if (c.tipos?.includes('texto')) partes.push('texto');
+  return partes.join(' · ');
 }
 
 // Suena dos beeps cortos (sin depender de ningún archivo de audio).
@@ -121,6 +131,13 @@ export default function SmnAlertas() {
     finally { setPublicando(null); }
   }
 
+  async function nuevaPlaca(p) {
+    setPublicando(p.smnId); setError('');
+    try { await generarPlacaAlertaSmn(p.id); setPublicadas(await getAlertasSmnPublicadasPanel()); }
+    catch (e) { setError(e.message); }
+    finally { setPublicando(null); }
+  }
+
   async function consultarAhora() {
     if (updating) return;
     setUpdating(true); setError('');
@@ -159,7 +176,7 @@ export default function SmnAlertas() {
       <div className="editor-heading">
         <span className="editor-eyebrow">SMN · RSS/CAP</span>
         <h1>Alertas automáticas</h1>
-        <p>Avisos oficiales del SMN, leídos automáticamente de su canal RSS/CAP cada 5 minutos: alertas (SAT) y avisos a muy corto plazo (ACP, ~15 min de anticipación). Tocá «Publicar en el mapa público» en cada alerta que quieras mostrar en el embebido de alertas meteorológicas: se ve hasta que termina y se saca sola.</p>
+        <p>Avisos oficiales del SMN, leídos automáticamente de su canal RSS/CAP cada 5 minutos: alertas (SAT) y avisos a muy corto plazo (ACP, ~15 min de anticipación). Tocá «Publicar en el mapa público» en cada alerta que quieras mostrar en el embebido de alertas meteorológicas: se publica con su placa, hecha con el texto del SMN. Si el SMN la actualiza (nivel, horario, zonas o texto), te avisa y con un botón se pisa la misma alerta, sin duplicarla. Se ve hasta que termina y se saca sola.</p>
       </div>
       <p className="admin-panel__hint">
         {data ? `${data.alcance === 'argentina' ? 'Toda Argentina · prueba' : 'Misiones'} · última consulta ${last ? tiempoRelativo(last) : 'sin datos aún'}` : 'Consultando alertas oficiales del SMN…'}
@@ -197,7 +214,17 @@ export default function SmnAlertas() {
           <strong style={{ borderLeft: `6px solid ${p.color || '#999'}`, paddingLeft: 8 }}>{p.titulo} · {p.categoria}</strong>
           <p className="avisos-lista__texto">{p.zonas.map(z => z.nombre).join(' · ')} · {horaCorta(p.inicio)} a {horaCorta(p.fin)}</p>
           <small>Publicada el {horaCorta(p.publicadoEn)}{p.publicadoPorEmail && <> · {p.publicadoPorEmail}</>} · se saca sola el {horaCorta(p.vigenteHasta)}</small>
-          <div className="avisos-lista__acciones"><button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => despublicar(p)}>{publicando === p.smnId ? 'Despublicando…' : 'Despublicar'}</button></div>
+          {p.actualizadaEn && <small>Actualizada con la info del SMN el {horaCorta(p.actualizadaEn)}: {(p.cambios || []).slice(-1).map(c => cambioTexto(c)).join('')}</small>}
+          {p.actualizacion && <p className="alert alert--warn" role="status">El SMN actualizó esta alerta ({p.actualizacion.tipos.map(t => ({ nivel: 'nivel', vigencia: 'vigencia', zonas: 'zonas', texto: 'texto' })[t]).join(', ')}). Buscala abajo y tocá «Aplicar actualización del SMN».</p>}
+          {p.placas?.length > 0 && <ul className="alerta-placas">{p.placas.map(pl => <li key={pl.id} style={{ '--nivel': p.color || '#999' }}>
+            <a href={pl.feedUrl} target="_blank" rel="noreferrer"><img src={pl.feedUrl} alt={`Placa ${pl.tipo === 'nivel' ? 'de actualización de nivel' : 'de aviso de alerta'}`} loading="lazy" /></a>
+            <div><strong>{pl.tipo === 'nivel' ? 'Actualización de nivel' : pl.motivo === 'nueva' ? 'Aviso de alerta' : 'Aviso de alerta (actualizado)'}</strong>
+              <small>{horaCorta(pl.generadoEn)}</small>
+              <div className="alerta-placas__acciones"><a className="btn btn--ghost" href={pl.feedUrl} download target="_blank" rel="noreferrer">Feed</a><a className="btn btn--ghost" href={pl.historiasUrl} download target="_blank" rel="noreferrer">Historias</a></div></div>
+          </li>)}</ul>}
+          <div className="avisos-lista__acciones">
+            <button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => nuevaPlaca(p)}>Sacar placa de nuevo</button>
+            <button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => despublicar(p)}>{publicando === p.smnId ? 'Procesando…' : 'Despublicar'}</button></div>
         </li>)}</ul>
       </div>}
       <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />
@@ -213,7 +240,9 @@ export default function SmnAlertas() {
           {info.zonas.some(z => !z.geometry) && <p>Sin polígono disponible{info.fuente === 'ACP' ? <> — dibujalo a mano en <Link to="/panel/avisos-corto-plazo">Avisos a muy corto plazo</Link></> : ' para dibujar en el mapa.'}</p>}
           {info.url && <a href={info.url} target="_blank" rel="noreferrer">Documento oficial SMN ↗</a>}
           {info.fuente !== 'ACP' && (() => {
-            const pub = publicadas?.find(p => p.smnId === info.id);
+            const pub = publicadas?.find(p => p.smnId === info.id || p.smnIdActual === info.id);
+            if (pub?.actualizacion && pub.smnIdActual === info.id) return <button type="button" className="btn btn--primary" disabled={publicando != null} onClick={() => publicar(info)}>
+              {publicando === info.id ? 'Aplicando…' : `Aplicar actualización del SMN (${pub.actualizacion.tipos.join(', ')})`}</button>;
             if (pub) return <p className="smn-aviso__publicada">✓ Publicada en el mapa público hasta el {horaCorta(pub.vigenteHasta)}</p>;
             const sinArea = !info.zonas.some(z => z.geometry);
             return <button type="button" className="btn btn--primary" disabled={sinArea || publicando != null || publicadas === null} onClick={() => publicar(info)}>

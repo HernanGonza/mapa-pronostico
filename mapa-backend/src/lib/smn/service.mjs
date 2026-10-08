@@ -4,6 +4,7 @@ import colorAcp from '../colorAcp.js';
 import alertasManuales from '../alertasMeteorologicasStore.js';
 import notificaciones from '../notificacionesStore.js';
 import avisos from '../avisosCortoPlazoStore.js';
+import alertasAuto from '../alertasSmnAuto.js';
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
@@ -26,6 +27,11 @@ export async function avisarAcpNuevos(vigentesAcp, logger = console, notificar =
   }
 }
 
+export async function revisarSat(datos, logger = console, revisar = alertasAuto.revisar) {
+  try { await revisar(unirZonas(vigentes(ultimaEmision(datos))), { logger }); }
+  catch (e) { logger.error(`[SMN SAT] aviso de alertas: ${e.message}`); }
+}
+
 // Ejecuta una consulta completa bajo demanda. El lock evita que el botón de
 // prueba y el sondeo periódico descarguen el SMN dos veces en paralelo.
 export function actualizarAhora({ read = leerFuente, repository = store, logger = console } = {}) {
@@ -38,6 +44,8 @@ export function actualizarAhora({ read = leerFuente, repository = store, logger 
       const datos = reconciliar(depurarGuardados((previous?.datos || []).filter(r => r.alcance === alcance), alcance), received);
       await repository.guardar(fuente, datos, previous?.revision || null);
       if (fuente === 'ACP') await avisarAcpNuevos(vigentes(datos), logger);
+      // SAT: sólo avisa en la campanita (alerta nueva o actualizada); publicar es siempre a mano.
+      if (fuente === 'SAT') await revisarSat(datos, logger);
       delete errores[fuente];
       const zonasResumen = received.flatMap(r => r.infos || []).flatMap(i => i.zonas || [])
         .map(z => `${z.nombre}${z.geocodigos?.length ? ` [${z.geocodigos.join(',')}]` : ''}`)

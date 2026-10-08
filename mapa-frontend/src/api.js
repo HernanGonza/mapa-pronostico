@@ -453,6 +453,9 @@ export async function publicarAlertaSmn(smnId) {
 export async function despublicarAlertaSmn(id) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${id}/despublicar`, { method: "POST", ...CON_SESION }));
 }
+export async function generarPlacaAlertaSmn(id) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${id}/placas`, { method: "POST", ...CON_SESION }));
+}
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }
 

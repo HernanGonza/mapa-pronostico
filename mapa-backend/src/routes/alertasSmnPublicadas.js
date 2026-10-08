@@ -19,7 +19,7 @@ router.post("/alertas-meteorologicas/smn/publicar", requireAuth, express.json(),
   try {
     const { obtenerActual } = await import("../lib/smn/service.mjs");
     const actual = await obtenerActual();
-    res.json(await publicadas.publicar(smnId, actual.fuentes.SAT?.alertas || [], req.usuario.usuarioId, actual.colores));
+    res.json(await require("../lib/alertasSmnAuto").publicarOActualizar(smnId, actual.fuentes.SAT?.alertas || [], req.usuario.usuarioId, actual.colores));
   } catch (e) { error(res, e, "No se pudo publicar la alerta."); }
 });
 
@@ -38,10 +38,31 @@ router.get("/alertas-meteorologicas/smn/publicadas", async (req, res) => {
   } catch (e) { error(res, e, "No se pudieron leer las alertas publicadas."); }
 });
 
-// Panel: las mismas, con quién las publicó.
+// Panel: las mismas, con quién las publicó y las placas que se generaron de cada una.
 router.get("/alertas-meteorologicas/smn/publicadas/panel", requireAuth, async (req, res) => {
-  try { res.set("Cache-Control", "no-store").json({ alertas: await publicadas.obtenerVigentes() }); }
+  try {
+    const alertas = await publicadas.obtenerVigentes();
+    const placas = await publicadas.placasDe(alertas.map((a) => a.id));
+    // Qué dice hoy el SMN de cada una (¿la actualizó?): ver alertasSmnAuto.estado.
+    const { obtenerActual } = await import("../lib/smn/service.mjs");
+    const hoy = require("../lib/alertasSmnAuto").estado(alertas, (await obtenerActual()).fuentes.SAT?.alertas || []);
+    res.set("Cache-Control", "no-store").json({ alertas: alertas.map((a) => ({ ...a, placas: placas[a.id] || [], smnIdActual: hoy.get(a.id)?.smnIdActual || null, actualizacion: hoy.get(a.id)?.tipos.length ? { tipos: hoy.get(a.id).tipos } : null })) });
+  }
   catch (e) { error(res, e, "No se pudieron leer las alertas publicadas."); }
+});
+
+// Vuelve a sacar la placa de una publicada con el texto que tiene hoy ("aviso" o "nivel").
+router.post("/alertas-meteorologicas/smn/publicadas/:id/placas", requireAuth, express.json(), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Id inválido." });
+  try {
+    const alerta = (await publicadas.obtenerVigentes()).find((a) => a.id === id);
+    if (!alerta) return res.status(404).json({ error: "La alerta ya no está publicada." });
+    const auto = require("../lib/alertasSmnAuto");
+    const placa = await auto.generarPlaca(alerta, "aviso", "manual", null);
+    if (!placa) return res.status(500).json({ error: "No se pudo generar la placa." });
+    res.json(placa);
+  } catch (e) { error(res, e, "No se pudo generar la placa."); }
 });
 
 module.exports = router;

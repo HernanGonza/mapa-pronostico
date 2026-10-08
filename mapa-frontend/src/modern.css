@@ -634,6 +634,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .notif-tipo { justify-self: start; padding: 1px 8px; border-radius: 99px; background: #8b3fc4; color: #fff; font-size: 11px; font-style: normal; font-weight: 700; letter-spacing: .02em; }
 .notif-tipo small { color: inherit; font-size: 11px; font-weight: 500; opacity: .9; }
 .notif-tipo--alerta { background: #f67f15; }
+.notif-tipo--alerta-smn { background: #f67f15; }
 .notif-nueva { justify-self: start; margin-bottom: -2px; padding: 1px 8px; border-radius: 99px; background: #d62e42; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 /* Lo ya leído (o atendido, o vencido) se ve apagado y sin negrita: así sólo lo nuevo llama la atención. */
 .notif-item:not(.notif-item--nueva) { opacity: .62; }
