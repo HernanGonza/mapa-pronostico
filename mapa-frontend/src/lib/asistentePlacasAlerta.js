@@ -18,6 +18,9 @@ import { enFemenino } from "./nivelAlerta.js";
  *  - actualizacionNivelPorPasos: de qué nivel venía → fenómeno y zona → día y horario → texto.
  * Cada asistente arranca con lo último que se usó en esa placa (de cualquier alerta).
  */
+// `pub` puede ser una alerta automática del SMN (`pub.smn`, la arma SmnAlertas): los mismos asistentes, pero
+// hablando con las rutas de esas alertas (`pub._api`) y arrancando con lo que trae el SMN.
+const A = (pub) => pub?._api || api;
 const NIVELES = ["Amarillo", "Naranja", "Rojo"];
 const ORDEN = { Verde: 0, Gris: 0, Amarillo: 1, Naranja: 2, Rojo: 3 };
 const NOMBRE_ICONO = { objetos: "Silla y viento", arroyos: "Auto y arroyo", resguardo: "Casa segura", informado: "Celular", emergencias: "Teléfono 911", reloj: "Reloj", ubicacion: "Ubicación", tormenta: "Tormenta", alerta: "Alerta (!)" };
@@ -26,6 +29,7 @@ const FENOMENO = { tormentas: "tormenta", "tormentas-severas": "tormentas severa
 
 /** Nivel del mapa de una publicación: el más alto de sus departamentos (Amarillo si están todos en verde). */
 export function nivelDelMapa(pub) {
+  if (pub?.smn && NIVELES.includes(pub.categoria)) return pub.categoria;
   const max = (pub?.zonasBase || pub?.zonas || []).map((z) => z.categoria).reduce((a, b) => ((ORDEN[b] || 0) > (ORDEN[a] || 0) ? b : a), "Amarillo");
   return NIVELES.includes(max) ? max : "Amarillo";
 }
@@ -54,7 +58,7 @@ export function nivelDe(pub, ahora = Date.now()) {
 export function proximoCambioDeNivel(pub, ahora = Date.now()) {
   return cambiosDeNivel(pub).filter((c) => c.inicio > ahora).sort((x, y) => x.inicio - y.inicio)[0] || null;
 }
-const fenomenoDe = (pub) => FENOMENO[pub?.iconos?.[0]?.id] || "tormenta";
+const fenomenoDe = (pub) => (pub?.smn ? String(pub.evento || pub.titulo || "tormenta").toLowerCase() : FENOMENO[pub?.iconos?.[0]?.id] || "tormenta");
 const notaVigencia = (nivel) => `Siguen vigentes las recomendaciones emitidas en la alerta ${enFemenino(nivel).toLowerCase()}.`;
 const NOTA_AVISO = "Estar atentos a las indicaciones de Alertas a Corto Plazo (ACP).";
 const hoy = () => valorLocal(new Date()).slice(0, 10);
@@ -111,9 +115,9 @@ function generador(pub, tipo, datosDe, editada = null) {
   const payload = (s) => ({ tipo, nivel: s.nivel, datos: datosDe(s) });
   return {
     clave: (s) => JSON.stringify(payload(s)),
-    vistaPrevia: (s) => api.generarPlacaAlerta(pub.id, { ...payload(s), vistaPrevia: true }),
+    vistaPrevia: (s) => A(pub).generarPlacaAlerta(pub.id, { ...payload(s), vistaPrevia: true }),
     // Al editar, la placa nueva reemplaza a `editada` en la tarjeta.
-    guardar: (s) => api.generarPlacaAlerta(pub.id, { ...payload(s), confirmarToken: s.vista.token, ...(editada ? { reemplaza: editada.id } : {}) }),
+    guardar: (s) => A(pub).generarPlacaAlerta(pub.id, { ...payload(s), confirmarToken: s.vista.token, ...(editada ? { reemplaza: editada.id } : {}) }),
   };
 }
 
@@ -183,16 +187,17 @@ function pasoVigenciaMapa(pub) {
 }
 
 export async function cambiarVigenciaPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await api.getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
+  const base = await A(pub).getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.vigencia || {};
   const ahora = new Date(), desde = `${String(ahora.getHours()).padStart(2, "0")}:00`;
-  const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: hoy(), desde: z.desde, hasta: z.hasta, desde2: z.desde2 || "", hasta2: z.hasta2 || "" })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
+  const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: pub.smn ? z.fecha : hoy(), desde: z.desde, hasta: z.hasta, desde2: z.desde2 || "", hasta2: z.hasta2 || "" })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
   const nivel = nivelDe(pub);
   const g = generador(pub, "vigencia", (s) => ({ zonas: s.zonas, descripcion: s.descripcion, nota: s.nota }), editada);
   const pasos = [
     pasoNivel(catalogo),
     pasoZonas(base.limites?.zonas || 4),
-    pasoVigenciaMapa(pub),
+    // La vigencia de una alerta del SMN es la del SMN: no se corre desde acá.
+    ...(pub.smn ? [] : [pasoVigenciaMapa(pub)]),
     pasoTexto({ pregunta: "¿Qué se espera?", ayuda: "El texto del fenómeno, con la nube de tormenta al lado.", campo: "descripcion", max: base.limites?.descripcion || 700, filas: 8, placeholder: "El área será afectada por lluvias y tormentas fuertes…" }),
     { ...pasoTexto({ pregunta: "¿Nota al pie?", ayuda: "Va con el «!» del color de la alerta. Dejala vacía si no hace falta.", campo: "nota", max: base.limites?.nota || 220, filas: 3, opcional: true }),
       // Si quedó la nota automática de otro nivel, se actualiza al elegido.
@@ -200,7 +205,7 @@ export async function cambiarVigenciaPorPasos({ pub, catalogo, placa: editada = 
     pasoVistaPrevia({ clave: g.clave, generar: g.vistaPrevia }),
   ];
   const enviar = async (s) => {
-    const cambio = s.vigenteMapa !== valorLocal(new Date(pub.vigenteHasta));
+    const cambio = !pub.smn && s.vigenteMapa !== valorLocal(new Date(pub.vigenteHasta));
     if (cambio) await api.cambiarVigenciaAlerta(pub.id, new Date(s.vigenteMapa).toISOString());
     const placa = await g.guardar(s);
     alTerminar?.();
@@ -286,7 +291,7 @@ function pasoFenomeno(extra = "") {
 }
 
 export async function recomendacionesPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await api.getUltimosPlacasAlerta();
+  const base = await A(pub).getUltimosPlacasAlerta();
   const items = base.ultimos?.recomendaciones?.items?.length ? base.ultimos.recomendaciones.items : base.recomendaciones;
   const g = generador(pub, "recomendaciones", (s) => ({ fenomeno: s.fenomeno, items: s.items }), editada);
   const pasos = [pasoNivel(catalogo), pasoFenomeno(), pasoRecomendaciones(base.iconos, base.limites || {}), pasoVistaPrevia({ clave: g.clave, generar: g.vistaPrevia })];
@@ -300,7 +305,7 @@ export async function recomendacionesPorPasos({ pub, catalogo, placa: editada = 
 // ---------------------------------------------------------------------------------------------
 
 export async function avisoDeAlertaPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await api.getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
+  const base = await A(pub).getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.aviso || {};
   const g = generador(pub, "aviso", (s) => ({ fenomeno: s.fenomeno, vigencia: s.vigencia, zona: s.zona, descripcion: s.descripcion, nota: s.nota }), editada);
   const pasos = [
@@ -328,10 +333,12 @@ export async function avisoDeAlertaPorPasos({ pub, catalogo, placa: editada = nu
 const ANTERIORES = ["Verde", ...NIVELES];
 
 export async function actualizacionNivelPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await api.getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
+  const base = await A(pub).getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.nivel || {}, otra = base.ultimos?.vigencia || {};
   // Por defecto pasa del nivel de ahora al de arriba.
-  const actual = nivelDe(pub), nivel = NIVELES[Math.min(NIVELES.length - 1, NIVELES.indexOf(actual) + 1)];
+  // En una alerta del SMN, la alerta ya está en el nivel nuevo: viene de `u.nivelAnterior`.
+  const actual = pub.smn ? (u.nivelAnterior || nivelDe(pub)) : nivelDe(pub), nivel = pub.smn ? nivelDelMapa(pub) : NIVELES[Math.min(NIVELES.length - 1, NIVELES.indexOf(actual) + 1)];
+  const v = pub.smn ? u.vigencia : null;
   const color = (n) => catalogo.categorias.find((c) => c.nombre === n)?.color;
   const g = generador(pub, "nivel", (s) => ({ fenomeno: s.fenomeno, nivelAnterior: s.nivelAnterior, zona: s.zona, vigencia: { fecha: s.fecha, desde: s.desde, hasta: s.hasta }, descripcion: s.descripcion }), editada);
   const pasos = [
@@ -363,7 +370,7 @@ export async function actualizacionNivelPorPasos({ pub, catalogo, placa: editada
   }
   return asistente({ pasos, enviar, textoEnviar: "Confirmar", ancho: 760,
     estado: { nivel, nivelAnterior: actual !== nivel ? actual : ANTERIORES[Math.max(0, ANTERIORES.indexOf(nivel) - 1)], fenomeno: u.fenomeno || fenomenoDe(pub), zona: u.zona || base.ultimos?.aviso?.zona || "",
-      fecha: hoy(), desde: `${String(ahora.getHours()).padStart(2, "0")}:00`, hasta: "24:00",
+      fecha: v?.fecha || hoy(), desde: v?.desde || `${String(ahora.getHours()).padStart(2, "0")}:00`, hasta: v?.hasta || "24:00",
       descripcion: u.descripcion || otra.descripcion || base.ultimos?.aviso?.descripcion || "" } });
 }
 
@@ -381,9 +388,9 @@ export function placaMapaPorPasos({ pub, catalogo, placa: editada = null, alTerm
     : { zonas, iconos: pub.iconosBase || pub.iconos || [], periodo: pub.periodo || "Próximas 24 horas", fondo: "tormenta", tamanoPeriodo: catalogo.tamanoPeriodo?.predeterminado || 64 };
   return crearPlacaMapaAlertas({
     catalogo, inicial,
-    vistaPrevia: (c) => api.generarPlacaAlerta(pub.id, { tipo: "mapa", datos: c, vistaPrevia: true }),
+    vistaPrevia: (c) => A(pub).generarPlacaAlerta(pub.id, { tipo: "mapa", datos: c, vistaPrevia: true }),
     guardar: async (c, token) => {
-      const placa = await api.generarPlacaAlerta(pub.id, { tipo: "mapa", datos: c, confirmarToken: token, ...(editada ? { reemplaza: editada.id } : {}) });
+      const placa = await A(pub).generarPlacaAlerta(pub.id, { tipo: "mapa", datos: c, confirmarToken: token, ...(editada ? { reemplaza: editada.id } : {}) });
       alTerminar?.(placa);
       return placa;
     },

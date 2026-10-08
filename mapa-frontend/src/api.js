@@ -360,6 +360,7 @@ export async function getAlertasMeteorologicasVigentes(){
   if(!enDemo()||!leerDemo().alerta)return reales;
   return [...reales,...alertaDePrueba((await getAlertasMeteorologicasCatalogo()).departamentos)];
 }
+export async function borrarAlertaMeteorologica(id){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${id}`,{method:"DELETE",...CON_SESION}));}
 export async function despublicarAlertaMeteorologica(id){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${id}/despublicar`,{method:"POST",...CON_SESION}));}
 /** Placas de una alerta publicada (vigencia, recomendaciones, aviso de alerta): { tipo, nivel, datos } + vistaPrevia o confirmarToken. */
 export async function generarPlacaAlerta(publicacionId, payload) {
@@ -453,8 +454,17 @@ export async function publicarAlertaSmn(smnId) {
 export async function despublicarAlertaSmn(id) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${id}/despublicar`, { method: "POST", ...CON_SESION }));
 }
-export async function generarPlacaAlertaSmn(id) {
-  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${id}/placas`, { method: "POST", ...CON_SESION }));
+/**
+ * Las rutas de placas de una alerta del SMN publicada, con la misma forma que las de las alertas manuales
+ * (`generarPlacaAlerta`, `getUltimosPlacasAlerta`): así sirven los mismos asistentes (ver `pub._api` en asistentePlacasAlerta).
+ */
+export const apiPlacasSmn = (alertaId) => ({
+  generarPlacaAlerta: async (_id, payload) => handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${alertaId}/placas`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), ...CON_SESION })),
+  getUltimosPlacasAlerta: async () => handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${alertaId}/placas/base`, { cache: "no-store", ...CON_SESION })),
+});
+export async function eliminarPlacaSmn(id) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/placas/${id}`, { method: "DELETE", ...CON_SESION }));
 }
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }

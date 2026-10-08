@@ -123,6 +123,17 @@ export default function AlertasMeteorologicasPage() {
     finally { setDespublicando(null); }
   }
 
+  // Borrar del todo (para una hecha sin querer): a diferencia de despublicar, no queda registro.
+  async function borrar(v) {
+    const ok = await confirmar({ titulo: `¿Borrar la alerta «${v.periodo}»?`, confirmar: 'Borrar para siempre',
+      texto: `Se borra la alerta con sus placas y su historial, y no se puede deshacer. ${v.placas?.some(p => p.redes?.length) ? 'Alguna placa ya se publicó en redes: allá no se borra. ' : ''}Si sólo querés sacarla del mapa público, usá «Despublicar».` });
+    if (!ok) return;
+    setDespublicando(v.id); setError('');
+    try { await api.borrarAlertaMeteorologica(v.id); await cargarVigentes(); setMensaje('Listo: la alerta se borró.'); }
+    catch (e) { setError(e.message); }
+    finally { setDespublicando(null); }
+  }
+
   // Tocar una tarjeta de la pila: el mapa de la página pasa a mostrar esa alerta (y «Editar
   // mapa» / «Republicar» trabajan sobre ella). Así se vuelve a una anterior después de «Nueva alerta».
   async function verEnMapa(v) {
@@ -195,6 +206,7 @@ export default function AlertasMeteorologicasPage() {
       { texto: v.fijada ? 'Desfijar (volver a automático)' : 'Fijar en el mapa público', deshabilitado: fijando, alHacer: () => fijar(v.fijada ? null : v) },
       { separador: true },
       { texto: enFila.includes(v) ? 'Sacar de la fila' : 'Despublicar', peligro: true, deshabilitado: despublicando != null, alHacer: () => despublicar(v) },
+      { texto: 'Borrar alerta', peligro: true, deshabilitado: despublicando != null, alHacer: () => borrar(v) },
     ]} />
   </>;
   // Horarios de la alerta en una línea por nivel: «Naranja hasta 06:00 → Amarillo hasta 00:00».

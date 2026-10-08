@@ -46,23 +46,53 @@ router.get("/alertas-meteorologicas/smn/publicadas/panel", requireAuth, async (r
     // Qué dice hoy el SMN de cada una (¿la actualizó?): ver alertasSmnAuto.estado.
     const { obtenerActual } = await import("../lib/smn/service.mjs");
     const hoy = require("../lib/alertasSmnAuto").estado(alertas, (await obtenerActual()).fuentes.SAT?.alertas || []);
-    res.set("Cache-Control", "no-store").json({ alertas: alertas.map((a) => ({ ...a, placas: placas[a.id] || [], smnIdActual: hoy.get(a.id)?.smnIdActual || null, actualizacion: hoy.get(a.id)?.tipos.length ? { tipos: hoy.get(a.id).tipos } : null })) });
+    const departamentos = require("../lib/departamentos").loadDepartamentos();
+    res.set("Cache-Control", "no-store").json({ alertas: alertas.map((a) => ({ ...a, placas: placas[a.id] || [], mapaBase: require("../lib/alertasSmnAuto").mapaDe(a, departamentos), smnIdActual: hoy.get(a.id)?.smnIdActual || null, actualizacion: hoy.get(a.id)?.tipos.length ? { tipos: hoy.get(a.id).tipos } : null })) });
   }
   catch (e) { error(res, e, "No se pudieron leer las alertas publicadas."); }
 });
 
-// Vuelve a sacar la placa de una publicada con el texto que tiene hoy ("aviso" o "nivel").
-router.post("/alertas-meteorologicas/smn/publicadas/:id/placas", requireAuth, express.json(), async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Id inválido." });
+// Placas de una alerta del SMN ya publicada: las mismas que las de las alertas manuales (mapa, vigencia,
+// recomendaciones, aviso de alerta, actualización de nivel), con los asistentes del panel manual.
+// Vista previa y después confirmar, igual que allá. `reemplaza`: id de la placa que se está editando.
+const vigente = async (id) => (await publicadas.obtenerVigentes()).find((a) => a.id === id);
+const idDe = (req, res) => { const id = Number(req.params.id); if (Number.isInteger(id) && id > 0) return id; res.status(400).json({ error: "Id inválido." }); return null; };
+
+router.post("/alertas-meteorologicas/smn/publicadas/:id/placas", requireAuth, express.json({ limit: "4mb" }), async (req, res) => {
+  const id = idDe(req, res); if (!id) return;
+  const { generarPlacaAlertaAmbos, errorDePlacaAlerta, normalizarPlacaAlerta } = require("../lib/generatePlacasAlerta");
+  const { errorDePlacaMapa, normalizarPlacaMapa, generarPlacaMapa } = require("./alertasMeteorologicas").placaMapa;
+  const { tipo, nivel, datos, reemplaza = null } = req.body || {};
+  const problema = (tipo === "mapa" ? errorDePlacaMapa(datos) : errorDePlacaAlerta({ tipo, nivel, datos }))
+    || (reemplaza !== null && (!Number.isInteger(reemplaza) || reemplaza <= 0) ? "Placa a editar inválida." : null);
+  if (problema) return res.status(400).json({ error: problema });
   try {
-    const alerta = (await publicadas.obtenerVigentes()).find((a) => a.id === id);
-    if (!alerta) return res.status(404).json({ error: "La alerta ya no está publicada." });
-    const auto = require("../lib/alertasSmnAuto");
-    const placa = await auto.generarPlaca(alerta, "aviso", "manual", null);
-    if (!placa) return res.status(500).json({ error: "No se pudo generar la placa." });
-    res.json(placa);
+    if (!(await vigente(id))) return res.status(404).json({ error: "Esa alerta ya no está publicada." });
+    const placa = tipo === "mapa" ? normalizarPlacaMapa(datos) : normalizarPlacaAlerta({ tipo, nivel, datos });
+    await require("../lib/placasPendientes").resolver(req, res, {
+      generar: () => (tipo === "mapa" ? generarPlacaMapa(placa.datos) : generarPlacaAlertaAmbos(placa)),
+      guardar: (pngs) => (reemplaza
+        ? publicadas.reemplazarPlaca({ id: reemplaza, alertaId: id, ...placa, usuarioId: req.usuario.usuarioId, ...pngs })
+        : publicadas.crearPlaca({ alertaId: id, motivo: "manual", ...placa, usuarioId: req.usuario.usuarioId, ...pngs })),
+    });
   } catch (e) { error(res, e, "No se pudo generar la placa."); }
+});
+
+// Con qué arrancan los asistentes: los textos, niveles y horarios que trae el SMN (ver alertasSmnAuto.baseDe).
+router.get("/alertas-meteorologicas/smn/publicadas/:id/placas/base", requireAuth, async (req, res) => {
+  const id = idDe(req, res); if (!id) return;
+  try {
+    const alerta = await vigente(id);
+    if (!alerta) return res.status(404).json({ error: "Esa alerta ya no está publicada." });
+    res.set("Cache-Control", "no-store").json(require("../lib/alertasSmnAuto").baseDe(alerta, require("../lib/generatePlacasAlerta")));
+  } catch (e) { error(res, e, "No se pudieron preparar las placas."); }
+});
+
+// Saca una placa de la tarjeta (queda en la base). No la borra de las redes.
+router.delete("/alertas-meteorologicas/smn/placas/:id", requireAuth, async (req, res) => {
+  const id = idDe(req, res); if (!id) return;
+  try { await publicadas.eliminarPlaca(id); res.json({ ok: true }); }
+  catch (e) { error(res, e, "No se pudo eliminar la placa."); }
 });
 
 module.exports = router;

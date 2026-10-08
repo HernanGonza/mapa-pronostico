@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BaseMap from './BaseMap';
 import { API_URL } from '../config';
-import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson, getAlertasSmnPublicadasPanel, publicarAlertaSmn, despublicarAlertaSmn, generarPlacaAlertaSmn } from '../api';
+import { actualizarSmnAlertas, getAlertasMeteorologicasGeojson, getAlertasSmnPublicadasPanel, publicarAlertaSmn, despublicarAlertaSmn, getAlertasMeteorologicasCatalogo, apiPlacasSmn, eliminarPlacaSmn } from '../api';
+import MenuAcciones from './MenuAcciones';
+import PublicarEnRedes from './PublicarEnRedes';
+import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
 import { confirmar } from '../lib/ui';
 import EmbedShare from './EmbedShare';
 import { tiempoRelativo } from '../lib/tiempoRelativo';
@@ -74,6 +77,7 @@ export default function SmnAlertas() {
   // Alertas SAT publicadas en el embebido de alertas meteorológicas (vigentes).
   const [publicadas, setPublicadas] = useState(null);
   const [publicando, setPublicando] = useState(null);
+  const [catalogo, setCatalogo] = useState(null);
   const audioCtxRef = useRef(null);
   const vistosAcpRef = useRef(new Set());
 
@@ -89,6 +93,7 @@ export default function SmnAlertas() {
 
   useEffect(() => {
     const controller = new AbortController(); let busy = false;
+    getAlertasMeteorologicasCatalogo().then(c => { if (!controller.signal.aborted) setCatalogo(c); }).catch(() => {});
     getAlertasMeteorologicasGeojson().then(g => { if (!controller.signal.aborted) setBase(g); })
       .catch(() => { if (!controller.signal.aborted) setError('No se pudo cargar el mapa de departamentos. Recargá la página para reintentar.'); });
     async function refresh() {
@@ -131,12 +136,41 @@ export default function SmnAlertas() {
     finally { setPublicando(null); }
   }
 
-  async function nuevaPlaca(p) {
-    setPublicando(p.smnId); setError('');
-    try { await generarPlacaAlertaSmn(p.id); setPublicadas(await getAlertasSmnPublicadasPanel()); }
+  // Las placas son las mismas que las de las alertas manuales (mismos asistentes), pero arrancan con lo que trae el SMN:
+  // textos, nivel, zonas y horarios. `pub` es la alerta publicada vista como la ven esos asistentes.
+  const comoPub = p => ({ ...p, smn: true, _api: apiPlacasSmn(p.id), zonasBase: p.mapaBase.zonas, iconosBase: p.mapaBase.iconos, periodo: p.mapaBase.periodo });
+  const refrescarPublicadas = async () => setPublicadas(await getAlertasSmnPublicadasPanel());
+  const asistentePlaca = (fn, p) => fn({ pub: comoPub(p), catalogo, alTerminar: () => refrescarPublicadas().catch(() => {}) });
+  const [eliminando, setEliminando] = useState(null);
+  const REDES = { facebook: 'Facebook', instagram: 'Instagram', telegram: 'Telegram' };
+  const dondeSalio = redes => [...new Set(redes.map(r => REDES[r.destino] || r.destino))].join(', ');
+  async function eliminarPlaca(pl) {
+    const enRedes = pl.redes?.length > 0;
+    if (!(await confirmar({ titulo: `¿Eliminar la placa «${TIPO_PLACA[pl.tipo]}»?`, confirmar: 'Eliminar',
+      texto: enRedes ? `Ya se publicó en redes (${dondeSalio(pl.redes)}): se saca sólo de acá, no de las redes.` : 'Se saca de la tarjeta de la alerta.' }))) return;
+    setEliminando(pl.id); setError('');
+    try { await eliminarPlacaSmn(pl.id); await refrescarPublicadas(); }
     catch (e) { setError(e.message); }
-    finally { setPublicando(null); }
+    finally { setEliminando(null); }
   }
+  const placasDe = p => p.placas?.length > 0 && <ul className="alerta-placas">{p.placas.map(pl => {
+    const actual = (pl.redes || []).filter(r => r.version === 'actual'), anterior = (pl.redes || []).filter(r => r.version === 'anterior');
+    return <li key={pl.id} style={{ '--nivel': data?.colores?.[pl.nivel] || p.color || '#999' }}>
+      <a href={pl.feedUrl} target="_blank" rel="noreferrer"><img src={pl.feedUrl} alt={`Placa ${TIPO_PLACA[pl.tipo]}`} loading="lazy" /></a>
+      <div>
+        <strong>{TIPO_PLACA[pl.tipo]} · {pl.nivel}{pl.motivo && pl.motivo !== 'manual' && !pl.editadoEn ? ' · automática' : ''}</strong>
+        <small>{horaCorta(pl.editadoEn || pl.generadoEn)}{pl.editadoEn && ' (editada)'}{pl.generadoPorEmail && <> · {pl.generadoPorEmail}</>} · <a href={`${pl.feedUrl}?download=${encodeURIComponent(pl.feedNombre)}`}>feed</a> · <a href={`${pl.historiasUrl}?download=${encodeURIComponent(pl.historiasNombre)}`}>historias</a></small>
+        {actual.length > 0 && <span className="alerta-placas__redes">✓ Publicada en redes · {dondeSalio(actual)}</span>}
+        {anterior.length > 0 && <span className="alerta-placas__redes alerta-placas__redes--anterior">La versión anterior se publicó en: {dondeSalio(anterior)}</span>}
+        <div className="alerta-placas__acciones">
+          <PublicarEnRedes unaVez alTerminar={() => refrescarPublicadas().catch(() => {})} className="btn btn--ghost" feedUrl={pl.feedUrl} historiasUrl={pl.historiasUrl}
+            epigrafe={`${TIPO_PLACA[pl.tipo]} · Alerta ${enFemenino(pl.nivel).toLowerCase()}\n\nMinisterio de Ecología y RNR de Misiones`} />
+          <button type="button" className="btn btn--ghost" disabled={!catalogo} onClick={() => ASISTENTE_DE[pl.tipo]({ pub: comoPub(p), catalogo, placa: pl, alTerminar: () => refrescarPublicadas().catch(() => {}) })}>Editar</button>
+          <button type="button" className="btn btn--ghost" disabled={eliminando != null} onClick={() => eliminarPlaca(pl)}>{eliminando === pl.id ? 'Eliminando…' : 'Eliminar'}</button>
+        </div>
+      </div>
+    </li>;
+  })}</ul>;
 
   async function consultarAhora() {
     if (updating) return;
@@ -216,15 +250,17 @@ export default function SmnAlertas() {
           <small>Publicada el {horaCorta(p.publicadoEn)}{p.publicadoPorEmail && <> · {p.publicadoPorEmail}</>} · se saca sola el {horaCorta(p.vigenteHasta)}</small>
           {p.actualizadaEn && <small>Actualizada con la info del SMN el {horaCorta(p.actualizadaEn)}: {(p.cambios || []).slice(-1).map(c => cambioTexto(c)).join('')}</small>}
           {p.actualizacion && <p className="alert alert--warn" role="status">El SMN actualizó esta alerta ({p.actualizacion.tipos.map(t => ({ nivel: 'nivel', vigencia: 'vigencia', zonas: 'zonas', texto: 'texto' })[t]).join(', ')}). Buscala abajo y tocá «Aplicar actualización del SMN».</p>}
-          {p.placas?.length > 0 && <ul className="alerta-placas">{p.placas.map(pl => <li key={pl.id} style={{ '--nivel': p.color || '#999' }}>
-            <a href={pl.feedUrl} target="_blank" rel="noreferrer"><img src={pl.feedUrl} alt={`Placa ${pl.tipo === 'nivel' ? 'de actualización de nivel' : 'de aviso de alerta'}`} loading="lazy" /></a>
-            <div><strong>{pl.tipo === 'nivel' ? 'Actualización de nivel' : pl.motivo === 'nueva' ? 'Aviso de alerta' : 'Aviso de alerta (actualizado)'}</strong>
-              <small>{horaCorta(pl.generadoEn)}</small>
-              <div className="alerta-placas__acciones"><a className="btn btn--ghost" href={pl.feedUrl} download target="_blank" rel="noreferrer">Feed</a><a className="btn btn--ghost" href={pl.historiasUrl} download target="_blank" rel="noreferrer">Historias</a></div></div>
-          </li>)}</ul>}
           <div className="avisos-lista__acciones">
-            <button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => nuevaPlaca(p)}>Sacar placa de nuevo</button>
-            <button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => despublicar(p)}>{publicando === p.smnId ? 'Procesando…' : 'Despublicar'}</button></div>
+            <MenuAcciones etiqueta="Placas para redes" items={[
+              { texto: 'Placa del mapa', deshabilitado: !catalogo, alHacer: () => asistentePlaca(placaMapaPorPasos, p) },
+              { texto: 'Actualización de vigencia', deshabilitado: !catalogo, alHacer: () => asistentePlaca(cambiarVigenciaPorPasos, p) },
+              { texto: 'Recomendaciones', deshabilitado: !catalogo, alHacer: () => asistentePlaca(recomendacionesPorPasos, p) },
+              { texto: 'Aviso de alerta', deshabilitado: !catalogo, alHacer: () => asistentePlaca(avisoDeAlertaPorPasos, p) },
+              { texto: 'Actualización de nivel', deshabilitado: !catalogo, alHacer: () => asistentePlaca(actualizacionNivelPorPasos, p) },
+            ]} />
+            <button type="button" className="btn btn--ghost" disabled={publicando != null} onClick={() => despublicar(p)}>{publicando === p.smnId ? 'Procesando…' : 'Despublicar'}</button>
+          </div>
+          {placasDe(p)}
         </li>)}</ul>
       </div>}
       <EmbedShare path="/embed/alertas-meteorologicas" title="Alertas meteorológicas · Misiones" />

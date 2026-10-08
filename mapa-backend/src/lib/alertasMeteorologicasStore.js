@@ -318,6 +318,36 @@ async function despublicar(id, usuarioId = null) {
   }
 }
 
+/**
+ * Borra una alerta publicada por completo (para una que se hizo sin querer): ella, sus placas y su historial.
+ * A diferencia de despublicar, no queda registro. Las que esperaban en fila detrás pasan a ocupar su lugar.
+ * Las imágenes ya publicadas en redes no se tocan. 404 si no existe.
+ */
+async function eliminar(id) {
+  await init();
+  const p = store.getPool();
+  if (!p) { if (fs.existsSync(FILE)) fs.rmSync(FILE); return; }
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(`SELECT en_fila_de, (en_fila_de IS NULL OR NOT EXISTS (SELECT 1 FROM alertas_meteo_publicaciones b WHERE b.id = a.en_fila_de AND b.vigente_hasta > now())) AS visible
+      FROM alertas_meteo_publicaciones a WHERE a.id = $1 FOR UPDATE`, [id]);
+    if (!rows.length) throw Object.assign(new Error("La alerta no existe."), { status: 404 });
+    // Las que la esperaban pasan a esperar a la que ella esperaba (o aparecen ya, si se veía).
+    await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $2, visible_desde = CASE WHEN $3 THEN now() ELSE visible_desde END WHERE en_fila_de = $1`, [id, rows[0].en_fila_de, !!rows[0].visible]);
+    // Las placas viven en otra tabla (placasAlertaStore), que puede no existir si nunca se sacó una.
+    if ((await client.query(`SELECT to_regclass('alertas_meteo_publicacion_placas') AS t`)).rows[0].t) await client.query(`DELETE FROM alertas_meteo_publicacion_placas WHERE publicacion_id = $1`, [id]);
+    await client.query(`DELETE FROM alertas_meteo_eventos WHERE publicacion_id = $1`, [id]);
+    await client.query(`DELETE FROM alertas_meteo_publicaciones WHERE id = $1`, [id]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 /** Error de una vigencia nueva para una alerta ya publicada (o en fila), o null. */
 function errorDeCambioVigencia(vigenteHasta) {
   const t = Date.parse(vigenteHasta);
@@ -501,4 +531,4 @@ async function cambiarMapa(id, zonas, iconos, usuarioId = null) {
   }
 }
 
-module.exports = { init, publicar, cambiarMapa, actual, pendientes, vigentes, despublicar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };
+module.exports = { init, publicar, cambiarMapa, actual, pendientes, vigentes, despublicar, eliminar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };

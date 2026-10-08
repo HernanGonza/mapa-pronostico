@@ -156,6 +156,12 @@ router.get('/alertas-meteorologicas/placas/iconos/:nombre.png',(req,res)=>{
   dibujarIcono(ctx,req.params.nombre,20,20,120,'#fff');
   res.set('Cache-Control','public,max-age=3600').type('png').send(c.toBuffer('image/png'));
 });
+// Borra la alerta del todo (una hecha sin querer): ella, sus placas y su historial. No se puede deshacer.
+router.delete('/alertas-meteorologicas/publicaciones/:id',requireAuth,async(req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Id inválido.'});
+  try{await s.eliminar(id);res.json({ok:true});}catch(e){if(!e.status)console.error(e);res.status(e.status===404?404:500).json({error:e.status===404?e.message:'No se pudo borrar la alerta.'});}
+});
 router.post('/alertas-meteorologicas/publicaciones/:id/despublicar',requireAuth,async(req,res)=>{
   const id=Number(req.params.id);
   if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Id inválido.'});
@@ -203,4 +209,6 @@ router.use((err,req,res,next)=>{
   if(err.type==='entity.parse.failed')return res.status(400).json({error:'El contenido enviado no es válido.'});
   next(err);
 });
+// Lo usan también las placas de las alertas automáticas del SMN (routes/alertasSmnPublicadas.js).
+router.placaMapa={errorDePlacaMapa,normalizarPlacaMapa,generarPlacaMapa};
 module.exports=router;

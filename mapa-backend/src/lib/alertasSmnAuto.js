@@ -133,6 +133,64 @@ async function generarPlaca(alerta, tipo, motivo, nivelAnterior, { logger = cons
   return null;
 }
 
+// ——— con qué arrancan los asistentes de placas (lo mismo que en el panel manual, pero con lo del SMN) ———
+
+/** Un renglón por día de la vigencia (hasta 4): { fecha, desde, hasta } en hora argentina; 24:00 = medianoche. */
+function rangosPorDia(inicio, fin, max = 4) {
+  const hora = (m) => (m === 1440 ? "24:00" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  const f = redondeado(fin), res = [];
+  for (let dia = diaAR(inicio); res.length < max; dia = diaAR(Date.parse(`${dia}T12:00:00-03:00`) + 864e5)) {
+    const base = Date.parse(`${dia}T00:00:00-03:00`);
+    if (base >= f) break;
+    const a = Math.max(0, Math.round((Date.parse(inicio) - base) / 60000)), b = Math.min(1440, Math.round((f - base) / 60000));
+    if (b > a) res.push({ fecha: dia, desde: hora(a), hasta: hora(b) });
+  }
+  return res;
+}
+
+const ICONO_POR_PALABRA = [[/viento|objeto|vuel/i, "objetos"], [/arroyo|inund|cruz|anega/i, "arroyos"], [/resguard|refug|techo|circul|abrig|reparo/i, "resguardo"], [/informa|oficial|pronóstico|pronostico/i, "informado"], [/911|emergencia|defensa civil/i, "emergencias"]];
+/** Las instrucciones del SMN como lista de recomendaciones (texto + ícono por palabras clave), o null si no trae. */
+function recomendacionesDe(instrucciones) {
+  const items = String(instrucciones || "").split(/\n+|(?<=[.!?])\s+/).map((t) => t.replace(/\s+/g, " ").trim()).filter((t) => t.length > 3).slice(0, 7)
+    .map((t) => ({ texto: recortar(t, 140), icono: ICONO_POR_PALABRA.find(([re]) => re.test(t))?.[1] || "alerta" }));
+  return items.length ? items : null;
+}
+
+const ICONO_DE_EVENTO = [[/tormenta/i, "tormentas"], [/viento/i, "vientos-fuertes"], [/granizo/i, "granizo"], [/lluvia|precipit/i, "lluvias-intensas"], [/inunda/i, "inundacion"]];
+const sentencia = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/**
+ * Lo que necesita el panel para «Placa del mapa»: los 17 departamentos (el de la alerta con su nivel, el resto en
+ * verde), el ícono del fenómeno y la leyenda con la vigencia. `departamentos`: el catálogo ({ id, nombre }).
+ */
+function mapaDe(alerta, departamentos) {
+  const mios = new Set(departamentosDe(alerta).map(sinTildes));
+  const icono = ICONO_DE_EVENTO.find(([re]) => re.test(alerta.evento || alerta.titulo))?.[1];
+  return {
+    zonas: departamentos.map((d) => ({ id: String(d.id), categoria: mios.has(sinTildes(d.nombre)) ? alerta.categoria : "Verde" })),
+    iconos: icono ? [{ id: icono, categoria: alerta.categoria }] : [],
+    periodo: recortar(sentencia(textoVigencia(alerta.inicio, alerta.fin)), 200),
+  };
+}
+
+/** Lo mismo que `/placas/ultimos` del panel manual, pero armado con la alerta del SMN: textos, niveles y horarios ya cargados. */
+function baseDe(alerta, { RECOMENDACIONES_PREDETERMINADAS, ICONOS, LIMITES }) {
+  const fenomeno = recortar(alerta.evento || alerta.titulo, 40), zona = listaCorta(departamentosDe(alerta)), descripcion = recortar(alerta.descripcion || alerta.titulo, LIMITES.descripcion);
+  const dias = rangosPorDia(alerta.inicio, alerta.fin);
+  const ultimoCambioDeNivel = [...(alerta.cambios || [])].reverse().find((c) => c.tipos?.includes("nivel"));
+  const nivelAnterior = ultimoCambioDeNivel?.antes?.categoria || ["Verde", ...NIVELES][Math.max(0, NIVELES.indexOf(alerta.categoria))];
+  const items = recomendacionesDe(alerta.instrucciones);
+  return {
+    ultimos: {
+      aviso: { fenomeno, vigencia: textoVigencia(alerta.inicio, alerta.fin), zona, descripcion, nota: "" },
+      nivel: { fenomeno, nivelAnterior, zona, vigencia: dias[0] || null, descripcion },
+      vigencia: { zonas: dias.map((d) => ({ nombre: recortar(zona, 60), ...d })), descripcion },
+      ...(items ? { recomendaciones: { items } } : {}),
+    },
+    recomendaciones: RECOMENDACIONES_PREDETERMINADAS, iconos: ICONOS, limites: LIMITES,
+  };
+}
+
 const cuando = (iso) => fmt(iso, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const titulo = (d) => `${d.titulo || d.evento} · ${d.categoria}`;
 const donde = (d) => listaCorta(departamentosDe(d), 90);
@@ -213,4 +271,4 @@ async function revisar(alertas, { logger = console, repo = publicadasStore, noti
   return avisados;
 }
 
-module.exports = { revisar, estado, publicarOActualizar, emparejar, diferencias, parecido, publicable, textoVigencia, rangoDelDia, datosAviso, datosNivel, listaCorta, generarPlaca };
+module.exports = { baseDe, mapaDe, rangosPorDia, recomendacionesDe, revisar, estado, publicarOActualizar, emparejar, diferencias, parecido, publicable, textoVigencia, rangoDelDia, datosAviso, datosNivel, listaCorta, generarPlaca };

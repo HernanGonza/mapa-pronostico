@@ -50,6 +50,11 @@ async function init() {
          historias_path text NOT NULL
        )`))
     .then(() => p.query(`CREATE INDEX IF NOT EXISTS alertas_smn_placas_alerta_idx ON alertas_smn_placas (alerta_id)`))
+    // Igual que las placas de las alertas manuales: editar reemplaza las imágenes (las de antes quedan para saber si salieron en redes) y eliminar no borra la fila.
+    .then(() => p.query(`ALTER TABLE alertas_smn_placas ADD COLUMN IF NOT EXISTS eliminada_en timestamptz`))
+    .then(() => p.query(`ALTER TABLE alertas_smn_placas ADD COLUMN IF NOT EXISTS editado_en timestamptz`))
+    .then(() => p.query(`ALTER TABLE alertas_smn_placas ADD COLUMN IF NOT EXISTS generado_por bigint REFERENCES usuarios(id)`))
+    .then(() => p.query(`ALTER TABLE alertas_smn_placas ADD COLUMN IF NOT EXISTS versiones_anteriores jsonb NOT NULL DEFAULT '[]'::jsonb`))
     .then(() => console.log("[alertasSmnPublicadasStore] Postgres listo (tabla alertas_smn_publicadas)"))
     .catch((e) => {
       initPromise = null;
@@ -155,32 +160,75 @@ async function actualizarDatos(id, { smnId, vigenteHasta, datos, cambio = null }
   return rows[0] ? fila(rows[0]) : null;
 }
 
-const filaPlaca = (r) => ({
-  id: Number(r.id), alertaId: Number(r.alerta_id), tipo: r.tipo, motivo: r.motivo, nivel: r.nivel, datos: r.datos,
-  generadoEn: r.generado_en.toISOString(), feedUrl: urlPublica(r.feed_path), historiasUrl: urlPublica(r.historias_path),
-});
+const filaPlaca = (r, redes = []) => {
+  const actuales = new Set([urlPublica(r.feed_path), urlPublica(r.historias_path)]);
+  return {
+    id: Number(r.id), alertaId: Number(r.alerta_id), tipo: r.tipo, motivo: r.motivo, nivel: r.nivel, datos: r.datos,
+    generadoEn: r.generado_en.toISOString(), editadoEn: r.editado_en ? r.editado_en.toISOString() : null, generadoPorEmail: r.generado_por_email ?? null,
+    feedUrl: urlPublica(r.feed_path), historiasUrl: urlPublica(r.historias_path),
+    feedNombre: r.feed_path.split("/").pop(), historiasNombre: r.historias_path.split("/").pop(),
+    // Dónde salió en redes: la versión que se ve ahora y, si se editó, las de antes.
+    redes: redes.map(({ placaUrl, ...x }) => ({ ...x, version: actuales.has(placaUrl) ? "actual" : "anterior" })),
+  };
+};
 
-/** Guarda una placa generada de la alerta `alertaId` (sube feed + historias al bucket). */
-async function crearPlaca({ alertaId, tipo, motivo, nivel, datos, feedPng, historiasPng }) {
-  await init();
+function rutas(tipo) {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
   const base = `alertas-meteorologicas/smn/${stamp}-${crypto.randomBytes(3).toString("hex")}`;
-  const feedPath = `${base}/${tipo}-feed.png`, historiasPath = `${base}/${tipo}-historias.png`;
+  return { feedPath: `${base}/${tipo}-feed.png`, historiasPath: `${base}/${tipo}-historias.png` };
+}
+
+/** Guarda una placa generada de la alerta `alertaId` (sube feed + historias al bucket). */
+async function crearPlaca({ alertaId, tipo, motivo = "manual", nivel, datos, usuarioId = null, feedPng, historiasPng }) {
+  await init();
+  const { feedPath, historiasPath } = rutas(tipo);
   await Promise.all([subirArchivo(feedPath, feedPng), subirArchivo(historiasPath, historiasPng)]);
   const { rows } = await store.getPool().query(
-    `INSERT INTO alertas_smn_placas (alerta_id, tipo, motivo, nivel, datos, feed_path, historias_path) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7) RETURNING *`,
-    [alertaId, tipo, motivo, nivel, JSON.stringify(datos), feedPath, historiasPath]);
+    `INSERT INTO alertas_smn_placas (alerta_id, tipo, motivo, nivel, datos, feed_path, historias_path, generado_por) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) RETURNING *`,
+    [alertaId, tipo, motivo, nivel, JSON.stringify(datos), feedPath, historiasPath, usuarioId]);
   return filaPlaca(rows[0]);
 }
 
-/** Placas de estas alertas, la más nueva primero: { [alertaId]: [placa…] }. */
+/** Edita una placa: imágenes nuevas (las de antes quedan en versiones_anteriores). 404 si no existe, es de otra alerta o ya se eliminó. */
+async function reemplazarPlaca({ id, alertaId, tipo, nivel, datos, usuarioId = null, feedPng, historiasPng }) {
+  await init();
+  const p = store.getPool();
+  const { rows: antes } = await p.query(`SELECT 1 FROM alertas_smn_placas WHERE id = $1 AND alerta_id = $2 AND tipo = $3 AND eliminada_en IS NULL`, [id, alertaId, tipo]);
+  if (!antes.length) throw Object.assign(new Error("Esa placa ya no está."), { status: 404 });
+  const { feedPath, historiasPath } = rutas(tipo);
+  await Promise.all([subirArchivo(feedPath, feedPng), subirArchivo(historiasPath, historiasPng)]);
+  const { rows } = await p.query(
+    `UPDATE alertas_smn_placas
+        SET versiones_anteriores = versiones_anteriores || jsonb_build_array(jsonb_build_object('feed_path', feed_path, 'historias_path', historias_path, 'hasta', now())),
+            nivel = $2, datos = $3::jsonb, feed_path = $4, historias_path = $5, editado_en = now(), generado_por = COALESCE($6, generado_por)
+      WHERE id = $1 AND eliminada_en IS NULL RETURNING *`,
+    [id, nivel, JSON.stringify(datos), feedPath, historiasPath, usuarioId]);
+  if (!rows.length) throw Object.assign(new Error("Esa placa ya no está."), { status: 404 });
+  return filaPlaca(rows[0]);
+}
+
+/** La saca de la tarjeta (queda en la base). No la borra de las redes. */
+async function eliminarPlaca(id) {
+  await init();
+  const { rowCount } = await store.getPool().query(`UPDATE alertas_smn_placas SET eliminada_en = now() WHERE id = $1 AND eliminada_en IS NULL`, [id]);
+  if (!rowCount) throw Object.assign(new Error("Esa placa ya no está."), { status: 404 });
+}
+
+/** Placas de estas alertas, la más nueva primero, con dónde salieron en redes: { [alertaId]: [placa…] }. */
 async function placasDe(ids) {
   const porId = Object.fromEntries(ids.map((id) => [id, []]));
   if (!store.usaPostgres() || !ids.length) return porId;
   await init();
-  const { rows } = await store.getPool().query(`SELECT * FROM alertas_smn_placas WHERE alerta_id = ANY($1::bigint[]) ORDER BY generado_en DESC, id DESC`, [ids]);
-  for (const r of rows) porId[Number(r.alerta_id)]?.push(filaPlaca(r));
+  const { rows } = await store.getPool().query(
+    `SELECT x.*, u.email AS generado_por_email FROM alertas_smn_placas x LEFT JOIN usuarios u ON u.id = x.generado_por
+      WHERE x.alerta_id = ANY($1::bigint[]) AND x.eliminada_en IS NULL ORDER BY x.generado_en DESC, x.id DESC`, [ids]);
+  const urlsDe = (r) => [r.feed_path, r.historias_path, ...(r.versiones_anteriores || []).flatMap((v) => [v.feed_path, v.historias_path])].map(urlPublica);
+  const exitosas = await require("./redesStore").exitosasDe(rows.flatMap(urlsDe)).catch((e) => { console.error("[alertasSmnPublicadasStore] redes:", e.message); return []; });
+  for (const r of rows) {
+    const mias = new Set(urlsDe(r));
+    porId[Number(r.alerta_id)]?.push(filaPlaca(r, exitosas.filter((x) => mias.has(x.placaUrl))));
+  }
   return porId;
 }
 
-module.exports = { init, publicar, despublicar, obtenerVigentes, copiaDe, candidatas, actualizarDatos, crearPlaca, placasDe };
+module.exports = { init, publicar, despublicar, obtenerVigentes, copiaDe, candidatas, actualizarDatos, crearPlaca, reemplazarPlaca, eliminarPlaca, placasDe };

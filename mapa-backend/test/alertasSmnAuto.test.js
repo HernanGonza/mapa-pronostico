@@ -83,3 +83,19 @@ test("textos de la placa: vigencia de un día y de varios, lista corta de depart
   assert.equal(auto.listaCorta(["A", "B", "C"]), "A, B y C");
   assert.match(auto.listaCorta(Array.from({ length: 17 }, (_, i) => `Departamento ${i}`), 60), /y \d+ departamentos más$/);
 });
+
+test("los asistentes de placas arrancan con lo del SMN: textos, nivel anterior, horario por día, recomendaciones y mapa", () => {
+  const g = require("../src/lib/generatePlacasAlerta");
+  const a = { id: 5, ...info({ categoria: "Naranja", inicio: dia(21), fin: dia(9, 1), instrucciones: "Evite circular durante la tormenta. Asegure objetos que puedan volarse. Llame al 911." }),
+    cambios: [{ tipos: ["nivel"], antes: { categoria: "Amarillo" } }] };
+  const b = auto.baseDe(a, g);
+  assert.equal(b.ultimos.nivel.nivelAnterior, "Amarillo");
+  assert.deepEqual(b.ultimos.vigencia.zonas.map((z) => `${z.fecha} ${z.desde}-${z.hasta}`), ["2030-01-10 21:00-24:00", "2030-01-11 00:00-09:00"]);
+  assert.deepEqual(b.ultimos.recomendaciones.items.map((i) => i.icono), ["resguardo", "objetos", "emergencias"]);
+  assert.equal(b.ultimos.aviso.zona, "Oberá y Cainguás");
+  assert.ok(b.iconos.includes("alerta") && b.recomendaciones.length);
+  assert.equal(auto.baseDe({ ...a, cambios: [] }, g).ultimos.nivel.nivelAnterior, "Amarillo", "sin cambio anotado: el nivel de abajo");
+  const m = auto.mapaDe(a, [{ id: "1", nombre: "Oberá" }, { id: "2", nombre: "Capital" }]);
+  assert.deepEqual(m.zonas, [{ id: "1", categoria: "Naranja" }, { id: "2", categoria: "Verde" }]);
+  assert.deepEqual(m.iconos, [{ id: "tormentas", categoria: "Naranja" }]);
+});
