@@ -28,12 +28,12 @@ export default function TvExtendidoPage() {
 
   const dias = porDia(actual?.extendido).slice(0, 3);
   if (cargando || !dias.length) {
-    return <div className="tvext tvext--vacio"><strong>Pronóstico de 3 días · Misiones</strong><p>{cargando ? "Cargando…" : "Todavía no hay un pronóstico extendido publicado."}</p></div>;
+    return <div className="tvext-raiz"><div className="tvext tvext--vacio"><strong>Pronóstico de 3 días · Misiones</strong><p>{cargando ? "Cargando…" : "Todavía no hay un pronóstico extendido publicado."}</p></div></div>;
   }
   // Un mismo tamaño de letra para los tres panoramas, más chico cuanto más largo es el más largo.
   const largo = Math.max(...dias.map((d) => d.informe?.trim().length || 0));
   const letra = largo > 900 ? 1.75 : largo > 780 ? 1.9 : largo > 650 ? 2.05 : 2.25;
-  return <div className="tvext">
+  return <div className="tvext-raiz"><div className="tvext">
     <header className="tvext__cabecera">
       <h1>Pronóstico de 3 días</h1>
       {actual?.publicadoEn && <span>Actualizado {tiempoRelativo(actual.publicadoEn)} · {fechaLarga(actual.publicadoEn)}</span>}
@@ -48,8 +48,8 @@ export default function TvExtendidoPage() {
             <span className="tvext__temp"><b>{z.tmax}°</b> / {z.tmin}°</span>
           </li>)}
         </ul>
-        {d.informe && <p className="tvext__informe" style={{ fontSize: `${letra}vh` }}>{d.informe.trim()}</p>}
+        {d.informe && <p className="tvext__informe" style={{ fontSize: `calc(${letra} * var(--u))` }}>{d.informe.trim()}</p>}
       </section>)}
     </div>
-  </div>;
+  </div></div>;
 }
