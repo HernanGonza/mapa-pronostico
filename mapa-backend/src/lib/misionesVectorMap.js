@@ -220,10 +220,18 @@ async function dibujarMapaConPoligono(ctx, coloresPorDepto, poligonoLngLat, colo
   const [caja, proyeccion] = await Promise.all([dibujarMapaEnRecuadro(ctx, coloresPorDepto, recuadro), calibrarProyeccion()]);
   const escalaX = caja.w / MAPA_VIEWBOX.w, escalaY = caja.h / MAPA_VIEWBOX.h;
   dibujarMunicipios(ctx, proyeccion, caja, escalaX, escalaY);
-  dibujarAnilloProyectado(ctx, proyeccion, caja, escalaX, escalaY, poligonoLngLat);
-  ctx.fillStyle = colorPoligono; ctx.globalAlpha = 0.3; ctx.fill();
-  ctx.globalAlpha = 1; ctx.strokeStyle = colorPoligono; ctx.lineWidth = Math.max(3, caja.w * 0.008);
-  ctx.stroke();
+  // El polígono se dibuja en una capa aparte y se recorta con la silueta de Misiones: si el aviso
+  // abarca también Corrientes, Chaco, etc., sólo se ve la parte que cae en la provincia.
+  const capa = createCanvas(ctx.canvas.width, ctx.canvas.height);
+  const cctx = capa.getContext("2d");
+  dibujarAnilloProyectado(cctx, proyeccion, caja, escalaX, escalaY, poligonoLngLat);
+  cctx.fillStyle = colorPoligono; cctx.globalAlpha = 0.3; cctx.fill();
+  cctx.globalAlpha = 1; cctx.strokeStyle = colorPoligono; cctx.lineWidth = Math.max(3, caja.w * 0.008);
+  cctx.stroke();
+  const silueta = await rasterizarMapa(new Map(), Math.round(caja.w * 2), Math.round(caja.h * 2));
+  cctx.globalCompositeOperation = "destination-in";
+  cctx.drawImage(silueta, caja.x, caja.y, caja.w, caja.h);
+  ctx.drawImage(capa, 0, 0);
   return caja;
 }
 
