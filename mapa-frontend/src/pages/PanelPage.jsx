@@ -9,6 +9,7 @@ const OPCIONES = [
     to: "/panel/mapas",
     icono: Layers,
     titulo: "Generador de mapas",
+    notificaciones: "acp", // los avisos a muy corto plazo nuevos están adentro
     descripcion: "Pronóstico, riesgo de incendios, alertas meteorológicas y avisos — placas para redes.",
   },
   {

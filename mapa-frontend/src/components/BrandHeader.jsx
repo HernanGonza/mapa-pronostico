@@ -5,8 +5,11 @@
  * A la derecha, un slot para estado/acciones.
  */
 import ThemeToggle from "./ThemeToggle";
+import NotificacionesMenu from "./NotificacionesMenu";
+import { useAuth } from "../context/AuthContext";
 
 export default function BrandHeader({ subtitulo, children }) {
+  const { usuario } = useAuth() || {};
   return (
     <header className="brand-header">
       <a className="skip-link" href="#contenido-principal">Ir al contenido</a>
@@ -42,7 +45,7 @@ export default function BrandHeader({ subtitulo, children }) {
       {subtitulo && <div className="brand-header__sep" aria-hidden />}
       {subtitulo && <p className="brand-header__subtitulo">{subtitulo}</p>}
 
-      <div className="brand-header__slot">{children}<ThemeToggle /></div>
+      <div className="brand-header__slot">{children}{usuario && <NotificacionesMenu />}<ThemeToggle /></div>
     </header>
   );
 }

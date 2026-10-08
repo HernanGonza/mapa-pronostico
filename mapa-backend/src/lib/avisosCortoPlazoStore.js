@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const store = require("./store");
 const auth = require("./auth");
 const { subirArchivo, urlPublica } = require("./storage");
+const notificaciones = require("./notificacionesStore");
 
 /**
  * Historial de "avisos a muy corto plazo": el operador elige un aviso
@@ -88,6 +89,9 @@ async function crear({ poligono, titulo, texto, partes = null, fondo, smnId = nu
        RETURNING id, generado_en`,
       [usuarioId, titulo, texto, fondo, JSON.stringify(poligono), feedPath, historiasPath, smnId, nivel, partes && JSON.stringify(partes), nivelPlaca, nivelOrigen]
     );
+    // Si el aviso sale de un ACP del SMN ("<id CAP>:<info>:<zona>"), esa notificación ya está atendida para todos.
+    const acp = smnId && /^(.+):(\d+):\d+$/.exec(smnId);
+    if (acp) await notificaciones.resolver(`acp:${acp[1]}:${acp[2]}`, usuarioId).catch((e) => console.error("[notificaciones]", e.message));
     return {
       id: Number(rows[0].id),
       ...nombres,

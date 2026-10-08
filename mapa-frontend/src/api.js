@@ -393,6 +393,14 @@ export async function cambiarTramosAlerta(publicacionId, tramos) {
 export async function cambiarMapaAlerta(publicacionId, zonas, iconos) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/mapa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zonas, iconos }), ...CON_SESION }));
 }
+/** Notificaciones del usuario: { notificaciones, nuevas, nuevasPorTipo } (ver mapa-backend/src/lib/notificacionesStore.js). */
+export async function getNotificaciones() {
+  return handleJson(await fetch(`${API_URL}/api/notificaciones`, { cache: 'no-store', ...CON_SESION }));
+}
+/** Marca como leídas: { ids: [..] } | { tipo: 'acp' } | { todas: true }. */
+export async function marcarNotificacionesLeidas(cuerpo) {
+  return handleJson(await fetch(`${API_URL}/api/notificaciones/leer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo), ...CON_SESION }));
+}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }

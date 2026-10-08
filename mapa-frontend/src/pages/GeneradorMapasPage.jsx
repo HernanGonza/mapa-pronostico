@@ -34,6 +34,7 @@ const OPCIONES = [
     to: "/panel/avisos-corto-plazo",
     icono: PenLine,
     titulo: "Avisos a muy corto plazo",
+    notificaciones: "acp",
     descripcion: "Dibujá la zona afectada en el mapa y generá una placa de texto libre para redes.",
   },
   {

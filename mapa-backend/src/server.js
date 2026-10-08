@@ -80,6 +80,7 @@ app.use("/api", require("./routes/transmision"));
 app.use("/api", require("./routes/tv"));
 app.use("/api", require("./routes/sol"));
 app.use("/api", require("./routes/informesDiarios"));
+app.use("/api", require("./routes/notificaciones"));
 
 // Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.
 store

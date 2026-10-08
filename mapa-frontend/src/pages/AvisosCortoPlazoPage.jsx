@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNotificacion } from "../lib/useNotificacion";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import PlacaPreview from "../components/PlacaPreview";
 import PublicarEnRedes from "../components/PublicarEnRedes";
@@ -87,6 +87,20 @@ export default function AvisosCortoPlazoPage() {
     return () => { cancelado = true; clearInterval(timer); };
   }, []);
 
+  // Llegó desde una notificación de ACP (?acp=<id CAP>:<aviso>): abre «Nuevo aviso» con ese aviso ya elegido.
+  // Si ya venció o no tiene polígono, queda la pantalla normal (tampoco se espera para siempre).
+  const [params, setParams] = useSearchParams();
+  const acpDeLaNotificacion = params.get("acp");
+  useEffect(() => {
+    if (!acpDeLaNotificacion) return undefined;
+    const aviso = avisosAcp.find((a) => a.id.startsWith(`${acpDeLaNotificacion}:`));
+    const terminar = () => setParams({}, { replace: true });
+    if (aviso) { terminar(); crearPlaca(aviso.id); return undefined; }
+    const espera = setTimeout(terminar, 6000);
+    return () => clearTimeout(espera);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acpDeLaNotificacion, avisosAcp]);
+
   function cambiarPuntos(nuevos) { setPuntos(nuevos); setImagenes(null); }
 
   // La vista previa NO guarda nada; recién al confirmar en el asistente se guarda la misma placa.
@@ -101,7 +115,7 @@ export default function AvisosCortoPlazoPage() {
     return placa;
   }
 
-  async function crearPlaca() {
+  async function crearPlaca(avisoId = null) {
     if (avisosAcp.length === 0 && puntos.length < 3) {
       notificar("error", "Todavía no hay avisos del SMN vigentes: dibujá la zona afectada en el mapa (al menos 3 puntos).");
       return;
@@ -110,7 +124,7 @@ export default function AvisosCortoPlazoPage() {
     // `poligono` va en el estado inicial (no sólo en el paso "elegir aviso"):
     // si no hay avisos del SMN vigentes, ese paso se salta entero y el único
     // origen del polígono es lo ya dibujado a mano en el mapa de la página.
-    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos }, avisos: avisosAcp, departamentos, puntosDibujados: puntos, onSeleccionarPoligono: (poligono, aviso) => { cambiarPuntos(poligono); if (aviso?.color) setColorAcp(aviso.color); }, publicados: vigentes || [], vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
+    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos, ...(avisoId ? { avisoId } : {}) }, avisos: avisosAcp, departamentos, puntosDibujados: puntos, onSeleccionarPoligono: (poligono, aviso) => { cambiarPuntos(poligono); if (aviso?.color) setColorAcp(aviso.color); }, publicados: vigentes || [], vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
   }
 
   // Publicar (o cambiarle la vigencia a uno ya publicado) es un asistente con el paso de vigencia.
@@ -145,7 +159,7 @@ export default function AvisosCortoPlazoPage() {
           {vigentes === null ? null : vigentes.length ? `${vigentes.length} aviso${vigentes.length === 1 ? "" : "s"} vigente${vigentes.length === 1 ? "" : "s"}` : "Sin avisos vigentes en el mapa público"}
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
-        <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crearPlaca}>Nuevo aviso a corto plazo</button>
+        <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={() => crearPlaca()}>Nuevo aviso a corto plazo</button>
         <p className="admin-panel__hint">
           {avisosAcp.length > 0
             ? `${avisosAcp.length} aviso(s) del SMN vigente(s) — tocá «Nuevo aviso a corto plazo» para elegir cuál.`

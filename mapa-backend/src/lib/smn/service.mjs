@@ -2,11 +2,25 @@ import { leerFuente, reconciliar, depurarGuardados, unirZonas, vigentes, ultimaE
 import * as store from './store.mjs';
 import colorAcp from '../colorAcp.js';
 import alertasManuales from '../alertasMeteorologicasStore.js';
+import notificaciones from '../notificacionesStore.js';
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
 const FUENTES_ACTIVAS = ['SAT', 'ACP'];
 const cachePorFuente = { SAT: new Map(), ACP: null }; // CAP ya leídos (ver leerFuente); los ACP se leen como siempre
+
+// Un ACP que llega (y todavía vigente) suma una notificación para el panel; la `clave` evita repetirla en cada consulta.
+const hora = iso => new Date(iso).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+export async function avisarAcpNuevos(vigentesAcp, logger = console, notificar = notificaciones) {
+  for (const r of vigentesAcp) for (const [i, info] of (r.infos || []).entries()) {
+    try {
+      const donde = [...new Set((info.zonas || []).flatMap(z => z.departamentos?.length ? z.departamentos : [z.nombre]).filter(Boolean))].join(', ');
+      await notificar.crearSiNoExiste({ tipo: 'acp', clave: `acp:${r.id}:${i}`, titulo: info.titulo || 'Aviso a muy corto plazo',
+        detalle: `${donde ? `${donde} · ` : ''}vigente hasta las ${hora(info.fin)} h`, // `acp`: qué aviso, para que la pantalla lo deje elegido al llegar desde la notificación.
+        url: `/panel/avisos-corto-plazo?acp=${encodeURIComponent(`${r.id}:${i}`)}`, venceEn: info.fin });
+    } catch (e) { logger.error(`[notificaciones] ${e.message}`); }
+  }
+}
 
 // Ejecuta una consulta completa bajo demanda. El lock evita que el botón de
 // prueba y el sondeo periódico descarguen el SMN dos veces en paralelo.
@@ -19,6 +33,7 @@ export function actualizarAhora({ read = leerFuente, repository = store, logger 
       const alcance = process.env.SMN_SCOPE || 'argentina';
       const datos = reconciliar(depurarGuardados((previous?.datos || []).filter(r => r.alcance === alcance), alcance), received);
       await repository.guardar(fuente, datos, previous?.revision || null);
+      if (fuente === 'ACP') await avisarAcpNuevos(vigentes(datos), logger);
       delete errores[fuente];
       const zonasResumen = received.flatMap(r => r.infos || []).flatMap(i => i.zonas || [])
         .map(z => `${z.nombre}${z.geocodigos?.length ? ` [${z.geocodigos.join(',')}]` : ''}`)
