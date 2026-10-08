@@ -65,6 +65,13 @@ router.post('/alertas-meteorologicas/publicaciones/:id/leyendas',requireAuth,exp
   try{await s.cambiarLeyendas(id,req.body?.leyendas,req.usuario.usuarioId);res.json({ok:true});}
   catch(e){if(!e.status)console.error(e);const st=[400,404].includes(e.status)?e.status:500;res.status(st).json({error:st===500?'No se pudo cambiar las leyendas.':e.message});}
 });
+// Vigencias individuales: hasta cuándo vale cada nivel de cada departamento y a qué pasa después.
+router.post('/alertas-meteorologicas/publicaciones/:id/tramos',requireAuth,express.json({limit:'100kb'}),async(req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isInteger(id)||id<=0)return res.status(400).json({error:'Id inválido.'});
+  try{await s.cambiarTramos(id,req.body?.tramos,req.usuario.usuarioId);res.json({ok:true});}
+  catch(e){if(!e.status)console.error(e);const st=[400,404].includes(e.status)?e.status:500;res.status(st).json({error:st===500?'No se pudieron guardar las vigencias.':e.message});}
+});
 // Placas de una alerta publicada: actualización de vigencia, recomendaciones o aviso de alerta
 // (ver generatePlacasAlerta). Mismo flujo que las demás placas: vista previa y después confirmar.
 router.post('/alertas-meteorologicas/publicaciones/:id/placas',requireAuth,express.json({limit:'4mb'}),async(req,res)=>{

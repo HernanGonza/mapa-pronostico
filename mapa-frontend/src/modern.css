@@ -579,3 +579,18 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .informes-avisos { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
 .informes-avisos small { color: var(--text-muted); }
 .informes-fuente { color: var(--text-muted); font-size: 12px; }
+
+/* Vigencias por nivel / por departamento (lib/asistenteVigencias.js) */
+.vig-punto { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2); vertical-align: -1px; }
+.vig-deptos { display: grid; gap: 8px; max-height: 340px; overflow: auto; padding: 2px; }
+.vig-depto { flex: 1 1 100%; font-size: 14px; }
+.vig-deptos .paso-select { width: auto; }
+.vig-deptos .paso-input { flex: 1 1 170px; }
+
+/* Selector de niveles agrupado por zona del SMN (lib/zonasSmn.js) */
+.paso-zonas { display: grid; gap: 14px; max-height: 360px; overflow: auto; padding: 2px; }
+.paso-zona { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.paso-zona:last-child { border-bottom: 0; }
+.paso-zona__cabecera { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; }
+.paso-zona .paso-niveles { max-height: none; overflow: visible; }
+.paso-nivel small { font-weight: 400; color: var(--text-muted); }

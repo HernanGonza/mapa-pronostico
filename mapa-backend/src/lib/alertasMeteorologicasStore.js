@@ -4,6 +4,7 @@ const store = require("./store");
 const auth = require("./auth");
 const departamentosStore = require("./departamentosStore");
 const { errorDeVigencia } = require("./avisosCortoPlazoStore");
+const { zonasEn, errorDeTramos, normalizarTramos } = require("./tramosAlerta");
 
 /**
  * Publicación del mapa manual de alertas meteorológicas (el que alimenta
@@ -56,6 +57,8 @@ async function init() {
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS periodo text;
        -- Leyenda por nivel que se lee al tocar un departamento en el mapa público: { "Naranja": "…", "Amarillo": "…" }.
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS leyendas jsonb;
+       -- Vigencias individuales: { "<departamento>": [{ categoria, hasta }] } (ver tramosAlerta.js).
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS tramos jsonb;
        -- En fila: no aparece hasta que deja de estar vigente la publicación en_fila_de
        -- (porque venció o porque se despublicó). NULL = aparece al publicarse.
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS en_fila_de bigint REFERENCES alertas_meteo_publicaciones(id);
@@ -161,23 +164,26 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
   return x;
 }
 
+/** Lo que va al archivo (sin base de datos): las zonas publicadas, no las resueltas a esta hora. */
+const paraArchivo = ({ zonasBase, ...x }) => ({ ...x, zonas: zonasBase || x.zonas });
+
 async function actual() {
   await init();
   const p = store.getPool();
   if (p) {
     const { rows: pubs } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas FROM alertas_meteo_publicaciones ORDER BY id DESC LIMIT 1`
+      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos FROM alertas_meteo_publicaciones ORDER BY id DESC LIMIT 1`
     );
     if (!pubs.length) return null;
     return conDetalle(p, pubs[0]);
   }
   if (!fs.existsSync(FILE)) return null;
   const x = JSON.parse(fs.readFileSync(FILE));
-  return { ...x, iconos: x.iconos || [] };
+  return { ...x, iconos: x.iconos || [], tramos: x.tramos || {}, zonasBase: x.zonas, zonas: zonasEn(x.zonas, x.tramos) };
 }
 
 /** Zonas e íconos de una publicación. */
-async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, en_fila_de, fijada, actualizada_en }) {
+async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en }) {
     const [{ rows: zonas }, { rows: iconos }] = await Promise.all([
       p.query(
         `SELECT departamento_id AS id, categoria FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`,
@@ -189,8 +195,8 @@ async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyenda
       ),
     ]);
     // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
-    return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null, leyendas: leyendas || {},
-      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, zonas, iconos: iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)) };
+    return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null, leyendas: leyendas || {}, tramos: tramos || {},
+      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, zonas: zonasEn(zonas, tramos), zonasBase: zonas, iconos: iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i)) };
 }
 
 /**
@@ -202,7 +208,7 @@ async function pendientes() {
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, en_fila_de, fijada, actualizada_en, visible_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
+      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
     );
     const ids = new Set(rows.map((r) => String(r.id)));
     const esperando = (r) => r.en_fila_de != null && ids.has(String(r.en_fila_de));
@@ -332,7 +338,7 @@ async function cambiarVigencia(id, vigenteHasta, usuarioId = null) {
   if (!p) {
     const x = await actual();
     if (!x || x.id !== id || Date.parse(x.vigenteHasta) <= Date.now()) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
-    fs.writeFileSync(FILE, JSON.stringify({ ...x, vigenteHasta: new Date(vigenteHasta).toISOString() }));
+    fs.writeFileSync(FILE, JSON.stringify({ ...paraArchivo(x), vigenteHasta: new Date(vigenteHasta).toISOString() }));
     return;
   }
   const client = await p.connect();
@@ -369,7 +375,7 @@ async function cambiarLeyenda(id, periodo, usuarioId = null) {
   if (!p) {
     const x = await actual();
     if (!x || x.id !== id || Date.parse(x.vigenteHasta) <= Date.now()) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
-    fs.writeFileSync(FILE, JSON.stringify({ ...x, periodo: periodo.trim() }));
+    fs.writeFileSync(FILE, JSON.stringify({ ...paraArchivo(x), periodo: periodo.trim() }));
     return;
   }
   const client = await p.connect();
@@ -402,7 +408,7 @@ async function cambiarLeyendas(id, leyendas, usuarioId = null) {
   if (!p) {
     const x = await actual();
     if (!x || x.id !== id || Date.parse(x.vigenteHasta) <= Date.now()) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
-    fs.writeFileSync(FILE, JSON.stringify({ ...x, leyendas: limpias }));
+    fs.writeFileSync(FILE, JSON.stringify({ ...paraArchivo(x), leyendas: limpias }));
     return;
   }
   const client = await p.connect();
@@ -421,4 +427,36 @@ async function cambiarLeyendas(id, leyendas, usuarioId = null) {
   }
 }
 
-module.exports = { init, publicar, actual, pendientes, vigentes, despublicar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };
+/** Guarda las vigencias individuales (ver tramosAlerta.js) de una publicada o en fila. `{}` las borra. */
+async function cambiarTramos(id, tramos, usuarioId = null) {
+  await init();
+  const p = store.getPool();
+  const ids = new Set(require("./departamentos").loadDepartamentos().map((d) => String(d.id)));
+  if (!p) {
+    const x = await actual();
+    if (!x || x.id !== id || Date.parse(x.vigenteHasta) <= Date.now()) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    const error = errorDeTramos(tramos, ids, x.vigenteHasta);
+    if (error) throw Object.assign(new Error(error), { status: 400 });
+    fs.writeFileSync(FILE, JSON.stringify({ ...paraArchivo(x), tramos: normalizarTramos(tramos) }));
+    return;
+  }
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(`SELECT vigente_hasta, tramos FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now() FOR UPDATE`, [id]);
+    if (!rows.length) throw Object.assign(new Error("La alerta no está publicada."), { status: 404 });
+    const error = errorDeTramos(tramos, ids, rows[0].vigente_hasta);
+    if (error) throw Object.assign(new Error(error), { status: 400 });
+    const limpios = normalizarTramos(tramos);
+    await client.query(`UPDATE alertas_meteo_publicaciones SET tramos = $2::jsonb, actualizada_en = now() WHERE id = $1`, [id, JSON.stringify(limpios)]);
+    await registrarEvento(client, { publicacionId: id, evento: "vigencias_individuales_cambiadas", usuarioId, detalle: { antes: rows[0].tramos || {}, despues: limpios } });
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { init, publicar, actual, pendientes, vigentes, despublicar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };

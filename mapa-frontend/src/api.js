@@ -387,6 +387,9 @@ export async function cambiarLeyendaAlerta(publicacionId, periodo) {
 export async function cambiarLeyendasAlerta(publicacionId, leyendas) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/leyendas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leyendas }), ...CON_SESION }));
 }
+export async function cambiarTramosAlerta(publicacionId, tramos) {
+  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicaciones/${publicacionId}/tramos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tramos }), ...CON_SESION }));
+}
 export async function generarPlaca(payload) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/placa`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),...CON_SESION}));
 }

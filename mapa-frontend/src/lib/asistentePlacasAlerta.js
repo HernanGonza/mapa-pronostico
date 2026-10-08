@@ -26,7 +26,7 @@ const FENOMENO = { tormentas: "tormenta", "tormentas-severas": "tormentas severa
 
 /** Nivel del mapa de una publicación: el más alto de sus departamentos (Amarillo si están todos en verde). */
 export function nivelDelMapa(pub) {
-  const max = (pub?.zonas || []).map((z) => z.categoria).reduce((a, b) => ((ORDEN[b] || 0) > (ORDEN[a] || 0) ? b : a), "Amarillo");
+  const max = (pub?.zonasBase || pub?.zonas || []).map((z) => z.categoria).reduce((a, b) => ((ORDEN[b] || 0) > (ORDEN[a] || 0) ? b : a), "Amarillo");
   return NIVELES.includes(max) ? max : "Amarillo";
 }
 
@@ -374,7 +374,7 @@ export async function actualizacionNivelPorPasos({ pub, catalogo, placa: editada
 export function placaMapaPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
   // Las 17 zonas de la alerta (sin dato o gris = verde), como las pide la placa.
   const zonas = catalogo.departamentos.map((d) => {
-    const z = pub.zonas?.find((x) => String(x.id) === String(d.id));
+    const z = (pub.zonasBase || pub.zonas)?.find((x) => String(x.id) === String(d.id));
     return { id: String(d.id), categoria: !z || z.categoria === "Gris" ? "Verde" : z.categoria };
   });
   const inicial = editada ? { ...editada.datos }

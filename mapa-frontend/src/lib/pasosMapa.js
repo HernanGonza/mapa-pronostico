@@ -1,4 +1,5 @@
 import { esc } from "./ui";
+import { agruparPorZona, NOTA_ZONA } from "./zonasSmn";
 
 /**
  * Pasos reutilizables de los asistentes de mapas por departamento (riesgo de incendios y alertas
@@ -11,16 +12,29 @@ export function pasoNiveles({ catalogo, pregunta = "Nivel de cada departamento",
   const opciones = (sel) => `${permitirVacio ? '<option value="">Elegir nivel…</option>' : ""}${catalogo.categorias.map((c) => `<option value="${esc(c.nombre)}" ${c.nombre === sel ? "selected" : ""}>${esc(etiqueta(c))}</option>`).join("")}`;
   return {
     pregunta, ayuda,
-    html: (s) => `<label class="paso-todos"><span>Poner todos en</span><select class="paso-select" id="paso-todos"><option value="">Elegir…</option>${catalogo.categorias.map((c) => `<option value="${esc(c.nombre)}">${esc(etiqueta(c))}</option>`).join("")}</select></label>
-      <div class="paso-niveles">${catalogo.departamentos.map((d, i) => {
+    html: (s) => {
+      const fila = (d, i) => {
         const cat = s.zonas.find((z) => String(z.id) === String(d.id))?.categoria || "";
-        return `<label class="paso-nivel"><span><i style="background:${colorDe(cat)}"></i>${esc(d.nombre)}</span><select class="paso-select" data-dep="${i}" aria-label="Nivel de ${esc(d.nombre)}">${opciones(cat)}</select></label>`;
-      }).join("")}</div>`,
+        const nota = NOTA_ZONA[d.nombre];
+        return `<label class="paso-nivel"><span><i style="background:${colorDe(cat)}"></i>${esc(d.nombre)}${nota ? ` <small>(${esc(nota)})</small>` : ""}</span><select class="paso-select" data-dep="${i}" aria-label="Nivel de ${esc(d.nombre)}">${opciones(cat)}</select></label>`;
+      };
+      return `<label class="paso-todos"><span>Poner todos en</span><select class="paso-select" id="paso-todos"><option value="">Elegir…</option>${catalogo.categorias.map((c) => `<option value="${esc(c.nombre)}">${esc(etiqueta(c))}</option>`).join("")}</select></label>
+      <div class="paso-zonas">${agruparPorZona(catalogo.departamentos).map((z, k) => `<section class="paso-zona">
+        <header class="paso-zona__cabecera"><strong>Zona ${esc(z.nombre)}</strong>${z.sinPintar ? "" : `<label class="paso-todos"><span>Poner la zona en</span><select class="paso-select" data-zona="${k}" aria-label="Poner toda la zona ${esc(z.nombre)} en"><option value="">Elegir…</option>${catalogo.categorias.map((c) => `<option value="${esc(c.nombre)}">${esc(etiqueta(c))}</option>`).join("")}</select></label>`}</header>
+        <div class="paso-niveles">${z.propios.map((i) => fila(catalogo.departamentos[i], i)).join("")}</div></section>`).join("")}</div>`;
+    },
     alMostrar: (popup) => {
       const selects = [...popup.querySelectorAll("select[data-dep]")];
       const pintar = (sel) => { sel.closest(".paso-nivel").querySelector("i").style.background = colorDe(sel.value); };
+      const poner = (lista, valor) => lista.forEach((sel) => { sel.value = valor; pintar(sel); });
       selects.forEach((sel) => sel.addEventListener("change", () => pintar(sel)));
-      popup.querySelector("#paso-todos").addEventListener("change", (e) => { if (!e.target.value) return; selects.forEach((sel) => { sel.value = e.target.value; pintar(sel); }); e.target.value = ""; });
+      popup.querySelector("#paso-todos").addEventListener("change", (e) => { if (!e.target.value) return; poner(selects, e.target.value); e.target.value = ""; });
+      const zonas = agruparPorZona(catalogo.departamentos);
+      popup.querySelectorAll("select[data-zona]").forEach((sel) => sel.addEventListener("change", (e) => {
+        if (!e.target.value) return;
+        poner(zonas[Number(sel.dataset.zona)].miembros.map((i) => popup.querySelector(`select[data-dep="${i}"]`)), e.target.value);
+        e.target.value = "";
+      }));
     },
     leer: (popup) => ({ zonas: catalogo.departamentos.map((d, i) => ({ id: idComoTexto ? String(d.id) : d.id, categoria: popup.querySelector(`select[data-dep="${i}"]`).value })) }),
     validar: (s) => (s.zonas.every((z) => z.categoria) ? null : "Falta elegir el nivel de algún departamento."),

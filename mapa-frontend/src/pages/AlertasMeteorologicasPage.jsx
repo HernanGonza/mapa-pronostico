@@ -11,12 +11,13 @@ import * as api from '../api';
 import { confirmar, pedirTexto, pedirCampos } from '../lib/ui';
 import PublicarEnRedes from '../components/PublicarEnRedes';
 import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
+import { vigenciasPorNivelPorPasos } from '../lib/asistenteVigencias';
 import { enFemenino } from "../lib/nivelAlerta.js";
 
 const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 /** Las 17 zonas de una publicación para el mapa de la página (sin dato o gris = verde). */
-const zonasDe = (catalogo, pub) => catalogo.departamentos.map(d => { const z = pub?.zonas?.find(x => String(x.id) === String(d.id)); return { id: String(d.id), categoria: z?.categoria === 'Gris' ? 'Verde' : z?.categoria || 'Verde' }; });
+const zonasDe = (catalogo, pub) => catalogo.departamentos.map(d => { const z = (pub?.zonasBase || pub?.zonas)?.find(x => String(x.id) === String(d.id)); return { id: String(d.id), categoria: z?.categoria === 'Gris' ? 'Verde' : z?.categoria || 'Verde' }; });
 
 const comoImagenes = (p) => ({ feed: p.feedUrl, historias: p.historiasUrl, feedNombre: p.feedNombre, historiasNombre: p.historiasNombre });
 
@@ -49,7 +50,7 @@ export default function AlertasMeteorologicasPage() {
     return () => { vivo = false; };
   }, []);
 
-  const antes = (id) => publicado?.zonas?.find(p => String(p.id) === String(id))?.categoria || 'Verde';
+  const antes = (id) => (publicado?.zonasBase || publicado?.zonas)?.find(p => String(p.id) === String(id))?.categoria || 'Verde';
   const zonasCambiadas = zonas.filter(z => z.categoria !== antes(z.id));
   const iconosCambiaron = JSON.stringify(iconos) !== JSON.stringify(publicado?.iconos || []);
   const cambios = zonasCambiadas.length > 0 || iconosCambiaron;
@@ -138,7 +139,7 @@ export default function AlertasMeteorologicasPage() {
   }
   // Lo que se lee al tocar un departamento en el mapa público: un campo por cada color que tenga la alerta.
   async function cambiarLeyendasPorColor(v) {
-    const niveles = ['Rojo', 'Naranja', 'Amarillo'].filter(n => (v.zonas || []).some(z => z.categoria === n));
+    const niveles = ['Rojo', 'Naranja', 'Amarillo'].filter(n => (v.zonasBase || v.zonas || []).some(z => z.categoria === n));
     if (!niveles.length) { setError('Esta alerta no tiene departamentos en amarillo, naranja ni rojo.'); return; }
     const nuevas = await pedirCampos({ titulo: 'Leyendas de los departamentos', texto: 'Es lo que se lee al tocar un departamento en el mapa público, según su color. Vacío = vuelve al texto de la alerta.',
       campos: niveles.map(n => ({ clave: n, etiqueta: `Alerta ${enFemenino(n).toLowerCase()}`, valor: v.leyendas?.[n] || '' })) });
@@ -164,6 +165,7 @@ export default function AlertasMeteorologicasPage() {
     <button type="button" className="btn" onClick={() => editarMapaDe(v)}>Editar mapa</button>
     <button type="button" className="btn" onClick={() => cambiarLeyenda(v)}>Cambiar leyenda</button>
     <button type="button" className="btn" onClick={() => cambiarLeyendasPorColor(v)}>Leyendas por color</button>
+    <button type="button" className="btn" onClick={() => vigenciasPorNivelPorPasos({ pub: v, catalogo, alTerminar: cargarVigentes })}>Vigencias por nivel</button>
     <button type="button" className="btn" onClick={() => asistentePlaca(cambiarVigenciaPorPasos, v)}>Cambiar vigencia</button>
     <button type="button" className="btn" onClick={() => asistentePlaca(recomendacionesPorPasos, v)}>Recomendaciones</button>
     <button type="button" className="btn" onClick={() => asistentePlaca(avisoDeAlertaPorPasos, v)}>Aviso de alerta</button>
