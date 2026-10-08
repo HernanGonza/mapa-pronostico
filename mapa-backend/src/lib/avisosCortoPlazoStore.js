@@ -73,6 +73,19 @@ function nombresArchivos(fondo) {
   };
 }
 
+/**
+ * ¿Ya se generó un aviso a partir de este ACP del SMN? `prefijo`: "<id CAP>:<info>" (los avisos guardan
+ * "<id CAP>:<info>:<zona>" en smn_id). Sirve para no avisar de algo que alguien ya atendió.
+ */
+async function yaAtendidoDelSmn(prefijo) {
+  await init();
+  const p = store.getPool();
+  if (!p) return false;
+  const like = `${prefijo.replace(/[\\%_]/g, "\\$&")}:%`;
+  const { rowCount } = await p.query(`SELECT 1 FROM avisos_corto_plazo WHERE smn_id LIKE $1 LIMIT 1`, [like]);
+  return rowCount > 0;
+}
+
 async function crear({ poligono, titulo, texto, partes = null, fondo, smnId = null, nivel = null, nivelPlaca = null, nivelOrigen = null, usuarioId = null, feedPng, historiasPng }) {
   const base = baseRuta();
   const nombres = nombresArchivos(fondo);
@@ -202,4 +215,4 @@ async function obtenerVigentes() {
   return rows.map(filaAAviso);
 }
 
-module.exports = { init, crear, obtenerHistorial, publicar, despublicar, obtenerVigentes, errorDeVigencia, MAX_VIGENCIA_HORAS };
+module.exports = { init, crear, obtenerHistorial, publicar, despublicar, obtenerVigentes, errorDeVigencia, MAX_VIGENCIA_HORAS, yaAtendidoDelSmn };

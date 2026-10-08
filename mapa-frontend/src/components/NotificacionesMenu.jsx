@@ -55,7 +55,7 @@ export default function NotificacionesMenu() {
         : <ul>{notificaciones.map((n) => <li key={n.id}>
             <button type="button" className={`notif-item${n.leida || n.resuelta ? "" : " notif-item--nueva"}${n.vencida || n.resuelta ? " notif-item--vencida" : ""}`} onClick={() => abrir(n)}>
               <i aria-hidden="true" />
-              <span><em className={`notif-tipo notif-tipo--${n.tipo}`} title={tipoDe(n.tipo).detalle}>{tipoDe(n.tipo).etiqueta}<small> · {tipoDe(n.tipo).detalle}</small></em><strong>{n.titulo}</strong>{n.detalle && <small>{n.detalle}</small>}
+              <span>{!n.leida && !n.resuelta && !n.vencida && <b className="notif-nueva">Nueva</b>}<em className={`notif-tipo notif-tipo--${n.tipo}`} title={tipoDe(n.tipo).detalle}>{tipoDe(n.tipo).etiqueta}<small> · {tipoDe(n.tipo).detalle}</small></em><strong>{n.titulo}</strong>{n.detalle && <small>{n.detalle}</small>}
                 <small>{tiempoRelativo(n.creadaEn)}{n.resuelta ? ` · ya la tomó ${n.resueltaPor || "alguien"}` : n.vencida && " · ya venció"}</small></span>
             </button></li>)}</ul>}
     </div>, document.body)}

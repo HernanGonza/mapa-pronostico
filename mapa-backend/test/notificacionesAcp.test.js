@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 test('cada ACP vigente suma una notificación con zonas y hora de fin', async () => {
   const { avisarAcpNuevos } = await import('../src/lib/smn/service.mjs');
   const creadas = [];
-  const notificar = { crearSiNoExiste: async (n) => { creadas.push(n); } };
+  const resueltas = [];
+  const notificar = { crearSiNoExiste: async (n) => { creadas.push(n); }, resolver: async (c) => { resueltas.push(c); } };
   await avisarAcpNuevos([{ id: 'abc', infos: [
     { titulo: 'AVISO NARANJA por tormentas', fin: '2026-10-08T21:30:00.000Z', zonas: [{ nombre: 'Área', departamentos: ['Eldorado', 'Montecarlo'] }, { nombre: 'Posadas', departamentos: [] }] },
     { titulo: 'Otro aviso', fin: '2026-10-08T22:00:00.000Z', zonas: [] },
@@ -21,8 +22,8 @@ test('cada ACP vigente suma una notificación con zonas y hora de fin', async ()
 test('si falla guardar una notificación, sigue con las demás', async () => {
   const { avisarAcpNuevos } = await import('../src/lib/smn/service.mjs');
   let llamadas = 0, errores = 0;
-  const notificar = { crearSiNoExiste: async () => { llamadas++; if (llamadas === 1) throw new Error('boom'); } };
-  await avisarAcpNuevos([{ id: 'x', infos: [{ titulo: 'A', fin: '2026-10-08T21:30:00.000Z', zonas: [] }, { titulo: 'B', fin: '2026-10-08T21:30:00.000Z', zonas: [] }] }], { error: () => { errores++; } }, notificar);
+  const notificar = { crearSiNoExiste: async () => { llamadas++; if (llamadas === 1) throw new Error('boom'); }, resolver: async () => {} };
+  await avisarAcpNuevos([{ id: 'x', infos: [{ titulo: 'A', fin: '2026-10-08T21:30:00.000Z', zonas: [] }, { titulo: 'B', fin: '2026-10-08T21:30:00.000Z', zonas: [] }] }], { error: () => { errores++; } }, notificar, async () => false);
   assert.equal(llamadas, 2);
   assert.equal(errores, 1);
 });

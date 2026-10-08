@@ -3,6 +3,7 @@ import * as store from './store.mjs';
 import colorAcp from '../colorAcp.js';
 import alertasManuales from '../alertasMeteorologicasStore.js';
 import notificaciones from '../notificacionesStore.js';
+import avisos from '../avisosCortoPlazoStore.js';
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
@@ -11,13 +12,16 @@ const cachePorFuente = { SAT: new Map(), ACP: null }; // CAP ya leídos (ver lee
 
 // Un ACP que llega (y todavía vigente) suma una notificación para el panel; la `clave` evita repetirla en cada consulta.
 const hora = iso => new Date(iso).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-export async function avisarAcpNuevos(vigentesAcp, logger = console, notificar = notificaciones) {
+export async function avisarAcpNuevos(vigentesAcp, logger = console, notificar = notificaciones, atendido = avisos.yaAtendidoDelSmn) {
   for (const r of vigentesAcp) for (const [i, info] of (r.infos || []).entries()) {
     try {
       const donde = [...new Set((info.zonas || []).flatMap(z => z.departamentos?.length ? z.departamentos : [z.nombre]).filter(Boolean))].join(', ');
-      await notificar.crearSiNoExiste({ tipo: 'acp', clave: `acp:${r.id}:${i}`, titulo: info.titulo || 'Aviso a muy corto plazo',
+      const clave = `acp:${r.id}:${i}`;
+      await notificar.crearSiNoExiste({ tipo: 'acp', clave, titulo: info.titulo || 'Aviso a muy corto plazo',
         detalle: `${donde ? `${donde} · ` : ''}vigente hasta las ${hora(info.fin)} h`, // `acp`: qué aviso, para que la pantalla lo deje elegido al llegar desde la notificación.
         url: `/panel/avisos-corto-plazo?acp=${encodeURIComponent(`${r.id}:${i}`)}`, venceEn: info.fin });
+      // Si alguien ya generó el aviso de este ACP (antes de que existieran las notificaciones, o desde otra pantalla), no es nuevo.
+      if (await atendido(`${r.id}:${i}`)) await notificar.resolver(clave, null);
     } catch (e) { logger.error(`[notificaciones] ${e.message}`); }
   }
 }
