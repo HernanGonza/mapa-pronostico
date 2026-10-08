@@ -10,7 +10,7 @@ import { editarMapaAlertas, publicarAlertasPorPasos } from "../lib/asistentesAle
 import * as api from '../api';
 import { confirmar, pedirTexto, pedirCampos } from '../lib/ui';
 import PublicarEnRedes from '../components/PublicarEnRedes';
-import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
+import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, nivelDelMapa, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
 import { vigenciasPorNivelPorPasos } from '../lib/asistenteVigencias';
 import { enFemenino } from "../lib/nivelAlerta.js";
 
@@ -224,7 +224,11 @@ export default function AlertasMeteorologicasPage() {
   const horaCorta = (d) => d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const etiquetaNivel = (v) => {
     const n = nivelDe(v), prox = proximoCambioDeNivel(v);
-    return <><span className="alerta-nivel" style={{ '--nivel': colorNivel(n) }}>{n}</span>
+    // Con varios niveles en el mapa (ej. naranja y amarillo) el badge lleva todos los colores, de mayor a menor.
+    const niveles = ['Rojo', 'Naranja', 'Amarillo'].filter(x => (v.zonasBase || v.zonas || []).some(z => z.categoria === x));
+    const varios = niveles.length > 1 && n === nivelDelMapa(v);
+    const fondo = varios ? `linear-gradient(90deg, ${niveles.map((x, i) => `${colorNivel(x)} ${(i / niveles.length) * 100}% ${((i + 1) / niveles.length) * 100}%`).join(', ')})` : undefined;
+    return <><span className="alerta-nivel" style={{ '--nivel': colorNivel(n), ...(fondo ? { background: fondo } : {}) }}>{varios ? niveles.join(' / ') : n}</span>
       {prox && <span className="alerta-nivel alerta-nivel--proximo" style={{ '--nivel': colorNivel(prox.nivel) }} title="Según la «Actualización de nivel»">→ {prox.nivel} desde {horaCorta(prox.inicio)}</span>}</>;
   };
 
