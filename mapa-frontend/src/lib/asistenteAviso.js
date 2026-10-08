@@ -140,8 +140,12 @@ export function crearAvisoPorPasos({ inicial, avisos, puntosDibujados, onSelecci
     };
   };
 
+  // Si llega con un aviso ya elegido (desde una notificación), se completan sus textos y su polígono
+  // como si se lo hubiera elegido en el primer paso; si no, quedarían en blanco.
+  const elegido = inicial?.avisoId && avisos.find((a) => a.id === inicial.avisoId);
+  const delAviso = elegido ? (onSeleccionarPoligono(elegido.poligono, elegido), { ...partesSugeridas(elegido, departamentos), poligono: elegido.poligono, finSmn: elegido.fin }) : {};
   // Sin avisos del SMN (se dibuja a mano) el paso de elegir se salta: los textos arrancan en blanco.
-  return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: { ...partesSugeridas(null), ...inicial }, ancho: 760 });
+  return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: { ...partesSugeridas(null), ...inicial, ...delAviso }, ancho: 760 });
 }
 
 // --- Publicar en el mapa público, con vigencia ---
