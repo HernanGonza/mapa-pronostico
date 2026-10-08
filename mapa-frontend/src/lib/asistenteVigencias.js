@@ -94,8 +94,13 @@ export function pasosVigencias({ catalogo, zonas, tope, inicial = null, soloSiVa
         <label class="paso-etiqueta" data-hasta2 ${s.porNivel[n].despues === "Verde" ? "hidden" : ""}>Hasta<input type="datetime-local" class="paso-input" data-campo="hasta2" value="${esc(s.porNivel[n].hasta2)}"></label>
       </div>`).join("")}</div>`;
     },
-    alMostrar: (popup) => popup.querySelectorAll("[data-nivel]").forEach((fila) => {
-      fila.querySelector('[data-campo="despues"]').addEventListener("change", (e) => { fila.querySelector("[data-hasta2]").hidden = e.target.value === "Verde"; });
+    alMostrar: (popup, s) => popup.querySelectorAll("[data-nivel]").forEach((fila) => {
+      fila.querySelector('[data-campo="despues"]').addEventListener("change", (e) => {
+        const dos = fila.querySelector("[data-hasta2]"), campo = dos.querySelector("input");
+        dos.hidden = e.target.value === "Verde";
+        // El segundo tramo, por defecto, llega hasta que se saca sola la alerta (si eso queda después del primero).
+        if (!dos.hidden && !campo.value && Date.parse(tope(s).local) > Date.parse(fila.querySelector('[data-campo="hasta"]').value)) campo.value = tope(s).local;
+      });
     }),
     leer: (popup, s) => {
       preparar(s);
@@ -112,7 +117,11 @@ export function pasosVigencias({ catalogo, zonas, tope, inicial = null, soloSiVa
       for (const n of niveles(s)) {
         const p = s.porNivel[n];
         if (!p.hasta) return `Falta hasta cuándo vale la alerta ${enFemenino(n).toLowerCase()}.`;
-        if (p.despues !== "Verde" && !p.hasta2) return `Falta hasta cuándo vale el nivel siguiente de la alerta ${enFemenino(n).toLowerCase()}.`;
+        if (p.despues !== "Verde" && !p.hasta2) return `Falta hasta cuándo vale el tramo ${p.despues.toLowerCase()} que sigue a la alerta ${enFemenino(n).toLowerCase()}.`;
+        const t1 = Date.parse(p.hasta), t2 = Date.parse(p.hasta2);
+        if (t1 > tope(s).ms) return `La alerta ${enFemenino(n).toLowerCase()} no puede terminar después de que se saca sola la alerta (${tope(s).texto} h). Primero alargá la vigencia de la alerta.`;
+        if (p.despues !== "Verde" && t2 <= t1) return `Alerta ${enFemenino(n).toLowerCase()}: después de que termina (${fechaHora(p.hasta)} h) tiene que quedar tiempo en ${p.despues.toLowerCase()}, pero ese tramo termina ${fechaHora(p.hasta2)} h. Hacé terminar antes el ${n.toLowerCase()}, o alargá la vigencia de la alerta; si el ${n.toLowerCase()} dura hasta el final, elegí «Verde (se sale)» en «Después».`;
+        if (p.despues !== "Verde" && t2 > tope(s).ms) return `El tramo ${p.despues.toLowerCase()} de la alerta ${enFemenino(n).toLowerCase()} termina después de que se saca sola la alerta (${tope(s).texto} h). Primero alargá la vigencia de la alerta.`;
       }
       return errorDeTramosLocal(tope(s).ms, tope(s).texto, tramosDe(s), nombreDe);
     },
