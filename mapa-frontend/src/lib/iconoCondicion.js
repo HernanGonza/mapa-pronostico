@@ -38,8 +38,26 @@ const POR_NOMBRE = new Map(
 
 const FALLBACK = "not-available";
 
+/**
+ * Si el texto no está tal cual en MAPA (el .docx del extendido trae
+ * variantes: "chaparrones y tormentas aisladas", "tormentas y chaparrones
+ * aislados"…), se resuelve por palabras clave.
+ */
+function porPalabrasClave(condicion) {
+  const t = normalize(condicion);
+  const tormenta = /TORMENT/.test(t);
+  const lluvia = /LLUVI|CHAPARR/.test(t);
+  if (tormenta && lluvia) return /AISLAD/.test(t) ? "thunderstorms-day-rain" : "thunderstorms-rain";
+  if (tormenta) return "thunderstorms-day";
+  if (/CHAPARR|LLUVI/.test(t)) return /AISLAD/.test(t) ? "partly-cloudy-day-rain" : "rain";
+  if (/LLOVIZN/.test(t)) return "drizzle";
+  return null;
+}
+
 /** Devuelve la URL del SVG animado para una condición. */
 export function iconoCondicionUrl(condicion) {
-  const key = condicion ? POR_NOMBRE.get(normalize(condicion)) : null;
+  const key = condicion
+    ? POR_NOMBRE.get(normalize(condicion)) || porPalabrasClave(condicion)
+    : null;
   return `/iconos/${key || FALLBACK}.svg`;
 }
