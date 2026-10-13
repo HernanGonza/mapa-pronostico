@@ -117,7 +117,11 @@ async function leerRala(url, fn) {
 
 /** Valor de la variable en cada celda `celdas` ([fila, columna]) — la primera (y única) capa de tiempo. */
 const leerCeldas = (url, variable, celdas, ncols = 999) => leerRala(url, (f) => {
-  const v = f.get(variable).value;
+  // Hay archivos que no traen la variable a propósito: el diario del día 0 de las corridas de 06/12 UTC no tiene
+  // Tmin (su ventana, 00–12 UTC, ya pasó) y el del día 3 no tiene Tmax. No es un error: sin dato.
+  const dataset = f.get(variable);
+  if (!dataset) return celdas.map(() => null);
+  const v = dataset.value;
   return celdas.map(([j, i]) => { const x = v[j * ncols + i]; return Number.isFinite(x) && Math.abs(x) < 1e10 ? x : null; });
 });
 
@@ -125,7 +129,8 @@ const leerCeldas = (url, variable, celdas, ncols = 999) => leerRala(url, (f) => 
 async function celdasDe(puntos, init) {
   const clave = puntos.map((p) => `${p.lat},${p.lng}`).join(";");
   try { const g = JSON.parse(fs.readFileSync(GRILLA_JSON, "utf8")); if (g.clave === clave) return g.celdas; } catch { /* no hay o es de otros puntos */ }
-  const celdas = await leerRala(urlArchivo(init, "24H", 0), (f) => {
+  // El diario del día 1 existe en todas las corridas (el del día 0 no está en la de las 18 UTC).
+  const celdas = await leerRala(urlArchivo(init, "24H", 1), (f) => {
     const lat = f.get("lat").value, lon = f.get("lon").value, n = 999;
     return puntos.map((p) => {
       let mejor = Infinity, idx = 0; const k = Math.cos((p.lat * Math.PI) / 180);
@@ -169,8 +174,9 @@ async function enParalelo(trabajos, n, hacer) {
 }
 
 // Avance de lo que se está bajando (lo lee la pantalla mientras dura la consulta).
-const avance = { activo: false, total: 0, hechos: 0, corrida: null };
-const progreso = () => ({ ...avance });
+const avance = { total: 0, hechos: 0, corrida: null };
+let trabajosActivos = 0; // consultas del WRF que todavía están bajando (aunque sea sólo la grilla)
+const progreso = () => ({ activo: trabajosActivos > 0, ...avance });
 const enCurso = new Map(); // «corrida|archivo|variable» → promesa: dos consultas a la vez no bajan lo mismo dos veces.
 
 /**
@@ -205,7 +211,7 @@ async function wrfSmn({ desde, hasta, puntos }) {
   ].filter((t) => !cache[t.clave]);
   const avisos = [];
   if (trabajos.length) {
-    if (!avance.activo) Object.assign(avance, { activo: true, total: 0, hechos: 0 });
+    if (trabajosActivos <= 1) Object.assign(avance, { total: 0, hechos: 0 }); // arranca una tanda nueva
     avance.corrida = init.toISOString(); avance.total += trabajos.length;
     let desdeGuardado = 0;
     await enParalelo(trabajos, CONCURRENCIA, async (t) => {
@@ -223,7 +229,6 @@ async function wrfSmn({ desde, hasta, puntos }) {
       if (++desdeGuardado % 8 === 0) guardarCache(id); // si se corta, no se pierde lo ya bajado
     });
     guardarCache(id);
-    if (avance.hechos >= avance.total) avance.activo = false;
   }
 
   const lluviaPorHora = new Map(), diario = { tmax: new Map(), tmin: new Map() };
@@ -235,11 +240,32 @@ async function wrfSmn({ desde, hasta, puntos }) {
   return { corrida: init.toISOString(), lluviaPorHora, diario, avisos: [...new Set(avisos)] };
 }
 
+const enFondo = new Map(); // «rango» → promesa de la consulta en marcha
+/**
+ * Igual que `wrfSmn`, pero sin trabar al que pregunta: la consulta corre en segundo plano y se la espera
+ * `esperaMs`. Si termina (lo normal cuando la corrida ya está en caché) devuelve los datos; si no,
+ * `{ pendiente: true }` y sigue bajando: al repetir la consulta se la encuentra lista. Una consulta que dura
+ * minutos en un solo pedido HTTP no sobrevive a los proxies que hay entre el navegador y el servidor.
+ */
+async function wrfConEspera(args, esperaMs = 8000) {
+  const k = `${args.desde}|${args.hasta}`;
+  let trabajo = enFondo.get(k);
+  if (!trabajo) {
+    trabajosActivos++;
+    trabajo = wrfSmn(args);
+    enFondo.set(k, trabajo);
+    trabajo.catch((e) => console.error("[WRF-SMN]", e.message)).finally(() => { enFondo.delete(k); trabajosActivos--; });
+  }
+  let timer;
+  const r = await Promise.race([trabajo, new Promise((res) => { timer = setTimeout(() => res(null), esperaMs); })]).finally(() => clearTimeout(timer));
+  return r || { pendiente: true, progreso: progreso() };
+}
+
 /** Deja en caché las 72 h de la corrida vigente (lluvia + temperaturas diarias), para que las consultas sean instantáneas. */
 async function precargar(puntos) {
   const init = await corridaVigente(), dia = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
   const desde = `${dia(init.getTime())}T00:00`, hasta = `${dia(init.getTime() + 4 * 86400000)}T23:00`;
-  return wrfSmn({ desde, hasta, puntos });
+  return wrfConEspera({ desde, hasta, puntos }, 0).then(() => enFondo.get(`${desde}|${hasta}`));
 }
 
-module.exports = { wrfSmn, corridaVigente, leerRala, progreso, precargar };
+module.exports = { wrfSmn, wrfConEspera, corridaVigente, leerRala, progreso, precargar };

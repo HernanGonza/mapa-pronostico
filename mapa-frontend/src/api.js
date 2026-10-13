@@ -36,6 +36,11 @@ export function getSolDeMunicipio(municipioId, fecha) {
   return getEstatico(`${API_URL}/api/sol/${encodeURIComponent(municipioId)}${fecha ? `?fecha=${String(fecha).slice(0, 10)}` : ""}`);
 }
 
+/** { sale, sePone ("HH:MM" o null), fase, faseId, icono, iluminacion (%) } de la luna en un municipio y una fecha YYYY-MM-DD. Cacheado igual que el sol. */
+export function getLunaDeMunicipio(municipioId, fecha) {
+  return getEstatico(`${API_URL}/api/luna/${encodeURIComponent(municipioId)}${fecha ? `?fecha=${String(fecha).slice(0, 10)}` : ""}`);
+}
+
 export async function parseDocx(file) {
   const form = new FormData();
   form.append("pronostico", file);

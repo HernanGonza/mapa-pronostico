@@ -12,7 +12,7 @@ router.get("/ensamble", requireAuth, soloConModulo, async (req, res) => {
   try { res.set("Cache-Control", "no-store").json(await pronosticoEnsamble({ desde: req.query.desde, hasta: req.query.hasta, modelos: String(req.query.modelos || "").split(",").filter(Boolean) })); }
   catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
-    console.error(e); res.status(502).json({ error: "No se pudo consultar a los modelos. Probá de nuevo en unos minutos." });
+    console.error("[ensamble]", e); res.status(502).json({ error: `No se pudo consultar a los modelos: ${e.cause?.code || e.message}. Probá de nuevo en unos minutos.` });
   }
 });
 

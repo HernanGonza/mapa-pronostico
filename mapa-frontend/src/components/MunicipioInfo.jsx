@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
-import { getSolDeMunicipio } from "../api";
+import { getSolDeMunicipio, getLunaDeMunicipio } from "../api";
 import WeatherIcon from "./WeatherIcon";
 
-/** Amanecer y anochecer del municipio en la fecha del pronóstico; si no hay dato, no se muestra nada. */
-function useSol(id, fecha) {
-  const [sol, setSol] = useState(null);
+/** Dato astronómico del municipio en la fecha del pronóstico (`pedir` = getSolDeMunicipio o getLunaDeMunicipio); si no hay dato, no se muestra nada. */
+function useAstro(pedir, id, fecha) {
+  const [dato, setDato] = useState(null);
   useEffect(() => {
     let vigente = true;
-    setSol(null);
-    if (id) getSolDeMunicipio(id, fecha).then((d) => vigente && setSol(d), () => {});
+    setDato(null);
+    if (id) pedir(id, fecha).then((d) => vigente && setDato(d), () => {});
     return () => { vigente = false; };
-  }, [id, fecha]);
-  return sol;
+  }, [pedir, id, fecha]);
+  return dato;
 }
 
 export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
-  const sol = useSol(municipio?.id, fecha);
+  const sol = useAstro(getSolDeMunicipio, municipio?.id, fecha);
+  const luna = useAstro(getLunaDeMunicipio, municipio?.id, fecha);
   if (!municipio) return null;
   const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [] } =
     municipio;
@@ -79,6 +80,27 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
           <span className="municipio-popover__sol-item" role="group" aria-label={`Puesta del sol: ${sol.anochecer}`}>
             <img className="weather-icon" src="/iconos/sunset.svg" width={30} height={30} alt="" draggable={false} />
             <b>{sol.anochecer}</b><span>Anochecer</span>
+          </span>
+        </div>
+      )}
+
+      {/* La luna, debajo del sol: cuándo sale, cuándo se pone y en qué fase está. */}
+      {luna && (
+        <div className="municipio-popover__luna">
+          <div className="municipio-popover__sol">
+            <span className="municipio-popover__sol-item" role="group" aria-label={`Salida de la luna: ${luna.sale || "no sale este día"}`}>
+              <img className="weather-icon" src="/iconos/moonrise.svg" width={30} height={30} alt="" draggable={false} />
+              <b>{luna.sale || "—"}</b><span>Sale la luna</span>
+            </span>
+            <span className="municipio-popover__sol-item" role="group" aria-label={`Puesta de la luna: ${luna.sePone || "no se pone este día"}`}>
+              <img className="weather-icon" src="/iconos/moonset.svg" width={30} height={30} alt="" draggable={false} />
+              <b>{luna.sePone || "—"}</b><span>Se pone</span>
+            </span>
+          </div>
+          {/* El ícono es de hemisferio norte: acá la luna creciente se ve iluminada del lado contrario, por eso se espeja. */}
+          <span className="municipio-popover__sol-item municipio-popover__fase" role="group" aria-label={`${luna.fase}, ${luna.iluminacion} % iluminada`}>
+            <img className="weather-icon municipio-popover__fase-icono" src={`/iconos/${luna.icono}.svg`} width={30} height={30} alt="" draggable={false} />
+            <b>{luna.fase}</b><span>{luna.iluminacion} % iluminada</span>
           </span>
         </div>
       )}

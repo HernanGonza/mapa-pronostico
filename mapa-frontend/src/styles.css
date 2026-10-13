@@ -484,6 +484,11 @@ html:has(.embed-risk--pronostico), body:has(.embed-risk--pronostico) { overflow:
   color: var(--map-text);
 }
 
+/* Luna: misma línea que el sol, y debajo la fase. */
+.municipio-popover__luna { margin-top: 2px; }
+.municipio-popover__fase { margin-top: 2px; }
+.municipio-popover__fase-icono { transform: scaleX(-1); } /* hemisferio sur */
+
 /* Extendido: los días del pronóstico de 3 días de la zona del municipio. */
 .municipio-popover__extendido {
   margin-top: 12px;

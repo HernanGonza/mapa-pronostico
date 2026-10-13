@@ -8,7 +8,7 @@
  * público `smn-ar-wrf` de AWS (ver wrfSmn.js).
  */
 const { loadDepartamentos, loadCentroides } = require("./departamentos");
-const { wrfSmn, precargar, progreso: progresoWrf } = require("./wrfSmn");
+const { wrfConEspera, precargar, progreso: progresoWrf } = require("./wrfSmn");
 
 // `fuente`: de dónde sale. `aporta`: variables que el modelo publica (el WRF-SMN no da ráfagas ni viento).
 const MODELOS = [
@@ -100,7 +100,7 @@ function agregar(horas, valores, desde, hasta, agrega) {
  * entre `desde` y `hasta` (hora de Misiones, «AAAA-MM-DDTHH:MM»). Cada día se resume sólo con las horas que caen
  * dentro del rango (el primero y el último pueden ser parciales). Se consulta en el momento: no hay caché del
  * resultado (el WRF-SMN guarda aparte lo ya leído de cada corrida, que sólo cambia cada 6 h).
- * { generado, desde, hasta, dias: [{ fecha, horas }], modelos, variables, avisos, wrf?: { corrida },
+ * { generado, desde, hasta, dias: [{ fecha, horas }], modelos, variables, avisos, wrf?: { corrida } | { pendiente, progreso },
  * departamentos: [{ id, nombre, lat, lng, dias: [{ fecha, tmax: { valores: { <modelo>: n|null }, media, min, max,
  * rango, discrepan, modelos }, … }] }] }. Un modelo que no cubre todas las horas de un día queda en null ese día.
  */
@@ -136,8 +136,11 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
     horas = puntos[0].hourly.time;
   })();
   // WRF-SMN: aparte, desde AWS. Si falla, los demás modelos igual se muestran y se avisa.
-  const pedidoWrf = conWrf ? wrfSmn({ desde, hasta, puntos: puntosGeo }).catch((err) => { console.error(err); avisos.push(`WRF-SMN: ${err.message}`); return null; }) : Promise.resolve(null);
+  const pedidoWrf = conWrf ? wrfConEspera({ desde, hasta, puntos: puntosGeo }).catch((err) => { console.error(err); avisos.push(`WRF-SMN: ${err.message}`); return null; }) : Promise.resolve(null);
   const [, wrf] = await Promise.all([pedidoOpenMeteo, pedidoWrf]);
+  const wrfPendiente = !!wrf?.pendiente; // sigue bajando: la pantalla vuelve a consultar cuando termine
+  // Los modelos que traen datos en esta respuesta (el WRF-SMN que sigue bajando, o que falló, no figura todavía).
+  const consultados = elegidos.filter((m) => m.fuente !== "wrf" || (wrf && !wrf.pendiente));
   if (wrf?.avisos?.length) avisos.push(...wrf.avisos.map((a) => `WRF-SMN: ${a}`));
 
   const departamentos = lista.map((d, i) => {
@@ -148,7 +151,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
         const dia = { fecha }, desdeDia = `${fecha}T00:00` > desde ? `${fecha}T00:00` : desde, hastaDia = `${fecha}T23:00` < hasta ? `${fecha}T23:00` : hasta;
         for (const variable of VARIABLES) {
           const valores = {};
-          for (const m of elegidos) {
+          for (const m of consultados) {
             let v = null;
             if (m.fuente === "open-meteo") v = agregar(horas, hourly?.[deOpenMeteo.length === 1 ? variable.horaria : `${variable.horaria}_${m.id}`], desdeDia, hastaDia, variable.agrega); // con un solo modelo Open-Meteo no agrega el sufijo
             else if (wrf && variable.clave === "lluvia") { // suma de las horas del día dentro del rango; si falta alguna, el modelo no la cubre
@@ -165,7 +168,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   });
 
   return {
-    generado: new Date().toISOString(), desde, hasta, dias, modelos: elegidos, avisos, ...(wrf ? { wrf: { corrida: wrf.corrida } } : {}),
+    generado: new Date().toISOString(), desde, hasta, dias, modelos: consultados, avisos, ...(wrfPendiente ? { wrf: { pendiente: true, progreso: wrf.progreso } } : wrf ? { wrf: { corrida: wrf.corrida } } : {}),
     variables: VARIABLES.map(({ clave, nombre, unidad, decimales, umbral, agrega }) => ({ clave, nombre, unidad, decimales, umbral, agrega })),
     departamentos,
   };

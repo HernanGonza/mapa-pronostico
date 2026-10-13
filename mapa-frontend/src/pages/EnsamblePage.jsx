@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import CampoFecha from "../components/CampoFecha";
@@ -132,29 +132,46 @@ export default function EnsamblePage() {
   // Rango a consultar (hora de Misiones). La pantalla NO pide nada sola: sólo al tocar «Consultar».
   const [fDesde, setFDesde] = useState(hoyART()), [hDesde, setHDesde] = useState("00:00");
   const [fHasta, setFHasta] = useState(sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState("23:00");
-  const [avance, setAvance] = useState(null); // descarga del WRF-SMN, sólo mientras dura una consulta
+  const [avance, setAvance] = useState(null); // descarga del WRF-SMN en el servidor
+  const [espera, setEspera] = useState(0); // > 0 mientras el WRF-SMN sigue bajando (la consulta ya mostró los demás modelos)
+  const ultimo = useRef(null); // el pedido de la última consulta, para repetirlo cuando el WRF termina
   const atajo = (dias) => { setFDesde(hoyART()); setHDesde("00:00"); setFHasta(sumarDias(hoyART(), dias)); setHHasta("23:00"); };
 
-  useEffect(() => {
-    if (!cargando || !prendidos.has("wrf_smn")) { setAvance(null); return undefined; }
-    const mirar = () => api.getEnsambleProgreso().then((p) => setAvance(p.activo ? p : null)).catch(() => {});
-    const t = setInterval(mirar, 2000);
-    return () => clearInterval(t);
-  }, [cargando]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function consultar() {
+  function consultar(repetir = false) {
     setCargando(true); setError("");
-    api.getEnsamble({ desde: `${fDesde}T${hDesde}`, hasta: `${fHasta}T${hHasta}`, modelos: [...prendidos] })
-      .then((d) => { setDatos(d); setDia(null); setDeptoId((id) => (d.departamentos.some((x) => x.id === id) ? id : d.departamentos[0].id)); })
-      .catch((e) => setError(e.message)).finally(() => setCargando(false));
+    if (!repetir) ultimo.current = { desde: `${fDesde}T${hDesde}`, hasta: `${fHasta}T${hHasta}`, modelos: [...prendidos] };
+    api.getEnsamble(ultimo.current)
+      .then((d) => {
+        setDatos(d); setEspera((n) => (d.wrf?.pendiente ? n + 1 : 0));
+        if (!repetir) setDia(null);
+        setDeptoId((id) => (d.departamentos.some((x) => x.id === id) ? id : d.departamentos[0].id));
+      })
+      .catch((e) => { setError(e.message); setEspera(0); }).finally(() => setCargando(false));
   }
+  const consultarRef = useRef(consultar); consultarRef.current = consultar;
+
+  // El WRF-SMN baja en el servidor (puede llevar minutos): se mira el avance cada 3 s SÓLO mientras eso dura y,
+  // al terminar, se repite la consulta una vez para sumarlo. Si la consulta no se pidió, no se mira nada.
+  useEffect(() => {
+    if (!espera) { setAvance(null); return undefined; }
+    const inicio = Date.now();
+    const t = setInterval(async () => {
+      try {
+        const p = await api.getEnsambleProgreso();
+        setAvance(p.activo ? p : null);
+        if (Date.now() - inicio > 20 * 60000) { clearInterval(t); setEspera(0); setError("El WRF-SMN no terminó de descargarse. Probá consultar de nuevo en un rato."); }
+        else if (!p.activo) { clearInterval(t); consultarRef.current(true); }
+      } catch { /* se reintenta en el próximo ciclo */ }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [espera]);
 
   const variable = datos?.variables.find((v) => v.clave === clave);
   const depto = datos?.departamentos.find((d) => d.id === deptoId);
   // Lo que se muestra: los prendidos que están en la última consulta (el resto no se pidió, no hay dato).
   const consultados = useMemo(() => new Set((datos?.modelos || []).map((m) => m.id)), [datos]);
   const visibles = useMemo(() => new Set([...prendidos].filter((id) => !datos || consultados.has(id))), [prendidos, consultados, datos]);
-  const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id)) : [];
+  const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id) && !(id === "wrf_smn" && espera > 0)) : [];
   const alternar = (id) => setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
   const filas = useMemo(() => (datos && variable ? datos.departamentos.map((d) => ({ d, celdas: d.dias.map((x) => resumir(x[clave].valores, visibles, variable)) })) : []), [datos, variable, clave, visibles]);
   const resumenDepto = depto && variable ? depto.dias.map((x) => resumir(x[clave].valores, visibles, variable)) : [];
@@ -171,7 +188,7 @@ export default function EnsamblePage() {
           <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
           <span className="ens-modelo-origen">{m.origen}</span><span className="ens-modelo-rol">{m.rol}</span>
           {m.nota && <span className="ens-modelo-rol">{m.nota}</span>}
-          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">Sin consultar: tocá «Consultar»</span>}
+          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{m.id === "wrf_smn" && espera > 0 ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
         </button>)}
       </div>
       <p className="ens-nota">Prendé los modelos que querés comparar. <strong>Consultar</strong> pide sólo los que están prendidos; apagar uno después de consultar solo lo saca del promedio.</p>
@@ -190,8 +207,10 @@ export default function EnsamblePage() {
             <span className="ens-atajos"><span>Atajos</span>{ATAJOS.map((a) => <button key={a.txt} type="button" className="ens-chip" disabled={cargando} onClick={() => atajo(a.dias)}>{a.txt}</button>)}</span>
             <button type="submit" className="ens-consultar" disabled={cargando}>{cargando ? "Consultando…" : datos ? "Consultar de nuevo" : "Consultar"}</button>
           </div>
-          {cargando && <div className="ens-avance" role="status">
-            {avance ? <><span>Descargando el WRF-SMN del SMN: {avance.hechos} de {avance.total} archivos</span><progress value={avance.hechos} max={avance.total} /></> : <span>Consultando a los modelos…</span>}
+          {(cargando || espera > 0) && <div className="ens-avance" role="status">
+            {espera > 0
+              ? <><span>El WRF-SMN se está descargando del SMN{avance?.total ? `: ${avance.hechos} de ${avance.total} archivos` : "…"}. Los otros modelos ya están abajo; el WRF se suma solo cuando termina.</span>{avance?.total > 0 && <progress value={avance.hechos} max={avance.total} />}</>
+              : <span>Consultando a los modelos…</span>}
           </div>}
         </div>
         {datos && !cargando && <span className="ens-actualizado">Último pedido a las {generado}</span>}
