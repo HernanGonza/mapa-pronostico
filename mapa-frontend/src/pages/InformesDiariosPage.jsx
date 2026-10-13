@@ -12,6 +12,8 @@ import PanelPrecipitaciones from "../components/PanelPrecipitaciones";
 import CampoFecha from "../components/CampoFecha";
 import CampoHora from "../components/CampoHora";
 import { estacionDeManual, manualVacia } from "../lib/informesManuales";
+import PublicarEnRedes from "../components/PublicarEnRedes";
+import { crearPlacaPrecipitacionesPorPasos } from "../lib/asistentePlacaPrecipitaciones";
 import "./ensamble.css";
 
 /**
@@ -64,6 +66,7 @@ export default function InformesDiariosPage() {
   const [clima, setClima] = useState(() => leerJson(CLAVE_CLIMA, {})); // acumulado del mes y media por estación (para la anomalía)
   const [municipios, setMunicipios] = useState([]);
   const [cajon, setCajon] = useState(false), [vista, setVista] = useState("panel");
+  const [placa, setPlaca] = useState(null); // la última placa guardada de este informe
   const mapaRef = useRef(null), graficosRef = useRef(null);
   const cambiarManuales = (m) => { setManuales(m); guardarJson(CLAVE_MANUALES, m); };
   const cambiarClima = (c) => { setClima(c); guardarJson(CLAVE_CLIMA, c); };
@@ -131,6 +134,16 @@ export default function InformesDiariosPage() {
     filas: (informe?.datos?.smn || []).map((a) => [a.fuente === "ACP" ? "Aviso a muy corto plazo" : `Alerta ${enFemenino(a.nivel)}`.trim(), a.titulo, `${fechaHora(a.inicio)} a ${fechaHora(a.fin)}`]),
   }), [informe]);
 
+  // La placa «Monitoreo de precipitaciones»: el asistente arranca con las estaciones que tienen lluvia (y su mes y media, si se escribieron).
+  const NOTA_DE_RED = { SMN: 1, INTA: 2, SiNaRaMe: 3, RMET: 3, RHN: 3, Manual: 4 };
+  const armarPlaca = () => crearPlacaPrecipitacionesPorPasos({
+    inicial: {
+      desde: informe.fecha, hasta: informe.fechaHasta || informe.fecha,
+      filas: estaciones.filter((e) => e.resumen && !e.resumen.sinLluvia && e.resumen.lluviaTotal != null).map((e) => ({ nombre: e.nombre.split(" - ")[0], nota: NOTA_DE_RED[e.red] ?? "", periodo: String(e.resumen.lluviaTotal), mes: clima[e.clave]?.mes ?? "", media: clima[e.clave]?.media ?? "", anomalia: "" })),
+    },
+    vistaPrevia: (v) => api.generarPlacaPrecipitaciones(v, { vistaPrevia: true }),
+    guardar: async (v, token) => { const g = await api.generarPlacaPrecipitaciones(v, { confirmarToken: token }); setPlaca({ ...g, periodo: v.periodo }); return g; },
+  });
   const [bajandoExcel, setBajandoExcel] = useState(false);
   async function excel() {
     setBajandoExcel(true); setError("");
@@ -236,6 +249,17 @@ export default function InformesDiariosPage() {
           <button type="button" className="btn" disabled={bajandoExcel} onClick={excel} title="Todos los registros de cada estación, con todos sus campos, tal cual los mandan">{bajandoExcel ? "Armando el Excel…" : "Descargar Excel (datos crudos)"}</button>
         </div>
         {informe.id && <small>Guardado · se puede seguir editando</small>}
+        <div className="informes-placa">
+          <h3>Placa para redes</h3>
+          <p className="admin-panel__hint">La tabla de precipitaciones como placa de feed e historias, con la marca de agua y la leyenda de la Dirección General de Alerta Temprana (siempre van). Se arma paso a paso.</p>
+          <button type="button" className="btn btn--primary" onClick={armarPlaca}>{placa ? "Armar otra placa" : "Armar la placa de precipitaciones"}</button>
+          {placa && <div className="informes-placa__lista">
+            <PublicarEnRedes unaVez className="btn btn--primary" feedUrl={placa.feedUrl} historiasUrl={placa.historiasUrl} epigrafe={`Monitoreo de precipitaciones · ${placa.periodo}\n\nDatos recopilados por la Dirección General de Alerta Temprana.`} />
+            <div className="placa-preview-grid">{[["feed", "Feed"], ["historias", "Historias"]].map(([f, n]) => <figure key={f}>
+              <a className="btn" href={`${placa[`${f}Url`]}?download=${encodeURIComponent(placa[`${f}Nombre`])}`}>Descargar {f}</a>
+              <img src={placa[`${f}Url`]} alt={`Placa de precipitaciones, ${n}`} /><figcaption>{n}</figcaption></figure>)}</div>
+          </div>}
+        </div>
         <p className="admin-panel__hint">Más adelante este informe se va a conectar con el mapa de precipitaciones para publicarlo.</p>
       </div>
     </aside>}

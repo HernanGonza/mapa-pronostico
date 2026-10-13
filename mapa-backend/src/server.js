@@ -69,6 +69,7 @@ app.use("/api", riesgoIncendiosRouter);
 app.use("/api", alertasMeteorologicasRouter);
 app.use("/api", avisosCortoPlazoRouter);
 app.use("/api", require("./routes/avisosEspeciales"));
+app.use("/api", require("./routes/placasPrecipitaciones"));
 app.use("/api", redesRouter);
 app.use("/api", placasRouter);
 app.use("/api", historicoRouter);

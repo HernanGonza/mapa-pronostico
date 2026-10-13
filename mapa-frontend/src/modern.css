@@ -737,3 +737,12 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .pp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); font: inherit; font-size: 0.78rem; cursor: pointer; }
 .pp-chip i { width: 10px; height: 10px; border-radius: 50%; }
 .pp-chip--on { background: var(--surface-3); border-color: var(--verde-600); font-weight: 700; }
+.informes-placa { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.informes-placa h3 { margin: 0; font-size: 1rem; }
+.informes-placa__lista { display: grid; gap: 10px; }
+.informes-placa .placa-preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.informes-placa .placa-preview-grid img { width: 100%; height: auto; border-radius: 8px; }
+.paso-estaciones { max-height: 52vh; overflow: auto; display: grid; gap: 10px; text-align: left; }
+.paso-estaciones .paso-input { width: 100%; min-width: 0; padding: 5px 7px; }
+.paso-estaciones td:first-child .paso-input { min-width: 160px; }
+.paso-periodo { display: grid; gap: 12px; text-align: left; }

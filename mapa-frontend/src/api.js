@@ -444,6 +444,11 @@ export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = 
   else { form.append("imagen", imagen); if (vistaPrevia) form.append("vistaPrevia", "true"); }
   return handleJson(await fetch(`${API_URL}/api/avisos-especiales/generar`, { method: "POST", body: form, ...CON_SESION }));
 }
+/** Placa «Monitoreo de precipitaciones». `opciones`: { vistaPrevia: true } o { confirmarToken } (al confirmar se guarda la vista previa ya generada). */
+export async function generarPlacaPrecipitaciones({ subtitulo, periodo, fondo, filas }, { vistaPrevia = false, confirmarToken = null } = {}) {
+  const res = await fetch(`${API_URL}/api/placas-precipitaciones/generar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subtitulo, periodo, fondo, filas, ...(confirmarToken ? { confirmarToken } : vistaPrevia ? { vistaPrevia: true } : {}) }), ...CON_SESION });
+  return handleJson(res);
+}
 /** Avisos publicados y todavía vigentes (público, lo usa el iframe). [] = ninguno. */
 export async function getAvisosCortoPlazoVigentes() {
   const reales = (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;
