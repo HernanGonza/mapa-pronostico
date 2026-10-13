@@ -28,3 +28,17 @@ test("genera feed e historias con las medidas de siempre (la marca de agua no es
   assert.equal(hist.readUInt32BE(20), 4000);
   await assert.rejects(generarPlacaPrecipitaciones({ ...datos, tamano: "x" }), /Tamaño/);
 });
+
+test("la placa lleva firma invisible y metadatos de autoría (siempre)", async () => {
+  const { createCanvas, loadImage } = require("canvas");
+  const { detectarFirma, leerTextos } = require("../src/lib/proteccionPlaca");
+  const png = await generarPlacaPrecipitaciones({ subtitulo: "Provincia de Misiones · Octubre 2026", periodo: "8 al 13/10", filas, fondo: 8, tamano: "feed", fecha: "2026-10-13" });
+  const t = leerTextos(png);
+  assert.match(t.Author, /Alerta Temprana/); assert.match(t.Copyright, /2026 Gobierno de Misiones/); assert.equal(t["AI-Training"], "prohibited");
+  const img = await loadImage(png), c = createCanvas(img.width, img.height), ctx = c.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  assert.equal(detectarFirma(ctx.getImageData(0, 0, img.width, img.height)), "GOB-MNES-ALERTA-TEMP-20261013___");
+  // una imagen sin firma no da la firma
+  const vacia = createCanvas(400, 400).getContext("2d"); vacia.fillStyle = "#345"; vacia.fillRect(0, 0, 400, 400);
+  assert.notEqual(detectarFirma(vacia.getImageData(0, 0, 400, 400)), "GOB-MNES-ALERTA-TEMP-20261013___");
+});
