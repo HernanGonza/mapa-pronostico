@@ -240,7 +240,7 @@ export default function EnsamblePage() {
           </div>
           {(cargando || espera > 0) && <div className="ens-avance" role="status">
             {espera > 0
-              ? <><span>{pendientes.map((id) => CATALOGO.find((m) => m.id === id)?.nombre).join(" y ")} se {pendientes.length > 1 ? "están" : "está"} descargando{(() => { const t = (avance?.wrf?.total || 0) + (avance?.monan?.total || 0), h = (avance?.wrf?.hechos || 0) + (avance?.monan?.hechos || 0); return t ? `: ${h} de ${t} archivos` : "…"; })()}. Los otros modelos ya están abajo; se {pendientes.length > 1 ? "suman" : "suma"} solo cuando termina.</span>{((avance?.wrf?.total || 0) + (avance?.monan?.total || 0)) > 0 && <progress value={(avance.wrf.hechos || 0) + (avance.monan.hechos || 0)} max={(avance.wrf.total || 0) + (avance.monan.total || 0)} />}</>
+              ? <><span>Los modelos que faltan ({new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(pendientes.map((id) => CATALOGO.find((m) => m.id === id)?.nombre))}) se están descargando{(() => { const t = (avance?.wrf?.total || 0) + (avance?.monan?.total || 0), h = (avance?.wrf?.hechos || 0) + (avance?.monan?.hechos || 0); return t ? `: ${h} de ${t} archivos` : "…"; })()}. Los demás ya están abajo; se suman solos cuando terminan.</span>{((avance?.wrf?.total || 0) + (avance?.monan?.total || 0)) > 0 && <progress value={(avance.wrf.hechos || 0) + (avance.monan.hechos || 0)} max={(avance.wrf.total || 0) + (avance.monan.total || 0)} />}</>
               : <span>Consultando a los modelos…</span>}
           </div>}
         </div>
