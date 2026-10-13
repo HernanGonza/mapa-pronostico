@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import VolverConfiguracion from "../components/VolverConfiguracion";
-import PointsMap from "../components/PointsMap";
+import PointsMap, { HORAS_VIGENCIA_FOCOS, sinFocosViejos } from "../components/PointsMap";
 import EmbedShare from "../components/EmbedShare";
 import BrandHeader from "../components/BrandHeader";
 import { extraerFocos, focosAGeojson } from "../lib/alertasIncendio";
@@ -23,6 +23,7 @@ export default function AlertasIncendiosPage() {
 
   const focos = useMemo(() => extraerFocos(actual?.datos), [actual?.datos]);
   const puntos = useMemo(() => focosAGeojson(focos), [focos]);
+  const vigentes = useMemo(() => sinFocosViejos(puntos, Date.now()).features.length, [puntos]); // los que el mapa todavía muestra
 
   async function onCapturar() {
     if (!mapaRef.current) return;
@@ -57,7 +58,8 @@ export default function AlertasIncendiosPage() {
             <p className="admin-panel__hint">
               Recibida y publicada <b>{relativo}</b> · {fechaLarga(actual.recuperadoEn)}
               <br />
-              {focos.length} foco(s) con coordenadas reconocidas.
+              {vigentes} {vigentes === 1 ? "foco vigente" : "focos vigentes"} en el mapa (detectados en las últimas {HORAS_VIGENCIA_FOCOS} h)
+              {focos.length > vigentes ? ` · ${focos.length - vigentes} más de la tanda ya se apagaron` : ""}.
             </p>
 
             <div className="admin-actions">

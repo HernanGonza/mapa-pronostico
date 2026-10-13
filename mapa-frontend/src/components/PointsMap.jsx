@@ -16,7 +16,7 @@ import { MAP_LOCALE_ES } from "../lib/mapLocale";
 
 // ⏱️ Cuántas horas queda un foco de calor en el mapa, contadas desde que lo detectó el satélite. Pasado ese tiempo se apaga solo.
 // Cambialo acá cuando quieras (en horas; admite decimales, por ejemplo 0.5 = media hora).
-const HORAS_VIGENCIA_FOCOS = 8;
+export const HORAS_VIGENCIA_FOCOS = 8;
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -43,7 +43,7 @@ function detectadoEn(foco) {
   return Number.isNaN(t) ? null : t;
 }
 /** Sólo los focos detectados dentro de la vigencia (los que no traen hora se dejan: no hay cómo saber si son viejos). */
-function sinFocosViejos(puntos, ahora) {
+export function sinFocosViejos(puntos, ahora) {
   if (!puntos?.features) return puntos;
   const limite = ahora - HORAS_VIGENCIA_FOCOS * 3600e3;
   return { ...puntos, features: puntos.features.filter((f) => { const t = detectadoEn(f); return t == null || t >= limite; }) };

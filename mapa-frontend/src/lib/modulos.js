@@ -7,7 +7,7 @@ import { Radar, Bell, Waves, Droplets, FileText, CloudSun, Layers } from "lucide
  * <RutaProtegida modulo="id">; si tiene endpoints propios, protegerlos con requireModulo("id").
  */
 export const MODULOS = [
-  { id: "focos-de-calor", to: "/panel/alertas-incendios", icono: Radar, titulo: "Focos de calor", descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS)." },
+  { id: "focos-de-calor", to: "/panel/alertas-incendios", icono: Radar, titulo: "Focos de calor", descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS).", enDesarrollo: false },
   { id: "alertas-automaticas", to: "/panel/alertas-automaticas", icono: Bell, titulo: "Alertas automáticas (SMN)", descripcion: "Avisos del SMN por período y zona, en revisión." },
   { id: "inundaciones", to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Placas de alerta por inundación." },
   { id: "cuencas", to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
