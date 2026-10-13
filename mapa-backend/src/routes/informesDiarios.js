@@ -1,6 +1,6 @@
 const express = require("express");
 const requireAuth = require("../middleware/requireAuth");
-const { recolectar, errorDeConsulta } = require("../lib/informesDiarios");
+const { recolectar, errorDeConsulta, estacionesDisponibles, redactar } = require("../lib/informesDiarios");
 const informes = require("../lib/informesDiariosStore");
 
 const requireRole = require("../middleware/requireRole");
@@ -10,13 +10,30 @@ const router = express.Router();
 const soloSuperadmin = require("../middleware/requireModulo")("informes-diarios");
 const error = (res, e, texto) => { if (!e.status) console.error(e); const st = [400, 403, 404, 503].includes(e.status) ? e.status : 500; res.status(st).json({ error: st === 500 ? texto : e.message }); };
 
+// Las estaciones que se pueden consultar (para los interruptores de la pantalla): fijas y las de la RMET y la RHN, que salen del SNIH.
+router.get("/informes-diarios/estaciones", requireAuth, soloSuperadmin, async (req, res) => {
+  try { res.set("Cache-Control", "no-store").json(await estacionesDisponibles()); } catch (err) { error(res, err, "No se pudo armar la lista de estaciones."); }
+});
+
+// Vuelve a redactar el texto sugerido con las estaciones que quedaron prendidas, sin volver a pedir datos. Body: { fecha, fechaHasta, desde, hasta,
+// estaciones: [{ nombre, red, resumen, extremas, extremasPorDia }], smn } (el resumen ya calculado, sin las series).
+router.post("/informes-diarios/redactar", requireAuth, soloSuperadmin, express.json({ limit: "2mb" }), (req, res) => {
+  const { fecha, fechaHasta = fecha, desde = "00:00", hasta = "23:59", estaciones, smn = [] } = req.body || {};
+  const e = errorDeConsulta({ fecha, fechaHasta, desde, hasta });
+  if (e) return res.status(400).json({ error: e });
+  if (!Array.isArray(estaciones)) return res.status(400).json({ error: "Faltan las estaciones." });
+  try { res.set("Cache-Control", "no-store").json({ resumen: redactar({ fecha, fechaHasta, desde, hasta, estaciones, smn: Array.isArray(smn) ? smn : [] }) }); } catch (err) { error(res, err, "No se pudo redactar el texto."); }
+});
+
 // Junta los datos de un rango (no guarda nada): { fecha: "AAAA-MM-DD", desde: "HH:MM", fechaHasta?: "AAAA-MM-DD", hasta: "HH:MM" }
 // (sin fechaHasta, el mismo día). Ej.: ayer 00:00 → hoy 09:00.
 router.post("/informes-diarios/recolectar", requireAuth, soloSuperadmin, express.json(), async (req, res) => {
-  const { fecha, fechaHasta = fecha, desde = "00:00", hasta = "23:59" } = req.body || {};
+  const { fecha, fechaHasta = fecha, desde = "00:00", hasta = "23:59", estaciones: claves } = req.body || {};
   const e = errorDeConsulta({ fecha, fechaHasta, desde, hasta });
   if (e) return res.status(400).json({ error: e });
-  try { res.set("Cache-Control", "no-store").json(await recolectar({ fecha, fechaHasta, desde, hasta })); }
+  // `estaciones`: las claves prendidas en la pantalla (sin la lista, todas). Una lista vacía no tiene sentido.
+  if (claves != null && (!Array.isArray(claves) || !claves.length || claves.length > 120 || claves.some((c) => typeof c !== "string"))) return res.status(400).json({ error: "Prendé al menos una estación." });
+  try { res.set("Cache-Control", "no-store").json(await recolectar({ fecha, fechaHasta, desde, hasta, claves })); }
   catch (err) { error(res, err, "No se pudieron juntar los datos de las estaciones."); }
 });
 

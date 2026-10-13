@@ -1,6 +1,7 @@
 const { ESTACIONES: INTA } = require("./sigaInta");
 const { ESTACIONES: SINARAME, CODIGOS: CODIGOS_SNIH } = require("./sinarame");
 const smnAbiertos = require("./smnDatosAbiertos");
+const snih = require("./snihEstaciones");
 
 /**
  * Informes diarios (en desarrollo, sólo superadmin): qué pasó un día en Misiones según las
@@ -10,6 +11,8 @@ const smnAbiertos = require("./smnDatosAbiertos");
  *    04/10/2026: la mínima cae 04:20 y los datos de hoy llegan con horas de demora). La lluvia
  *    (`precDiaCrono`) es la de cada intervalo, no un acumulado.
  *  - SiNaRaMe (INA, vía SNIH): 4 estaciones, cada 10 min, con fecha en milisegundos UTC reales.
+ *  - RMET (Red Meteorológica) y RHN (Red Hidrológica Nacional), también vía SNIH (snihEstaciones.js): una lectura por hora
+ *    (algunas de la RHN, cada 4 h). Las estaciones salen de una lista que se pide al sitio, no de una escrita a mano.
  *  - SMN, datos abiertos (smnDatosAbiertos.js): datos horarios (temperatura, humedad, presión y
  *    viento medio; sin lluvia) y las temperaturas extremas oficiales del día. Se publican al día siguiente.
  *  - Lo que emitió el SMN ese día (alertas SAT y ACP), del historial que guarda el sistema.
@@ -78,6 +81,30 @@ async function serieSinarame(est, fecha, desde, hasta) {
   };
 }
 
+/**
+ * Lecturas de una estación RMET o RHN del SNIH (una variable por pedido, sólo las que esa estación mide), en [desde, hasta].
+ * Son horarias (algunas de la RHN, cada 4 h): el viento es el medio (no hay ráfaga) y la lluvia, la de cada lectura.
+ * El SNIH devuelve desde el día pedido hasta lo último que tiene: acá se recorta al rango.
+ */
+async function serieSnih(est, fecha, desde, hasta) {
+  const codigos = { temperatura: snih.CODIGOS.temperatura, humedad: snih.CODIGOS.humedad, viento: snih.CODIGOS.viento, lluvia: snih.CODIGOS.lluvia, direccion: snih.CODIGOS.direccion, presion: snih.CODIGOS.presion, radiacion: snih.CODIGOS.radiacion };
+  const pedidas = Object.entries(codigos).filter(([, c]) => est.codigos.includes(c));
+  const mapas = Object.fromEntries(await Promise.all(pedidas.map(async ([campo, codigo]) => {
+    const d = await pedirJson(`${SNIH_URL}/MuestraDatos.aspx/LeerUltimosRegistros`, {
+      method: "POST", headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({ fechaDesde: fecha, fechaHasta: fecha, estacion: est.id, codigo: String(codigo) }),
+    }).catch(() => null);
+    return [campo, new Map((d?.d?.Mediciones || []).map((m) => [Number(/\d+/.exec(m.FechaHora)?.[0]), m.Mediciones?.[0]?.Valor]))];
+  })));
+  const tiempos = [...new Set(Object.values(mapas).flatMap((m) => [...m.keys()]))].filter((t) => t >= desde && t <= hasta).sort((a, b) => a - b);
+  return {
+    serie: tiempos.map((t) => ({ t, lluvia: limpio(mapas.lluvia?.get(t), "lluvia") ?? 0, rafaga: null, viento: limpio(mapas.viento?.get(t), "viento"), temperatura: limpio(mapas.temperatura?.get(t), "temperatura"), humedad: limpio(mapas.humedad?.get(t), "humedad") })),
+    // Tal cual lo manda el SNIH (con la dirección, la presión y la radiación, que el informe no usa).
+    crudo: tiempos.map((t) => ({ t, temperatura: mapas.temperatura?.get(t) ?? null, humedad: mapas.humedad?.get(t) ?? null, viento_medio_kmh: mapas.viento?.get(t) ?? null, direccion: mapas.direccion?.get(t) ?? null, precipitacion_mm: mapas.lluvia?.get(t) ?? null, presion_mbar: mapas.presion?.get(t) ?? null, radiacion: mapas.radiacion?.get(t) ?? null })),
+    sinLluvia: !est.codigos.includes(snih.CODIGOS.lluvia),
+  };
+}
+
 // Un solo pedido al SMN por día aunque lo pidan las 5 estaciones (se guarda 10 minutos).
 const diasSmn = new Map();
 function diaSmn(fecha) {
@@ -111,9 +138,10 @@ const horaDe = (t, conDia = false) => { const l = new Date(t - OFFSET_MS).toISOS
 /**
  * Resumen de una serie (de 10 min, o horaria en el SMN). `sinLluvia`: la red no mide lluvia (no es
  * que no llovió). `ventanaCaida`: minutos para buscar la caída brusca de temperatura (con datos
- * horarios no hay 30 min, se mira de una hora a la siguiente).
+ * horarios no hay 30 min, se mira de una hora a la siguiente). `ventanaLluvia`: minutos de la ventana de la lluvia más
+ * intensa (30 en las estaciones de 10 min; 60 en las horarias, donde es la lluvia de una lectura).
  */
-function resumir(serie, { sinLluvia = false, ventanaCaida = 30, conDia = false } = {}) {
+function resumir(serie, { sinLluvia = false, ventanaCaida = 30, ventanaLluvia = 30, conDia = false } = {}) {
   const hora = (t) => horaDe(t, conDia);
   if (!serie.length) return null;
   const lluviaTotal = serie.reduce((s, r) => s + r.lluvia, 0);
@@ -121,7 +149,7 @@ function resumir(serie, { sinLluvia = false, ventanaCaida = 30, conDia = false }
   let max30 = { mm: 0, t: null };
   for (let i = 0; i < serie.length; i++) {
     let mm = 0;
-    for (let j = i; j < serie.length && serie[j].t - serie[i].t < 30 * MIN; j++) mm += serie[j].lluvia;
+    for (let j = i; j < serie.length && serie[j].t - serie[i].t < ventanaLluvia * MIN; j++) mm += serie[j].lluvia;
     if (mm > max30.mm) max30 = { mm, t: serie[i].t };
   }
   const conRafaga = serie.filter((r) => r.rafaga != null);
@@ -141,7 +169,7 @@ function resumir(serie, { sinLluvia = false, ventanaCaida = 30, conDia = false }
   return {
     registros: serie.length, desde: serie[0].t, hasta: serie.at(-1).t,
     lluviaTotal: sinLluvia ? null : Math.round(lluviaTotal * 10) / 10,
-    lluvia30: sinLluvia ? null : { mm: Math.round(max30.mm * 10) / 10, hora: max30.t ? hora(max30.t) : null },
+    lluvia30: sinLluvia ? null : { mm: Math.round(max30.mm * 10) / 10, hora: max30.t ? hora(max30.t) : null, minutos: ventanaLluvia },
     viento: viento ? { kmh: viento.viento, hora: hora(viento.t) } : null,
     rafaga: rafaga ? { kmh: rafaga.rafaga, hora: hora(rafaga.t) } : null,
     tMax: tMax ? { c: tMax.temperatura, hora: hora(tMax.t) } : null,
@@ -152,11 +180,35 @@ function resumir(serie, { sinLluvia = false, ventanaCaida = 30, conDia = false }
   };
 }
 
+/** Las redes, en el orden en que se muestran (el front tiene el espejo con el detalle). `red` es como figura en cada estación. */
+const REDES = [
+  { id: "inta", red: "INTA", nombre: "INTA (SIGA)", detalle: "Agrometeorológica · cada 10 min" },
+  { id: "sinarame", red: "SiNaRaMe", nombre: "SiNaRaMe", detalle: "INA · cada 10 min" },
+  { id: "rmet", red: "RMET", nombre: "RMET", detalle: "Red Meteorológica · cada hora" },
+  { id: "rhn", red: "RHN", nombre: "Red Hidrológica Nacional", detalle: "Lluvia y más · cada 1 a 4 h" },
+  { id: "smn", red: "SMN", nombre: "SMN", detalle: "Datos abiertos · horario" },
+];
 const ESTACIONES = [
   ...Object.entries(INTA).map(([clave, e]) => ({ clave: `inta-${clave}`, red: "INTA", ...e, serie: serieInta })),
   ...Object.entries(SINARAME).map(([clave, e]) => ({ clave: `sinarame-${clave}`, red: "SiNaRaMe", ...e, serie: serieSinarame })),
   ...Object.entries(smnAbiertos.ESTACIONES).map(([nombreSmn, e]) => ({ ...e, clave: `smn-${e.clave}`, red: "SMN", nombreSmn, horaria: true, serie: serieSmn })),
 ];
+/**
+ * Todas las estaciones que se pueden consultar: las fijas (INTA, SiNaRaMe, SMN) y las de la RMET y la RHN, que salen de la
+ * lista del SNIH. Si una red del SNIH no responde, queda afuera y se anota en `avisos` (las demás siguen).
+ */
+async function catalogo() {
+  const avisos = [];
+  const dinamicas = (await Promise.all(["rmet", "rhn"].map((id) => snih.estacionesDeRed(id).catch((e) => { avisos.push(`${id.toUpperCase()}: ${e.message}`); return []; })))).flat()
+    .map((e) => ({ ...e, serie: serieSnih }));
+  const todas = [...ESTACIONES, ...dinamicas].sort((a, b) => REDES.findIndex((r) => r.red === a.red) - REDES.findIndex((r) => r.red === b.red));
+  return { estaciones: todas, avisos };
+}
+/** Lo que ve la pantalla para armar los interruptores. */
+async function estacionesDisponibles() {
+  const { estaciones, avisos } = await catalogo();
+  return { redes: REDES, avisos, estaciones: estaciones.map((e) => ({ clave: e.clave, nombre: e.nombre, red: e.red, redId: REDES.find((r) => r.red === e.red)?.id, lat: e.lat, lng: e.lng, horaria: !!e.horaria, ...(e.ultimaMs && { ultimaMs: e.ultimaMs }) })) };
+}
 
 /** Lo que emitió el SMN que estuvo vigente en la ventana (del historial guardado). */
 async function avisosSmn(desde, hasta) {
@@ -236,10 +288,13 @@ async function serieDelRango(e, dias, t0, t1) {
 }
 
 /** Junta todo para el rango (hora de Misiones). Las estaciones que fallan quedan con `error`. */
-async function recolectar({ fecha, fechaHasta = fecha, desde = "00:00", hasta = "23:59" }) {
+async function recolectar({ fecha, fechaHasta = fecha, desde = "00:00", hasta = "23:59", claves = null }) {
   const t0 = instante(fecha, desde), t1 = instante(fechaHasta, hasta) + 59 * 1000;
   const dias = diasEntre(fecha, fechaHasta), conDia = dias.length > 1;
-  const estaciones = await Promise.all(ESTACIONES.map(async (e) => {
+  const { estaciones: catalogoCompleto } = await catalogo();
+  // `claves`: sólo las estaciones prendidas en la pantalla (sin `claves`, todas). Lo apagado no se pide ni entra en el resumen.
+  const elegidas = claves ? catalogoCompleto.filter((e) => claves.includes(e.clave)) : catalogoCompleto;
+  const estaciones = await Promise.all(elegidas.map(async (e) => {
     const base = { clave: e.clave, red: e.red, nombre: e.nombre, lat: e.lat, lng: e.lng, ...(e.horaria && { horaria: true }) };
     try {
       const { serie, crudo, extremasPorDia, sinLluvia, faltan } = await serieDelRango(e, dias, t0, t1);
@@ -248,7 +303,7 @@ async function recolectar({ fecha, fechaHasta = fecha, desde = "00:00", hasta = 
       const extremo = (k, f) => { const v = conEx.map((x) => x[k]).filter((n) => n != null); return v.length ? f(...v) : null; };
       const extremas = extremasPorDia ? (conEx.length ? { tmax: extremo("tmax", Math.max), tmin: extremo("tmin", Math.min) } : null) : undefined;
       return {
-        ...base, resumen: resumir(serie, { sinLluvia, ventanaCaida: e.horaria ? 60 : 30, conDia }), ...(extremas !== undefined && { extremas, extremasPorDia }),
+        ...base, resumen: resumir(serie, { sinLluvia, ventanaCaida: e.horaria ? 60 : 30, ventanaLluvia: e.horaria ? 60 : 30, conDia }), ...(extremas !== undefined && { extremas, extremasPorDia }),
         ...(faltan.length && { avisoDatos: faltan.join(" · ") }),
         serie: serie.map((r) => ({ t: r.t, lluvia: sinLluvia ? null : r.lluvia, rafaga: r.rafaga, ...(r.viento !== undefined && { viento: r.viento }), temperatura: r.temperatura })), crudo,
       };
@@ -275,13 +330,15 @@ const aLas = (h, desde = false) => { const [d, hh] = h.includes(" ") ? h.split("
 function redactar({ fecha, fechaHasta = fecha, desde, hasta, estaciones, smn }) {
   const con = estaciones.filter((e) => e.resumen);
   const sinDatos = estaciones.filter((e) => !e.resumen).map((e) => e.nombre);
-  const partes = [`Informe ${textoDelRango({ fecha, fechaHasta, desde, hasta })}, según las estaciones automáticas del INTA, de la red SiNaRaMe (INA) y del SMN.`];
+  const DE_LA_RED = { INTA: "del INTA", SiNaRaMe: "de la red SiNaRaMe (INA)", RMET: "de la Red Meteorológica (RMET)", RHN: "de la Red Hidrológica Nacional", SMN: "del SMN" };
+  const redes = REDES.map((r) => r.red).filter((r) => estaciones.some((e) => e.red === r)).map((r) => DE_LA_RED[r]);
+  const partes = [`Informe ${textoDelRango({ fecha, fechaHasta, desde, hasta })}${redes.length ? `, según las estaciones automáticas ${new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(redes)}` : ""}.`];
   const conLluvia = con.filter((e) => !e.resumen.sinLluvia);
   const lluvias = conLluvia.filter((e) => e.resumen.lluviaTotal > 0).sort((a, b) => b.resumen.lluviaTotal - a.resumen.lluviaTotal);
   if (lluvias.length) {
     partes.push(`Llovió en ${lluvias.length} de ${conLluvia.length} estaciones con datos de lluvia. Los mayores registros: ${lluvias.slice(0, 3).map((e) => `${e.nombre} ${coma(e.resumen.lluviaTotal)} mm`).join(", ")}.`);
     const intensa = [...lluvias].sort((a, b) => b.resumen.lluvia30.mm - a.resumen.lluvia30.mm)[0];
-    if (intensa?.resumen.lluvia30.mm >= 5) partes.push(`La lluvia más intensa fue en ${intensa.nombre}: ${coma(intensa.resumen.lluvia30.mm)} mm en 30 minutos ${aLas(intensa.resumen.lluvia30.hora, true)}.`);
+    if (intensa?.resumen.lluvia30.mm >= 5) partes.push(`La lluvia más intensa fue en ${intensa.nombre}: ${coma(intensa.resumen.lluvia30.mm)} mm en ${intensa.resumen.lluvia30.minutos === 60 ? "una hora" : "30 minutos"} ${aLas(intensa.resumen.lluvia30.hora, true)}.`);
   } else if (conLluvia.length) partes.push("No se registraron lluvias en las estaciones con datos de lluvia.");
   const frentes = con.filter((e) => e.resumen.caida && e.resumen.caida.grados >= 4).sort((a, b) => (a.resumen.caida.t ?? 0) - (b.resumen.caida.t ?? 0) || a.resumen.caida.hora.localeCompare(b.resumen.caida.hora));
   if (frentes.length) partes.push(`La llegada de la tormenta se marcó con caídas bruscas de temperatura: ${frentes.map((e) => `${e.nombre} ${aLas(e.resumen.caida.hora)} (−${coma(e.resumen.caida.grados)} °C en ${e.resumen.caida.minutos === 60 ? "una hora" : "30 min"})`).join("; ")}.`);
@@ -307,4 +364,4 @@ function redactar({ fecha, fechaHasta = fecha, desde, hasta, estaciones, smn }) 
   return partes.join("\n\n");
 }
 
-module.exports = { recolectar, errorDeConsulta, resumir, redactar, textoDelRango, diasEntre, ESTACIONES };
+module.exports = { recolectar, errorDeConsulta, resumir, redactar, textoDelRango, diasEntre, estacionesDisponibles, catalogo, REDES, ESTACIONES };

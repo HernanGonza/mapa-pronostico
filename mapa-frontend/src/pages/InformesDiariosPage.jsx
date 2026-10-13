@@ -5,6 +5,7 @@ import * as api from "../api";
 import { notificar } from "../lib/ui";
 import { exportarInformePdf } from "../lib/exportarPdf";
 import { enFemenino } from "../lib/nivelAlerta.js";
+import EstacionesInformes from "../components/EstacionesInformes";
 
 /**
  * Informes diarios (en desarrollo, sólo superadmin, desde Configuración): qué pasó un día en
@@ -28,7 +29,14 @@ const horaDe = (t) => new Date(t).toLocaleTimeString("es-AR", { timeZone: AR, ho
 const fechaHora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const fechaLarga = (f) => new Date(`${f}T12:00:00-03:00`).toLocaleDateString("es-AR", { timeZone: AR, weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const COLORES = ["#1f6fb2", "#d4572a", "#2f8f5b", "#8b3fc4", "#c9346c", "#b8940f", "#17847f", "#5a6bd6", "#a8552f", "#3c7a2a", "#9a2f6f"];
-const FUENTE = "Fuente: estaciones automáticas de la Red Agrometeorológica INTA (SIGA) y de la red SiNaRaMe (INA, vía SNIH); datos horarios y temperaturas extremas de las estaciones del SMN (datos abiertos); avisos del SMN.";
+const DE_LA_RED = { INTA: "de la Red Agrometeorológica INTA (SIGA)", SiNaRaMe: "de la red SiNaRaMe (INA, vía SNIH)", RMET: "de la Red Meteorológica RMET (vía SNIH)", RHN: "de la Red Hidrológica Nacional (vía SNIH)", SMN: "datos horarios y temperaturas extremas de las estaciones del SMN (datos abiertos)" };
+/** «Fuente: …» con las redes de las estaciones que están en el informe. */
+const fuenteDe = (estaciones) => { const redes = Object.keys(DE_LA_RED).filter((r) => estaciones.some((e) => e.red === r)); return `Fuente: estaciones automáticas ${redes.length ? new Intl.ListFormat("es", { style: "long", type: "disjunction" }).format(redes.map((r) => DE_LA_RED[r])).replace(/ o /, " y ") : "consultadas"}; avisos del SMN.`; };
+const CLAVE_APAGADAS = "informes-estaciones-apagadas-v1";
+const leerApagadas = () => { try { return new Set(JSON.parse(localStorage.getItem(CLAVE_APAGADAS)) || []); } catch { return new Set(); } };
+const claveDe = (lista) => lista.map((e) => e.clave).sort().join("|");
+/** El resumen de cada estación (sin las series ni el dato crudo): lo único que hace falta para volver a redactar el texto. */
+const sinSeries = (estaciones) => estaciones.map(({ nombre, red, clave, resumen, extremas, extremasPorDia }) => ({ nombre, red, clave, resumen, extremas, extremasPorDia }));
 const sinCero = (n) => (n == null ? "—" : coma(n));
 
 export default function InformesDiariosPage() {
@@ -40,43 +48,61 @@ export default function InformesDiariosPage() {
   const [informe, setInforme] = useState(null); // { id?, fecha, fechaHasta, desde, hasta, titulo, resumen, datos }
   const [guardados, setGuardados] = useState([]);
   const [geo, setGeo] = useState(null);
+  const [catalogo, setCatalogo] = useState(null); // las estaciones que se pueden consultar y sus redes
+  const [apagadas, setApagadas] = useState(leerApagadas); // claves apagadas (una estación nueva nace prendida)
   const mapaRef = useRef(null), graficosRef = useRef(null);
 
   const cargarGuardados = () => api.getInformesDiarios().then(setGuardados).catch(() => {});
-  useEffect(() => { cargarGuardados(); api.getAlertasMeteorologicasGeojson().then(setGeo).catch(() => {}); }, []);
+  useEffect(() => { cargarGuardados(); api.getAlertasMeteorologicasGeojson().then(setGeo).catch(() => {}); api.getEstacionesInformes().then(setCatalogo).catch((e) => setError(`No se pudo traer la lista de estaciones: ${e.message}`)); }, []);
+  const cambiarApagadas = (n) => { setApagadas(n); try { localStorage.setItem(CLAVE_APAGADAS, JSON.stringify([...n])); } catch { /* sin almacenamiento: sigue andando */ } };
+  const prendidas = (catalogo?.estaciones || []).filter((e) => !apagadas.has(e.clave)).map((e) => e.clave);
 
   async function juntar() {
     setCargando(true); setError("");
     try {
-      const datos = await api.recolectarInformeDiario({ fecha, fechaHasta, desde, hasta });
-      setInforme({ fecha, fechaHasta, desde, hasta, titulo: tituloSugerido({ fecha, fechaHasta }), resumen: datos.resumenSugerido, datos });
+      if (!prendidas.length) throw new Error("Prendé al menos una estación.");
+      const datos = await api.recolectarInformeDiario({ fecha, fechaHasta, desde, hasta, estaciones: prendidas });
+      setInforme({ fecha, fechaHasta, desde, hasta, titulo: tituloSugerido({ fecha, fechaHasta }), resumen: datos.resumenSugerido, sugerido: datos.resumenSugerido, redactadoCon: claveDe(datos.estaciones), datos });
     } catch (e) { setError(e.message); }
     finally { setCargando(false); }
   }
   async function abrir(id) {
     setError("");
-    try { const i = await api.getInformeDiario(id); setInforme(i); setFecha(i.fecha); setFechaHasta(i.fechaHasta || i.fecha); setDesde(i.desde); setHasta(i.hasta); }
+    try { const i = await api.getInformeDiario(id); setInforme({ ...i, sugerido: null, redactadoCon: claveDe(i.datos?.estaciones || []) }); setFecha(i.fecha); setFechaHasta(i.fechaHasta || i.fecha); setDesde(i.desde); setHasta(i.hasta); }
     catch (e) { setError(e.message); }
   }
   async function guardar() {
     setGuardando(true); setError("");
     try {
-      const g = await api.guardarInformeDiario({ id: informe.id ?? null, fecha: informe.fecha, fechaHasta: informe.fechaHasta || informe.fecha, desde: informe.desde, hasta: informe.hasta, titulo: informe.titulo, resumen: informe.resumen, datos: informe.datos });
+      const g = await api.guardarInformeDiario({ id: informe.id ?? null, fecha: informe.fecha, fechaHasta: informe.fechaHasta || informe.fecha, desde: informe.desde, hasta: informe.hasta, titulo: informe.titulo, resumen: informe.resumen, datos: datosVisibles });
       setInforme(g); await cargarGuardados(); notificar("success", "Informe guardado.");
     } catch (e) { setError(e.message); }
     finally { setGuardando(false); }
   }
 
-  const estaciones = informe?.datos?.estaciones || [];
+  // Lo que se ve, se calcula y se baja: las estaciones consultadas que están prendidas (apagar una la saca de todo al instante).
+  const estaciones = useMemo(() => (informe?.datos?.estaciones || []).filter((e) => !apagadas.has(e.clave)), [informe, apagadas]);
   const conDatos = estaciones.filter((e) => e.resumen);
+  const consultadas = useMemo(() => new Set((informe?.datos?.estaciones || []).map((e) => e.clave)), [informe]);
+  const sinConsultar = informe ? prendidas.filter((c) => !consultadas.has(c)).length : 0; // prendidas después de juntar los datos
+  const datosVisibles = informe ? { ...informe.datos, estaciones } : null;
+  // El texto sugerido habla de las estaciones con las que se redactó: si cambiaron, se vuelve a redactar (solo, si no se tocó el texto).
+  const textoDesactualizado = !!informe && informe.redactadoCon !== claveDe(estaciones) && estaciones.length > 0;
+  async function redactarDeNuevo() {
+    try {
+      const resumen = await api.redactarInformeDiario({ fecha: informe.fecha, fechaHasta: informe.fechaHasta || informe.fecha, desde: informe.desde, hasta: informe.hasta, estaciones: sinSeries(estaciones), smn: informe.datos.smn || [] });
+      setInforme((i) => ({ ...i, resumen, sugerido: resumen, redactadoCon: claveDe(estaciones) }));
+    } catch (e) { setError(`No se pudo redactar el texto: ${e.message}`); }
+  }
+  useEffect(() => { if (textoDesactualizado && informe.sugerido != null && informe.resumen === informe.sugerido) redactarDeNuevo(); }, [textoDesactualizado, informe?.redactadoCon, claveDe(estaciones)]); // eslint-disable-line react-hooks/exhaustive-deps
   const tabla = useMemo(() => ({
-    columnas: ["Estación", "Red", "Lluvia (mm)", "Máx. 30 min", "Ráfaga (km/h)", "Temp. mín / máx (°C)", "Llegada de la tormenta"],
+    columnas: ["Estación", "Red", "Lluvia (mm)", "Máx. 30 min (1 h en las horarias)", "Ráfaga (km/h)", "Temp. mín / máx (°C)", "Llegada de la tormenta"],
     filas: estaciones.map((e) => {
       const r = e.resumen, ex = e.extremas;
       // El SMN da las extremas oficiales del día aunque falten los horarios (o al revés).
       const oficial = ex && (ex.tmin != null || ex.tmax != null) ? `${sinCero(ex.tmin)} / ${sinCero(ex.tmax)} (oficial SMN)` : null;
       if (!r) return [e.nombre, e.red, "Sin datos", "", "", oficial || "", ""];
-      return [e.nombre, e.red, r.sinLluvia ? "no mide" : coma(r.lluviaTotal), r.sinLluvia ? "—" : r.lluvia30.mm ? `${coma(r.lluvia30.mm)} mm · ${r.lluvia30.hora}` : "—",
+      return [e.nombre, e.red, r.sinLluvia ? "no mide" : coma(r.lluviaTotal), r.sinLluvia ? "—" : r.lluvia30.mm ? `${coma(r.lluvia30.mm)} mm · ${r.lluvia30.hora}${r.lluvia30.minutos === 60 ? " (en 1 h)" : ""}` : "—",
         r.rafaga ? `${coma(r.rafaga.kmh)} · ${r.rafaga.hora}` : r.viento ? `viento medio ${coma(r.viento.kmh)} · ${r.viento.hora}` : r.sinViento ? "sin sensor" : "—",
         oficial || (r.tMin && r.tMax ? `${coma(r.tMin.c)} / ${coma(r.tMax.c)}` : "—"),
         r.caida && r.caida.grados >= 4 ? `${r.caida.hora} (−${coma(r.caida.grados)} °C${r.caida.minutos === 60 ? " en 1 h" : ""})` : "—"];
@@ -90,14 +116,14 @@ export default function InformesDiariosPage() {
   const [bajandoExcel, setBajandoExcel] = useState(false);
   async function excel() {
     setBajandoExcel(true); setError("");
-    try { await api.descargarExcelInformeDiario(informe.datos); }
+    try { await api.descargarExcelInformeDiario(datosVisibles); }
     catch (e) { setError(`No se pudo armar el Excel: ${e.message}`); }
     finally { setBajandoExcel(false); }
   }
   async function pdf() {
     try {
       await exportarInformePdf({ titulo: informe.titulo, subtitulo: `${rangoTexto(informe)} · Dirección General de Alerta Temprana`,
-        resumen: informe.resumen, mapa: mapaRef.current, graficos: graficosRef.current, tabla, avisos, fuente: FUENTE, nombre: (informe.fechaHasta || informe.fecha) !== informe.fecha ? `informe-${informe.fecha}-a-${informe.fechaHasta}` : `informe-diario-${informe.fecha}` });
+        resumen: informe.resumen, mapa: mapaRef.current, graficos: graficosRef.current, tabla, avisos, fuente: fuenteDe(estaciones), nombre: (informe.fechaHasta || informe.fecha) !== informe.fecha ? `informe-${informe.fecha}-a-${informe.fechaHasta}` : `informe-diario-${informe.fecha}` });
     } catch (e) { setError(`No se pudo armar el PDF: ${e.message}`); }
   }
 
@@ -105,8 +131,10 @@ export default function InformesDiariosPage() {
     <BrandHeader subtitulo="Informes diarios"><VolverConfiguracion /></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
       <div className="editor-heading"><h1>Informes diarios</h1>
-        <p>Qué pasó un día en Misiones según las estaciones oficiales del INTA y de la red SiNaRaMe (cada 10 minutos) y las del SMN (cada hora, más las temperaturas extremas oficiales), con lo que emitió el SMN. Elegí desde y hasta cuándo (puede ser de un día a otro, hasta 7 días), juntá los datos, revisá el texto y guardalo o bajalo en PDF.</p></div>
+        <p>Qué pasó un día en Misiones según las estaciones oficiales de las redes del INTA, SiNaRaMe, la Red Meteorológica (RMET), la Red Hidrológica Nacional y el SMN, con lo que emitió el SMN. Prendé las redes y las estaciones que querés usar (si una anda mal, apagala): sólo lo prendido entra en los cálculos, el mapa y los archivos. Elegí desde y hasta cuándo (puede ser de un día para el otro, hasta 7 días).</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
+      <h2>Estaciones</h2>
+      <EstacionesInformes catalogo={catalogo} apagadas={apagadas} alCambiar={cambiarApagadas} consultadas={informe ? consultadas : null} />
       <div className="informes-form">
         <div className="informes-form__atajos">
           <button type="button" className="btn" onClick={() => atajo(ayer(), "00:00", ayer(), "23:59")}>Ayer completo</button>
@@ -121,7 +149,7 @@ export default function InformesDiariosPage() {
           <input type="date" className="paso-input" aria-label="Día de fin" value={fechaHasta} min={fecha} max={hoy()} onChange={(e) => setFechaHasta(e.target.value)} />
           <input type="time" className="paso-input" aria-label="Hora de fin" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </fieldset>
-        <button type="button" className="btn btn--primary btn--block" disabled={cargando} onClick={juntar}>{cargando ? "Juntando datos de las estaciones…" : "Juntar datos"}</button>
+        <button type="button" className="btn btn--primary btn--block" disabled={cargando || !prendidas.length} onClick={juntar}>{cargando ? "Juntando datos de las estaciones…" : prendidas.length ? `Juntar datos de ${prendidas.length} ${prendidas.length === 1 ? "estación" : "estaciones"}` : "Prendé al menos una estación"}</button>
         <p className="admin-panel__hint">El INTA publica con algunas horas de demora: para el día de hoy o de ayer puede faltar el final. El SMN sube sus datos al día siguiente (las temperaturas extremas, sólo del último año).</p>
       </div>
       {guardados.length > 0 && <div className="avisos-lista">
@@ -142,6 +170,9 @@ export default function InformesDiariosPage() {
           {informe.id && <small>Guardado · se puede seguir editando</small>}
         </div>
         <label className="paso-etiqueta">Título<input className="paso-input" maxLength={160} value={informe.titulo} onChange={(e) => setInforme({ ...informe, titulo: e.target.value })} /></label>
+        {sinConsultar > 0 && <div className="risk-message" role="status">Prendiste {sinConsultar} {sinConsultar === 1 ? "estación" : "estaciones"} después de juntar los datos: todavía no {sinConsultar === 1 ? "tiene" : "tienen"} datos en este informe. Tocá «Juntar datos» de nuevo para {sinConsultar === 1 ? "sumarla" : "sumarlas"}.</div>}
+        {textoDesactualizado && informe.sugerido != null && informe.resumen !== informe.sugerido && <div className="risk-message" role="status">Cambiaste las estaciones y el texto ya tiene cosas que escribiste, así que no lo toqué: todavía habla de las anteriores. <button type="button" className="btn-link" onClick={redactarDeNuevo}>Volver a redactar con las estaciones de ahora</button> (reemplaza el texto).</div>}
+        {textoDesactualizado && informe.sugerido == null && <div className="risk-message" role="status">Cambiaste las estaciones respecto de las de este informe guardado. <button type="button" className="btn-link" onClick={redactarDeNuevo}>Volver a redactar el texto con las estaciones de ahora</button> (reemplaza el texto).</div>}
         <label className="paso-etiqueta">Texto del informe (sugerido a partir de los datos: revisalo y corregilo)
           <textarea className="paso-texto informes-texto" rows={12} maxLength={8000} value={informe.resumen} onChange={(e) => setInforme({ ...informe, resumen: e.target.value })} /></label>
 
@@ -156,7 +187,7 @@ export default function InformesDiariosPage() {
         <div ref={graficosRef} className="informes-graficos">
           <Grafico titulo="Lluvia acumulada (mm)" estaciones={conDatos.filter((e) => !e.resumen.sinLluvia)} valor={(serie) => { let s = 0; return serie.map((r) => ({ t: r.t, v: (s += r.lluvia) })); }} desde={informe.datos} />
           <Grafico titulo="Ráfagas (km/h)" estaciones={conDatos.filter((e) => !e.resumen.sinViento)} valor={(serie) => serie.filter((r) => r.rafaga != null).map((r) => ({ t: r.t, v: r.rafaga }))} desde={informe.datos} />
-          <Grafico titulo="Viento medio horario del SMN (km/h)" estaciones={conDatos.filter((e) => e.red === "SMN")} valor={(serie) => serie.filter((r) => r.viento != null).map((r) => ({ t: r.t, v: r.viento }))} desde={informe.datos} />
+          <Grafico titulo="Viento medio horario (km/h)" estaciones={conDatos.filter((e) => (e.serie || []).some((r) => r.viento != null))} valor={(serie) => serie.filter((r) => r.viento != null).map((r) => ({ t: r.t, v: r.viento }))} desde={informe.datos} />
           <Grafico titulo="Temperatura (°C)" estaciones={conDatos.filter((e) => !e.resumen.sinTemperatura)} valor={(serie) => serie.filter((r) => r.temperatura != null).map((r) => ({ t: r.t, v: r.temperatura }))} desde={informe.datos} />
         </div>
 
@@ -169,7 +200,7 @@ export default function InformesDiariosPage() {
           {(informe.datos.propias?.avisos || []).map((a) => <li key={`v${a.id}`}><strong>Aviso a muy corto plazo</strong>{a.nivel && ` (${a.nivel.toLowerCase()})`} · {a.texto.split("\n")[0]} <small>(publicado {fechaHora(a.publicadoEn)})</small></li>)}
           {!(informe.datos.propias?.alertas?.length || informe.datos.propias?.avisos?.length) && <li><small>Nada publicado en esa franja.</small></li>}
         </ul>
-        <p className="informes-fuente">{FUENTE} Datos consultados el {fechaHora(informe.datos.consultadoEn)}.</p>
+        <p className="informes-fuente">{fuenteDe(estaciones)} Datos consultados el {fechaHora(informe.datos.consultadoEn)}.</p>
       </>}
     </div>
   </div>;
@@ -206,7 +237,7 @@ function MapaEstaciones({ geo, estaciones }) {
         <text x={x + radio + 4} y={y + 12} fontSize="11.5" fill="#3a4a42">{r ? `${coma(r.lluviaTotal)} mm${r.rafaga ? ` · ${coma(r.rafaga.kmh)} km/h` : ""}` : "sin datos"}</text>
       </g>;
     })}
-    <text x="10" y={H - 12} fontSize="11" fill="#5b6a60">Círculo: lluvia acumulada (INTA y SiNaRaMe) · Cuadrado: estación del SMN, temp. mín / máx</text>
+    <text x="10" y={H - 12} fontSize="11" fill="#5b6a60">Círculo: lluvia acumulada de cada estación · Cuadrado: estación del SMN, temp. mín / máx</text>
   </svg>;
 }
 

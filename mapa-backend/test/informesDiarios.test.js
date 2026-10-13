@@ -14,7 +14,7 @@ const serie = Array.from({ length: 12 }, (_, i) => ({
 test("resume una serie de 10 minutos: lluvia, máxima en 30 min, ráfaga, temperaturas y llegada del frente", () => {
   const r = resumir(serie);
   assert.equal(r.lluviaTotal, 19.7);
-  assert.deepEqual(r.lluvia30, { mm: 18, hora: "16:40" });
+  assert.deepEqual(r.lluvia30, { mm: 18, hora: "16:40", minutos: 30 }); // minutos: la ventana (30 en las de 10 min, 60 en las horarias)
   assert.deepEqual(r.rafaga, { kmh: 52, hora: "16:40" });
   assert.deepEqual(r.tMax, { c: 31, hora: "16:00" });
   assert.equal(r.tMin.c, 21);

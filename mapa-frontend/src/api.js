@@ -584,8 +584,17 @@ export async function publicarEnRedes(payload) {
 }
 
 // --- Informes diarios (en desarrollo, sólo superadmin) ---
-export async function recolectarInformeDiario({ fecha, fechaHasta, desde, hasta }) {
-  return handleJson(await fetch(`${API_URL}/api/informes-diarios/recolectar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha, fechaHasta, desde, hasta }), cache: "no-store", ...CON_SESION }));
+/** `estaciones`: las claves prendidas en la pantalla; sólo esas se consultan. */
+export async function recolectarInformeDiario({ fecha, fechaHasta, desde, hasta, estaciones }) {
+  return handleJson(await fetch(`${API_URL}/api/informes-diarios/recolectar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha, fechaHasta, desde, hasta, estaciones }), cache: "no-store", ...CON_SESION }));
+}
+/** Las estaciones que se pueden consultar y sus redes, para los interruptores: { redes, estaciones, avisos }. */
+export async function getEstacionesInformes() {
+  return handleJson(await fetch(`${API_URL}/api/informes-diarios/estaciones`, { cache: "no-store", ...CON_SESION }));
+}
+/** Vuelve a redactar el texto con las estaciones que quedaron (sin volver a pedir datos). `informe`: { fecha, fechaHasta, desde, hasta, estaciones (con su resumen, sin series), smn }. */
+export async function redactarInformeDiario(informe) {
+  return (await handleJson(await fetch(`${API_URL}/api/informes-diarios/redactar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(informe), ...CON_SESION }))).resumen;
 }
 export async function getInformesDiarios() {
   return (await handleJson(await fetch(`${API_URL}/api/informes-diarios`, { cache: "no-store", ...CON_SESION }))).informes;
