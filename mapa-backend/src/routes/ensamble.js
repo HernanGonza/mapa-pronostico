@@ -1,6 +1,6 @@
 const express = require("express");
 const requireAuth = require("../middleware/requireAuth");
-const { pronosticoEnsamble, progresoWrf } = require("../lib/ensamble");
+const { pronosticoEnsamble, progresoEnsamble } = require("../lib/ensamble");
 const { propuestaInforme } = require("../lib/informeEnsamble");
 const { generarDocx } = require("../lib/informePronostico");
 
@@ -18,8 +18,8 @@ router.get("/ensamble", requireAuth, soloConModulo, async (req, res) => {
   }
 });
 
-// Avance de la descarga del WRF-SMN (la pantalla lo mira sólo mientras dura una consulta).
-router.get("/ensamble/progreso", requireAuth, soloConModulo, (req, res) => res.set("Cache-Control", "no-store").json(progresoWrf()));
+// Avance de lo que se descarga (WRF-SMN y MONAN): la pantalla lo mira sólo mientras dura una consulta.
+router.get("/ensamble/progreso", requireAuth, soloConModulo, (req, res) => res.set("Cache-Control", "no-store").json(progresoEnsamble()));
 
 // Informe de pronóstico (cajón del ensamble): valores propuestos a partir de los modelos elegidos...
 router.post("/ensamble/informe/propuesta", requireAuth, soloConModulo, express.json({ limit: "100kb" }), async (req, res) => {

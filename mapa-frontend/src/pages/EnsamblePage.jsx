@@ -20,14 +20,18 @@ const ESTILO = { // color + forma propios de cada modelo
   icon_seamless: { color: "#2f8f5b", forma: "rombo" },
   gem_seamless: { color: "#8b3fc4", forma: "triangulo" },
   wrf_smn: { color: "#c9346c", forma: "cruz" },
+  monan_3km: { color: "#c28f00", forma: "hexagono" },
+  monan_10km: { color: "#00838f", forma: "estrella" },
 };
 // Espejo de MODELOS en mapa-backend/src/lib/ensamble.js (las tarjetas existen antes de la primera consulta).
 const CATALOGO = [
-  { id: "ecmwf_ifs025", nombre: "ECMWF", origen: "Centro Europeo", rol: "Referencia a 3–10 días" },
-  { id: "gfs_seamless", nombre: "GFS", origen: "EE. UU. (NOAA)", rol: "Tendencias de viento y temperatura" },
-  { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso" },
-  { id: "gem_seamless", nombre: "GEM", origen: "Canadá (ECCC)", rol: "Validador de consenso" },
-  { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", nota: "Temperatura, lluvia, humedad y viento. No publica ráfagas, nubosidad ni sensación térmica. Pesa (≈12 MB por hora de pronóstico): tarda en bajar la primera vez." },
+  { id: "ecmwf_ifs025", nombre: "ECMWF", detalle: "Centro Europeo · 3–10 días", nota: "Centro Europeo. Referencia a 3–10 días." },
+  { id: "gfs_seamless", nombre: "GFS", detalle: "EE. UU. (NOAA) · viento y temperatura", nota: "EE. UU. (NOAA). Tendencias de viento y temperatura." },
+  { id: "icon_seamless", nombre: "ICON", detalle: "Alemania (DWD) · consenso", nota: "Alemania (DWD). Validador de consenso." },
+  { id: "gem_seamless", nombre: "GEM", detalle: "Canadá (ECCC) · consenso", nota: "Canadá (ECCC). Validador de consenso." },
+  { id: "wrf_smn", nombre: "WRF-SMN", detalle: "Argentina (SMN) · 4 km, 72 h · tormentas", nota: "Servicio Meteorológico Nacional, 4 km, hasta 72 h. Tormentas y lluvia convectiva. Aporta temperatura, lluvia, humedad y viento; no publica ráfagas, nubosidad ni sensación térmica. Pesa (≈12 MB por hora de pronóstico): tarda en bajar la primera vez." },
+  { id: "monan_3km", nombre: "MONAN 3 km", detalle: "Brasil (CPTEC) · 3 km, 72 h · convección", nota: "CPTEC/INPE (Brasil), regional, 3 km, hasta 72 h (una corrida por día, 00 UTC). Es el único con ráfagas, CAPE, reflectividad de radar y helicidad de ascenso: tormentas severas. Sin nubosidad." },
+  { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", nota: "CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
 ];
 const fechaDe = (f) => new Date(`${f}T12:00:00-03:00`);
 const diaCorto = (f) => fechaDe(f).toLocaleDateString("es-AR", { timeZone: AR, weekday: "short" }).replace(".", "");
@@ -69,6 +73,8 @@ function Marca({ forma, color, x = 0, y = 0, r = 5 }) {
   const p = { fill: color, stroke: "#fff", strokeWidth: 1.2 };
   if (forma === "cuadrado") return <rect x={x - r} y={y - r} width={2 * r} height={2 * r} rx="1" {...p} />;
   if (forma === "cruz") { const a = r + 1, g = 2; return <polygon points={`${x - g},${y - a} ${x + g},${y - a} ${x + g},${y - g} ${x + a},${y - g} ${x + a},${y + g} ${x + g},${y + g} ${x + g},${y + a} ${x - g},${y + a} ${x - g},${y + g} ${x - a},${y + g} ${x - a},${y - g} ${x - g},${y - g}`} {...p} />; }
+  if (forma === "hexagono") { const q = r + 1; return <polygon points={Array.from({ length: 6 }, (_, k) => `${x + q * Math.cos((Math.PI / 3) * k)},${y + q * Math.sin((Math.PI / 3) * k)}`).join(" ")} {...p} />; }
+  if (forma === "estrella") { const q = r + 2; return <polygon points={Array.from({ length: 10 }, (_, k) => { const rr = k % 2 ? q * 0.45 : q, a = (Math.PI / 5) * k - Math.PI / 2; return `${x + rr * Math.cos(a)},${y + rr * Math.sin(a)}`; }).join(" ")} {...p} />; }
   if (forma === "rombo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y} ${x},${y + r + 1} ${x - r - 1},${y}`} {...p} />;
   if (forma === "triangulo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y + r} ${x - r - 1},${y + r}`} {...p} />;
   return <circle cx={x} cy={y} r={r} {...p} />;
@@ -90,7 +96,7 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia }) {
   if (variable.circular) { lo = 0; hi = 360; } // direcciones: toda la rosa
   else if (variable.unidad === "%") { lo = 0; hi = 100; }
   else {
-    if (variable.clave === "lluvia" || variable.clave === "viento" || variable.clave === "rafaga") lo = 0;
+    if (["lluvia", "viento", "rafaga", "cape", "uh"].includes(variable.clave)) lo = 0; // no pueden ser negativos
     if (hi - lo < 1) hi = lo + 1;
     const pad = (hi - lo) * 0.08; hi += pad; if (lo !== 0) lo -= pad;
   }
@@ -157,8 +163,8 @@ export default function EnsamblePage() {
   const [fHasta, setFHasta] = useState(sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState("23:00");
   const informe = useInforme(); // el borrador del informe vive acá (siempre montado): ocultar el cajón no pierde nada
   const [cajon, setCajon] = useState(false);
-  const [avance, setAvance] = useState(null); // descarga del WRF-SMN en el servidor
-  const [espera, setEspera] = useState(0); // > 0 mientras el WRF-SMN sigue bajando (la consulta ya mostró los demás modelos)
+  const [avance, setAvance] = useState(null); // descarga (WRF-SMN, MONAN) en el servidor
+  const [espera, setEspera] = useState(0); // > 0 mientras algún modelo sigue bajando (la consulta ya mostró los demás)
   const ultimo = useRef(null); // el pedido de la última consulta, para repetirlo cuando el WRF termina
   const atajo = (dias) => { setFDesde(hoyART()); setHDesde("00:00"); setFHasta(sumarDias(hoyART(), dias)); setHHasta("23:00"); };
 
@@ -167,7 +173,7 @@ export default function EnsamblePage() {
     if (!repetir) ultimo.current = { desde: `${fDesde}T${hDesde}`, hasta: `${fHasta}T${hHasta}`, modelos: [...prendidos] };
     api.getEnsamble(ultimo.current)
       .then((d) => {
-        setDatos(d); setEspera((n) => (d.wrf?.pendiente ? n + 1 : 0));
+        setDatos(d); setEspera((n) => (d.pendientes?.length ? n + 1 : 0));
         if (!repetir) setDia(null);
         setDeptoId((id) => (d.departamentos.some((x) => x.id === id) ? id : d.departamentos[0].id));
       })
@@ -175,8 +181,8 @@ export default function EnsamblePage() {
   }
   const consultarRef = useRef(consultar); consultarRef.current = consultar;
 
-  // El WRF-SMN baja en el servidor (puede llevar minutos): se mira el avance cada 3 s SÓLO mientras eso dura y,
-  // al terminar, se repite la consulta una vez para sumarlo. Si la consulta no se pidió, no se mira nada.
+  // El WRF-SMN y el MONAN bajan en el servidor (el WRF puede llevar minutos): se mira el avance cada 3 s SÓLO mientras eso dura y,
+  // al terminar, se repite la consulta una vez para sumarlos. Si la consulta no se pidió, no se mira nada.
   useEffect(() => {
     if (!espera) { setAvance(null); return undefined; }
     const inicio = Date.now();
@@ -184,7 +190,7 @@ export default function EnsamblePage() {
       try {
         const p = await api.getEnsambleProgreso();
         setAvance(p.activo ? p : null);
-        if (Date.now() - inicio > 20 * 60000) { clearInterval(t); setEspera(0); setError("El WRF-SMN no terminó de descargarse. Probá consultar de nuevo en un rato."); }
+        if (Date.now() - inicio > 20 * 60000) { clearInterval(t); setEspera(0); setError("Algún modelo no terminó de descargarse. Probá consultar de nuevo en un rato."); }
         else if (!p.activo) { clearInterval(t); consultarRef.current(true); }
       } catch { /* se reintenta en el próximo ciclo */ }
     }, 3000);
@@ -196,7 +202,8 @@ export default function EnsamblePage() {
   // Lo que se muestra: los prendidos que están en la última consulta (el resto no se pidió, no hay dato).
   const consultados = useMemo(() => new Set((datos?.modelos || []).map((m) => m.id)), [datos]);
   const visibles = useMemo(() => new Set([...prendidos].filter((id) => !datos || consultados.has(id))), [prendidos, consultados, datos]);
-  const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id) && !(id === "wrf_smn" && espera > 0)) : [];
+  const pendientes = datos?.pendientes || [];
+  const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id) && !pendientes.includes(id)) : [];
   const alternar = (id) => setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
   const filas = useMemo(() => (datos && variable ? datos.departamentos.map((d) => ({ d, celdas: d.dias.map((x) => resumir(x[clave].valores, visibles, variable)) })) : []), [datos, variable, clave, visibles]);
   const resumenDepto = depto && variable ? depto.dias.map((x) => resumir(x[clave].valores, visibles, variable)) : [];
@@ -209,14 +216,13 @@ export default function EnsamblePage() {
         <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador: no reemplaza el pronóstico ni se publica.</p></div>
       <h2>Modelos</h2>
       <div className="ens-modelos" role="group" aria-label="Modelos">
-        {CATALOGO.map((m) => <button key={m.id} type="button" className={`ens-modelo${prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
+        {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} className={`ens-modelo${prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
           <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
-          <span className="ens-modelo-origen">{m.origen}</span><span className="ens-modelo-rol">{m.rol}</span>
-          {m.nota && <span className="ens-modelo-rol">{m.nota}</span>}
-          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{m.id === "wrf_smn" && espera > 0 ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
+          <span className="ens-modelo-origen">{m.detalle}</span>
+          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{pendientes.includes(m.id) ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
         </button>)}
       </div>
-      <p className="ens-nota">Prendé los modelos que querés comparar. <strong>Consultar</strong> pide sólo los que están prendidos; apagar uno después de consultar solo lo saca del promedio.</p>
+      <p className="ens-nota">Prendé los que querés comparar: <strong>Consultar</strong> pide sólo esos. Pasá el mouse por una tarjeta para ver el detalle.</p>
     </aside>
 
     <div className="admin-map-area ens-area">
@@ -234,7 +240,7 @@ export default function EnsamblePage() {
           </div>
           {(cargando || espera > 0) && <div className="ens-avance" role="status">
             {espera > 0
-              ? <><span>El WRF-SMN se está descargando del SMN{avance?.total ? `: ${avance.hechos} de ${avance.total} archivos` : "…"}. Los otros modelos ya están abajo; el WRF se suma solo cuando termina.</span>{avance?.total > 0 && <progress value={avance.hechos} max={avance.total} />}</>
+              ? <><span>{pendientes.map((id) => CATALOGO.find((m) => m.id === id)?.nombre).join(" y ")} se {pendientes.length > 1 ? "están" : "está"} descargando{(() => { const t = (avance?.wrf?.total || 0) + (avance?.monan?.total || 0), h = (avance?.wrf?.hechos || 0) + (avance?.monan?.hechos || 0); return t ? `: ${h} de ${t} archivos` : "…"; })()}. Los otros modelos ya están abajo; se {pendientes.length > 1 ? "suman" : "suma"} solo cuando termina.</span>{((avance?.wrf?.total || 0) + (avance?.monan?.total || 0)) > 0 && <progress value={(avance.wrf.hechos || 0) + (avance.monan.hechos || 0)} max={(avance.wrf.total || 0) + (avance.monan.total || 0)} />}</>
               : <span>Consultando a los modelos…</span>}
           </div>}
         </div>
@@ -286,7 +292,7 @@ export default function EnsamblePage() {
             </table>
           </div>
         </>}
-        <p className="ens-nota">Fuente: Open-Meteo (ECMWF IFS, GFS, ICON y GEM) y, si está consultado, el WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina{datos.wrf ? `; corrida del ${new Date(datos.wrf.corrida).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })} h` : ""}), en el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. Del WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria.</p>
+        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON y GEM){datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
       </>}
     </div>
     <InformeEnsamble informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} prendidos={prendidos} modelos={CATALOGO} />

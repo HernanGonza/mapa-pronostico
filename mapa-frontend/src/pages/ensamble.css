@@ -5,8 +5,8 @@
 .ens-vacio { color: var(--text-muted); padding: 24px 0; }
 
 /* Los modelos: una tarjeta por modelo, con su color */
-.ens-modelos { display: flex; flex-direction: column; gap: 10px; margin: 0 0 10px; }
-.ens-modelo { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-left: 6px solid var(--c); border-radius: 10px; padding: 10px 12px; cursor: pointer; transition: opacity 0.15s, background 0.15s; }
+.ens-modelos { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
+.ens-modelo { display: flex; flex-direction: column; gap: 1px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--c); border-radius: 9px; padding: 6px 10px 7px; cursor: pointer; transition: opacity 0.15s, background 0.15s; }
 .ens-modelo:hover { background: var(--surface-2); }
 .ens-modelo:focus-visible { outline: 3px solid var(--c); outline-offset: 2px; }
 .ens-modelo--apagado { opacity: 0.45; border-left-style: dashed; }
@@ -193,3 +193,12 @@
 .ens-boton-publicar { padding-block: 14px; font-size: 1.05rem; font-weight: 700; }
 .ens-problemas { margin: 6px 0 4px; padding-left: 18px; font-size: 0.82rem; }
 .ens-enlaces { margin: 6px 0 0; }
+
+/* Tarjetas de modelos compactas: una línea de detalle (el resto, en el tooltip), para que la columna no tenga scroll */
+.ens-modelo-cab strong { font-size: 0.95rem; }
+.ens-modelo-origen { font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ens-interruptor { width: 30px; height: 17px; }
+.ens-interruptor::after { top: 2px; left: 15px; width: 13px; height: 13px; }
+.ens-modelo--apagado .ens-interruptor::after { left: 2px; }
+.ens-sin-consultar { margin-top: 1px; font-size: 0.72rem; }
+.ens-lado-titulo, .ens-lado .ens-nota { font-size: 0.74rem; }

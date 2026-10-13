@@ -8,7 +8,7 @@
  * Cada número es el promedio de los modelos elegidos (ver ensamble.js). Las zonas son las del SMN (mismas listas que
  * mapa-frontend/src/lib/zonasSmn.js: Guaraní cuenta en el Norte y en el Centro); una zona promedia sus departamentos.
  */
-const { pronosticoEnsamble, puntosDelEnsamble, mediaCircular } = require("./ensamble");
+const { pronosticoEnsamble, puntosDelEnsamble, mediaCircular, MODELOS } = require("./ensamble");
 
 const ZONAS = {
   Sur: ["Capital", "Candelaria", "Apóstoles", "Concepción", "San Javier", "Leandro N. Alem"],
@@ -69,7 +69,7 @@ async function propuestaInforme({ emision, diaTablas = 0, modelos }) {
   const dia = diaTablas === 1 ? 1 : 0, fechaTablas = sumarDias(fecha, dia), extendido = [sumarDias(fecha, 2), sumarDias(fecha, 3)];
   const r = await pronosticoEnsamble({ desde: `${fecha}T00:00`, hasta: `${sumarDias(fecha, 3)}T23:00`, modelos });
   const avisos = [...r.avisos];
-  if (r.wrf?.pendiente) avisos.push("El WRF-SMN todavía se está descargando: esta propuesta no lo incluye. Volvé a completar cuando termine para sumarlo.");
+  if (r.pendientes?.length) avisos.push(`${r.pendientes.map((id) => MODELOS.find((m) => m.id === id)?.nombre || id).join(", ")} todavía se está${r.pendientes.length > 1 ? "n" : ""} descargando: esta propuesta no ${r.pendientes.length > 1 ? "los incluye" : "lo incluye"}. Volvé a completar cuando termine para sumarlo.`);
   const usados = r.modelos.map((m) => m.id);
   const deptos = r.departamentos, ciudades = r.ciudades, todos = [...deptos, ...ciudades];
   const miembros = (z) => deptos.filter((d) => ZONAS[z].includes(d.nombre));
