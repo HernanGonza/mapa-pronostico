@@ -12,14 +12,16 @@ const MODULOS = [
   "inundaciones",
   "cuencas",
   "informes-diarios",
-  "generador-pronosticos",
   "ensamble",
 ];
+
+/** Módulos que ya no existen: si un usuario todavía los tiene asignados se ignoran en vez de dar error. */
+const RETIRADOS = ["generador-pronosticos"];
 
 /** Lista saneada para guardar: sólo ids conocidos, sin repetir. `null` si no es una lista de ids válidos. */
 function normalizar(modulos) {
   if (modulos == null) return [];
-  if (!Array.isArray(modulos) || modulos.some((m) => !MODULOS.includes(m))) return null;
+  if (!Array.isArray(modulos) || modulos.some((m) => !MODULOS.includes(m) && !RETIRADOS.includes(m))) return null;
   return MODULOS.filter((m) => modulos.includes(m));
 }
 

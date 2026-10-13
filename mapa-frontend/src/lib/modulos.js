@@ -1,4 +1,4 @@
-import { Radar, Bell, Waves, Droplets, FileText, CloudSun, Layers } from "lucide";
+import { Radar, Bell, Waves, Droplets, FileText, Layers } from "lucide";
 
 /**
  * Módulos del panel que se habilitan usuario por usuario (pantalla «Usuarios»). El superadmin los ve
@@ -11,8 +11,7 @@ export const MODULOS = [
   { id: "alertas-automaticas", to: "/panel/alertas-automaticas", icono: Bell, titulo: "Alertas automáticas (SMN)", descripcion: "Avisos del SMN por período y zona, en revisión." },
   { id: "inundaciones", to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Placas de alerta por inundación." },
   { id: "cuencas", to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
-  { id: "informes-diarios", to: "/panel/informe-precipitaciones", icono: FileText, titulo: "Informe de precipitaciones", descripcion: "Qué pasó un día (por ejemplo, una tormenta) según las estaciones oficiales del INTA y SiNaRaMe, con lo que emitió el SMN: informe con mapa, tabla y gráficos, en PDF." },
-  { id: "generador-pronosticos", to: "/panel/generador-pronosticos", icono: CloudSun, titulo: "Generador de pronósticos", descripcion: "Recolección de datos de las distintas fuentes que se usan para armar el pronóstico." },
+  { id: "informes-diarios", to: "/panel/informe-precipitaciones", icono: FileText, titulo: "Informe de precipitaciones", descripcion: "Qué pasó un día (por ejemplo, una tormenta) según las estaciones oficiales del INTA y SiNaRaMe, con lo que emitió el SMN: informe con mapa, tabla y gráficos, en PDF." , enDesarrollo: false },
   { id: "ensamble", to: "/panel/ensamble", icono: Layers, titulo: "Ensamble multimodelo", descripcion: "Qué dice cada modelo numérico (ECMWF, GFS, ICON, GEM, WRF-SMN y MONAN) para cada departamento a 10 días, y cuánto discrepan.", enDesarrollo: false },
 ];
 
