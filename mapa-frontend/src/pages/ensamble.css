@@ -1,7 +1,6 @@
 /* Barra lateral (izquierda): sólo los modelos. Área de la derecha: filtros, matriz, gráfico y detalle. */
 .ens-area { overflow: auto; padding: 24px 28px 40px; background: var(--bg); }
 .ens-area > :first-child { margin-top: 0; }
-.ens-etiqueta { font-size: 0.55em; font-weight: 600; vertical-align: middle; padding: 2px 9px; border-radius: 999px; background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border-strong); margin-left: 6px; }
 .ens-vacio { color: var(--text-muted); padding: 24px 0; }
 
 /* Los modelos: una tarjeta por modelo, con su color */

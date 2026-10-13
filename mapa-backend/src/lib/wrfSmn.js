@@ -1,5 +1,5 @@
 /**
- * WRF-SMN (en desarrollo): el modelo regional del Servicio Meteorológico Nacional (WRF 4.0, 4 km, hasta
+ * WRF-SMN: el modelo regional del Servicio Meteorológico Nacional (WRF 4.0, 4 km, hasta
  * 72 h, 4 corridas por día: 00/06/12/18 UTC), leído del bucket público `smn-ar-wrf` de AWS Open Data
  * (https://registry.opendata.aws/smn-ar-wrf-dataset/, licencia CC BY 2.5 Argentina). Documentación:
  * https://odp-aws-smn.github.io/documentation_wrf_det

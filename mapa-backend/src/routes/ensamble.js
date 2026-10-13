@@ -5,7 +5,7 @@ const { propuestaInforme } = require("../lib/informeEnsamble");
 const { generarDocx } = require("../lib/informePronostico");
 
 const router = express.Router();
-// En desarrollo: el superadmin y quienes tengan el módulo «ensamble» (ver pantalla Usuarios).
+// El superadmin y quienes tengan el módulo «ensamble» (ver pantalla Usuarios).
 const soloConModulo = require("../middleware/requireModulo")("ensamble");
 
 // Lo que dice cada modelo en el centroide de cada uno de los 17 departamentos, entre ?desde= y ?hasta=

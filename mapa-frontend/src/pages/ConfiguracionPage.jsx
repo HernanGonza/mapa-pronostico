@@ -3,12 +3,13 @@ import BrandHeader from "../components/BrandHeader";
 import { Users, Presentation, RadioTower, Tv } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
-import { modulosDe } from "../lib/modulos";
+import { modulosDe, estadoDe } from "../lib/modulos";
 
 export default function ConfiguracionPage() {
   const { usuario } = useAuth();
   // Sólo el superadmin llega acá (la ruta lo exige). Todos los módulos asignables; cada usuario ve en su panel sólo los que se le habilitan desde Usuarios.
   const modulos = modulosDe(usuario);
+  const terminados = modulos.filter((m) => m.enDesarrollo === false), enDesarrollo = modulos.filter((m) => m.enDesarrollo !== false); // los terminados van con las pantallas de siempre
 
   return (
     <div className="panel-layout">
@@ -23,10 +24,11 @@ export default function ConfiguracionPage() {
           <PanelBoton op={{ to: "/panel/demostracion", icono: Presentation, titulo: "Demostración", descripcion: "Avisos y alertas de prueba para mostrar la pantalla de transmisión y los mapas (no se ven en el sitio público)." }} indice={1} />
           <PanelBoton op={{ to: "/panel/transmision", icono: RadioTower, titulo: "Transmisión", descripcion: "Transmitir la pantalla /tv en vivo (YouTube, Facebook u otras) desde el servidor, sin OBS." }} indice={2} />
           <PanelBoton op={{ to: "/panel/pantalla-tv", icono: Tv, titulo: "Pantalla TV", descripcion: "Qué se ve en /tv y en qué orden: prender y apagar pantallas, sumar videos, imágenes o páginas de otros sitios." }} indice={3} />
+          {terminados.map((op, i) => <PanelBoton key={op.to} op={op} indice={4 + i} />)}
         </div>
         <div className="panel-intro"><h2>En desarrollo</h2><p>Pantallas en desarrollo o de poco uso: cada usuario ve en su panel sólo las que le habilitás desde Usuarios.</p></div>
         <div className="panel-botonera">
-          {modulos.map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado="En desarrollo" />)}
+          {enDesarrollo.map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado={estadoDe(op)} />)}
         </div>
       </main>
     </div>

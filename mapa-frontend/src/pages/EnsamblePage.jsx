@@ -8,7 +8,7 @@ import * as api from "../api";
 import "./ensamble.css";
 
 /**
- * Ensamble multimodelo (en desarrollo, desde Configuración): lo que dice cada modelo numérico para el
+ * Ensamble multimodelo (desde Configuración): lo que dice cada modelo numérico para el
  * centroide de cada uno de los 17 departamentos, a 10 días. Cada modelo tiene su color y su forma de
  * marcador (se distinguen también sin color); se pueden prender y apagar y la media y la discrepancia
  * se recalculan con los que quedan prendidos.
@@ -212,8 +212,8 @@ export default function EnsamblePage() {
   return <div className={`admin-layout ens-layout${cajon ? " ens-layout--cajon" : ""}`}>
     <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>
     <aside className="admin-panel" id="contenido-principal" tabIndex={-1}>
-      <div className="editor-heading"><h1>Ensamble multimodelo <span className="ens-etiqueta">En desarrollo</span></h1>
-        <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador: no reemplaza el pronóstico ni se publica.</p></div>
+      <div className="editor-heading"><h1>Ensamble multimodelo</h1>
+        <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador; con el informe del cajón se arma el pronóstico del día y se puede publicar.</p></div>
       <h2>Modelos</h2>
       <div className="ens-modelos" role="group" aria-label="Modelos">
         {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} className={`ens-modelo${prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>

@@ -2,7 +2,7 @@ import BrandHeader from "../components/BrandHeader";
 import { Layers, ChartLine, Settings } from "lucide";
 import PanelBoton from "../components/PanelBoton";
 import { useAuth } from "../context/AuthContext";
-import { modulosDe } from "../lib/modulos";
+import { modulosDe, estadoDe } from "../lib/modulos";
 
 const OPCIONES = [
   {
@@ -48,7 +48,7 @@ export default function PanelPage() {
         {/* Configuración (usuarios, módulos, transmisión…) es sólo del superadmin. */}
         {OPCIONES.filter((op) => op.to !== "/panel/configuracion" || usuario.rol === "superadmin").map((op, i) => <PanelBoton key={op.to} op={op} indice={i} estado={op.to === "/panel/historico" ? "En desarrollo" : null} />)}
         {/* Los módulos que se le habilitaron a este usuario (el superadmin los tiene todos en Configuración). */}
-        {usuario.rol !== "superadmin" && modulosDe(usuario).map((op, i) => <PanelBoton key={op.to} op={op} indice={OPCIONES.length + i} estado="En desarrollo" />)}
+        {usuario.rol !== "superadmin" && modulosDe(usuario).map((op, i) => <PanelBoton key={op.to} op={op} indice={OPCIONES.length + i} estado={estadoDe(op)} />)}
       </div>
       </main>
     </div>

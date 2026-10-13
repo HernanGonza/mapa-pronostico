@@ -1,5 +1,5 @@
 /**
- * Ensamble multimodelo (en desarrollo): lo que dice cada modelo numérico de pronóstico para el
+ * Ensamble multimodelo: lo que dice cada modelo numérico de pronóstico para el
  * centroide de cada uno de los 17 departamentos, lado a lado, más la media y cuánto discrepan.
  *
  * Fuente: Open-Meteo (datos horarios agregados al rango pedido), un solo pedido con los 17 centroides y los 4 modelos globales del documento
