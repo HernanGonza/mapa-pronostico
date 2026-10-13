@@ -89,13 +89,17 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   const ts = H / 2813, cx = W / 2, n = filas.length;
   const pie = Math.round((FOTO.pie / FOTO.h) * H);
 
-  // Fondo: la foto (entera en feed; en historias, el centro a lo alto) con el cuerpo oscurecido para que se lea.
+  // Fondo: la foto (entera en feed; en historias, el centro a lo alto).
   const foto = await loadImage(path.join(FONDOS_DIR, `${Number(fondo)}.jpg`));
   const k = H / foto.height, sw = W / k;
   ctx.drawImage(foto, (foto.width - sw) / 2, 0, sw, foto.height, 0, 0, W, H);
-  const g = ctx.createLinearGradient(0, 0, 0, pie);
-  g.addColorStop(0, "rgba(6,12,26,0.80)"); g.addColorStop(0.55, "rgba(6,12,26,0.66)"); g.addColorStop(1, "rgba(6,12,26,0.80)");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, pie);
+  // Sólo se oscurece lo justo para leer el título (arriba) y la leyenda y las emergencias (abajo): el medio, detrás de la tabla, deja ver la foto.
+  let g = ctx.createLinearGradient(0, 0, 0, H * 0.3);
+  g.addColorStop(0, "rgba(6,12,26,0.62)"); g.addColorStop(1, "rgba(6,12,26,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H * 0.3);
+  g = ctx.createLinearGradient(0, pie - H * 0.3, 0, pie);
+  g.addColorStop(0, "rgba(6,12,26,0)"); g.addColorStop(1, "rgba(6,12,26,0.7)");
+  ctx.fillStyle = g; ctx.fillRect(0, pie - H * 0.3, W, H * 0.3);
 
   const fuente = (peso, fam, s) => `${peso} ${Math.floor(s)}px "${fam}"`;
   const medir = (texto, font) => { ctx.font = font; return ctx.measureText(texto); };

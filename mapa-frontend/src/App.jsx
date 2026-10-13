@@ -63,7 +63,8 @@ export default function App() {
           <Route path="/panel/generador-pronosticos" element={<RutaProtegida modulo="generador-pronosticos"><GeneradorPronosticosPage /></RutaProtegida>} />
           <Route path="/panel/configuracion" element={<RutaProtegida soloSuperadmin><ConfiguracionPage /></RutaProtegida>} />
           <Route path="/panel/ensamble" element={<RutaProtegida modulo="ensamble"><EnsamblePage /></RutaProtegida>} />
-          <Route path="/panel/informes-diarios" element={<RutaProtegida modulo="informes-diarios"><InformesDiariosPage /></RutaProtegida>} />
+          <Route path="/panel/informe-precipitaciones" element={<RutaProtegida modulo="informes-diarios"><InformesDiariosPage /></RutaProtegida>} />
+          <Route path="/panel/informes-diarios" element={<Navigate to="/panel/informe-precipitaciones" replace />} />
           <Route
             path="/panel/pronostico"
             element={
