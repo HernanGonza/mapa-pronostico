@@ -37,3 +37,12 @@ test("un municipio o una fecha inválidos dan null", () => {
   assert.equal(lunaDeMunicipio("no-existe", "2026-10-10"), null);
   assert.equal(lunaDeMunicipio(posadas.id, "mañana"), null);
 });
+
+test("cerca de la luna nueva la luna sale antes del amanecer y se pone de tarde (San Pedro, 8/10/2026: MET Noruega da 04:43 y 16:55)", () => {
+  const sanPedro = loadMunicipios().find((m) => /^SAN PEDRO$/i.test(m.nombre));
+  const { sale, sePone, faseId } = lunaDeMunicipio(sanPedro.id, "2026-10-08");
+  assert.equal(faseId, "menguante");
+  const min = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+  assert.ok(Math.abs(min(sale) - min("04:43")) <= 5, `salida ${sale}`);
+  assert.ok(Math.abs(min(sePone) - min("16:55")) <= 5, `puesta ${sePone}`);
+});

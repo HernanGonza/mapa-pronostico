@@ -85,7 +85,7 @@
 .ens-modelo--apagado .ens-interruptor::after { left: 2px; }
 
 /* Rango de fecha y hora: una tarjeta con su título adentro */
-.ens-rango { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: end; margin-bottom: 16px; }
+.ens-rango { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: stretch; margin-bottom: 16px; }
 .ens-rango-caja { flex: 0 1 760px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
 .ens-rango-cab h2 { margin: 0; font-size: 1.05rem; text-transform: none; letter-spacing: 0; color: var(--heading); }
 .ens-rango-cab p { margin: 2px 0 14px; font-size: 0.82rem; color: var(--text-muted); }
@@ -126,3 +126,64 @@
 .ens-leyenda { background: var(--surface-2); border-left: 4px solid var(--verde-600); border-radius: 6px; padding: 10px 14px; margin: 0 0 10px; font-size: 0.9rem; line-height: 1.5; }
 .ens-parcial { display: block; font-style: normal; font-size: 0.68rem; font-weight: 600; color: var(--tierra-600); text-transform: uppercase; letter-spacing: 0.03em; }
 .ens-sin-consultar { margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--tierra-600); }
+
+/* Pestañas en dos niveles: el tipo de dato (Temperatura, Lluvia, Viento, Humedad y nubes) y, debajo, la variable */
+.ens-variables-caja { display: flex; flex-direction: column; gap: 8px; }
+.ens-grupos { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); }
+.ens-grupo { font: inherit; font-weight: 600; padding: 8px 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; }
+.ens-grupo:hover { color: var(--text); }
+.ens-grupo--on { color: var(--verde-700); border-bottom-color: var(--verde-600); }
+
+/* ---------- Botón grande del informe (a la derecha del cuadro del rango) ---------- */
+.ens-boton-informe { position: relative; flex: 1 1 280px; max-width: 440px; min-width: 250px; display: flex; align-items: center; gap: 16px; padding: 18px 24px; border: 2px solid transparent; border-radius: 14px; background: linear-gradient(135deg, var(--verde-600), var(--verde-800)); color: #fff; font: inherit; text-align: left; cursor: pointer; box-shadow: 0 6px 18px rgba(35, 65, 49, 0.28); transition: transform 0.15s, box-shadow 0.15s, background 0.15s; }
+.ens-boton-informe:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(35, 65, 49, 0.34); }
+.ens-boton-informe:focus-visible { outline: 3px solid var(--rosa-600); outline-offset: 3px; }
+.ens-boton-informe-texto { display: flex; flex-direction: column; gap: 3px; }
+.ens-boton-informe-texto strong { font-size: 1.35rem; line-height: 1.15; }
+.ens-boton-informe-texto small { font-size: 0.88rem; opacity: 0.9; }
+.ens-boton-informe--abierto { background: var(--surface); color: var(--verde-800); border-color: var(--verde-600); box-shadow: none; }
+.ens-boton-informe--abierto:hover { background: var(--surface-2); box-shadow: none; transform: none; }
+.ens-cajon-punto { position: absolute; top: 10px; right: 12px; width: 12px; height: 12px; border-radius: 50%; background: var(--rosa-600); border: 2px solid #fff; }
+
+/* ---------- El cajón ---------- */
+.ens-cajon { --ancho-cajon: 540px; position: fixed; z-index: 40; top: var(--header-h, 72px); right: 0; bottom: 0; width: min(var(--ancho-cajon), 100vw); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border-strong); box-shadow: -14px 0 36px rgba(0, 0, 0, 0.16); transform: translateX(104%); visibility: hidden; transition: transform 0.28s var(--ease-out, ease), visibility 0s linear 0.28s; }
+.ens-cajon--abierto { transform: none; visibility: visible; transition: transform 0.28s var(--ease-out, ease); }
+.ens-cajon-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.ens-cajon-cab h2 { margin: 0; font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--heading); }
+.ens-cajon-cab p { margin: 2px 0 0; font-size: 0.78rem; color: var(--text-muted); }
+.ens-cajon-acciones { display: flex; align-items: center; gap: 12px; flex: none; }
+.ens-cajon-cuerpo { flex: 1; overflow-y: auto; padding: 16px 18px 24px; display: flex; flex-direction: column; gap: 14px; }
+.ens-cajon-titulo { margin: 0; font-size: 1.2rem; text-transform: none; letter-spacing: 0; color: var(--heading); }
+.ens-cajon-pie { display: flex; justify-content: space-between; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface-2); }
+.ens-cajon-pie .btn { display: inline-flex; align-items: center; gap: 6px; }
+/* con lugar de sobra, el cajón empuja el contenido en vez de taparlo */
+@media (min-width: 1300px) { .ens-layout--cajon .ens-area { padding-right: calc(540px + 28px); } }
+@media (max-width: 860px) { .ens-cajon { top: 0; } }
+
+/* ---------- Pasos del informe ---------- */
+.ens-cajon .paso-etiqueta { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.ens-cajon .paso-input, .ens-cajon .paso-texto { padding: 9px 12px; font-size: 14px; }
+.ens-cajon .paso-texto { min-height: 0; }
+.ens-par { display: grid; grid-template-columns: 130px 1fr; gap: 10px; }
+.ens-opciones-informe { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 8px; }
+.ens-opciones-informe legend { padding: 0 6px; font-size: 0.85rem; font-weight: 600; }
+.ens-radio { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 0.9rem; }
+.ens-tarjeta-informe { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px 14px; background: var(--surface-2); }
+.ens-tarjeta-informe h3 { margin: 0 0 10px; font-size: 0.95rem; text-transform: none; letter-spacing: 0; }
+.ens-grilla-informe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ens-tabla-informe { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.ens-tabla-informe th, .ens-tabla-informe td { padding: 3px 4px; text-align: left; border-bottom: 1px solid var(--border); }
+.ens-tabla-informe thead th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.ens-tabla-informe tbody th { font-weight: 600; white-space: nowrap; font-size: 0.74rem; }
+.ens-celda-informe { width: 100%; min-width: 0; padding: 5px 7px; font: inherit; font-size: 0.85rem; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; }
+.ens-celda-informe:focus { outline: none; border-color: var(--rosa-600); box-shadow: 0 0 0 2px color-mix(in srgb, var(--rosa-600) 25%, transparent); }
+.ens-ok { background: color-mix(in srgb, var(--verde-600) 14%, var(--surface)) !important; }
+
+/* Vista previa del informe */
+.ens-hoja { border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px 14px 6px; background: #fff; color: #222; font-size: 0.74rem; line-height: 1.4; max-height: 420px; overflow: auto; }
+.ens-hoja h3 { margin: 0 0 8px; font-size: 0.82rem; text-transform: none; letter-spacing: 0; text-align: center; }
+.ens-hoja p { margin: 0 0 6px; }
+.ens-hoja-texto { white-space: pre-line; }
+.ens-hoja table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+.ens-hoja th, .ens-hoja td { border: 1px solid #999; padding: 3px 5px; text-align: left; vertical-align: top; }
+.ens-hoja thead th, .ens-hoja th[colspan] { background: #ece7d8; text-align: center; }

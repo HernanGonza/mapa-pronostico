@@ -13,7 +13,9 @@
  *   - lluvia: PP horaria (01H), la misma ventana de «hora anterior» que usa Open-Meteo.
  *   - tmax / tmin: las del producto diario 24H, calibradas con observaciones — Tmin 00–12 UTC y Tmax 12–24 UTC
  *     (o sea, 21–09 h y 09–21 h de Misiones) de cada día.
- *   No publica ráfagas y el viento medio no se usa todavía.
+ *   - humedad (hmin/hmax): HR2 horaria (01H), mínima y máxima del día.
+ *   - viento y dirección: magViento10 (m/s → km/h) y dirViento10 horarios (01H).
+ *   No publica ráfagas, nubosidad, sensación térmica ni punto de rocío: en esas variables el WRF queda sin dato.
  *
  * Lo lento es la red (≈1,5 s de latencia por vuelta y ≈0,3 MB/s por conexión), por eso se baja en paralelo,
  * se juntan vueltas pidiendo un margen alrededor de cada trozo y no se repite nada ya bajado. Con
@@ -25,6 +27,11 @@ const path = require("path");
 
 const BASE = "https://smn-ar-wrf.s3.us-west-2.amazonaws.com/DATA/WRF/DET";
 const HORAS_MAX = 72;
+// De cada archivo horario: PP (lluvia de la hora anterior, mm), HR2 (humedad relativa a 2 m, %), magViento10 (viento a
+// 10 m, m/s) y dirViento10 (dirección, °). Cada una es un bloque de ≈2–4 MB: en total ≈12 MB por hora de pronóstico
+// (≈0,9 GB por corrida de 72 h). Por eso se baja en segundo plano, una vez por corrida (ver `precargar`).
+const VARIABLES_HORARIAS = ["PP", "HR2", "magViento10", "dirViento10"];
+const claveDe = (frec, variable, plazo) => `${frec}|${variable}|${plazo}`;
 // Cada archivo abierto ocupa ≈37 MB de memoria mientras se lee: más conexiones bajan más rápido pero pesan más.
 const CONCURRENCIA = Math.max(1, Number(process.env.WRF_CONCURRENCIA) || 6);
 const TIMEOUT_MS = 60000;
@@ -115,15 +122,19 @@ async function leerRala(url, fn) {
   } finally { try { FS.close(flujo); FS.unlink(ruta); } catch { /* ya no estaba */ } }
 }
 
-/** Valor de la variable en cada celda `celdas` ([fila, columna]) — la primera (y única) capa de tiempo. */
-const leerCeldas = (url, variable, celdas, ncols = 999) => leerRala(url, (f) => {
+/**
+ * Valor de cada variable de `variables` en cada celda `celdas` ([fila, columna]) — la primera (y única) capa de
+ * tiempo —, leídas en una sola apertura del archivo (las vueltas de red de los metadatos se comparten).
+ * Devuelve { variable: [valor por celda] }.
+ */
+const leerVarias = (url, variables, celdas, ncols = 999) => leerRala(url, (f) => Object.fromEntries(variables.map((variable) => {
   // Hay archivos que no traen la variable a propósito: el diario del día 0 de las corridas de 06/12 UTC no tiene
   // Tmin (su ventana, 00–12 UTC, ya pasó) y el del día 3 no tiene Tmax. No es un error: sin dato.
   const dataset = f.get(variable);
-  if (!dataset) return celdas.map(() => null);
+  if (!dataset) return [variable, celdas.map(() => null)];
   const v = dataset.value;
-  return celdas.map(([j, i]) => { const x = v[j * ncols + i]; return Number.isFinite(x) && Math.abs(x) < 1e10 ? x : null; });
-});
+  return [variable, celdas.map(([j, i]) => { const x = v[j * ncols + i]; return Number.isFinite(x) && Math.abs(x) < 1e10 ? x : null; })];
+})));
 
 /** Celda más cercana de la grilla a cada punto {lat, lng}. La grilla no cambia: se calcula una vez y se guarda. */
 async function celdasDe(puntos, init) {
@@ -164,7 +175,7 @@ function guardarCache(id) {
   try {
     fs.mkdirSync(DIR_CACHE, { recursive: true }); fs.writeFileSync(path.join(DIR_CACHE, `${id}.json`), JSON.stringify(memoria.get(id)));
     const limite = idCorrida(new Date(Date.now() - 3 * 86400000)); // las corridas de más de 3 días ya no sirven.
-    for (const f of fs.readdirSync(DIR_CACHE)) if (f.replace(".json", "") < limite) fs.unlinkSync(path.join(DIR_CACHE, f));
+    for (const f of fs.readdirSync(DIR_CACHE)) if (f.slice(0, 10) < limite) fs.unlinkSync(path.join(DIR_CACHE, f));
   } catch { /* no es grave */ }
 }
 
@@ -181,11 +192,11 @@ const enCurso = new Map(); // «corrida|archivo|variable» → promesa: dos cons
 
 /**
  * Lo que dice el WRF-SMN en cada punto para el rango [desde, hasta] («AAAA-MM-DDTHH:MM», hora de Misiones).
- * Devuelve { corrida, lluviaPorHora: Map(stamp → [valor por punto]), diario: { tmax: Map(fecha → […]), tmin: … } };
+ * Devuelve { corrida, porHora: { PP|HR2|magViento10|dirViento10: Map(stamp → [valor por punto]) }, diario: { tmax: Map(fecha → […]), tmin: … } };
  * lo que no cubre el modelo (más de 72 h, o un archivo que no está) simplemente no figura.
  */
 async function wrfSmn({ desde, hasta, puntos }) {
-  const init = await corridaVigente(), id = idCorrida(init), cache = cacheDe(id);
+  const init = await corridaVigente(), id = `${idCorrida(init)}-p${puntos.length}`, cache = cacheDe(id); // las lecturas se guardan por posición: otra lista de puntos, otra caché
   const celdas = await celdasDe(puntos, init);
   const initMs = init.getTime();
 
@@ -205,22 +216,26 @@ async function wrfSmn({ desde, hasta, puntos }) {
     if (d >= 0 && d <= 3) dias.push({ fecha: dia, plazo: d, tmin: desde <= `${dia}T00:00` && hasta >= `${dia}T09:00`, tmax: desde <= `${dia}T09:00` && hasta >= `${dia}T21:00` });
   }
 
+  // Un trabajo = un archivo con las variables que todavía no están en caché.
   const trabajos = [
-    ...horas.map((h) => ({ clave: `01H|PP|${h.plazo}`, url: urlArchivo(init, "01H", h.plazo), variable: "PP" })),
-    ...dias.flatMap((d) => [["Tmin", d.tmin], ["Tmax", d.tmax]].filter(([, usa]) => usa).map(([v]) => ({ clave: `24H|${v}|${d.plazo}`, url: urlArchivo(init, "24H", d.plazo), variable: v }))),
-  ].filter((t) => !cache[t.clave]);
+    ...horas.map((h) => ({ frec: "01H", plazo: h.plazo, variables: VARIABLES_HORARIAS })),
+    ...dias.map((d) => ({ frec: "24H", plazo: d.plazo, variables: [d.tmin && "Tmin", d.tmax && "Tmax"].filter(Boolean) })),
+  ].map((t) => ({ ...t, url: urlArchivo(init, t.frec, t.plazo), variables: t.variables.filter((v) => !cache[claveDe(t.frec, v, t.plazo)]) })).filter((t) => t.variables.length);
   const avisos = [];
   if (trabajos.length) {
     if (trabajosActivos <= 1) Object.assign(avance, { total: 0, hechos: 0 }); // arranca una tanda nueva
     avance.corrida = init.toISOString(); avance.total += trabajos.length;
     let desdeGuardado = 0;
     await enParalelo(trabajos, CONCURRENCIA, async (t) => {
-      const k = `${id}|${t.clave}`;
+      const k = `${id}|${t.frec}|${t.plazo}|${t.variables.join("+")}`;
       if (!enCurso.has(k)) {
         enCurso.set(k, (async () => {
           for (let intento = 0; intento < 3; intento++) { // un corte de red no tiene que tirar toda la consulta
-            try { cache[t.clave] = await leerCeldas(t.url, t.variable, celdas); return; }
-            catch (e) { if (e.noEsta) return; if (intento === 2) avisos.push(e.message); }
+            try {
+              const valores = await leerVarias(t.url, t.variables, celdas);
+              for (const v of t.variables) cache[claveDe(t.frec, v, t.plazo)] = valores[v];
+              return;
+            } catch (e) { if (e.noEsta) return; if (intento === 2) avisos.push(e.message); }
           }
         })().finally(() => enCurso.delete(k)));
       }
@@ -231,13 +246,14 @@ async function wrfSmn({ desde, hasta, puntos }) {
     guardarCache(id);
   }
 
-  const lluviaPorHora = new Map(), diario = { tmax: new Map(), tmin: new Map() };
-  for (const h of horas) if (cache[`01H|PP|${h.plazo}`]) lluviaPorHora.set(h.stamp, cache[`01H|PP|${h.plazo}`]);
+  // Valor por punto de cada variable horaria, hora a hora (clave «AAAA-MM-DDTHH:00», hora de Misiones).
+  const porHora = Object.fromEntries(VARIABLES_HORARIAS.map((v) => [v, new Map()])), diario = { tmax: new Map(), tmin: new Map() };
+  for (const h of horas) for (const v of VARIABLES_HORARIAS) if (cache[claveDe("01H", v, h.plazo)]) porHora[v].set(h.stamp, cache[claveDe("01H", v, h.plazo)]);
   for (const d of dias) {
-    if (d.tmax && cache[`24H|Tmax|${d.plazo}`]) diario.tmax.set(d.fecha, cache[`24H|Tmax|${d.plazo}`]);
-    if (d.tmin && cache[`24H|Tmin|${d.plazo}`]) diario.tmin.set(d.fecha, cache[`24H|Tmin|${d.plazo}`]);
+    if (d.tmax && cache[claveDe("24H", "Tmax", d.plazo)]) diario.tmax.set(d.fecha, cache[claveDe("24H", "Tmax", d.plazo)]);
+    if (d.tmin && cache[claveDe("24H", "Tmin", d.plazo)]) diario.tmin.set(d.fecha, cache[claveDe("24H", "Tmin", d.plazo)]);
   }
-  return { corrida: init.toISOString(), lluviaPorHora, diario, avisos: [...new Set(avisos)] };
+  return { corrida: init.toISOString(), porHora, diario, avisos: [...new Set(avisos)] };
 }
 
 const enFondo = new Map(); // «rango» → promesa de la consulta en marcha

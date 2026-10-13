@@ -9,6 +9,26 @@
  */
 const { loadDepartamentos, loadCentroides } = require("./departamentos");
 const { wrfConEspera, precargar, progreso: progresoWrf } = require("./wrfSmn");
+const { loadMunicipios } = require("./municipios");
+const { CIUDADES } = require("./informePronostico");
+
+const N_DEPARTAMENTOS = 17;
+/**
+ * Los puntos que consulta el ensamble: el centroide de cada uno de los 17 departamentos y, a continuación, las 13
+ * ciudades del informe de pronóstico. Siempre los mismos y en este orden (el WRF-SMN guarda sus lecturas por posición).
+ */
+function puntosDelEnsamble() {
+  const centroides = loadCentroides();
+  const deptos = loadDepartamentos().filter((d) => centroides.has(String(d.id)));
+  if (deptos.length !== N_DEPARTAMENTOS) throw new Error(`Se esperaban ${N_DEPARTAMENTOS} departamentos con centroide y hay ${deptos.length}.`);
+  const municipios = loadMunicipios();
+  const ciudades = CIUDADES.map((c) => {
+    const m = municipios.find((x) => x.nombre === c.municipio);
+    if (!m) throw new Error(`No se encontró el municipio ${c.municipio} para la ciudad ${c.nombre}.`);
+    return { id: `ciudad:${c.nombre}`, nombre: c.nombre, lat: m.lat, lng: m.lng };
+  });
+  return [...deptos.map((d) => ({ id: String(d.id), nombre: d.nombre, ...centroides.get(String(d.id)) })), ...ciudades];
+}
 
 // `fuente`: de dónde sale. `aporta`: variables que el modelo publica (el WRF-SMN no da ráfagas ni viento).
 const MODELOS = [
@@ -16,19 +36,29 @@ const MODELOS = [
   { id: "gfs_seamless", nombre: "GFS", origen: "EE. UU. (NOAA)", rol: "Tendencias de viento y temperatura", fuente: "open-meteo" },
   { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso", fuente: "open-meteo" },
   { id: "gem_seamless", nombre: "GEM", origen: "Canadá (ECCC)", rol: "Validador de consenso", fuente: "open-meteo" },
-  { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", fuente: "wrf", aporta: ["tmax", "tmin", "lluvia"] },
+  { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", fuente: "wrf", aporta: ["tmax", "tmin", "lluvia", "hmin", "hmax", "viento", "dirviento"] },
 ];
 
-// `agrega`: cómo se resume el día a partir de los valores horarios (dentro del rango pedido).
-// `umbral`: diferencia entre el modelo más alto y el más bajo a partir de la cual se marca «discrepan».
+// `agrega`: cómo se resume el día a partir de los valores horarios (dentro del rango pedido): max, min, sum,
+// mean (promedio) o dir (dirección predominante: promedio circular, ponderado por la velocidad del viento).
+// `umbral`: diferencia entre el modelo más alto y el más bajo a partir de la cual se marca «discrepan»
+// (en las direcciones, el ángulo máximo entre dos modelos). `grupo`: cómo se agrupan las pestañas.
 const VARIABLES = [
-  { horaria: "temperature_2m", agrega: "max", clave: "tmax", nombre: "Temperatura máxima", unidad: "°C", decimales: 1, umbral: 4 },
-  { horaria: "temperature_2m", agrega: "min", clave: "tmin", nombre: "Temperatura mínima", unidad: "°C", decimales: 1, umbral: 4 },
-  { horaria: "precipitation", agrega: "sum", clave: "lluvia", nombre: "Lluvia acumulada", unidad: "mm", decimales: 1, umbral: 10 },
-  { horaria: "wind_gusts_10m", agrega: "max", clave: "rafaga", nombre: "Ráfaga máxima", unidad: "km/h", decimales: 0, umbral: 25 },
-  { horaria: "wind_speed_10m", agrega: "max", clave: "viento", nombre: "Viento máximo", unidad: "km/h", decimales: 0, umbral: 15 },
+  { grupo: "Temperatura", horaria: "temperature_2m", agrega: "max", clave: "tmax", nombre: "Temperatura máxima", unidad: "°C", decimales: 1, umbral: 4 },
+  { grupo: "Temperatura", horaria: "temperature_2m", agrega: "min", clave: "tmin", nombre: "Temperatura mínima", unidad: "°C", decimales: 1, umbral: 4 },
+  { grupo: "Temperatura", horaria: "apparent_temperature", agrega: "max", clave: "sensmax", nombre: "Sensación térmica máxima", unidad: "°C", decimales: 1, umbral: 5 },
+  { grupo: "Temperatura", horaria: "apparent_temperature", agrega: "min", clave: "sensmin", nombre: "Sensación térmica mínima", unidad: "°C", decimales: 1, umbral: 5 },
+  { grupo: "Lluvia", horaria: "precipitation", agrega: "sum", clave: "lluvia", nombre: "Lluvia acumulada", unidad: "mm", decimales: 1, umbral: 10 },
+  { grupo: "Lluvia", horaria: "precipitation_probability", agrega: "max", clave: "probllu", nombre: "Probabilidad de lluvia (máx.)", unidad: "%", decimales: 0, umbral: 30 },
+  { grupo: "Viento", horaria: "wind_speed_10m", agrega: "max", clave: "viento", nombre: "Viento máximo", unidad: "km/h", decimales: 0, umbral: 15 },
+  { grupo: "Viento", horaria: "wind_gusts_10m", agrega: "max", clave: "rafaga", nombre: "Ráfaga máxima", unidad: "km/h", decimales: 0, umbral: 25 },
+  { grupo: "Viento", horaria: "wind_direction_10m", agrega: "dir", ponderaCon: "wind_speed_10m", circular: true, clave: "dirviento", nombre: "Dirección del viento", unidad: "°", decimales: 0, umbral: 60 },
+  { grupo: "Humedad y nubes", horaria: "relative_humidity_2m", agrega: "min", clave: "hmin", nombre: "Humedad mínima", unidad: "%", decimales: 0, umbral: 15 },
+  { grupo: "Humedad y nubes", horaria: "relative_humidity_2m", agrega: "max", clave: "hmax", nombre: "Humedad máxima", unidad: "%", decimales: 0, umbral: 15 },
+  { grupo: "Humedad y nubes", horaria: "cloud_cover", agrega: "mean", clave: "nubosidad", nombre: "Nubosidad (promedio)", unidad: "%", decimales: 0, umbral: 30 },
+  { grupo: "Humedad y nubes", horaria: "dew_point_2m", agrega: "mean", clave: "rocio", nombre: "Punto de rocío (promedio)", unidad: "°C", decimales: 1, umbral: 4 },
 ];
-const HORARIAS = [...new Set(VARIABLES.map((v) => v.horaria))];
+const HORARIAS = [...new Set(VARIABLES.flatMap((v) => [v.horaria, v.ponderaCon].filter(Boolean)))];
 
 const TIMEOUT_MS = 20000;
 const DIAS_ATRAS = 7, DIAS_ADELANTE = 9, DIAS_MAX = 10; // lo que cubren los modelos (ECMWF llega a 10 días).
@@ -50,10 +80,23 @@ async function pedir(url) {
   }
 }
 
+const aRad = (g) => (g * Math.PI) / 180;
+/** Promedio de ángulos en grados (0–360), con pesos opcionales: el 350° y el 10° dan 0°, no 180°. */
+function mediaCircular(angulos, pesos = null) {
+  let sen = 0, cos = 0;
+  angulos.forEach((g, i) => { const w = pesos ? Math.max(pesos[i] ?? 0, 0.01) : 1; sen += w * Math.sin(aRad(g)); cos += w * Math.cos(aRad(g)); });
+  return (Math.atan2(sen, cos) * 180 / Math.PI + 360) % 360;
+}
+const difAngular = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+
 /** Estadística de los valores de los modelos (ignora los que no respondieron). */
 function resumir(valores, variable) {
   const v = valores.filter((x) => x != null);
   if (!v.length) return { media: null, min: null, max: null, rango: null, discrepan: false, modelos: 0 };
+  if (variable.circular) { // direcciones: promedio circular y el ángulo máximo entre dos modelos
+    let rango = 0; for (const a of v) for (const b of v) rango = Math.max(rango, difAngular(a, b));
+    return { media: redondear(mediaCircular(v) % 360, variable.decimales), min: null, max: null, rango: redondear(rango, 0), discrepan: v.length > 1 && rango >= variable.umbral, modelos: v.length };
+  }
   const min = Math.min(...v), max = Math.max(...v);
   const media = v.reduce((a, b) => a + b, 0) / v.length;
   // Lluvia: además de la diferencia en mm, es discrepancia que unos digan «seco» y otros «llueve».
@@ -84,15 +127,18 @@ function errorDeRango(desde, hasta) {
 }
 
 /** Resume los valores horarios de un modelo dentro de [desde, hasta]: null si falta alguna hora (el modelo no llega). */
-function agregar(horas, valores, desde, hasta, agrega) {
-  const v = [];
+function agregar(horas, valores, desde, hasta, agrega, pesos = null) {
+  const v = [], w = [];
   for (let i = 0; i < horas.length; i++) {
     if (horas[i] < desde || horas[i] > hasta) continue;
     if (valores?.[i] == null) return null;
-    v.push(valores[i]);
+    v.push(valores[i]); w.push(pesos?.[i] ?? null);
   }
   if (!v.length) return null;
-  return agrega === "sum" ? v.reduce((a, b) => a + b, 0) : agrega === "min" ? Math.min(...v) : Math.max(...v);
+  if (agrega === "sum") return v.reduce((a, b) => a + b, 0);
+  if (agrega === "mean") return v.reduce((a, b) => a + b, 0) / v.length;
+  if (agrega === "dir") return mediaCircular(v, w.every((x) => x != null) ? w : null);
+  return agrega === "min" ? Math.min(...v) : Math.max(...v);
 }
 
 /**
@@ -101,7 +147,7 @@ function agregar(horas, valores, desde, hasta, agrega) {
  * dentro del rango (el primero y el último pueden ser parciales). Se consulta en el momento: no hay caché del
  * resultado (el WRF-SMN guarda aparte lo ya leído de cada corrida, que sólo cambia cada 6 h).
  * { generado, desde, hasta, dias: [{ fecha, horas }], modelos, variables, avisos, wrf?: { corrida } | { pendiente, progreso },
- * departamentos: [{ id, nombre, lat, lng, dias: [{ fecha, tmax: { valores: { <modelo>: n|null }, media, min, max,
+ * departamentos (17) y ciudades (13, las del informe): [{ id, nombre, lat, lng, dias: [{ fecha, tmax: { valores: { <modelo>: n|null }, media, min, max,
  * rango, discrepan, modelos }, … }] }] }. Un modelo que no cubre todas las horas de un día queda en null ese día.
  */
 async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
@@ -111,10 +157,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   if (!elegidos.length || (ids || []).some((id) => !MODELOS.some((m) => m.id === id))) throw Object.assign(new Error("Elegí al menos un modelo (ids válidos)."), { status: 400 });
   const deOpenMeteo = elegidos.filter((m) => m.fuente === "open-meteo"), conWrf = elegidos.some((m) => m.fuente === "wrf");
 
-  const centroides = loadCentroides();
-  const lista = loadDepartamentos().filter((d) => centroides.has(String(d.id)));
-  if (lista.length !== 17) throw new Error(`Se esperaban 17 departamentos con centroide y hay ${lista.length}.`);
-  const puntosGeo = lista.map((d) => centroides.get(String(d.id)));
+  const lista = puntosDelEnsamble(), puntosGeo = lista; // departamentos y ciudades
 
   // Los días del rango y cuántas horas de cada uno caen adentro.
   const horasRango = [];
@@ -123,7 +166,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   const dias = fechas.map((fecha) => ({ fecha, horas: horasRango.filter((t) => t.startsWith(fecha)).length }));
   const avisos = [];
 
-  // Open-Meteo (ECMWF, GFS, ICON, GEM): un solo pedido con los 17 puntos.
+  // Open-Meteo (ECMWF, GFS, ICON, GEM): un solo pedido con todos los puntos.
   let puntos = null, horas = [];
   const pedidoOpenMeteo = (async () => {
     if (!deOpenMeteo.length) return;
@@ -143,21 +186,30 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   const consultados = elegidos.filter((m) => m.fuente !== "wrf" || (wrf && !wrf.pendiente));
   if (wrf?.avisos?.length) avisos.push(...wrf.avisos.map((a) => `WRF-SMN: ${a}`));
 
-  const departamentos = lista.map((d, i) => {
-    const c = centroides.get(String(d.id)), hourly = puntos?.[i]?.hourly;
+  const resultados = lista.map((d, i) => {
+    const c = d, hourly = puntos?.[i]?.hourly;
     return {
-      id: String(d.id), nombre: d.nombre, lat: redondear(c.lat, 3), lng: redondear(c.lng, 3),
+      id: d.id, nombre: d.nombre, lat: redondear(c.lat, 3), lng: redondear(c.lng, 3),
       dias: fechas.map((fecha) => {
         const dia = { fecha }, desdeDia = `${fecha}T00:00` > desde ? `${fecha}T00:00` : desde, hastaDia = `${fecha}T23:00` < hasta ? `${fecha}T23:00` : hasta;
         for (const variable of VARIABLES) {
           const valores = {};
           for (const m of consultados) {
             let v = null;
-            if (m.fuente === "open-meteo") v = agregar(horas, hourly?.[deOpenMeteo.length === 1 ? variable.horaria : `${variable.horaria}_${m.id}`], desdeDia, hastaDia, variable.agrega); // con un solo modelo Open-Meteo no agrega el sufijo
-            else if (wrf && variable.clave === "lluvia") { // suma de las horas del día dentro del rango; si falta alguna, el modelo no la cubre
-              const hs = horasRango.filter((t) => t >= desdeDia && t <= hastaDia).map((t) => wrf.lluviaPorHora.get(t)?.[i]);
-              v = hs.length && hs.every((x) => x != null) ? hs.reduce((a, b) => a + b, 0) : null;
-            } else if (wrf && (variable.clave === "tmax" || variable.clave === "tmin")) v = wrf.diario[variable.clave].get(fecha)?.[i] ?? null;
+            if (m.fuente === "open-meteo") { // con un solo modelo Open-Meteo no agrega el sufijo al nombre de la variable
+              const col = (nombre) => hourly?.[deOpenMeteo.length === 1 ? nombre : `${nombre}_${m.id}`];
+              v = agregar(horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null);
+            }
+            else if (wrf && variable.clave === "tmax") v = wrf.diario.tmax.get(fecha)?.[i] ?? null;
+            else if (wrf && variable.clave === "tmin") v = wrf.diario.tmin.get(fecha)?.[i] ?? null;
+            else if (wrf && ["lluvia", "hmin", "hmax", "viento", "dirviento"].includes(variable.clave)) { // las horas del día dentro del rango; si falta alguna, el modelo no las cubre
+              const porHora = (nombre) => horasRango.filter((t) => t >= desdeDia && t <= hastaDia).map((t) => wrf.porHora[nombre].get(t)?.[i]);
+              const completo = (hs) => hs.length > 0 && hs.every((x) => x != null);
+              if (variable.clave === "lluvia") { const hs = porHora("PP"); v = completo(hs) ? hs.reduce((a, b) => a + b, 0) : null; }
+              else if (variable.clave === "hmin" || variable.clave === "hmax") { const hs = porHora("HR2"); v = completo(hs) ? Math[variable.clave === "hmin" ? "min" : "max"](...hs) : null; }
+              else if (variable.clave === "viento") { const hs = porHora("magViento10"); v = completo(hs) ? Math.max(...hs) * 3.6 : null; } // m/s → km/h
+              else { const dirs = porHora("dirViento10"), vel = porHora("magViento10"); v = completo(dirs) && completo(vel) ? mediaCircular(dirs, vel) : null; }
+            }
             valores[m.id] = redondear(v, variable.decimales);
           }
           dia[variable.clave] = { valores, ...resumir(Object.values(valores), variable) };
@@ -169,15 +221,14 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
 
   return {
     generado: new Date().toISOString(), desde, hasta, dias, modelos: consultados, avisos, ...(wrfPendiente ? { wrf: { pendiente: true, progreso: wrf.progreso } } : wrf ? { wrf: { corrida: wrf.corrida } } : {}),
-    variables: VARIABLES.map(({ clave, nombre, unidad, decimales, umbral, agrega }) => ({ clave, nombre, unidad, decimales, umbral, agrega })),
-    departamentos,
+    variables: VARIABLES.map(({ clave, nombre, unidad, decimales, umbral, agrega, grupo, circular }) => ({ clave, nombre, unidad, decimales, umbral, agrega, grupo, circular: !!circular })),
+    departamentos: resultados.slice(0, N_DEPARTAMENTOS), ciudades: resultados.slice(N_DEPARTAMENTOS),
   };
 }
 
 /** Deja lista en caché la corrida vigente del WRF-SMN (WRF_PRECARGA=1: ver server.js). */
 function precargarWrf() {
-  const c = loadCentroides();
-  return precargar(loadDepartamentos().filter((d) => c.has(String(d.id))).map((d) => c.get(String(d.id))));
+  return precargar(puntosDelEnsamble());
 }
 
-module.exports = { pronosticoEnsamble, precargarWrf, progresoWrf, errorDeRango, MODELOS, VARIABLES, resumir };
+module.exports = { pronosticoEnsamble, precargarWrf, progresoWrf, errorDeRango, puntosDelEnsamble, mediaCircular, MODELOS, VARIABLES, resumir };
