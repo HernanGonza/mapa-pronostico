@@ -75,6 +75,9 @@ async function init() {
     )
     .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS fecha_pronostico date`))
     .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS extendido jsonb`))
+    // Desde dónde se publicó («panel» = Previsión del tiempo con un .docx; «ensamble» = el cajón del ensamble) y quién.
+    .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS origen text`))
+    .then(() => pool.query(`ALTER TABLE pronosticos ADD COLUMN IF NOT EXISTS publicado_por text`))
     .then(() => {
       console.log("[store] Postgres listo (tabla pronosticos)");
     })
@@ -90,19 +93,20 @@ async function init() {
   return listo;
 }
 
-async function publicar(filas, fechaPronostico = null, extendido = null) {
+/** `meta`: { origen: "panel" | "ensamble", publicadoPor: nombre de quien publicó } (opcional). */
+async function publicar(filas, fechaPronostico = null, extendido = null, { origen = null, publicadoPor = null } = {}) {
   if (usaPostgres()) {
     await init();
     const { rows } = await pool.query(
-      `INSERT INTO pronosticos (filas, fecha_pronostico, extendido)
-       VALUES ($1::jsonb, $2::date, $3::jsonb)
-       RETURNING publicado_en, filas, fecha_pronostico, extendido`,
-      [JSON.stringify(filas), fechaPronostico || null, extendido ? JSON.stringify(extendido) : null]
+      `INSERT INTO pronosticos (filas, fecha_pronostico, extendido, origen, publicado_por)
+       VALUES ($1::jsonb, $2::date, $3::jsonb, $4, $5)
+       RETURNING publicado_en, filas, fecha_pronostico, extendido, origen, publicado_por`,
+      [JSON.stringify(filas), fechaPronostico || null, extendido ? JSON.stringify(extendido) : null, origen, publicadoPor]
     );
-    return { publicadoEn: rows[0].publicado_en.toISOString(), fechaPronostico: rows[0].fecha_pronostico, filas: rows[0].filas, extendido: rows[0].extendido };
+    return { publicadoEn: rows[0].publicado_en.toISOString(), fechaPronostico: rows[0].fecha_pronostico, filas: rows[0].filas, extendido: rows[0].extendido, origen: rows[0].origen, publicadoPor: rows[0].publicado_por };
   }
 
-  const payload = { publicadoEn: new Date().toISOString(), fechaPronostico: fechaPronostico || null, filas, extendido };
+  const payload = { publicadoEn: new Date().toISOString(), fechaPronostico: fechaPronostico || null, filas, extendido, origen, publicadoPor };
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, JSON.stringify(payload, null, 2));
   return payload;
@@ -112,7 +116,7 @@ async function obtenerActual() {
   if (usaPostgres()) {
     await init();
     const { rows } = await pool.query(
-      `SELECT publicado_en, fecha_pronostico, filas, extendido
+      `SELECT publicado_en, fecha_pronostico, filas, extendido, origen, publicado_por
          FROM pronosticos
          ORDER BY id DESC
          LIMIT 1`
@@ -123,6 +127,8 @@ async function obtenerActual() {
       fechaPronostico: rows[0].fecha_pronostico,
       filas: rows[0].filas,
       extendido: rows[0].extendido,
+      origen: rows[0].origen,
+      publicadoPor: rows[0].publicado_por,
     };
   }
 

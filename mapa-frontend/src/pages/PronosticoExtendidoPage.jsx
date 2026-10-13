@@ -8,9 +8,11 @@ import { useNotificacion } from "../lib/useNotificacion";
 import PronosticoExtendidoView from "../components/PronosticoExtendidoView";
 import PronosticoExtendidoEditor, { extendidoVacio, hayInvalidosExtendido } from "../components/PronosticoExtendidoEditor";
 import { getActual, publicar } from "../api";
+import PronosticoPublicado, { usePublicado } from "../components/PronosticoPublicado";
 
 export default function PronosticoExtendidoPage() {
   const [actual, setActual] = useState(null);
+  const metaPublicado = usePublicado(actual?.publicadoEn); // desde dónde se hizo lo publicado (panel o ensamble) y quién
   const [extendido, setExtendido] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +63,7 @@ export default function PronosticoExtendidoPage() {
             "Pronóstico extendido" — pero se puede corregir o completar acá antes de publicar. Es por zona (Sur/Centro/Norte), no por localidad.
           </p>
         </div>
+        <PronosticoPublicado meta={metaPublicado} />
         {error && <div className="alert alert--error" role="alert">{error}</div>}
         {cargando ? (
           <p>Cargando…</p>

@@ -20,6 +20,7 @@ const requireAuth = require("../middleware/requireAuth");
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
+const ORIGENES = ["panel", "ensamble"];
 
 function errorDeFilas(filas) {
   if (!Array.isArray(filas) || filas.length === 0) return "Falta el array `filas` en el body";
@@ -100,7 +101,11 @@ router.post("/pronostico/publicar", requireAuth, express.json({ limit: "1mb" }),
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });
   try {
-    const payload = await publicar(filas, req.body.fechaPronostico, req.body.extendido || null);
+    // Desde dónde se publica (el panel «Previsión del tiempo» o el cajón del ensamble) y quién: lo ve el equipo en la tarjeta de
+    // lo publicado, para saber que ya hay algo y no armar otro. Un origen desconocido cuenta como «panel».
+    const origen = ORIGENES.includes(req.body.origen) ? req.body.origen : "panel";
+    const publicadoPor = req.usuario?.nombre || req.usuario?.email || null;
+    const payload = await publicar(filas, req.body.fechaPronostico, req.body.extendido || null, { origen, publicadoPor });
     // No debe romper ni demorar la publicación si esto falla — es un
     // registro derivado (serie histórica por estación), no la fuente
     // de verdad del pronóstico publicado.
@@ -124,10 +129,31 @@ router.get("/pronostico/actual", async (req, res) => {
         .status(404)
         .json({ error: "Todavía no se publicó ningún pronóstico" });
     }
-    res.json(actual);
+    // Es público (lo leen el mapa y los embebidos): quién publicó y desde dónde son sólo del panel (ver /pronostico/publicado).
+    const { origen, publicadoPor, ...publico } = actual;
+    res.json(publico);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/pronostico/publicado — qué hay publicado ahora, para la tarjeta del panel: cuándo, de qué día, desde dónde
+ * (`origen`: "panel" | "ensamble" | null si es anterior a que se registrara) y quién lo publicó. `publicado: null` si no hay nada.
+ */
+router.get("/pronostico/publicado", requireAuth, async (req, res) => {
+  try {
+    const actual = await obtenerActual();
+    if (!actual) return res.set("Cache-Control", "no-store").json({ publicado: null });
+    const zonas = actual.extendido?.zonas || [];
+    res.set("Cache-Control", "no-store").json({ publicado: {
+      publicadoEn: actual.publicadoEn, fechaPronostico: actual.fechaPronostico, origen: actual.origen || null, publicadoPor: actual.publicadoPor || null,
+      localidades: actual.filas.length, conExtendido: zonas.some((z) => z.dias?.length > 1), conTextos: (actual.extendido?.informes?.length || 0) > 0,
+    } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo leer lo publicado." });
   }
 });
 

@@ -8,6 +8,7 @@ import { confirmar, esc } from "../lib/ui";
 import { esCondicionConocida, CONDICIONES_CANONICAS, etiquetaCondicion } from "../lib/condiciones";
 import { filaInvalida } from "../lib/asistentesPronostico";
 import { hayInvalidosExtendido } from "./PronosticoExtendidoEditor";
+import { origenDe } from "./PronosticoPublicado";
 
 /**
  * Informe «PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES» armado paso a paso desde el ensamble, en un cajón
@@ -228,15 +229,16 @@ function PasoRevision({ b }) {
       const { filas, extendido } = await api.parseDocx(archivo);
       const fecha = b.dias[b.diaTablas].fecha;
       if (!filas?.length || filas.some(filaInvalida) || !extendido || hayInvalidosExtendido(extendido)) throw new Error("El mapa no acepta algo del informe (temperaturas fuera de rango o un estado del tiempo que no reconoce). Revisá las ciudades, las zonas y el extendido.");
-      const actual = await api.getActual().catch(() => null);
+      const actual = await api.getPublicado().catch(() => null); // lo que se ve ahora y desde dónde se hizo
       const ok = await confirmar({
         titulo: "¿Publicar en el mapa público?", confirmar: "Publicar ahora", cancelar: "Todavía no",
         html: `<p>Se va a publicar el pronóstico del <b>${esc(ddmmaaaa(fecha))}</b>: ${filas.length} localidades y el pronóstico de 3 días.</p>
-          <p>Reemplaza lo que muestran ahora el <b>mapa público</b>, el <b>pronóstico de 3 días</b> y los <b>embebidos</b>${actual?.fechaPronostico ? ` (hoy: el del ${esc(ddmmaaaa(actual.fechaPronostico))})` : ""}.</p>`,
+          <p>Reemplaza lo que muestran ahora el <b>mapa público</b>, el <b>pronóstico de 3 días</b> y los <b>embebidos</b>${actual ? ` (hoy: el del ${esc(ddmmaaaa(actual.fechaPronostico || actual.publicadoEn))}, ${esc(origenDe(actual).toLowerCase())}${actual.publicadoPor ? `, por ${esc(actual.publicadoPor)}` : ""})` : ""}.</p>
+          <p>Quedará registrado como hecho <b>desde el ensamble</b>, y así se va a ver en «Previsión del tiempo».</p>`,
       });
       if (!ok) { setEstado({ bajando: false, trabajando: "", error: "", hecho: null }); return; }
       setEstado({ bajando: false, trabajando: "Publicando…", error: "", hecho: null });
-      await api.publicar(filas, fecha, extendido);
+      await api.publicar(filas, fecha, extendido, "ensamble");
       setEstado({ bajando: false, trabajando: "", error: "", hecho: { fecha, localidades: filas.length } });
     } catch (e) { setEstado({ bajando: false, trabajando: "", error: e.message, hecho: null }); }
   }
@@ -268,7 +270,7 @@ function PasoRevision({ b }) {
     </div>
     {estado.error && <p className="paso-aviso" role="alert">{estado.error}</p>}
     {problemas.length > 0 && <div className="paso-aviso" role="status"><strong>Para cargarlo en el mapa público falta:</strong><ul className="ens-problemas">{problemas.slice(0, 5).map((x) => <li key={x}>{x}</li>)}</ul>{problemas.length > 5 && <small>…y {problemas.length - 5} más.</small>}</div>}
-    {estado.hecho && <div className="paso-aviso ens-ok" role="status"><strong>Publicado.</strong> El mapa público, el pronóstico de 3 días y los embebidos ya muestran el informe del {ddmmaaaa(estado.hecho.fecha)} ({estado.hecho.localidades} localidades).
+    {estado.hecho && <div className="paso-aviso ens-ok" role="status"><strong>Publicado desde el ensamble.</strong> El mapa público, el pronóstico de 3 días y los embebidos ya muestran el informe del {ddmmaaaa(estado.hecho.fecha)} ({estado.hecho.localidades} localidades). En «Previsión del tiempo» figura como hecho acá.
       <p className="ens-enlaces"><Link to="/panel/pronostico" className="btn-link">Ver «Previsión del tiempo»</Link> · <Link to="/panel/pronostico-3-dias" className="btn-link">Ver «Pronóstico de 3 días»</Link></p></div>}
     <div className="ens-acciones-informe">
       <button type="button" className="btn btn--primary ens-boton-publicar" disabled={problemas.length > 0 || !!estado.trabajando || estado.bajando} onClick={cargarEnMapa}>{estado.trabajando || "Cargar en el mapa público"}</button>

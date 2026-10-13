@@ -6,6 +6,7 @@ import BaseMap from "../components/BaseMap";
 import { colorPronostico, infoPronostico, LeyendaPronostico } from "../components/PronosticoMapContent";
 import EmbedShare from "../components/EmbedShare";
 import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos, filaInvalida } from "../lib/asistentesPronostico";
+import PronosticoPublicado, { usePublicado, origenDe } from "../components/PronosticoPublicado";
 import BrandHeader from "../components/BrandHeader";
 import { enviarPronosticoPorCorreo, editarDestinatariosPorPasos } from "../lib/asistenteCorreo";
 import { notificar } from "../lib/ui";
@@ -92,6 +93,7 @@ export default function AdminPage() {
   const [filas, setFilas] = useState(null);
   const [extendido, setExtendido] = useState(null);
   const [publicado, setPublicado] = useState(null); // { publicadoEn, filas }
+  const metaPublicado = usePublicado(publicado?.publicadoEn); // desde dónde se hizo lo publicado (panel o ensamble) y quién
   const [municipiosPreview, setMunicipiosPreview] = useState(null);
   const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -176,6 +178,8 @@ export default function AdminPage() {
   });
   const revisarYPublicar = () => publicarPronosticoPorPasos({
     cantidad: filas.length, sinPublicar: !publicado, fecha: fechaPronostico, fechaCambiada, cambios, republicar: !sucio,
+    // Si lo publicado se hizo desde el ensamble, se avisa: esto lo reemplaza (así no se pisa sin querer lo que armó el otro).
+    publicadoDesde: metaPublicado?.origen === "ensamble" ? `${origenDe(metaPublicado).toLowerCase()}, el ${new Date(metaPublicado.publicadoEn).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}${metaPublicado.publicadoPor ? ` por ${metaPublicado.publicadoPor}` : ""}` : null,
     publicar: async () => { setPublicado(await publicar(filas, fechaPronostico, extendido)); setMensajeOk("Publicado. El mapa público ya muestra esta versión."); },
   });
 
@@ -231,6 +235,7 @@ export default function AdminPage() {
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading"><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
         <PublicationStatus changed={sucio} published={publicado} />
+        <PronosticoPublicado meta={metaPublicado} />
         {error && <div className="alert alert--error" role="alert">{error}</div>}
         {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
         <div className="admin-acciones">

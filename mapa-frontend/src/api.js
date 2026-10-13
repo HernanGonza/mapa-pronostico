@@ -185,17 +185,23 @@ export async function getMapaPreview(filas, extendido = null) {
  * Último pronóstico publicado con su metadata: `{ publicadoEn, filas }`.
  * `null` si todavía no se publicó nada.
  */
+/** Qué hay publicado ahora y desde dónde (sólo para el panel): { publicadoEn, fechaPronostico, origen, publicadoPor, localidades, conExtendido, conTextos } o null. */
+export async function getPublicado() {
+  return (await handleJson(await fetch(`${API_URL}/api/pronostico/publicado`, { cache: "no-store", ...CON_SESION }))).publicado;
+}
+
 export async function getActual() {
   const res = await fetch(`${API_URL}/api/pronostico/actual`);
   if (res.status === 404) return null;
   return handleJson(res);
 }
 
-export async function publicar(filas, fechaPronostico, extendido) {
+/** `origen`: desde dónde se publica ("panel" = Previsión del tiempo, "ensamble" = el cajón del ensamble); queda en la tarjeta de lo publicado. */
+export async function publicar(filas, fechaPronostico, extendido, origen = "panel") {
   const res = await fetch(`${API_URL}/api/pronostico/publicar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filas, fechaPronostico, extendido: extendido || null }),
+    body: JSON.stringify({ filas, fechaPronostico, extendido: extendido || null, origen }),
     ...CON_SESION,
   });
   return handleJson(res);

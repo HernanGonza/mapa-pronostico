@@ -179,13 +179,13 @@ export async function crearPlacaPronostico({ vistaPrevia, guardar, epigrafe, fil
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: { pestana: sugerida, etiqueta: sugerida, fondo: null, frase: "", estiloTarjeta: "oscura" }, ancho: 980 });
 }
 
-export function publicarPronosticoPorPasos({ cantidad, sinPublicar, fecha, fechaCambiada, cambios, republicar, publicar }) {
+export function publicarPronosticoPorPasos({ cantidad, sinPublicar, fecha, fechaCambiada, cambios, republicar, publicar, publicadoDesde = null }) {
   const lista = (cambios || []).length
     ? `<p>Se van a actualizar <strong>${cambios.length}</strong> ${cambios.length === 1 ? "dato" : "datos"} del mapa público:</p><ul class="paso-cambios">${cambios.map((c) => `<li><strong>${esc(c.localidad)}</strong> · ${esc(c.campo)}: ${esc(c.de)} <span aria-hidden="true">→</span> ${esc(c.a)}</li>`).join("")}</ul>` : "";
   return asistente({
     estado: {}, textoEnviar: republicar ? "Republicar" : "Publicar en el mapa público",
     pasos: [republicar ? pasoRepublicar("el mismo pronóstico") : { pregunta: "Revisá los cambios", ayuda: "Al confirmar, el mapa público muestra esta versión.",
-      html: () => `${sinPublicar ? `<p>Se publicará el primer pronóstico con ${cantidad} localidades.</p>` : ""}${fechaCambiada ? `<p>Fecha del pronóstico: <strong>${esc(fecha)}</strong>.</p>` : ""}${lista}` }],
+      html: () => `${publicadoDesde ? `<p class="paso-aviso">Ahora está publicado un pronóstico <strong>${esc(publicadoDesde)}</strong>. Esto lo reemplaza.</p>` : ""}${sinPublicar ? `<p>Se publicará el primer pronóstico con ${cantidad} localidades.</p>` : ""}${fechaCambiada ? `<p>Fecha del pronóstico: <strong>${esc(fecha)}</strong>.</p>` : ""}${lista}` }],
     enviar: async () => { await publicar(); return { tipo: "ok", titulo: "¡Publicado!", datos: true, html: "<p>El mapa público ya muestra esta versión.</p>" }; },
   });
 }
