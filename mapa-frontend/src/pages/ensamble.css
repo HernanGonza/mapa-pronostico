@@ -187,3 +187,9 @@
 .ens-hoja table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
 .ens-hoja th, .ens-hoja td { border: 1px solid #999; padding: 3px 5px; text-align: left; vertical-align: top; }
 .ens-hoja thead th, .ens-hoja th[colspan] { background: #ece7d8; text-align: center; }
+
+.ens-acciones-informe { display: flex; flex-direction: column; gap: 8px; }
+.ens-acciones-informe .btn { width: 100%; justify-content: center; }
+.ens-boton-publicar { padding-block: 14px; font-size: 1.05rem; font-weight: 700; }
+.ens-problemas { margin: 6px 0 4px; padding-left: 18px; font-size: 0.82rem; }
+.ens-enlaces { margin: 6px 0 0; }

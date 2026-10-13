@@ -612,10 +612,14 @@ export async function getEnsambleProgreso() {
 export async function proponerInforme({ emision, diaTablas, modelos }) {
   return handleJson(await fetch(`${API_URL}/api/ensamble/informe/propuesta`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emision, diaTablas, modelos }), cache: "no-store", ...CON_SESION }));
 }
-export async function descargarInformeDocx(borrador) {
+/** El .docx del informe, completado sobre la plantilla oficial (Blob). */
+export async function generarInformeDocx(borrador) {
   const r = await fetch(`${API_URL}/api/ensamble/informe/docx`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(borrador), ...CON_SESION });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el informe.");
-  const url = URL.createObjectURL(await r.blob()), a = document.createElement("a");
+  return r.blob();
+}
+export async function descargarInformeDocx(borrador) {
+  const url = URL.createObjectURL(await generarInformeDocx(borrador)), a = document.createElement("a");
   a.href = url; a.download = `PREVISION DEL TIEMPO ${borrador.emision.fecha}.docx`; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }

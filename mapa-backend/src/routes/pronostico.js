@@ -7,6 +7,7 @@ const fs = require("fs");
 const { extractDocxTables, extractDocxParagraphs } = require("../lib/docxTables");
 const { buildForecastRows, ZONAS_PRONOSTICO } = require("../lib/parseForecast");
 const { buildExtendedForecast, hayExtendido } = require("../lib/parseForecastExtendido");
+const { esInformeNuevo, parseInformeNuevo } = require("../lib/parseInformeNuevo");
 const { generateForecastMap, generateForecastMapHistorias } = require("../lib/generateMap");
 const { nowInArgentina } = require("../lib/dateUtils");
 const { publicar, obtenerActual, obtenerHistorial } = require("../lib/store");
@@ -52,7 +53,8 @@ function errorDeFilas(filas) {
  * POST /api/pronostico/parse
  * form-data: pronostico = archivo .docx
  * Solo parsea y devuelve el JSON — NO publica. El operador lo revisa/edita
- * en el front antes de mandarlo a /publicar.
+ * en el front antes de mandarlo a /publicar. Acepta el .docx de siempre y el informe nuevo de la DGAT
+ * (en ese caso la respuesta trae además `formato: "informe-dgat"` y `fechaSugerida`).
  */
 router.post("/pronostico/parse", requireAuth, upload.single("pronostico"), async (req, res) => {
   try {
@@ -62,6 +64,12 @@ router.post("/pronostico/parse", requireAuth, upload.single("pronostico"), async
       });
     }
     const tables = await extractDocxTables(req.file.buffer);
+    // Dos formatos: el .docx de siempre (3 tablas de localidades norte/centro/sur) y el informe nuevo de la DGAT
+    // («PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES», con la tabla de las 13 ciudades). Se distingue solo.
+    if (esInformeNuevo(tables)) {
+      const r = parseInformeNuevo(tables, await extractDocxParagraphs(req.file.buffer));
+      return res.json({ filas: r.filas, extendido: hayExtendido(r.extendido) ? r.extendido : null, formato: "informe-dgat", fechaSugerida: r.fechaSugerida });
+    }
     if (tables.length < 3) {
       return res.status(422).json({
         error: `Se esperaban al menos 3 tablas (norte/centro/sur), se encontraron ${tables.length}`,

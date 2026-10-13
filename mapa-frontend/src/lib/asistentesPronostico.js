@@ -20,7 +20,7 @@ const ZONAS = ["Norte", "Centro", "Sur"];
 export const filaInvalida = (r) => tempInvalida(r.TMIN) || tempInvalida(r.TMAX) || Number(r.TMIN) > Number(r.TMAX) || !esCondicionConocida(r.CONDICION);
 
 const pasoArchivo = (parse) => ({
-  pregunta: "¿De qué día es el pronóstico?", ayuda: "Elegí la fecha y subí el .docx que manda Alerta Temprana. Si ya hay un pronóstico cargado, podés seguir sin subir uno nuevo.",
+  pregunta: "¿De qué día es el pronóstico?", ayuda: "Elegí la fecha y subí el .docx que manda Alerta Temprana (sirve el de siempre y también el informe nuevo «Previsión del tiempo para la provincia de Misiones»). Si ya hay un pronóstico cargado, podés seguir sin subir uno nuevo.",
   html: (s) => `<div class="paso-imagen"><label class="paso-etiqueta">Fecha del pronóstico<input type="date" class="paso-input" id="paso-fecha" value="${esc(s.fecha)}"></label>
       <label class="paso-etiqueta">Archivo .docx<input type="file" class="paso-input" id="paso-docx" accept=".docx"></label>
       <p class="paso-docx-estado" id="paso-docx-estado" role="status">${s.filas ? `${s.filas.length} localidades cargadas.` : "Todavía no se subió ningún archivo."}</p></div>`,
@@ -32,12 +32,14 @@ const pasoArchivo = (parse) => ({
       estado.textContent = "Leyendo el archivo…";
       const boton = popup.querySelector(".swal2-confirm"); boton.disabled = true;
       try {
-        const { filas, extendido } = await parse(archivo);
+        const { filas, extendido, formato, fechaSugerida } = await parse(archivo);
+        // El informe nuevo de la DGAT trae la fecha de sus días: se propone (se puede cambiar).
+        if (fechaSugerida) { s.fecha = fechaSugerida; popup.querySelector("#paso-fecha").value = fechaSugerida; }
         // La zona viene de la tabla del .docx; si una localidad ya tenía otra asignada a mano, se respeta.
         const zonaAnterior = new Map((s.filas || []).filter((r) => r.ZONA).map((r) => [r.LOCALIDAD, r.ZONA]));
         s.filas = filas.map((r) => ({ ...r, ZONA: zonaAnterior.get(r.LOCALIDAD) || r.ZONA }));
         s.extendido = extendido || null;
-        estado.textContent = `✓ ${filas.length} localidades leídas${extendido ? ", con pronóstico extendido" : ""}.`;
+        estado.textContent = `✓ ${filas.length} localidades leídas${formato === "informe-dgat" ? " del informe de la DGAT" : ""}${extendido ? ", con pronóstico extendido" : ""}.`;
       } catch (e) { estado.textContent = `✗ ${e.message}`; entrada.value = ""; }
       finally { boton.disabled = false; }
     });

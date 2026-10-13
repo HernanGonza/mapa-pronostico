@@ -3,7 +3,11 @@ import { FileText, ChevronRight, ChevronLeft } from "lucide";
 import Icono from "./Icono";
 import CampoFecha from "./CampoFecha";
 import * as api from "../api";
-import { confirmar } from "../lib/ui";
+import { Link } from "react-router-dom";
+import { confirmar, esc } from "../lib/ui";
+import { esCondicionConocida, CONDICIONES_CANONICAS, etiquetaCondicion } from "../lib/condiciones";
+import { filaInvalida } from "../lib/asistentesPronostico";
+import { hayInvalidosExtendido } from "./PronosticoExtendidoEditor";
 
 /**
  * Informe «PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES» armado paso a paso desde el ensamble, en un cajón
@@ -19,7 +23,8 @@ export const CIUDADES = ["POSADAS", "L. N. ALEM", "APÓSTOLES", "SAN JAVIER", "M
 export const ZONAS = ["Sur", "Centro", "Norte"];
 const CLAVE = "ensamble-informe-v1";
 const AR = "America/Argentina/Buenos_Aires";
-const ESTADOS = ["Despejado", "Algo nublado", "Parcialmente nublado", "Nublado", "Cubierto", "Lloviznas", "Chaparrones aislados", "Chaparrones", "Lluvias aisladas", "Lluvias", "Tormentas aisladas", "Chaparrones y tormentas", "Lluvias y tormentas"];
+// Los estados del tiempo que reconoce el mapa (con ellos, lo escrito entra al mapa público sin correcciones).
+const ESTADOS = CONDICIONES_CANONICAS.map(etiquetaCondicion);
 const ALERTAS = ["s/a", "Amarillo Tormentas", "Naranja Tormentas", "Rojo Tormentas", "Amarillo Lluvias", "Amarillo Vientos", "Amarillo Temperaturas extremas"];
 
 const hoyART = () => new Intl.DateTimeFormat("en-CA", { timeZone: AR }).format(new Date());
@@ -189,16 +194,54 @@ function faltantes(b) {
   return f;
 }
 
+/**
+ * Lo que impide cargarlo en el mapa público. Las 13 ciudades son las localidades del mapa, y el extendido y el «hoy» de las
+ * zonas alimentan el pronóstico de 3 días: tienen que tener temperaturas en regla y un estado del tiempo que el mapa reconozca.
+ */
+function problemasParaMapa(b) {
+  const p = [];
+  const mala = (v) => { const n = Number(v); return String(v ?? "").trim() === "" || !Number.isInteger(n) || n < -15 || n > 55; };
+  const revisar = (nombre, tmin, tmax, estado) => {
+    if (mala(tmin) || mala(tmax)) p.push(`${nombre}: falta la mínima o la máxima (sólo el número, en °C)`);
+    else if (Number(tmin) > Number(tmax)) p.push(`${nombre}: la mínima supera la máxima`);
+    if (!esCondicionConocida(estado)) p.push(`${nombre}: ${String(estado ?? "").trim() ? `«${estado}» no está en la lista de estados del tiempo` : "falta el estado del tiempo"}`);
+  };
+  b.ciudades.forEach((c, i) => revisar(CIUDADES[i], c.tmin, c.tmax, c.estado));
+  ZONAS.forEach((z) => { const d = b.zonas[z]; if (d.tmin || d.tmax || d.estado) revisar(`Zona ${z}`, d.tmin, d.tmax, d.estado); }); // la zona vacía se resume con sus ciudades
+  ZONAS.forEach((z) => b.extendido[z].forEach((d) => revisar(`Extendido ${z} ${ddmmaaaa(d.fecha)}`, d.tmin, d.tmax, d.estado)));
+  return p;
+}
+
 function PasoRevision({ b }) {
-  const [estado, setEstado] = useState({ bajando: false, error: "" });
-  const falta = faltantes(b);
+  const [estado, setEstado] = useState({ bajando: false, trabajando: "", error: "", hecho: null });
+  const falta = faltantes(b), problemas = useMemo(() => problemasParaMapa(b), [b]);
   async function bajar() {
-    setEstado({ bajando: true, error: "" });
-    try { await api.descargarInformeDocx(b); setEstado({ bajando: false, error: "" }); }
-    catch (e) { setEstado({ bajando: false, error: e.message }); }
+    setEstado({ bajando: true, trabajando: "", error: "", hecho: null });
+    try { await api.descargarInformeDocx(b); setEstado({ bajando: false, trabajando: "", error: "", hecho: null }); }
+    catch (e) { setEstado({ bajando: false, trabajando: "", error: e.message, hecho: null }); }
+  }
+  /** El mismo proceso que «Previsión del tiempo», hecho desde acá: armar el .docx, leerlo como si se hubiera subido, validar y publicar. */
+  async function cargarEnMapa() {
+    setEstado({ bajando: false, trabajando: "Armando y leyendo el informe…", error: "", hecho: null });
+    try {
+      const archivo = new File([await api.generarInformeDocx(b)], `PREVISION DEL TIEMPO ${b.emision.fecha}.docx`, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      const { filas, extendido } = await api.parseDocx(archivo);
+      const fecha = b.dias[b.diaTablas].fecha;
+      if (!filas?.length || filas.some(filaInvalida) || !extendido || hayInvalidosExtendido(extendido)) throw new Error("El mapa no acepta algo del informe (temperaturas fuera de rango o un estado del tiempo que no reconoce). Revisá las ciudades, las zonas y el extendido.");
+      const actual = await api.getActual().catch(() => null);
+      const ok = await confirmar({
+        titulo: "¿Publicar en el mapa público?", confirmar: "Publicar ahora", cancelar: "Todavía no",
+        html: `<p>Se va a publicar el pronóstico del <b>${esc(ddmmaaaa(fecha))}</b>: ${filas.length} localidades y el pronóstico de 3 días.</p>
+          <p>Reemplaza lo que muestran ahora el <b>mapa público</b>, el <b>pronóstico de 3 días</b> y los <b>embebidos</b>${actual?.fechaPronostico ? ` (hoy: el del ${esc(ddmmaaaa(actual.fechaPronostico))})` : ""}.</p>`,
+      });
+      if (!ok) { setEstado({ bajando: false, trabajando: "", error: "", hecho: null }); return; }
+      setEstado({ bajando: false, trabajando: "Publicando…", error: "", hecho: null });
+      await api.publicar(filas, fecha, extendido);
+      setEstado({ bajando: false, trabajando: "", error: "", hecho: { fecha, localidades: filas.length } });
+    } catch (e) { setEstado({ bajando: false, trabajando: "", error: e.message, hecho: null }); }
   }
   return <>
-    <p className="paso__ayuda">Así queda el informe. Se genera sobre la plantilla oficial (misma tipografía, tablas y logo) y se baja como .docx.</p>
+    <p className="paso__ayuda">Así queda el informe. Podés <strong>cargarlo en el mapa público</strong> (hace el mismo proceso que «Previsión del tiempo») o bajarlo como .docx, que se genera sobre la plantilla oficial.</p>
     {falta.length > 0 ? <p className="paso-aviso" role="status">Todavía falta: {falta.join(", ")}. Podés bajarlo igual y completarlo en Word.</p> : <p className="paso-aviso ens-ok" role="status">Está todo completo.</p>}
     <div className="ens-hoja" aria-label="Vista previa del informe">
       <h3>PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES</h3>
@@ -224,7 +267,13 @@ function PasoRevision({ b }) {
       </tbody></table>)}
     </div>
     {estado.error && <p className="paso-aviso" role="alert">{estado.error}</p>}
-    <button type="button" className="btn btn--primary" disabled={estado.bajando} onClick={bajar}>{estado.bajando ? "Armando el informe…" : "Descargar .docx"}</button>
+    {problemas.length > 0 && <div className="paso-aviso" role="status"><strong>Para cargarlo en el mapa público falta:</strong><ul className="ens-problemas">{problemas.slice(0, 5).map((x) => <li key={x}>{x}</li>)}</ul>{problemas.length > 5 && <small>…y {problemas.length - 5} más.</small>}</div>}
+    {estado.hecho && <div className="paso-aviso ens-ok" role="status"><strong>Publicado.</strong> El mapa público, el pronóstico de 3 días y los embebidos ya muestran el informe del {ddmmaaaa(estado.hecho.fecha)} ({estado.hecho.localidades} localidades).
+      <p className="ens-enlaces"><Link to="/panel/pronostico" className="btn-link">Ver «Previsión del tiempo»</Link> · <Link to="/panel/pronostico-3-dias" className="btn-link">Ver «Pronóstico de 3 días»</Link></p></div>}
+    <div className="ens-acciones-informe">
+      <button type="button" className="btn btn--primary ens-boton-publicar" disabled={problemas.length > 0 || !!estado.trabajando || estado.bajando} onClick={cargarEnMapa}>{estado.trabajando || "Cargar en el mapa público"}</button>
+      <button type="button" className="btn btn--ghost" disabled={!!estado.trabajando || estado.bajando} onClick={bajar}>{estado.bajando ? "Armando el informe…" : "Descargar .docx"}</button>
+    </div>
   </>;
 }
 

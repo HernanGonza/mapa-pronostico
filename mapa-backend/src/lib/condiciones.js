@@ -54,4 +54,10 @@ function colorPorCondicion(condicion) {
   return c ? GRUPOS[c.grupo] : SIN_DATO;
 }
 
-module.exports = { colorPorCondicion, SIN_DATO };
+/** Nombre canónico exacto (el de los íconos) de una condición escrita de cualquier forma, o null si no está en el catálogo. */
+function condicionCanonica(condicion) {
+  const c = condicion ? POR_NOMBRE.get(normalize(condicion)) : null;
+  return c ? c.nombre : null;
+}
+
+module.exports = { colorPorCondicion, condicionCanonica, SIN_DATO };
