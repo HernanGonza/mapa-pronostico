@@ -13,6 +13,7 @@ const MODULOS = [
   "cuencas",
   "informes-diarios",
   "generador-pronosticos",
+  "ensamble",
 ];
 
 /** Lista saneada para guardar: sólo ids conocidos, sin repetir. `null` si no es una lista de ids válidos. */

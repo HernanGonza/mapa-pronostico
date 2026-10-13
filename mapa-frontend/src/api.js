@@ -594,3 +594,11 @@ export async function descargarExcelInformeDiario(datos) {
   const a = document.createElement("a"); a.href = url; a.download = nombre; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+
+// --- Ensamble multimodelo (en desarrollo, módulo «ensamble») ---
+export async function getEnsamble({ desde, hasta, modelos }) {
+  return handleJson(await fetch(`${API_URL}/api/ensamble?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&modelos=${encodeURIComponent(modelos.join(","))}`, { cache: "no-store", ...CON_SESION }));
+}
+export async function getEnsambleProgreso() {
+  return handleJson(await fetch(`${API_URL}/api/ensamble/progreso`, { cache: "no-store", ...CON_SESION }));
+}

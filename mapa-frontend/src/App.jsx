@@ -11,6 +11,7 @@ const HistoricoPage = lazy(() => import("./pages/HistoricoPage"));
 const GeneradorPronosticosPage = lazy(() => import("./pages/GeneradorPronosticosPage"));
 const ConfiguracionPage = lazy(() => import("./pages/ConfiguracionPage"));
 const InformesDiariosPage = lazy(() => import("./pages/InformesDiariosPage"));
+const EnsamblePage = lazy(() => import("./pages/EnsamblePage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const RiesgoIncendiosPage = lazy(() => import("./pages/RiesgoIncendiosPage"));
 const AlertasIncendiosPage = lazy(() => import("./pages/AlertasIncendiosPage"));
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/panel/historico" element={<RutaProtegida><HistoricoPage /></RutaProtegida>} />
           <Route path="/panel/generador-pronosticos" element={<RutaProtegida modulo="generador-pronosticos"><GeneradorPronosticosPage /></RutaProtegida>} />
           <Route path="/panel/configuracion" element={<RutaProtegida soloSuperadmin><ConfiguracionPage /></RutaProtegida>} />
+          <Route path="/panel/ensamble" element={<RutaProtegida modulo="ensamble"><EnsamblePage /></RutaProtegida>} />
           <Route path="/panel/informes-diarios" element={<RutaProtegida modulo="informes-diarios"><InformesDiariosPage /></RutaProtegida>} />
           <Route
             path="/panel/pronostico"

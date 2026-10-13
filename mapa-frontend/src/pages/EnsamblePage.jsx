@@ -1,0 +1,243 @@
+import { useEffect, useMemo, useState } from "react";
+import VolverConfiguracion from "../components/VolverConfiguracion";
+import BrandHeader from "../components/BrandHeader";
+import CampoFecha from "../components/CampoFecha";
+import CampoHora from "../components/CampoHora";
+import * as api from "../api";
+import "./ensamble.css";
+
+/**
+ * Ensamble multimodelo (en desarrollo, desde Configuración): lo que dice cada modelo numérico para el
+ * centroide de cada uno de los 17 departamentos, a 10 días. Cada modelo tiene su color y su forma de
+ * marcador (se distinguen también sin color); se pueden prender y apagar y la media y la discrepancia
+ * se recalculan con los que quedan prendidos.
+ */
+const AR = "America/Argentina/Buenos_Aires";
+const ESTILO = { // color + forma propios de cada modelo
+  ecmwf_ifs025: { color: "#1f6fb2", forma: "circulo" },
+  gfs_seamless: { color: "#d4572a", forma: "cuadrado" },
+  icon_seamless: { color: "#2f8f5b", forma: "rombo" },
+  gem_seamless: { color: "#8b3fc4", forma: "triangulo" },
+  wrf_smn: { color: "#c9346c", forma: "cruz" },
+};
+// Espejo de MODELOS en mapa-backend/src/lib/ensamble.js (las tarjetas existen antes de la primera consulta).
+const CATALOGO = [
+  { id: "ecmwf_ifs025", nombre: "ECMWF", origen: "Centro Europeo", rol: "Referencia a 3–10 días" },
+  { id: "gfs_seamless", nombre: "GFS", origen: "EE. UU. (NOAA)", rol: "Tendencias de viento y temperatura" },
+  { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso" },
+  { id: "gem_seamless", nombre: "GEM", origen: "Canadá (ECCC)", rol: "Validador de consenso" },
+  { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", nota: "Sólo temperatura y lluvia (sin ráfagas). Pesa: tarda más en consultarse." },
+];
+const fechaDe = (f) => new Date(`${f}T12:00:00-03:00`);
+const diaCorto = (f) => fechaDe(f).toLocaleDateString("es-AR", { timeZone: AR, weekday: "short" }).replace(".", "");
+const diaMes = (f) => f.split("-").reverse().slice(0, 2).join("/");
+const hoyART = () => new Intl.DateTimeFormat("en-CA", { timeZone: AR }).format(new Date());
+const sumarDias = (f, n) => new Date(Date.parse(`${f}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+/** Atajos de rango: desde las 00:00 de hoy hasta el final del día N. */
+const ATAJOS = [{ txt: "Hoy", dias: 0 }, { txt: "3 días", dias: 2 }, { txt: "10 días", dias: 9 }];
+const num = (n, dec) => (n == null ? "—" : n.toFixed(dec).replace(".", ","));
+
+/** Estadística de los modelos prendidos (misma regla que mapa-backend/src/lib/ensamble.js). */
+function resumir(valores, visibles, variable) {
+  const v = Object.entries(valores).filter(([id, x]) => visibles.has(id) && x != null).map(([, x]) => x);
+  if (!v.length) return { media: null, min: null, max: null, n: 0, discrepan: false };
+  const min = Math.min(...v), max = Math.max(...v);
+  const seco = (x) => x < 1;
+  const lluvia = variable.clave === "lluvia" && v.some(seco) && v.some((x) => !seco(x)) && max - min >= 3;
+  return { media: v.reduce((a, b) => a + b, 0) / v.length, min, max, n: v.length, discrepan: v.length > 1 && (max - min >= variable.umbral || lluvia) };
+}
+
+function Marca({ forma, color, x = 0, y = 0, r = 5 }) {
+  const p = { fill: color, stroke: "#fff", strokeWidth: 1.2 };
+  if (forma === "cuadrado") return <rect x={x - r} y={y - r} width={2 * r} height={2 * r} rx="1" {...p} />;
+  if (forma === "cruz") { const a = r + 1, g = 2; return <polygon points={`${x - g},${y - a} ${x + g},${y - a} ${x + g},${y - g} ${x + a},${y - g} ${x + a},${y + g} ${x + g},${y + g} ${x + g},${y + a} ${x - g},${y + a} ${x - g},${y + g} ${x - a},${y + g} ${x - a},${y - g} ${x - g},${y - g}`} {...p} />; }
+  if (forma === "rombo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y} ${x},${y + r + 1} ${x - r - 1},${y}`} {...p} />;
+  if (forma === "triangulo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y + r} ${x - r - 1},${y + r}`} {...p} />;
+  return <circle cx={x} cy={y} r={r} {...p} />;
+}
+const Icono = ({ id }) => <svg className="ens-marca" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><Marca forma={ESTILO[id].forma} color={ESTILO[id].color} x={7} y={7} r={4.5} /></svg>;
+
+/**
+ * Gráfico de líneas interactivo: al pasar el mouse (o con las flechas ← →) marca el día con una guía y muestra
+ * el valor de cada modelo, el promedio y la diferencia; al hacer clic se deja fijado (y se resalta ese día en
+ * la tabla de abajo). El modelo más cercano al puntero se destaca.
+ */
+function Grafico({ depto, variable, modelos, visibles, dia, onDia }) {
+  const W = 760, H = 270, L = 46, R = 14, T = 14, B = 34;
+  const [hover, setHover] = useState(null); // { i: día, m: id del modelo más cercano }
+  const dias = depto.dias, activos = modelos.filter((m) => visibles.has(m.id));
+  const todos = dias.flatMap((d) => activos.map((m) => d[variable.clave].valores[m.id])).filter((x) => x != null);
+  if (!todos.length) return <p className="ens-vacio">Prendé al menos un modelo.</p>;
+  let lo = Math.min(...todos), hi = Math.max(...todos);
+  if (variable.clave === "lluvia" || variable.clave === "viento" || variable.clave === "rafaga") lo = 0;
+  if (hi - lo < 1) hi = lo + 1;
+  const pad = (hi - lo) * 0.08; hi += pad; if (lo !== 0) lo -= pad;
+  const x = (i) => (dias.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (dias.length - 1));
+  const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const ticks = Array.from({ length: 5 }, (_, k) => lo + ((hi - lo) * k) / 4);
+  const banda = dias.map((d, i) => ({ i, r: resumir(d[variable.clave].valores, visibles, variable) })).filter((b) => b.r.n > 1);
+
+  const activo = hover?.i ?? dia; // el día que se está mirando: el del puntero, o el fijado con un clic
+  const cercano = (e) => { // día y modelo más cercanos al puntero
+    const r = e.currentTarget.getBoundingClientRect(), px = ((e.clientX - r.left) / r.width) * W, py = ((e.clientY - r.top) / r.height) * H;
+    let i = 0, mejorX = Infinity;
+    dias.forEach((_, k) => { const d = Math.abs(x(k) - px); if (d < mejorX) { mejorX = d; i = k; } });
+    let m = null, mejorY = Infinity;
+    for (const mod of activos) { const v = dias[i][variable.clave].valores[mod.id]; if (v != null && Math.abs(y(v) - py) < mejorY) { mejorY = Math.abs(y(v) - py); m = mod.id; } }
+    return { i, m };
+  };
+  const tecla = (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const paso = e.key === "ArrowRight" ? 1 : -1, i = Math.min(dias.length - 1, Math.max(0, (activo ?? (paso > 0 ? -1 : dias.length)) + paso));
+    onDia(i); setHover(null);
+  };
+  const dato = activo != null ? dias[activo] : null, resumen = dato ? resumir(dato[variable.clave].valores, visibles, variable) : null;
+  const izquierda = activo != null && x(activo) > W * 0.55; // la ventanita se abre hacia el lado con lugar
+
+  return (
+    <div className="ens-grafico-caja">
+      <svg className="ens-grafico" viewBox={`0 0 ${W} ${H}`} role="img" tabIndex={0} aria-label={`${variable.nombre} por modelo, ${depto.nombre}. Usá las flechas para recorrer los días.`}
+        onPointerMove={(e) => setHover(cercano(e))} onPointerLeave={() => setHover(null)} onClick={(e) => { const { i } = cercano(e); onDia(dia === i ? null : i); }} onKeyDown={tecla}>
+        {ticks.map((t) => <g key={t}><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="ens-grilla" /><text x={L - 8} y={y(t) + 4} textAnchor="end" className="ens-eje">{num(t, variable.decimales === 0 ? 0 : t % 1 ? 1 : 0)}</text></g>)}
+        {dias.map((d, i) => <text key={d.fecha} x={x(i)} y={H - 10} textAnchor="middle" className={`ens-eje${i === activo ? " ens-eje--on" : ""}`}>{diaCorto(d.fecha)} {diaMes(d.fecha).split("/")[0]}</text>)}
+        {banda.length > 1 && <polygon className="ens-banda" points={[...banda.map((b) => `${x(b.i)},${y(b.r.max)}`), ...banda.slice().reverse().map((b) => `${x(b.i)},${y(b.r.min)}`)].join(" ")} />}
+        {activo != null && <line x1={x(activo)} x2={x(activo)} y1={T} y2={H - B} className={`ens-guia${activo === dia ? " ens-guia--fija" : ""}`} />}
+        {activos.map((m) => {
+          const { color, forma } = ESTILO[m.id];
+          const pts = dias.map((d, i) => ({ i, v: d[variable.clave].valores[m.id] })).filter((p) => p.v != null);
+          return <g key={m.id}>
+            <polyline fill="none" stroke={color} strokeWidth={hover?.m === m.id ? 3 : 2} strokeLinejoin="round" points={pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} opacity={hover && hover.m !== m.id ? 0.35 : 0.85} />
+            {pts.map((p) => <Marca key={p.i} forma={forma} color={color} x={x(p.i)} y={y(p.v)} r={p.i === activo ? (hover?.m === m.id ? 8 : 6.5) : 5} />)}
+          </g>;
+        })}
+      </svg>
+      {dato && resumen && <div className={`ens-tip${izquierda ? " ens-tip--izq" : ""}${activo === dia ? " ens-tip--fija" : ""}`} style={{ left: `${(x(activo) / W) * 100}%` }} role="status">
+        <p className="ens-tip-dia">{fechaDe(dato.fecha).toLocaleDateString("es-AR", { timeZone: AR, weekday: "long", day: "numeric", month: "long" })}{activo === dia && <span> · fijado</span>}</p>
+        <ul>{activos.map((m) => { const v = dato[variable.clave].valores[m.id]; return <li key={m.id} className={hover?.m === m.id ? "is-cerca" : ""} style={{ "--c": ESTILO[m.id].color }}>
+          <Icono id={m.id} /><span>{m.nombre}</span><strong>{v == null ? "sin dato" : `${num(v, variable.decimales)} ${variable.unidad}`}</strong></li>; })}</ul>
+        <p className="ens-tip-pie"><span>Promedio</span><strong>{resumen.media == null ? "—" : `${num(resumen.media, variable.decimales)} ${variable.unidad}`}</strong></p>
+        {resumen.n > 1 && <p className="ens-tip-pie"><span>Diferencia</span><strong className={resumen.discrepan ? "ens-alerta" : ""}>{num(resumen.max - resumen.min, variable.decimales)} {variable.unidad}{resumen.discrepan ? " · discrepan" : ""}</strong></p>}
+      </div>}
+      <p className="ens-nota">Pasá el mouse por el gráfico para ver el detalle de cada día; un clic lo deja fijado.</p>
+    </div>
+  );
+}
+
+export default function EnsamblePage() {
+  const [datos, setDatos] = useState(null), [error, setError] = useState(""), [cargando, setCargando] = useState(false);
+  const [clave, setClave] = useState("tmax"), [deptoId, setDeptoId] = useState("4");
+  const [prendidos, setPrendidos] = useState(() => new Set(CATALOGO.map((m) => m.id))); // los que se consultan al tocar «Consultar»
+  const [dia, setDia] = useState(null);
+  // Rango a consultar (hora de Misiones). La pantalla NO pide nada sola: sólo al tocar «Consultar».
+  const [fDesde, setFDesde] = useState(hoyART()), [hDesde, setHDesde] = useState("00:00");
+  const [fHasta, setFHasta] = useState(sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState("23:00");
+  const [avance, setAvance] = useState(null); // descarga del WRF-SMN, sólo mientras dura una consulta
+  const atajo = (dias) => { setFDesde(hoyART()); setHDesde("00:00"); setFHasta(sumarDias(hoyART(), dias)); setHHasta("23:00"); };
+
+  useEffect(() => {
+    if (!cargando || !prendidos.has("wrf_smn")) { setAvance(null); return undefined; }
+    const mirar = () => api.getEnsambleProgreso().then((p) => setAvance(p.activo ? p : null)).catch(() => {});
+    const t = setInterval(mirar, 2000);
+    return () => clearInterval(t);
+  }, [cargando]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function consultar() {
+    setCargando(true); setError("");
+    api.getEnsamble({ desde: `${fDesde}T${hDesde}`, hasta: `${fHasta}T${hHasta}`, modelos: [...prendidos] })
+      .then((d) => { setDatos(d); setDia(null); setDeptoId((id) => (d.departamentos.some((x) => x.id === id) ? id : d.departamentos[0].id)); })
+      .catch((e) => setError(e.message)).finally(() => setCargando(false));
+  }
+
+  const variable = datos?.variables.find((v) => v.clave === clave);
+  const depto = datos?.departamentos.find((d) => d.id === deptoId);
+  // Lo que se muestra: los prendidos que están en la última consulta (el resto no se pidió, no hay dato).
+  const consultados = useMemo(() => new Set((datos?.modelos || []).map((m) => m.id)), [datos]);
+  const visibles = useMemo(() => new Set([...prendidos].filter((id) => !datos || consultados.has(id))), [prendidos, consultados, datos]);
+  const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id)) : [];
+  const alternar = (id) => setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
+  const filas = useMemo(() => (datos && variable ? datos.departamentos.map((d) => ({ d, celdas: d.dias.map((x) => resumir(x[clave].valores, visibles, variable)) })) : []), [datos, variable, clave, visibles]);
+  const resumenDepto = depto && variable ? depto.dias.map((x) => resumir(x[clave].valores, visibles, variable)) : [];
+  const generado = datos ? new Date(datos.generado).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "";
+
+  return <div className="admin-layout ens-layout">
+    <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>
+    <aside className="admin-panel" id="contenido-principal" tabIndex={-1}>
+      <div className="editor-heading"><h1>Ensamble multimodelo <span className="ens-etiqueta">En desarrollo</span></h1>
+        <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador: no reemplaza el pronóstico ni se publica.</p></div>
+      <h2>Modelos</h2>
+      <div className="ens-modelos" role="group" aria-label="Modelos">
+        {CATALOGO.map((m) => <button key={m.id} type="button" className={`ens-modelo${prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
+          <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
+          <span className="ens-modelo-origen">{m.origen}</span><span className="ens-modelo-rol">{m.rol}</span>
+          {m.nota && <span className="ens-modelo-rol">{m.nota}</span>}
+          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">Sin consultar: tocá «Consultar»</span>}
+        </button>)}
+      </div>
+      <p className="ens-nota">Prendé los modelos que querés comparar. <strong>Consultar</strong> pide sólo los que están prendidos; apagar uno después de consultar solo lo saca del promedio.</p>
+    </aside>
+
+    <div className="admin-map-area ens-area">
+      <form className="ens-rango" onSubmit={(e) => { e.preventDefault(); consultar(); }}>
+        <div className="ens-rango-caja">
+          <div className="ens-rango-cab"><h2>Rango a consultar</h2><p>Hora de Misiones · hasta 7 días atrás y 9 adelante, máximo 10 días de rango.</p></div>
+          <div className="ens-rango-campos">
+            <div className="ens-rango-par"><CampoFecha label="Desde" value={fDesde} onChange={(v) => v && setFDesde(v)} min={sumarDias(hoyART(), -7)} max={sumarDias(hoyART(), 9)} disabled={cargando} /><CampoHora label="Hora" value={hDesde} onChange={setHDesde} disabled={cargando} /></div>
+            <span className="ens-rango-flecha" aria-hidden="true">→</span>
+            <div className="ens-rango-par"><CampoFecha label="Hasta" value={fHasta} onChange={(v) => v && setFHasta(v)} min={fDesde} max={sumarDias(hoyART(), 9)} disabled={cargando} /><CampoHora label="Hora" value={hHasta} onChange={setHHasta} disabled={cargando} /></div>
+          </div>
+          <div className="ens-rango-pie">
+            <span className="ens-atajos"><span>Atajos</span>{ATAJOS.map((a) => <button key={a.txt} type="button" className="ens-chip" disabled={cargando} onClick={() => atajo(a.dias)}>{a.txt}</button>)}</span>
+            <button type="submit" className="ens-consultar" disabled={cargando}>{cargando ? "Consultando…" : datos ? "Consultar de nuevo" : "Consultar"}</button>
+          </div>
+          {cargando && <div className="ens-avance" role="status">
+            {avance ? <><span>Descargando el WRF-SMN del SMN: {avance.hechos} de {avance.total} archivos</span><progress value={avance.hechos} max={avance.total} /></> : <span>Consultando a los modelos…</span>}
+          </div>}
+        </div>
+        {datos && !cargando && <span className="ens-actualizado">Último pedido a las {generado}</span>}
+      </form>
+      {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
+      {datos?.avisos?.length > 0 && <div className="risk-message risk-message--error" role="alert">{datos.avisos.map((a) => <div key={a}>{a}</div>)}</div>}
+      {sinConsultar.length > 0 && <div className="risk-message" role="status">Prendiste {sinConsultar.map((id) => CATALOGO.find((m) => m.id === id).nombre).join(", ")} después de consultar: todavía no tiene datos. Tocá <strong>Consultar de nuevo</strong> para sumarlo.</div>}
+      {!datos && !error && <p className="ens-vacio">Elegí el rango de fecha y hora y tocá <strong>Consultar</strong>. La pantalla no pide datos sola: cada consulta se hace en el momento, cuando la pedís.</p>}
+      {datos && variable && <>
+        <div className="ens-barra">
+          <div className="ens-variables" role="tablist" aria-label="Variable">
+            {datos.variables.map((v) => <button key={v.clave} role="tab" aria-selected={v.clave === clave} className={`ens-pestana${v.clave === clave ? " ens-pestana--on" : ""}`} onClick={() => setClave(v.clave)}>{v.nombre}</button>)}
+          </div>
+        </div>
+
+        <h2 className="ens-titulo">Promedio de los modelos por departamento <small>({variable.unidad}) · <span className="ens-disc-ej">resaltado</span> = los modelos discrepan {variable.clave === "lluvia" ? `(≥ ${variable.umbral} mm, o unos secos y otros con lluvia)` : `(≥ ${variable.umbral} ${variable.unidad} entre el más alto y el más bajo)`}</small></h2>
+        <p className="ens-leyenda"><strong>Cómo leer esta tabla:</strong> cada número es el <strong>promedio</strong> de lo que pronostican <strong>todos los modelos que tenés prendidos</strong> a la izquierda ({[...visibles].map((id) => CATALOGO.find((m) => m.id === id)?.nombre).join(", ")}), para ese departamento y ese día. {variable.agrega === "sum" ? "Cada modelo aporta la lluvia acumulada del día." : variable.agrega === "min" ? "Cada modelo aporta su mínima del día." : "Cada modelo aporta su máximo del día."} <strong>Tocá un número o un departamento</strong> para ver abajo el desglose, modelo por modelo. Los días con «parcial» sólo cuentan las horas del rango elegido.</p>
+        <div className="ens-matriz-caja">
+          <table className="ens-matriz">
+            <thead><tr><th scope="col">Departamento</th>{datos.dias.map((f) => <th key={f.fecha} scope="col" title={f.horas < 24 ? `Parcial: ${f.horas} de 24 h` : undefined}><span>{diaCorto(f.fecha)}</span>{diaMes(f.fecha)}{f.horas < 24 && <em className="ens-parcial">parcial</em>}</th>)}</tr></thead>
+            <tbody>{filas.map(({ d, celdas }) => <tr key={d.id} className={d.id === deptoId ? "ens-fila--on" : ""}>
+              <th scope="row"><button className="btn-link" onClick={() => { setDeptoId(d.id); setDia(null); }}>{d.nombre}</button></th>
+              {celdas.map((c, i) => <td key={i} className={`${c.discrepan ? "ens-celda--disc" : ""}${d.id === deptoId && dia === i ? " ens-celda--sel" : ""}`} title={c.n ? `${c.n} modelo${c.n > 1 ? "s" : ""}: de ${num(c.min, variable.decimales)} a ${num(c.max, variable.decimales)} ${variable.unidad}` : ""}>
+                <button type="button" onClick={() => { setDeptoId(d.id); setDia(i); }}>{num(c.media, variable.decimales)}</button></td>)}
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <p className="ens-nota">Más allá de los primeros días ICON y GEM dejan de cubrir el horizonte: ese día la media sale de menos modelos (lo dice el detalle).</p>
+
+        {depto && <>
+          <h2 className="ens-titulo">{depto.nombre} · {variable.nombre.toLowerCase()} <small>(centroide {num(depto.lat, 2)}, {num(depto.lng, 2)})</small></h2>
+          <Grafico depto={depto} variable={variable} modelos={datos.modelos} visibles={visibles} dia={dia} onDia={setDia} />
+          <div className="ens-detalle-caja">
+            <table className="ens-detalle">
+              <thead><tr><th scope="col">Día</th>{datos.modelos.filter((m) => visibles.has(m.id)).map((m) => <th key={m.id} scope="col" style={{ "--c": ESTILO[m.id].color }}><Icono id={m.id} /> {m.nombre}</th>)}<th scope="col">Media</th><th scope="col">Diferencia</th></tr></thead>
+              <tbody>{depto.dias.map((x, i) => { const r = resumenDepto[i]; return <tr key={x.fecha} className={`${dia === i ? "ens-fila--on" : ""}${r.discrepan ? " ens-fila--disc" : ""}`} onClick={() => setDia(i)}>
+                <th scope="row">{diaCorto(x.fecha)} {diaMes(x.fecha)}</th>
+                {datos.modelos.filter((m) => visibles.has(m.id)).map((m) => <td key={m.id}>{num(x[clave].valores[m.id], variable.decimales)}</td>)}
+                <td><strong>{num(r.media, variable.decimales)}</strong>{r.n > 0 && r.n < visibles.size ? <small> ({r.n} de {visibles.size})</small> : null}</td>
+                <td>{r.n > 1 ? `${num(r.max - r.min, variable.decimales)} ${variable.unidad}` : "—"}{r.discrepan ? <span className="ens-alerta"> discrepan</span> : null}</td>
+              </tr>; })}</tbody>
+            </table>
+          </div>
+        </>}
+        <p className="ens-nota">Fuente: Open-Meteo (ECMWF IFS, GFS, ICON y GEM) y, si está consultado, el WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina{datos.wrf ? `; corrida del ${new Date(datos.wrf.corrida).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })} h` : ""}), en el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. Del WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria.</p>
+      </>}
+    </div>
+  </div>;
+}
