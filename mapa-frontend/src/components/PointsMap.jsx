@@ -2,6 +2,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -12,6 +13,10 @@ import { getMunicipiosGeojson } from "../api";
 import { agregarMunicipios, crearIndiceMunicipios, describirConfianza, INTENSIDADES } from "../lib/alertasIncendio";
 import { CICLO_MS, pulsoDeFoco } from "../lib/pulsoFocos";
 import { MAP_LOCALE_ES } from "../lib/mapLocale";
+
+// ⏱️ Cuántas horas queda un foco de calor en el mapa, contadas desde que lo detectó el satélite. Pasado ese tiempo se apaga solo.
+// Cambialo acá cuando quieras (en horas; admite decimales, por ejemplo 0.5 = media hora).
+const HORAS_VIGENCIA_FOCOS = 8;
 
 const CENTRO_MISIONES = [-54.8, -27.0];
 const ZOOM_INICIAL = 7.4;
@@ -30,6 +35,20 @@ const ETIQUETAS = {
   Intensidad: "Intensidad",
 };
 
+/** Cuándo detectó el satélite el foco (ms), o null si el foco no trae fecha y hora: sale de «dd/mm/aaaa» y «hh:mm» (hora de Misiones). */
+function detectadoEn(foco) {
+  const f = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(foco.properties?.fecha || ""), h = /^(\d{2}):(\d{2})$/.exec(foco.properties?.horaArgentina || "");
+  if (!f || !h) return null;
+  const t = Date.parse(`${f[3]}-${f[2]}-${f[1]}T${h[1]}:${h[2]}:00-03:00`);
+  return Number.isNaN(t) ? null : t;
+}
+/** Sólo los focos detectados dentro de la vigencia (los que no traen hora se dejan: no hay cómo saber si son viejos). */
+function sinFocosViejos(puntos, ahora) {
+  if (!puntos?.features) return puntos;
+  const limite = ahora - HORAS_VIGENCIA_FOCOS * 3600e3;
+  return { ...puntos, features: puntos.features.filter((f) => { const t = detectadoEn(f); return t == null || t >= limite; }) };
+}
+
 /**
  * Mapa de puntos sobre los mismos municipios y fondo que BaseMap, para
  * datasets que no son "un valor por municipio" — hoy,
@@ -41,9 +60,13 @@ const ETIQUETAS = {
  * arriesga esa ruta sin necesidad.
  */
 const PointsMap = forwardRef(function PointsMap(
-  { puntos, titulo, enableCapture = false, embed = false },
+  { puntos: puntosTodos, titulo, enableCapture = false, embed = false },
   ref
 ) {
+  // Con la pantalla abierta mucho tiempo, los focos se van apagando solos: se revisa cada 5 minutos.
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 5 * 60e3); return () => clearInterval(id); }, []);
+  const puntos = useMemo(() => sinFocosViejos(puntosTodos, ahora), [puntosTodos, ahora]);
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [webglOk] = useState(soportaWebGL);
