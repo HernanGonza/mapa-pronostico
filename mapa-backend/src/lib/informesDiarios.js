@@ -305,7 +305,7 @@ async function recolectar({ fecha, fechaHasta = fecha, desde = "00:00", hasta = 
       return {
         ...base, resumen: resumir(serie, { sinLluvia, ventanaCaida: e.horaria ? 60 : 30, ventanaLluvia: e.horaria ? 60 : 30, conDia }), ...(extremas !== undefined && { extremas, extremasPorDia }),
         ...(faltan.length && { avisoDatos: faltan.join(" · ") }),
-        serie: serie.map((r) => ({ t: r.t, lluvia: sinLluvia ? null : r.lluvia, rafaga: r.rafaga, ...(r.viento !== undefined && { viento: r.viento }), temperatura: r.temperatura })), crudo,
+        serie: serie.map((r) => ({ t: r.t, lluvia: sinLluvia ? null : r.lluvia, rafaga: r.rafaga, ...(r.viento !== undefined && { viento: r.viento }), temperatura: r.temperatura, humedad: r.humedad ?? null })), crudo,
       };
     } catch (err) { return { ...base, resumen: null, serie: [], crudo: [], error: err.message }; }
   }));
@@ -324,7 +324,7 @@ function textoDelRango({ fecha, fechaHasta = fecha, desde, hasta }) {
   return `desde el ${mismoAnio ? fechaCorta(fecha) : fechaLarga(fecha)} a las ${desde} h hasta el ${fechaLarga(fechaHasta)} a las ${hasta} h`;
 }
 // "16:20" → "a las 16:20 h"; "03/10 16:20" → "el 03/10 a las 16:20 h".
-const aLas = (h, desde = false) => { const [d, hh] = h.includes(" ") ? h.split(" ") : [null, h]; return `${d ? `el ${d} ` : ""}${desde ? "desde" : "a"} las ${hh} h`; };
+const aLas = (h, desde = false) => { if (!h) return ""; const [d, hh] = h.includes(" ") ? h.split(" ") : [null, h]; return `${d ? `el ${d} ` : ""}${desde ? "desde" : "a"} las ${hh} h`; };
 
 /** Texto sugerido del informe (después se edita en la pantalla). */
 function redactar({ fecha, fechaHasta = fecha, desde, hasta, estaciones, smn }) {
@@ -332,18 +332,19 @@ function redactar({ fecha, fechaHasta = fecha, desde, hasta, estaciones, smn }) 
   const sinDatos = estaciones.filter((e) => !e.resumen).map((e) => e.nombre);
   const DE_LA_RED = { INTA: "del INTA", SiNaRaMe: "de la red SiNaRaMe (INA)", RMET: "de la Red Meteorológica (RMET)", RHN: "de la Red Hidrológica Nacional", SMN: "del SMN" };
   const redes = REDES.map((r) => r.red).filter((r) => estaciones.some((e) => e.red === r)).map((r) => DE_LA_RED[r]);
-  const partes = [`Informe ${textoDelRango({ fecha, fechaHasta, desde, hasta })}${redes.length ? `, según las estaciones automáticas ${new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(redes)}` : ""}.`];
+  if (estaciones.some((e) => e.red === "Manual")) redes.push("y de estaciones cuyos datos cargó el equipo a mano");
+  const partes = [`Informe ${textoDelRango({ fecha, fechaHasta, desde, hasta })}${redes.length ? `, según las estaciones ${estaciones.some((e) => e.red !== "Manual") ? "automáticas " : ""}${redes.length > 1 && redes.at(-1).startsWith("y ") ? `${new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(redes.slice(0, -1))} ${redes.at(-1)}` : new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(redes)}` : ""}.`];
   const conLluvia = con.filter((e) => !e.resumen.sinLluvia);
   const lluvias = conLluvia.filter((e) => e.resumen.lluviaTotal > 0).sort((a, b) => b.resumen.lluviaTotal - a.resumen.lluviaTotal);
   if (lluvias.length) {
     partes.push(`Llovió en ${lluvias.length} de ${conLluvia.length} estaciones con datos de lluvia. Los mayores registros: ${lluvias.slice(0, 3).map((e) => `${e.nombre} ${coma(e.resumen.lluviaTotal)} mm`).join(", ")}.`);
     const intensa = [...lluvias].sort((a, b) => b.resumen.lluvia30.mm - a.resumen.lluvia30.mm)[0];
-    if (intensa?.resumen.lluvia30.mm >= 5) partes.push(`La lluvia más intensa fue en ${intensa.nombre}: ${coma(intensa.resumen.lluvia30.mm)} mm en ${intensa.resumen.lluvia30.minutos === 60 ? "una hora" : "30 minutos"} ${aLas(intensa.resumen.lluvia30.hora, true)}.`);
+    if (intensa?.resumen.lluvia30.mm >= 5) partes.push(`La lluvia más intensa fue en ${intensa.nombre}: ${coma(intensa.resumen.lluvia30.mm)} mm en ${intensa.resumen.lluvia30.minutos === 60 ? "una hora" : "30 minutos"}${intensa.resumen.lluvia30.hora ? ` ${aLas(intensa.resumen.lluvia30.hora, true)}` : ""}.`);
   } else if (conLluvia.length) partes.push("No se registraron lluvias en las estaciones con datos de lluvia.");
-  const frentes = con.filter((e) => e.resumen.caida && e.resumen.caida.grados >= 4).sort((a, b) => (a.resumen.caida.t ?? 0) - (b.resumen.caida.t ?? 0) || a.resumen.caida.hora.localeCompare(b.resumen.caida.hora));
-  if (frentes.length) partes.push(`La llegada de la tormenta se marcó con caídas bruscas de temperatura: ${frentes.map((e) => `${e.nombre} ${aLas(e.resumen.caida.hora)} (−${coma(e.resumen.caida.grados)} °C en ${e.resumen.caida.minutos === 60 ? "una hora" : "30 min"})`).join("; ")}.`);
+  const frentes = con.filter((e) => e.resumen.caida && e.resumen.caida.grados >= 4).sort((a, b) => (a.resumen.caida.t ?? 0) - (b.resumen.caida.t ?? 0) || String(a.resumen.caida.hora || "").localeCompare(String(b.resumen.caida.hora || "")));
+  if (frentes.length) partes.push(`La llegada de la tormenta se marcó con caídas bruscas de temperatura: ${frentes.map((e) => `${e.nombre}${e.resumen.caida.hora ? ` ${aLas(e.resumen.caida.hora)}` : ""} (−${coma(e.resumen.caida.grados)} °C en ${e.resumen.caida.minutos === 60 ? "una hora" : "30 min"})`).join("; ")}.`);
   const rafaga = con.filter((e) => e.resumen.rafaga).sort((a, b) => b.resumen.rafaga.kmh - a.resumen.rafaga.kmh)[0];
-  if (rafaga) partes.push(`La ráfaga más fuerte se registró en ${rafaga.nombre}: ${coma(rafaga.resumen.rafaga.kmh)} km/h ${aLas(rafaga.resumen.rafaga.hora)}.`);
+  if (rafaga) partes.push(`La ráfaga más fuerte se registró en ${rafaga.nombre}: ${coma(rafaga.resumen.rafaga.kmh)} km/h${rafaga.resumen.rafaga.hora ? ` ${aLas(rafaga.resumen.rafaga.hora)}` : ""}.`);
   const tMax = con.filter((e) => e.resumen.tMax).sort((a, b) => b.resumen.tMax.c - a.resumen.tMax.c)[0];
   const tMin = con.filter((e) => e.resumen.tMin).sort((a, b) => a.resumen.tMin.c - b.resumen.tMin.c)[0];
   if (tMax && tMin) partes.push(`Temperaturas: máxima de ${coma(tMax.resumen.tMax.c)} °C en ${tMax.nombre} y mínima de ${coma(tMin.resumen.tMin.c)} °C en ${tMin.nombre}.`);

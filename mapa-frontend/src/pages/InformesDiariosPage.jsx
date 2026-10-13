@@ -6,6 +6,13 @@ import { notificar } from "../lib/ui";
 import { exportarInformePdf } from "../lib/exportarPdf";
 import { enFemenino } from "../lib/nivelAlerta.js";
 import EstacionesInformes from "../components/EstacionesInformes";
+import DatosManuales from "../components/DatosManuales";
+import HojaDeDatos from "../components/HojaDeDatos";
+import PanelPrecipitaciones from "../components/PanelPrecipitaciones";
+import CampoFecha from "../components/CampoFecha";
+import CampoHora from "../components/CampoHora";
+import { estacionDeManual, manualVacia } from "../lib/informesManuales";
+import "./ensamble.css";
 
 /**
  * Informes diarios (en desarrollo, sólo superadmin, desde Configuración): qué pasó un día en
@@ -23,20 +30,23 @@ const ddmm = (f) => f.split("-").reverse().slice(0, 2).join("/");
 const rangoTexto = ({ fecha, fechaHasta = fecha, desde, hasta }) => (fechaHasta && fechaHasta !== fecha
   ? `desde el ${ddmm(fecha)} a las ${desde} h hasta el ${ddmm(fechaHasta)}/${fechaHasta.slice(0, 4)} a las ${hasta} h`
   : `${fechaLarga(fecha)}${desde !== "00:00" || hasta !== "23:59" ? ` · de ${desde} a ${hasta} h` : ""}`);
-const tituloSugerido = ({ fecha, fechaHasta = fecha }) => (fechaHasta !== fecha ? `Informe · ${ddmm(fecha)} al ${ddmm(fechaHasta)}/${fechaHasta.slice(0, 4)}` : `Informe diario · ${fechaLarga(fecha)}`);
+const tituloSugerido = ({ fecha, fechaHasta = fecha }) => (fechaHasta !== fecha ? `Informe · ${ddmm(fecha)} al ${ddmm(fechaHasta)}/${fechaHasta.slice(0, 4)}` : `Informe de precipitaciones · ${fechaLarga(fecha)}`);
 const coma = (n) => (n == null ? "—" : String(n).replace(".", ","));
 const horaDe = (t) => new Date(t).toLocaleTimeString("es-AR", { timeZone: AR, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const fechaHora = (iso) => new Date(iso).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const fechaLarga = (f) => new Date(`${f}T12:00:00-03:00`).toLocaleDateString("es-AR", { timeZone: AR, weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const COLORES = ["#1f6fb2", "#d4572a", "#2f8f5b", "#8b3fc4", "#c9346c", "#b8940f", "#17847f", "#5a6bd6", "#a8552f", "#3c7a2a", "#9a2f6f"];
-const DE_LA_RED = { INTA: "de la Red Agrometeorológica INTA (SIGA)", SiNaRaMe: "de la red SiNaRaMe (INA, vía SNIH)", RMET: "de la Red Meteorológica RMET (vía SNIH)", RHN: "de la Red Hidrológica Nacional (vía SNIH)", SMN: "datos horarios y temperaturas extremas de las estaciones del SMN (datos abiertos)" };
+const DE_LA_RED = { INTA: "de la Red Agrometeorológica INTA (SIGA)", SiNaRaMe: "de la red SiNaRaMe (INA, vía SNIH)", RMET: "de la Red Meteorológica RMET (vía SNIH)", RHN: "de la Red Hidrológica Nacional (vía SNIH)", Manual: "cargadas a mano por el equipo (datos que llegaron por otros medios)", SMN: "datos horarios y temperaturas extremas de las estaciones del SMN (datos abiertos)" };
 /** «Fuente: …» con las redes de las estaciones que están en el informe. */
 const fuenteDe = (estaciones) => { const redes = Object.keys(DE_LA_RED).filter((r) => estaciones.some((e) => e.red === r)); return `Fuente: estaciones automáticas ${redes.length ? new Intl.ListFormat("es", { style: "long", type: "disjunction" }).format(redes.map((r) => DE_LA_RED[r])).replace(/ o /, " y ") : "consultadas"}; avisos del SMN.`; };
 const CLAVE_APAGADAS = "informes-estaciones-apagadas-v1";
 const leerApagadas = () => { try { return new Set(JSON.parse(localStorage.getItem(CLAVE_APAGADAS)) || []); } catch { return new Set(); } };
-const claveDe = (lista) => lista.map((e) => e.clave).sort().join("|");
+const claveDe = (lista) => lista.map((e) => (e.manual ? `${e.clave}:${e.nombre}:${JSON.stringify(e.resumen)}` : e.clave)).sort().join("|");
+const CLAVE_MANUALES = "informes-manuales-v1", CLAVE_CLIMA = "informes-clima-v1";
+const leerJson = (clave, por) => { try { return JSON.parse(localStorage.getItem(clave)) ?? por; } catch { return por; } };
+const guardarJson = (clave, v) => { try { localStorage.setItem(clave, JSON.stringify(v)); } catch { /* sin almacenamiento: sigue andando */ } };
 /** El resumen de cada estación (sin las series ni el dato crudo): lo único que hace falta para volver a redactar el texto. */
-const sinSeries = (estaciones) => estaciones.map(({ nombre, red, clave, resumen, extremas, extremasPorDia }) => ({ nombre, red, clave, resumen, extremas, extremasPorDia }));
+const sinSeries = (estaciones) => estaciones.map(({ nombre, red, clave, resumen, extremas, extremasPorDia, manual, fuente }) => ({ nombre, red, clave, resumen, extremas, extremasPorDia, manual, fuente }));
 const sinCero = (n) => (n == null ? "—" : coma(n));
 
 export default function InformesDiariosPage() {
@@ -50,17 +60,25 @@ export default function InformesDiariosPage() {
   const [geo, setGeo] = useState(null);
   const [catalogo, setCatalogo] = useState(null); // las estaciones que se pueden consultar y sus redes
   const [apagadas, setApagadas] = useState(leerApagadas); // claves apagadas (una estación nueva nace prendida)
+  const [manuales, setManuales] = useState(() => { const m = leerJson(CLAVE_MANUALES, []); return m.length ? m : [manualVacia(1)]; }); // la base y las que se agreguen con «+»
+  const [clima, setClima] = useState(() => leerJson(CLAVE_CLIMA, {})); // acumulado del mes y media por estación (para la anomalía)
+  const [municipios, setMunicipios] = useState([]);
+  const [cajon, setCajon] = useState(false), [vista, setVista] = useState("panel");
   const mapaRef = useRef(null), graficosRef = useRef(null);
+  const cambiarManuales = (m) => { setManuales(m); guardarJson(CLAVE_MANUALES, m); };
+  const cambiarClima = (c) => { setClima(c); guardarJson(CLAVE_CLIMA, c); };
 
   const cargarGuardados = () => api.getInformesDiarios().then(setGuardados).catch(() => {});
-  useEffect(() => { cargarGuardados(); api.getAlertasMeteorologicasGeojson().then(setGeo).catch(() => {}); api.getEstacionesInformes().then(setCatalogo).catch((e) => setError(`No se pudo traer la lista de estaciones: ${e.message}`)); }, []);
+  useEffect(() => { cargarGuardados(); api.getAlertasMeteorologicasGeojson().then(setGeo).catch(() => {}); api.getMunicipios().then(setMunicipios).catch(() => {}); api.getEstacionesInformes().then(setCatalogo).catch((e) => setError(`No se pudo traer la lista de estaciones: ${e.message}`)); }, []);
   const cambiarApagadas = (n) => { setApagadas(n); try { localStorage.setItem(CLAVE_APAGADAS, JSON.stringify([...n])); } catch { /* sin almacenamiento: sigue andando */ } };
   const prendidas = (catalogo?.estaciones || []).filter((e) => !apagadas.has(e.clave)).map((e) => e.clave);
+  // Las manuales prendidas y con algo escrito: entran como una estación más (se arman en vivo, sin pasar por el servidor).
+  const manualesVivas = useMemo(() => manuales.map(estacionDeManual).filter((e) => e.resumen && !apagadas.has(e.clave)), [manuales, apagadas]);
 
   async function juntar() {
     setCargando(true); setError("");
     try {
-      if (!prendidas.length) throw new Error("Prendé al menos una estación.");
+      if (!prendidas.length && !manualesVivas.length) throw new Error("Prendé al menos una estación o cargá datos manuales.");
       const datos = await api.recolectarInformeDiario({ fecha, fechaHasta, desde, hasta, estaciones: prendidas });
       setInforme({ fecha, fechaHasta, desde, hasta, titulo: tituloSugerido({ fecha, fechaHasta }), resumen: datos.resumenSugerido, sugerido: datos.resumenSugerido, redactadoCon: claveDe(datos.estaciones), datos });
     } catch (e) { setError(e.message); }
@@ -81,9 +99,9 @@ export default function InformesDiariosPage() {
   }
 
   // Lo que se ve, se calcula y se baja: las estaciones consultadas que están prendidas (apagar una la saca de todo al instante).
-  const estaciones = useMemo(() => (informe?.datos?.estaciones || []).filter((e) => !apagadas.has(e.clave)), [informe, apagadas]);
+  const estaciones = useMemo(() => [...(informe?.datos?.estaciones || []).filter((e) => !e.manual && !apagadas.has(e.clave)), ...manualesVivas], [informe, apagadas, manualesVivas]);
   const conDatos = estaciones.filter((e) => e.resumen);
-  const consultadas = useMemo(() => new Set((informe?.datos?.estaciones || []).map((e) => e.clave)), [informe]);
+  const consultadas = useMemo(() => new Set((informe?.datos?.estaciones || []).filter((e) => !e.manual).map((e) => e.clave)), [informe]);
   const sinConsultar = informe ? prendidas.filter((c) => !consultadas.has(c)).length : 0; // prendidas después de juntar los datos
   const datosVisibles = informe ? { ...informe.datos, estaciones } : null;
   // El texto sugerido habla de las estaciones con las que se redactó: si cambiaron, se vuelve a redactar (solo, si no se tocó el texto).
@@ -128,30 +146,17 @@ export default function InformesDiariosPage() {
   }
 
   return <div className="admin-layout informes-layout">
-    <BrandHeader subtitulo="Informes diarios"><VolverConfiguracion /></BrandHeader>
+    <BrandHeader subtitulo="Informe de precipitaciones"><VolverConfiguracion /></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
-      <div className="editor-heading"><h1>Informes diarios</h1>
+      <div className="editor-heading"><h1>Informe de precipitaciones</h1>
         <p>Qué pasó un día en Misiones según las estaciones oficiales de las redes del INTA, SiNaRaMe, la Red Meteorológica (RMET), la Red Hidrológica Nacional y el SMN, con lo que emitió el SMN. Prendé las redes y las estaciones que querés usar (si una anda mal, apagala): sólo lo prendido entra en los cálculos, el mapa y los archivos. Elegí desde y hasta cuándo (puede ser de un día para el otro, hasta 7 días).</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
       <h2>Estaciones</h2>
       <EstacionesInformes catalogo={catalogo} apagadas={apagadas} alCambiar={cambiarApagadas} consultadas={informe ? consultadas : null} />
-      <div className="informes-form">
-        <div className="informes-form__atajos">
-          <button type="button" className="btn" onClick={() => atajo(ayer(), "00:00", ayer(), "23:59")}>Ayer completo</button>
-          <button type="button" className="btn" onClick={() => atajo(ayer(), "00:00", hoy(), ahora())}>Desde ayer 00:00 hasta ahora</button>
-          <button type="button" className="btn" onClick={() => { const t = Date.now() - 864e5; atajo(diaDe(t), ahora(), hoy(), ahora()); }}>Últimas 24 h</button>
-        </div>
-        <fieldset className="informes-form__horas"><legend>Desde</legend>
-          <input type="date" className="paso-input" aria-label="Día de inicio" value={fecha} max={hoy()} onChange={(e) => { setFecha(e.target.value); if (e.target.value > fechaHasta) setFechaHasta(e.target.value); }} />
-          <input type="time" className="paso-input" aria-label="Hora de inicio" value={desde} onChange={(e) => setDesde(e.target.value)} />
-        </fieldset>
-        <fieldset className="informes-form__horas"><legend>Hasta</legend>
-          <input type="date" className="paso-input" aria-label="Día de fin" value={fechaHasta} min={fecha} max={hoy()} onChange={(e) => setFechaHasta(e.target.value)} />
-          <input type="time" className="paso-input" aria-label="Hora de fin" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-        </fieldset>
-        <button type="button" className="btn btn--primary btn--block" disabled={cargando || !prendidas.length} onClick={juntar}>{cargando ? "Juntando datos de las estaciones…" : prendidas.length ? `Juntar datos de ${prendidas.length} ${prendidas.length === 1 ? "estación" : "estaciones"}` : "Prendé al menos una estación"}</button>
-        <p className="admin-panel__hint">El INTA publica con algunas horas de demora: para el día de hoy o de ayer puede faltar el final. El SMN sube sus datos al día siguiente (las temperaturas extremas, sólo del último año).</p>
-      </div>
+      <h2>Datos manuales</h2>
+      <p className="admin-panel__hint">Estaciones que no llegan solas: cargá acá lo que te mandaron por otro medio. Tienen los mismos datos que las automáticas y también se prenden y apagan.</p>
+      <DatosManuales manuales={manuales} alCambiar={cambiarManuales} apagadas={apagadas} alCambiarApagadas={cambiarApagadas} municipios={municipios} />
+      <p className="admin-panel__hint">El INTA publica con algunas horas de demora: para el día de hoy o de ayer puede faltar el final. El SMN sube sus datos al día siguiente (las temperaturas extremas, sólo del último año).</p>
       {guardados.length > 0 && <div className="avisos-lista">
         <h2>Informes guardados</h2>
         <ul>{guardados.map((g) => <li key={g.id} className="alerta-tarjeta" onClick={() => abrir(g.id)} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") abrir(g.id); }}>
@@ -162,33 +167,45 @@ export default function InformesDiariosPage() {
     </section>
 
     <div className="informes-vista">
-      {!informe ? <div className="admin-map-area__vacio">Elegí un día y tocá «Juntar datos», o abrí un informe guardado.</div> : <>
-        <div className="informes-acciones">
-          <button type="button" className="btn btn--primary" disabled={guardando} onClick={guardar}>{guardando ? "Guardando…" : informe.id ? "Guardar cambios" : "Guardar informe"}</button>
-          <button type="button" className="btn" onClick={pdf}>Descargar PDF</button>
-          <button type="button" className="btn" disabled={bajandoExcel} onClick={excel} title="Todos los registros de 10 minutos de cada estación, con todos sus campos, tal cual los mandan">{bajandoExcel ? "Armando el Excel…" : "Descargar Excel (datos crudos)"}</button>
-          {informe.id && <small>Guardado · se puede seguir editando</small>}
+      <form className="ens-rango" onSubmit={(e) => { e.preventDefault(); juntar(); }}>
+        <div className="ens-rango-caja">
+          <div className="ens-rango-cab"><h2>Rango a consultar</h2><p>Hora de Misiones · hasta 7 días.</p></div>
+          <div className="ens-rango-campos">
+            <div className="ens-rango-par"><CampoFecha label="Desde" value={fecha} onChange={(v) => { if (!v) return; setFecha(v); if (v > fechaHasta) setFechaHasta(v); }} max={hoy()} disabled={cargando} /><CampoHora label="Hora" value={desde} onChange={setDesde} disabled={cargando} /></div>
+            <span className="ens-rango-flecha" aria-hidden="true">→</span>
+            <div className="ens-rango-par"><CampoFecha label="Hasta" value={fechaHasta} onChange={(v) => v && setFechaHasta(v)} min={fecha} max={hoy()} disabled={cargando} /><CampoHora label="Hora" value={hasta} onChange={setHasta} disabled={cargando} /></div>
+          </div>
+          <div className="ens-rango-pie">
+            <span className="ens-atajos"><span>Atajos</span>
+              <button type="button" className="ens-chip" onClick={() => atajo(ayer(), "00:00", ayer(), "23:59")}>Ayer completo</button>
+              <button type="button" className="ens-chip" onClick={() => atajo(ayer(), "00:00", hoy(), ahora())}>Desde ayer 00:00 hasta ahora</button>
+              <button type="button" className="ens-chip" onClick={() => { const t = Date.now() - 864e5; atajo(diaDe(t), ahora(), hoy(), ahora()); }}>Últimas 24 h</button></span>
+            <button type="submit" className="ens-consultar" disabled={cargando || (!prendidas.length && !manualesVivas.length)}>{cargando ? "Juntando datos…" : informe ? "Juntar de nuevo" : "Juntar datos"}</button>
+          </div>
+          <small className="informes-rango-nota">{prendidas.length} {prendidas.length === 1 ? "estación automática" : "estaciones automáticas"} + {manualesVivas.length} {manualesVivas.length === 1 ? "manual" : "manuales"} prendidas.</small>
         </div>
-        <label className="paso-etiqueta">Título<input className="paso-input" maxLength={160} value={informe.titulo} onChange={(e) => setInforme({ ...informe, titulo: e.target.value })} /></label>
-        {sinConsultar > 0 && <div className="risk-message" role="status">Prendiste {sinConsultar} {sinConsultar === 1 ? "estación" : "estaciones"} después de juntar los datos: todavía no {sinConsultar === 1 ? "tiene" : "tienen"} datos en este informe. Tocá «Juntar datos» de nuevo para {sinConsultar === 1 ? "sumarla" : "sumarlas"}.</div>}
-        {textoDesactualizado && informe.sugerido != null && informe.resumen !== informe.sugerido && <div className="risk-message" role="status">Cambiaste las estaciones y el texto ya tiene cosas que escribiste, así que no lo toqué: todavía habla de las anteriores. <button type="button" className="btn-link" onClick={redactarDeNuevo}>Volver a redactar con las estaciones de ahora</button> (reemplaza el texto).</div>}
-        {textoDesactualizado && informe.sugerido == null && <div className="risk-message" role="status">Cambiaste las estaciones respecto de las de este informe guardado. <button type="button" className="btn-link" onClick={redactarDeNuevo}>Volver a redactar el texto con las estaciones de ahora</button> (reemplaza el texto).</div>}
-        <label className="paso-etiqueta">Texto del informe (sugerido a partir de los datos: revisalo y corregilo)
-          <textarea className="paso-texto informes-texto" rows={12} maxLength={8000} value={informe.resumen} onChange={(e) => setInforme({ ...informe, resumen: e.target.value })} /></label>
-
-        <h2>Mapa de estaciones</h2>
-        <div ref={mapaRef} className="informes-mapa"><MapaEstaciones geo={geo} estaciones={estaciones} /></div>
-
-        <h2>Por estación</h2>
-        <div className="paso-tabla informes-tabla"><table className="paso-localidades"><thead><tr>{tabla.columnas.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-          <tbody>{tabla.filas.map((f, i) => <tr key={i}>{f.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table></div>
-        {estaciones.some((e) => e.avisoDatos) && <p className="admin-panel__hint">Faltan algunos días del rango: {estaciones.filter((e) => e.avisoDatos).map((e) => `${e.red} ${e.nombre.split(" - ")[0]} (${e.avisoDatos})`).join(" · ")}.</p>}
-
-        <div ref={graficosRef} className="informes-graficos">
-          <Grafico titulo="Lluvia acumulada (mm)" estaciones={conDatos.filter((e) => !e.resumen.sinLluvia)} valor={(serie) => { let s = 0; return serie.map((r) => ({ t: r.t, v: (s += r.lluvia) })); }} desde={informe.datos} />
-          <Grafico titulo="Ráfagas (km/h)" estaciones={conDatos.filter((e) => !e.resumen.sinViento)} valor={(serie) => serie.filter((r) => r.rafaga != null).map((r) => ({ t: r.t, v: r.rafaga }))} desde={informe.datos} />
-          <Grafico titulo="Viento medio horario (km/h)" estaciones={conDatos.filter((e) => (e.serie || []).some((r) => r.viento != null))} valor={(serie) => serie.filter((r) => r.viento != null).map((r) => ({ t: r.t, v: r.viento }))} desde={informe.datos} />
-          <Grafico titulo="Temperatura (°C)" estaciones={conDatos.filter((e) => !e.resumen.sinTemperatura)} valor={(serie) => serie.filter((r) => r.temperatura != null).map((r) => ({ t: r.t, v: r.temperatura }))} desde={informe.datos} />
+        <button type="button" className={`ens-boton-informe${cajon ? " ens-boton-informe--abierto" : ""}`} disabled={!informe} onClick={() => setCajon((a) => !a)} aria-expanded={cajon} aria-controls="ens-cajon" title={informe ? "" : "Primero juntá los datos"}>
+          <span className="ens-boton-informe-texto"><strong>{cajon ? "Ocultar el informe" : "Informe de precipitaciones"}</strong>
+            <small>{cajon ? "Lo escrito queda guardado" : informe ? "Título, texto, PDF y Excel" : "Primero juntá los datos"}</small></span>
+        </button>
+      </form>
+      {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
+      {!informe ? <div className="admin-map-area__vacio">Elegí el rango y tocá «Juntar datos», o abrí un informe guardado.</div> : <>
+        {sinConsultar > 0 && <div className="risk-message" role="status">Prendiste {sinConsultar} {sinConsultar === 1 ? "estación" : "estaciones"} después de juntar los datos: todavía no {sinConsultar === 1 ? "tiene" : "tienen"} datos en este informe. Tocá «Juntar de nuevo» para {sinConsultar === 1 ? "sumarla" : "sumarlas"}.</div>}
+        <div className="pp-modos" role="tablist" aria-label="Cómo ver los datos">
+          <button type="button" role="tab" aria-selected={vista === "panel"} className={`ens-grupo${vista === "panel" ? " ens-grupo--on" : ""}`} onClick={() => setVista("panel")}>Tabla, mapa y gráfico</button>
+          <button type="button" role="tab" aria-selected={vista === "planilla"} className={`ens-grupo${vista === "planilla" ? " ens-grupo--on" : ""}`} onClick={() => setVista("planilla")}>Planilla tipo Excel</button>
+        </div>
+        {vista === "panel" ? <PanelPrecipitaciones estaciones={estaciones} geo={geo} rango={informe} /> : <HojaDeDatos estaciones={estaciones} clima={clima} alCambiarClima={cambiarClima} />}
+        {/* Lo que va al PDF (mapa y gráficos fijos); no se ve en pantalla. */}
+        <div className="pp-para-pdf" aria-hidden="true">
+          <div ref={mapaRef} className="informes-mapa"><MapaEstaciones geo={geo} estaciones={estaciones} /></div>
+          <div ref={graficosRef} className="informes-graficos">
+            <Grafico titulo="Lluvia acumulada (mm)" estaciones={conDatos.filter((e) => !e.resumen.sinLluvia)} valor={(serie) => { let s = 0; return serie.map((r) => ({ t: r.t, v: (s += r.lluvia) })); }} desde={informe.datos} />
+            <Grafico titulo="Ráfagas (km/h)" estaciones={conDatos.filter((e) => !e.resumen.sinViento)} valor={(serie) => serie.filter((r) => r.rafaga != null).map((r) => ({ t: r.t, v: r.rafaga }))} desde={informe.datos} />
+            <Grafico titulo="Viento medio horario (km/h)" estaciones={conDatos.filter((e) => (e.serie || []).some((r) => r.viento != null))} valor={(serie) => serie.filter((r) => r.viento != null).map((r) => ({ t: r.t, v: r.viento }))} desde={informe.datos} />
+            <Grafico titulo="Temperatura (°C)" estaciones={conDatos.filter((e) => !e.resumen.sinTemperatura)} valor={(serie) => serie.filter((r) => r.temperatura != null).map((r) => ({ t: r.t, v: r.temperatura }))} desde={informe.datos} />
+          </div>
         </div>
 
         <h2>Avisos y alertas del SMN ({avisos.filas.length})</h2>
@@ -203,6 +220,25 @@ export default function InformesDiariosPage() {
         <p className="informes-fuente">{fuenteDe(estaciones)} Datos consultados el {fechaHora(informe.datos.consultadoEn)}.</p>
       </>}
     </div>
+
+    {informe && <aside id="ens-cajon" className={`ens-cajon${cajon ? " ens-cajon--abierto" : ""}`} aria-label="Informe de precipitaciones" aria-hidden={!cajon}>
+      <div className="ens-cajon-cab"><div><h2>Informe de precipitaciones</h2><p>{rangoTexto(informe)}</p></div>
+        <div className="ens-cajon-acciones"><button type="button" className="btn" onClick={() => setCajon(false)}>Ocultar</button></div></div>
+      <div className="ens-cajon-cuerpo">
+        <label className="paso-etiqueta">Título<input className="paso-input" maxLength={160} value={informe.titulo} onChange={(e) => setInforme({ ...informe, titulo: e.target.value })} /></label>
+        {textoDesactualizado && informe.sugerido != null && informe.resumen !== informe.sugerido && <div className="risk-message" role="status">Cambiaste las estaciones y el texto ya tiene cosas que escribiste, así que no lo toqué: todavía habla de las anteriores. <button type="button" className="btn-link" onClick={redactarDeNuevo}>Volver a redactar con las estaciones de ahora</button> (reemplaza el texto).</div>}
+        {textoDesactualizado && informe.sugerido == null && <div className="risk-message" role="status">Cambiaste las estaciones respecto de las de este informe guardado. <button type="button" className="btn-link" onClick={redactarDeNuevo}>Volver a redactar el texto con las estaciones de ahora</button> (reemplaza el texto).</div>}
+        <label className="paso-etiqueta">Texto del informe (sugerido a partir de los datos: revisalo y corregilo)
+          <textarea className="paso-texto informes-texto" rows={14} maxLength={8000} value={informe.resumen} onChange={(e) => setInforme({ ...informe, resumen: e.target.value })} /></label>
+        <div className="informes-acciones">
+          <button type="button" className="btn btn--primary" disabled={guardando} onClick={guardar}>{guardando ? "Guardando…" : informe.id ? "Guardar cambios" : "Guardar informe"}</button>
+          <button type="button" className="btn" onClick={pdf}>Descargar PDF</button>
+          <button type="button" className="btn" disabled={bajandoExcel} onClick={excel} title="Todos los registros de cada estación, con todos sus campos, tal cual los mandan">{bajandoExcel ? "Armando el Excel…" : "Descargar Excel (datos crudos)"}</button>
+        </div>
+        {informe.id && <small>Guardado · se puede seguir editando</small>}
+        <p className="admin-panel__hint">Más adelante este informe se va a conectar con el mapa de precipitaciones para publicarlo.</p>
+      </div>
+    </aside>}
   </div>;
 }
 
@@ -229,7 +265,7 @@ function MapaEstaciones({ geo, estaciones }) {
         <text x={x + 9} y={y + 12} fontSize="11.5" fill="#3a4a42">{temps}</text>
       </g>;
     })}
-    {estaciones.filter((e) => e.red !== "SMN").map((e) => {
+    {estaciones.filter((e) => e.red !== "SMN" && e.lat != null && e.lng != null && dentro(e)).map((e) => {
       const r = e.resumen, x = px(e.lng), y = py(e.lat), radio = r ? 6 + 26 * Math.sqrt((r.lluviaTotal || 0) / maxLluvia) : 5;
       return <g key={e.clave}>
         <circle cx={x} cy={y} r={radio} fill={r ? (r.lluviaTotal > 0 ? "rgba(31,111,178,0.55)" : "rgba(160,170,165,0.5)") : "none"} stroke={r ? "#1f4f7a" : "#a0a8a4"} strokeWidth="1.5" strokeDasharray={r ? undefined : "3 3"} />

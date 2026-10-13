@@ -31,8 +31,8 @@ router.post("/informes-diarios/recolectar", requireAuth, soloSuperadmin, express
   const { fecha, fechaHasta = fecha, desde = "00:00", hasta = "23:59", estaciones: claves } = req.body || {};
   const e = errorDeConsulta({ fecha, fechaHasta, desde, hasta });
   if (e) return res.status(400).json({ error: e });
-  // `estaciones`: las claves prendidas en la pantalla (sin la lista, todas). Una lista vacía no tiene sentido.
-  if (claves != null && (!Array.isArray(claves) || !claves.length || claves.length > 120 || claves.some((c) => typeof c !== "string"))) return res.status(400).json({ error: "Prendé al menos una estación." });
+  // `estaciones`: las claves prendidas en la pantalla (sin la lista, todas). Vacía = sin estaciones automáticas (sólo las que se cargan a mano): igual trae los avisos del SMN.
+  if (claves != null && (!Array.isArray(claves) || claves.length > 120 || claves.some((c) => typeof c !== "string"))) return res.status(400).json({ error: "La lista de estaciones no es válida." });
   try { res.set("Cache-Control", "no-store").json(await recolectar({ fecha, fechaHasta, desde, hasta, claves })); }
   catch (err) { error(res, err, "No se pudieron juntar los datos de las estaciones."); }
 });

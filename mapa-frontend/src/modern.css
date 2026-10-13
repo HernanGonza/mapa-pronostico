@@ -676,3 +676,64 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 .red-interruptor--chico { width: 28px; height: 16px; }
 .red-interruptor--chico::after { width: 12px; height: 12px; }
 .red-interruptor--chico.red-interruptor--todas::after { left: 14px; }
+
+/* Informe de precipitaciones: hoja tipo Excel y datos manuales */
+.informes-rango-nota { display: block; margin-top: 8px; color: var(--text-muted); font-size: 0.78rem; }
+.informes-vista .ens-rango { margin-bottom: 4px; }
+.ens-boton-informe:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+.hoja { border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.hoja-scroll { max-height: 560px; overflow: auto; padding: 0 0 8px; display: grid; gap: 14px; align-content: start; }
+.hoja-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 12px 0; }
+.hoja-cab span { color: var(--text-muted); font-size: 0.85rem; flex: 1; }
+.hoja-tabla { border-collapse: collapse; width: 100%; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.hoja-tabla--angosta { width: auto; min-width: 420px; margin: 0 12px; }
+.hoja-tabla caption { text-align: left; font-weight: 700; padding: 8px 12px 4px; }
+.hoja-tabla th, .hoja-tabla td { border: 1px solid var(--border); padding: 4px 8px; white-space: nowrap; text-align: left; }
+.hoja-tabla thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; font-weight: 700; }
+.hoja-tabla tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+.hoja-tabla tfoot th, .hoja-tabla tfoot td { background: var(--surface-2); font-weight: 700; }
+.hoja-tabla .num { text-align: right; }
+.hoja-tabla tbody th { font-weight: 600; background: var(--surface-2); }
+.hoja-edit { background: color-mix(in srgb, #fff3c4 60%, transparent); }
+.hoja-entrada { width: 84px; border: 0; background: transparent; text-align: right; font: inherit; padding: 2px 0; }
+.hoja-entrada:focus { outline: 2px solid var(--verde-600); background: #fff; }
+.hoja-mas { color: #1f6fb2; font-weight: 700; }
+.hoja-menos { color: #b4491f; font-weight: 700; }
+.hoja-pestanas { display: flex; gap: 2px; overflow-x: auto; padding: 6px 8px 0; background: var(--surface-2); border-top: 1px solid var(--border-strong); }
+.hoja-pestana { flex: none; padding: 6px 14px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px; background: transparent; font: inherit; font-size: 0.82rem; cursor: pointer; color: var(--text-muted); }
+.hoja-pestana--on { background: var(--surface); color: var(--heading); font-weight: 700; border-color: var(--verde-600); }
+.manuales { display: grid; gap: 8px; }
+.manual-form { display: flex; flex-wrap: wrap; gap: 10px 12px; padding: 4px 12px 14px; }
+.manual-form fieldset { display: flex; flex-wrap: wrap; gap: 8px 10px; flex: 1 1 100%; margin: 0; padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.manual-form legend { padding: 0 6px; font-weight: 700; font-size: 0.82rem; }
+.manual-campo { display: flex; flex-direction: column; gap: 3px; font-size: 0.75rem; color: var(--text-muted); flex: 1 1 110px; min-width: 100px; }
+.manual-campo--2 { flex: 1 1 100%; }
+.manual-campo input, .manual-campo select { font: inherit; font-size: 0.88rem; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); min-width: 0; width: 100%; }
+.manual-num { display: flex; align-items: center; gap: 4px; }
+.manual-num i { font-style: normal; color: var(--text-faint); font-size: 0.75rem; }
+.manual-mas { padding: 10px; border: 2px dashed var(--border-strong); border-radius: 10px; background: transparent; font: inherit; font-weight: 600; color: var(--verde-800); cursor: pointer; }
+.manual-mas:hover { background: var(--surface-2); }
+.manual-quitar { margin-left: auto; }
+
+/* Informe de precipitaciones: panel interactivo (tabla, mapa, gráfico) */
+.pp { display: grid; gap: 14px; }
+.pp-modos { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.pp-para-pdf { position: fixed; left: -10000px; top: 0; width: 700px; pointer-events: none; }
+.pp-tabla .ens-matriz thead th { padding: 0; vertical-align: bottom; }
+.pp-tabla .ens-matriz thead th:first-child, .pp-tabla .ens-matriz thead th:nth-child(2) { padding: 7px 12px; text-align: left; }
+.pp-tabla .ens-matriz thead th button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 7px 8px; cursor: pointer; font-weight: 600; font-size: 0.78rem; line-height: 1.2; }
+.pp-tabla .ens-matriz thead th button small { display: block; font-weight: 400; color: var(--text-muted); }
+.pp-tabla .ens-matriz thead th button:hover { background: var(--surface-3); }
+.pp-col--on { background: color-mix(in srgb, var(--verde-600) 9%, transparent); }
+.pp-max button { font-weight: 800; color: var(--verde-800); }
+.pp-red { padding: 0 8px !important; color: var(--text-muted); font-size: 0.8rem; text-align: left; }
+.pp-punto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
+.pp-mapa-caja { position: relative; max-width: 760px; }
+.pp-mapa { width: 100%; height: auto; display: block; border: 1px solid var(--border); border-radius: 10px; }
+.pp-estacion { cursor: pointer; outline: none; }
+.pp-estacion:focus-visible circle:first-of-type { stroke: var(--rosa-600); stroke-width: 3; }
+.pp-tip { top: 10px; left: auto; right: 10px; transform: none; pointer-events: none; }
+.pp-leyenda { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); font: inherit; font-size: 0.78rem; cursor: pointer; }
+.pp-chip i { width: 10px; height: 10px; border-radius: 50%; }
+.pp-chip--on { background: var(--surface-3); border-color: var(--verde-600); font-weight: 700; }

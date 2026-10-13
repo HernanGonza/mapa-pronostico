@@ -20,6 +20,7 @@ const CAMPOS_INTA = {
   bateria: "Batería (V)", alarmaActiva: "Alarma activa", alarmas: "Alarmas", id: "id (INTA)", idDiario: "idDiario (INTA)", idEstacion: "idEstacion (INTA)",
 };
 const CAMPOS_SMN = { hora: "HORA (hora oficial argentina)", temp: "TEMP (°C)", hum: "HUM (%)", pnm: "PNM, presión a nivel del mar (hPa)", dd: "DD, dirección del viento (grados)", ff: "FF, viento medio (km/h)" };
+const CAMPOS_SNIH = { temperatura: "Temperatura (°C)", humedad: "Humedad (%)", viento_medio_kmh: "Viento medio (km/h)", direccion: "Dirección del viento (código del SNIH)", precipitacion_mm: "Lluvia en la lectura (mm)", presion_mbar: "Presión (mbar)", radiacion: "Radiación solar (kcal/cm²/día)" };
 const CAMPOS_SINARAME = { temperatura: "Temperatura (°C)", humedad: "Humedad (%)", viento: "Viento (km/h)", precipitacion: "Lluvia en el intervalo (mm)" };
 
 const localDe = (t) => new Date(t - OFFSET_MS); // Excel no tiene zona horaria: se guarda la hora de reloj de Misiones.
@@ -81,8 +82,17 @@ async function armarExcel(datos) {
   // 2) Una hoja por estación: cada registro de 10 min, con todos los campos tal cual vienen.
   for (const e of datos.estaciones || []) {
     const hoja = libro.addWorksheet(hojas.get(e.clave));
+    if (e.manual) { // estación cargada a mano: no hay lecturas, hay lo que mandaron (el mismo resumen que traen las automáticas)
+      encabezado(hoja, [{ titulo: "Dato", clave: "dato", ancho: 40 }, { titulo: "Valor", clave: "valor", ancho: 18 }, { titulo: "Hora", clave: "hora", ancho: 14 }]);
+      const r = e.resumen || {};
+      [["Lluvia total (mm)", r.lluviaTotal], [`Lluvia máx. en ${r.lluvia30?.minutos === 60 ? "1 h" : "30 min"} (mm)`, r.lluvia30?.mm, r.lluvia30?.hora], ["Empezó a llover", null, r.inicioLluvia],
+        ["Ráfaga máx. (km/h)", r.rafaga?.kmh, r.rafaga?.hora], ["Viento medio máx. (km/h)", r.viento?.kmh, r.viento?.hora], ["Temp. máx. (°C)", r.tMax?.c, r.tMax?.hora], ["Temp. mín. (°C)", r.tMin?.c, r.tMin?.hora],
+        ["Caída brusca de temp. (°C)", r.caida?.grados, r.caida?.hora]].forEach(([dato, valor, h]) => hoja.addRow({ dato, valor: valor ?? null, hora: h ?? null }));
+      hoja.addRow({}); hoja.addRow({ dato: `Cargado a mano por el equipo${e.fuente ? ` (lo envió: ${e.fuente})` : ""}.` });
+      continue;
+    }
     const crudo = e.crudo || [];
-    const nombres = e.red === "INTA" ? CAMPOS_INTA : e.red === "SMN" ? CAMPOS_SMN : CAMPOS_SINARAME;
+    const nombres = e.red === "INTA" ? CAMPOS_INTA : e.red === "SMN" ? CAMPOS_SMN : e.red === "RMET" || e.red === "RHN" ? CAMPOS_SNIH : CAMPOS_SINARAME;
     const campos = [...new Set(crudo.flatMap((f) => Object.keys(f)))].filter((k) => k !== "t");
     // Primero los conocidos (en el orden de la tabla de nombres), después el resto.
     campos.sort((a, b) => (Object.keys(nombres).indexOf(a) + 1 || 999) - (Object.keys(nombres).indexOf(b) + 1 || 999));
@@ -122,6 +132,9 @@ async function armarExcel(datos) {
     "  · El INTA publica con algunas horas de demora.",
     "SiNaRaMe — Red Meteorológica del INA (vía SNIH, https://snih.hidricosargentina.gob.ar): registros cada 10 minutos.",
     "  · -999 / -9999 = sin dato (así lo marca SNIH).",
+    "RMET — Red Meteorológica (vía SNIH): una lectura por hora de temperatura, humedad, viento medio, dirección, lluvia y presión. No trae ráfagas.",
+    "RHN — Red Hidrológica Nacional (vía SNIH): estaciones que miden lluvia (algunas, también temperatura y viento), con una lectura cada 1 a 4 horas. El SNIH entrega el dato crudo del sensor, sin validar.",
+    "Estaciones cargadas a mano: datos que el equipo recibió por otros medios; traen el mismo resumen que las automáticas, sin lecturas.",
     "SMN — datos abiertos (https://www.smn.gob.ar/descarga-de-datos), tal cual vienen en los archivos:",
     "  · «Datos meteorológicos horarios» (observaciones/datohorarioAAAAMMDD.txt): TEMP, HUM, PNM, DD y FF cada hora, en hora oficial argentina. FF es el viento medio, no la ráfaga. No trae lluvia.",
     "  · «Observaciones diarias de temperaturas extremas» (observaciones/obsAAAAMMDD.txt): TMAX y TMIN oficiales del día. El SMN guarda alrededor de un año.",
