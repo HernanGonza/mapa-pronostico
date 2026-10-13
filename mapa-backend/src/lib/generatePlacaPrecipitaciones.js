@@ -130,13 +130,13 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   const usadas = [...new Set(filas.map((f) => Number(f.nota)).filter(Boolean))].sort();
   const LEG = [usadas.map((u) => `${SUPER[u]} ${NOTAS[u]}`).join("     "), "Anomalía: diferencia entre lo acumulado en el mes y el valor medio."].filter(Boolean);
   const HEAD = ["ESTACIÓN", periodo.trim().toLocaleUpperCase("es-AR"), "MES", "MEDIA", "ANOMALÍA"];
-  let u = 0, fh, fn, fb, fm, fl, fs, icon, gap, subH, headH, rh, legH, total;
+  let u = 0, fh, fn, fb, fm, fl, fs, icon, gap, subH, headH, rh, legH, total, legGap;
   for (let i = 0; i < 40; i++) {
     u = Math.round((1.5 - 0.03 * i) * 100) / 100;
     fh = fuente("bold", LS, 36 * u); fn = fuente("normal", LS, 42 * u); fb = fuente("bold", LS, 42 * u); fm = fuente("normal", LS, 22 * u); fl = fuente("normal", LS, 34 * u); fs = fuente("normal", LS, 42 * u);
     icon = Math.floor(86 * u); gap = Math.floor(54 * u);
     subH = Math.max(icon, lh(fs)); headH = Math.floor(100 * u); rh = Math.floor(86 * u);
-    legH = LEG.length * (lh(fl) + Math.floor(14 * u));
+    legGap = Math.floor(14 * u); legH = LEG.length * (lh(fl) + legGap);
     total = subH + gap + headH + rh * n + Math.floor(rh * 0.95) + gap + legH;
     if (Math.max(...filas.map((f) => ancho(f.nombre.trim(), fn) + ancho(String(f.nota || ""), fm) + 30)) > colw[0] - 30) continue;
     if (Math.max(...HEAD.slice(1).map((h) => ancho(h, fh))) > colw[1] - 16) continue;
@@ -144,13 +144,21 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   }
   for (let i = 0; i < 9; i++) { // estirado vertical
     const m = Math.round((1.4 - 0.05 * i) * 100) / 100, rh2 = Math.floor(86 * u * m), hh2 = Math.floor(100 * u * (1 + (m - 1) * 0.5)), g2 = Math.floor(54 * u * (1 + (m - 1) * 1.2));
-    const tot = subH + g2 + hh2 + rh2 * n + Math.floor(rh2 * 0.95) + g2 + legH;
-    if (top + tot <= limite - 60) { rh = rh2; headH = hh2; gap = g2; total = tot; break; }
+    // Con pocas filas sobra lugar: la leyenda y el texto de la gota crecen con el estirado (y van en negrita) para que se lean sobre fotos claras.
+    const fsM = fuente("bold", LS, 42 * u * m);
+    let tl = 34 * u * m, flM = fuente("bold", LS, tl);
+    while (Math.max(...LEG.map((l) => ancho(l, flM))) > tw - 20 && tl > 20) { tl -= 2; flM = fuente("bold", LS, tl); }
+    const icon2 = Math.floor(86 * u * m), subH2 = Math.max(icon2, lh(fsM)), gap2 = Math.floor(14 * u * m), legH2 = LEG.length * (lh(flM) + gap2);
+    const tot = subH2 + g2 + hh2 + rh2 * n + Math.floor(rh2 * 0.95) + g2 + legH2;
+    if (top + tot <= limite - 60) { rh = rh2; headH = hh2; gap = g2; total = tot; fs = fsM; fl = flM; icon = icon2; subH = subH2; legGap = gap2; break; }
   }
+  if (!fs.startsWith("bold")) { fs = fuente("bold", LS, 42 * u); fl = fuente("bold", LS, 34 * u); } // sin estirar: igual en negrita
   const y0 = top + (limite - top - total) * 0.35;
   gota(ctx, mx, y0, icon, AZUL);
   ctx.fillStyle = BLANCO; ctx.font = fs; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
   ctx.fillText("Precipitación en milímetros (mm)", mx + icon + 36, y0 + icon / 2);
+  ctx.restore();
   const ty = y0 + subH + gap, sepH = Math.floor(rh * 0.95), tblH = headH + rh * n + sepH;
   const ytop = (i) => ty + headH + rh * i + sepH;
 
@@ -179,7 +187,9 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   ctx.font = `bold ${sepS}px "${LS}"`; ctx.fillStyle = BLANCO; ctx.textAlign = "center"; ctx.fillText(BANDA, mx + tw / 2, ty + headH + sepH / 2);
   let ly = ty + tblH + gap;
   ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.font = fl; ctx.fillStyle = GRIS;
-  for (const l of LEG) { ctx.fillText(l, mx, ly); ly += lh(fl) + Math.floor(14 * u); }
+  ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+  for (const l of LEG) { ctx.fillText(l, mx, ly); ly += lh(fl) + legGap; }
+  ctx.restore();
 
   // «Emergencias ☎ 911 o Defensa Civil 103» entre el contenido y el pie (las fotos del pronóstico no lo traen).
   const fe = Math.round(66 * ts), ico = Math.round(fe * 1.2), ye = limite + (pie - limite) * 0.42;
