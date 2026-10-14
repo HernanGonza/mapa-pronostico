@@ -9,7 +9,7 @@
  * de sus datos abiertos (ver monan.js): es el único con ráfagas, reflectividad de radar y helicidad de ascenso.
  */
 const { loadDepartamentos, loadCentroides } = require("./departamentos");
-const { wrfConEspera, precargar, progreso: progresoWrf } = require("./wrfSmn");
+const { progreso: progresoWrf } = require("./wrfSmn");
 const { monanConEspera, progreso: progresoMonan } = require("./monan");
 const { loadMunicipios } = require("./municipios");
 const { CIUDADES } = require("./informePronostico");
@@ -74,11 +74,29 @@ const SERIE_MONAN = {
   cape: ["cape", "max"], refl: ["refl", "max"], uh: ["uh", "max"],
 };
 const HORARIAS = [...new Set(VARIABLES.flatMap((v) => [v.horaria, v.ponderaCon].filter(Boolean)))];
+// Descarga programada y guardado de los modelos (el servidor baja cada corrida cuando sale; las consultas leen de la base).
+const descargas = require("./ensambleDescargas").crear({ puntos: puntosDelEnsamble, horarias: HORARIAS, modelos: MODELOS });
+/** Arranca la revisión periódica de corridas nuevas (ver server.js). */
+const iniciarDescargas = () => descargas.iniciar();
+/** Mira ahora mismo si hay corridas nuevas (no espera a la próxima revisión de 10 minutos). */
+const buscarActualizaciones = () => descargas.tick();
+/** Por modelo: corrida, última descarga, próxima actualización estimada y si está bajando. */
+const estadoDescargas = () => descargas.estado();
 const msDeStamp = (stamp) => Date.parse(`${stamp}:00-03:00`); // «AAAA-MM-DDTHH:MM» hora de Misiones
 
 const TIMEOUT_MS = 24000; // Open-Meteo suele responder en 2 s, pero a veces se pone lento. Con el reintento no pasa de ~50 s: el proxy del ministerio corta la consulta a los 60 s (504).
 const DIAS_ATRAS = 7, DIAS_ADELANTE = 9, DIAS_MAX = 10; // lo que cubren los modelos (ECMWF llega a 10 días).
 const RE_FECHAHORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+// Cómo se parte el rango en períodos. `horas`: largo de cada período (los de horas se alinean a las 00:00: 3 h = 00–03, 03–06…);
+// «dia», «mes» y «anio» agrupan por calendario y «rango» es un solo período con todo lo elegido. Los períodos de horas y
+// «rango» son intervalos entre dos horas (la lluvia es lo acumulado entre ambas: no cuenta la lluvia de la hora anterior al
+// inicio); los de calendario cuentan todas las horas desde las 00:00 (como siempre).
+const INTERVALOS = { hora: { horas: 1 }, "3h": { horas: 3 }, "6h": { horas: 6 }, "12h": { horas: 12 }, dia: { calendario: "dia" }, mes: { calendario: "mes" }, anio: { calendario: "anio" }, rango: {} };
+const MAX_PERIODOS = 72; // más columnas que esto no se leen (y pesa la respuesta)
+const HORA_MS = 3600e3;
+const stampMs = (stamp) => Date.parse(`${stamp}:00Z`); // aritmética de horas sobre el reloj de Misiones (sin zona)
+const stampDe = (ms) => new Date(ms).toISOString().slice(0, 16);
 
 const redondear = (n, d) => (n == null ? null : Math.round(n * 10 ** d) / 10 ** d);
 
@@ -142,11 +160,39 @@ function errorDeRango(desde, hasta) {
   return null;
 }
 
+/** Todas las horas en punto desde `desde` hasta `hasta`, ambas incluidas. */
+const horasEntre = (desde, hasta) => { const r = []; for (let ms = stampMs(desde); ms <= stampMs(hasta); ms += HORA_MS) r.push(stampDe(ms)); return r; };
+
+/**
+ * Los períodos del rango según el intervalo: [{ fecha, desde, hasta, horas, exclusivo }], con `desde`/`hasta` «AAAA-MM-DDTHH:MM».
+ * `exclusivo`: la lluvia es lo acumulado entre ambas horas (no cuenta la hora anterior al inicio). Las variables que no se suman
+ * (temperatura, viento…) usan las horas de ambos extremos.
+ */
+function periodosDe(intervalo, desde, hasta, horasRango) {
+  const cfg = INTERVALOS[intervalo];
+  let periodos;
+  if (cfg.calendario) {
+    const clave = { dia: (t) => t.slice(0, 10), mes: (t) => t.slice(0, 7), anio: (t) => t.slice(0, 4) }[cfg.calendario];
+    const grupos = new Map();
+    for (const t of horasRango) { const k = clave(t); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(t); }
+    periodos = [...grupos.values()].map((ts) => ({ fecha: ts[0].slice(0, 10), desde: ts[0], hasta: ts.at(-1), horas: ts.length, exclusivo: false }));
+  } else if (cfg.horas) {
+    periodos = [];
+    const paso = cfg.horas * HORA_MS, inicio = Math.floor(stampMs(`${desde.slice(0, 10)}T00:00`) / paso) * paso;
+    for (let b = inicio; b < stampMs(hasta); b += paso) {
+      const ini = Math.max(b, stampMs(desde)), fin = Math.min(b + paso, stampMs(hasta));
+      if (fin > ini) periodos.push({ fecha: stampDe(ini).slice(0, 10), desde: stampDe(ini), hasta: stampDe(fin), horas: (fin - ini) / HORA_MS, exclusivo: true });
+    }
+  } else periodos = [{ fecha: desde.slice(0, 10), desde, hasta, horas: (stampMs(hasta) - stampMs(desde)) / HORA_MS, exclusivo: true }];
+  if (periodos.length > MAX_PERIODOS) throw Object.assign(new Error(`Con ese intervalo salen ${periodos.length} columnas y el máximo es ${MAX_PERIODOS}: achicá el rango o elegí un intervalo más largo.`), { status: 400 });
+  return periodos;
+}
+
 /** Resume los valores horarios de un modelo dentro de [desde, hasta]: null si falta alguna hora (el modelo no llega). */
-function agregar(horas, valores, desde, hasta, agrega, pesos = null) {
+function agregar(horas, valores, desde, hasta, agrega, pesos = null, exclusivo = false) {
   const v = [], w = [];
   for (let i = 0; i < horas.length; i++) {
-    if (horas[i] < desde || horas[i] > hasta) continue;
+    if (horas[i] < desde || horas[i] > hasta || (exclusivo && agrega === "sum" && horas[i] === desde)) continue;
     if (valores?.[i] == null) return null;
     v.push(valores[i]); w.push(pesos?.[i] ?? null);
   }
@@ -163,13 +209,13 @@ function agregar(horas, valores, desde, hasta, agrega, pesos = null) {
  * cada 3 h en el 10 km). La lluvia es la diferencia del acumulado entre el final y la hora anterior al comienzo (en el 10 km, con
  * la muestra más cercana: hasta hora y media de diferencia).
  */
-function valorMonan(mon, serie, agrega, p, desdeDia, hastaDia) {
+function valorMonan(mon, serie, agrega, p, desdeDia, hastaDia, exclusivo = false) {
   const col = mon.ser[serie], t0 = msDeStamp(desdeDia), t1 = msDeStamp(hastaDia), init = Date.parse(mon.corrida);
   if (!col || t0 < init || t1 > mon.validos.at(-1)) return null;
   if (agrega === "sum") {
     const tol = mon.paso > 3600e3 ? 5400e3 : 1800e3;
     const cercano = (t) => { let k = -1, d = Infinity; mon.validos.forEach((v, i) => { const e = Math.abs(v - t); if (e < d) { d = e; k = i; } }); return d <= tol ? k : -1; };
-    const a = cercano(t0 - 3600e3), b = cercano(t1);
+    const a = cercano(exclusivo ? t0 : t0 - 3600e3), b = cercano(t1);
     if (a < 0 || b <= a) return null;
     const va = col[a][p], vb = col[b][p];
     return va != null && vb != null ? Math.max(0, vb - va) : null;
@@ -193,9 +239,10 @@ function valorMonan(mon, serie, agrega, p, desdeDia, hastaDia) {
  * departamentos (17) y ciudades (13, las del informe): [{ id, nombre, lat, lng, dias: [{ fecha, tmax: { valores: { <modelo>: n|null }, media, min, max,
  * rango, discrepan, modelos }, … }] }] }. Un modelo que no cubre todas las horas de un día queda en null ese día.
  */
-async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
+async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia" }) {
   const e = errorDeRango(desde, hasta);
   if (e) throw Object.assign(new Error(e), { status: 400 });
+  if (!INTERVALOS[intervalo]) throw Object.assign(new Error(`Intervalo desconocido: ${intervalo}.`), { status: 400 });
   const elegidos = MODELOS.filter((m) => !m.deshabilitado && (ids || []).includes(m.id));
   if (!elegidos.length || (ids || []).some((id) => !MODELOS.some((m) => m.id === id))) throw Object.assign(new Error("Elegí al menos un modelo (ids válidos)."), { status: 400 });
   const deOpenMeteo = elegidos.filter((m) => m.fuente === "open-meteo"), conWrf = elegidos.some((m) => m.fuente === "wrf"), deMonan = elegidos.filter((m) => m.fuente === "monan");
@@ -205,33 +252,30 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   // Los días del rango y cuántas horas de cada uno caen adentro.
   const horasRango = [];
   for (let dia = desde.slice(0, 10); dia <= hasta.slice(0, 10); dia = sumarDias(dia, 1)) for (let h = 0; h < 24; h++) { const t = `${dia}T${String(h).padStart(2, "0")}:00`; if (t >= desde && t <= hasta) horasRango.push(t); }
-  const fechas = [...new Set(horasRango.map((t) => t.slice(0, 10)))];
-  const dias = fechas.map((fecha) => ({ fecha, horas: horasRango.filter((t) => t.startsWith(fecha)).length }));
+  // Los extremos de un intervalo entre horas pueden caer en una hora que no está entre las del rango (el fin de la última): se cuentan igual.
+  const periodos = periodosDe(intervalo, desde, hasta, horasRango);
+  const dias = periodos.map(({ fecha, desde: d, hasta: h, horas }) => ({ fecha, desde: d, hasta: h, horas }));
   const avisos = [];
 
-  // Open-Meteo (ECMWF, GFS, ICON, GEM): un pedido por modelo, en paralelo, con todos los puntos. Uno solo con los cuatro
-  // pesa demasiado (desde el server del ministerio daba timeout o 429). Si un modelo no responde, los otros se muestran igual.
+  // Open-Meteo (ECMWF, GFS, ICON, GEM) y WRF-SMN: se leen de lo último que descargó el servidor (ver ensambleDescargas.js), sin salir a
+  // internet. Un modelo que todavía no se bajó (primera vez) figura como «pendiente» mientras baja; si falló, se avisa.
   const omPorModelo = {}; // id → { puntos, horas }
-  const pedidoOpenMeteo = Promise.all(deOpenMeteo.map(async (m) => {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${puntosGeo.map((c) => c.lat.toFixed(3)).join(",")}&longitude=${puntosGeo.map((c) => c.lng.toFixed(3)).join(",")}`
-      + `&hourly=${HORARIAS.join(",")}&models=${m.id}`
-      + `&timezone=${encodeURIComponent(ART)}&start_date=${desde.slice(0, 10)}&end_date=${hasta.slice(0, 10)}`;
-    // Se reintenta una vez; si sigue sin responder se avisa y se muestran los otros modelos.
-    let data = null, ultimo = null;
-    for (let intento = 0; intento < 2 && !data; intento++) { try { data = await pedir(url); } catch (e) { ultimo = e; if (e.status === 429) break; } } // 429: reintentar enseguida sólo empeora el límite
-    if (!data) { console.error(`[ensamble] Open-Meteo (${m.nombre}):`, ultimo?.message); avisos.push(`${m.nombre}: Open-Meteo no respondió (${ultimo?.cause?.code || ultimo?.message}). Probá de nuevo en un rato.`); return; }
-    const pts = Array.isArray(data) ? data : [data];
-    if (pts.length !== lista.length || !pts[0]?.hourly?.time) { avisos.push(`${m.nombre}: Open-Meteo devolvió una respuesta inesperada.`); return; }
-    omPorModelo[m.id] = { puntos: pts, horas: pts[0].hourly.time };
+  const porBajar = new Set();
+  const lecturaOpenMeteo = Promise.all(deOpenMeteo.map(async (m) => {
+    const d = await descargas.leerOpenMeteo(m.id);
+    if (d) omPorModelo[m.id] = d;
+    else if (descargas.enCurso(m.id)) porBajar.add(m.id);
+    else avisos.push(`${m.nombre}: todavía no se descargó${descargas.ultimoError(m.id) ? ` (${descargas.ultimoError(m.id)})` : ""}. Se reintenta solo.`);
   }));
-  // WRF-SMN: aparte, desde AWS. Si falla, los demás modelos igual se muestran y se avisa.
-  const pedidoWrf = conWrf ? wrfConEspera({ desde, hasta, puntos: puntosGeo }).catch((err) => { console.error(err); avisos.push(`WRF-SMN: ${err.message}`); return null; }) : Promise.resolve(null);
-  // MONAN (CPTEC/INPE): una lectura por producto (3 km y/o 10 km), también aparte y también sin trabar si tarda.
+  const lecturaWrf = conWrf ? descargas.leerWrf().then((w) => {
+    if (!w) { if (descargas.enCurso("wrf_smn")) porBajar.add("wrf_smn"); else avisos.push(`WRF-SMN: todavía no se descargó${descargas.ultimoError("wrf_smn") ? ` (${descargas.ultimoError("wrf_smn")})` : ""}. Se reintenta solo.`); }
+    return w;
+  }) : Promise.resolve(null);
+  // MONAN (CPTEC/INPE): una lectura por producto (3 km y/o 10 km), aparte y sin trabar si tarda.
   const pedidosMonan = deMonan.map((m) => monanConEspera({ producto: m.producto, puntos: puntosGeo }).catch((err) => { console.error(err); avisos.push(`${m.nombre}: ${err.message}`); return null; }));
-  const [, wrf, ...lecturasMonan] = await Promise.all([pedidoOpenMeteo, pedidoWrf, ...pedidosMonan]);
+  const [, wrf, ...lecturasMonan] = await Promise.all([lecturaOpenMeteo, lecturaWrf, ...pedidosMonan]);
   const monPorId = Object.fromEntries(deMonan.map((m, i) => [m.id, lecturasMonan[i]]));
-  const wrfPendiente = !!wrf?.pendiente; // sigue bajando: la pantalla vuelve a consultar cuando termine
-  const pendientes = elegidos.filter((m) => (m.fuente === "wrf" && wrfPendiente) || (m.fuente === "monan" && monPorId[m.id]?.pendiente)).map((m) => m.id);
+  const pendientes = elegidos.filter((m) => porBajar.has(m.id) || (m.fuente === "monan" && monPorId[m.id]?.pendiente)).map((m) => m.id);
   // Los modelos que traen datos en esta respuesta (el que sigue bajando, o que falló, no figura todavía).
   const consultados = elegidos.filter((m) => (m.fuente === "open-meteo" && omPorModelo[m.id]) || (m.fuente === "wrf" && wrf && !wrf.pendiente) || (m.fuente === "monan" && monPorId[m.id] && !monPorId[m.id].pendiente));
   if (wrf?.avisos?.length) avisos.push(...wrf.avisos.map((a) => `WRF-SMN: ${a}`));
@@ -240,23 +284,27 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
     const c = d;
     return {
       id: d.id, nombre: d.nombre, lat: redondear(c.lat, 3), lng: redondear(c.lng, 3),
-      dias: fechas.map((fecha) => {
-        const dia = { fecha }, desdeDia = `${fecha}T00:00` > desde ? `${fecha}T00:00` : desde, hastaDia = `${fecha}T23:00` < hasta ? `${fecha}T23:00` : hasta;
+      dias: periodos.map((per) => {
+        const { fecha, desde: desdeDia, hasta: hastaDia, exclusivo } = per, dia = { fecha, desde: desdeDia, hasta: hastaDia, horas: per.horas };
+        // Las horas del período que cuentan para una variable: la lluvia de un intervalo entre horas no cuenta la hora de inicio.
+        const horasDe = (suma) => horasEntre(desdeDia, hastaDia).filter((t) => !(suma && exclusivo && t === desdeDia));
         for (const variable of VARIABLES) {
           const valores = {};
           for (const m of consultados) {
             let v = null;
             if (m.fuente === "open-meteo") { 
               const om = omPorModelo[m.id], col = (nombre) => om.puntos[i]?.hourly?.[nombre]; // un pedido por modelo: las variables vienen sin sufijo
-              if (variable.horaria) v = agregar(om.horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null);
+              if (variable.horaria) v = agregar(om.horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null, exclusivo);
             } else if (m.fuente === "monan") {
               const par = SERIE_MONAN[variable.clave];
-              if (par) v = valorMonan(monPorId[m.id], par[0], par[1], i, desdeDia, hastaDia);
+              if (par) v = valorMonan(monPorId[m.id], par[0], par[1], i, desdeDia, hastaDia, exclusivo);
             } else if (m.fuente === "wrf") {
-              if (variable.clave === "tmax") v = wrf.diario.tmax.get(fecha)?.[i] ?? null;
-              else if (variable.clave === "tmin") v = wrf.diario.tmin.get(fecha)?.[i] ?? null;
+              if (variable.clave === "tmax" || variable.clave === "tmin") {
+                if (intervalo === "dia") v = wrf.diario[variable.clave].get(fecha)?.[i] ?? null; // las calibradas del producto diario
+                else { const hs = horasDe(false).map((t) => wrf.porHora.T2?.get(t)?.[i]); v = hs.length && hs.every((x) => x != null) ? Math[variable.clave === "tmax" ? "max" : "min"](...hs) : null; } // el resto: la T2 horaria
+              }
               else if (["lluvia", "hmin", "hmax", "viento", "dirviento"].includes(variable.clave)) { // las horas del día dentro del rango; si falta alguna, el modelo no las cubre
-                const porHora = (nombre) => horasRango.filter((t) => t >= desdeDia && t <= hastaDia).map((t) => wrf.porHora[nombre].get(t)?.[i]);
+                const porHora = (nombre) => horasDe(nombre === "PP").map((t) => wrf.porHora[nombre].get(t)?.[i]);
                 const completo = (hs) => hs.length > 0 && hs.every((x) => x != null);
                 if (variable.clave === "lluvia") { const hs = porHora("PP"); v = completo(hs) ? hs.reduce((a, b) => a + b, 0) : null; }
                 else if (variable.clave === "hmin" || variable.clave === "hmax") { const hs = porHora("HR2"); v = completo(hs) ? Math[variable.clave === "hmin" ? "min" : "max"](...hs) : null; }
@@ -274,7 +322,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   });
 
   return {
-    generado: new Date().toISOString(), desde, hasta, dias, modelos: consultados, avisos, pendientes, ...(wrfPendiente ? { wrf: { pendiente: true, progreso: wrf.progreso } } : wrf ? { wrf: { corrida: wrf.corrida } } : {}),
+    generado: new Date().toISOString(), desde, hasta, intervalo, dias, modelos: consultados, avisos, pendientes, ...(porBajar.has("wrf_smn") ? { wrf: { pendiente: true, progreso: progresoWrf() } } : wrf ? { wrf: { corrida: wrf.corrida } } : {}),
     corridas: { ...(wrf && !wrf.pendiente ? { wrf_smn: wrf.corrida } : {}), ...Object.fromEntries(deMonan.filter((m) => monPorId[m.id] && !monPorId[m.id].pendiente).map((m) => [m.id, monPorId[m.id].corrida])) },
     variables: VARIABLES.map(({ clave, nombre, unidad, decimales, umbral, agrega, grupo, circular }) => ({ clave, nombre, unidad, decimales, umbral, agrega, grupo, circular: !!circular })),
     departamentos: resultados.slice(0, N_DEPARTAMENTOS), ciudades: resultados.slice(N_DEPARTAMENTOS),
@@ -287,9 +335,4 @@ function progresoEnsamble() {
   return { activo: wrf.activo || monan.activo, wrf, monan };
 }
 
-/** Deja lista en caché la corrida vigente del WRF-SMN (WRF_PRECARGA=1: ver server.js). */
-function precargarWrf() {
-  return precargar(puntosDelEnsamble());
-}
-
-module.exports = { pronosticoEnsamble, precargarWrf, progresoWrf, progresoEnsamble, valorMonan, errorDeRango, puntosDelEnsamble, mediaCircular, MODELOS, VARIABLES, resumir };
+module.exports = { periodosDe, INTERVALOS, pronosticoEnsamble, estadoDescargas, iniciarDescargas, buscarActualizaciones, progresoWrf, progresoEnsamble, valorMonan, errorDeRango, puntosDelEnsamble, mediaCircular, MODELOS, VARIABLES, resumir };

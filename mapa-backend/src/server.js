@@ -101,12 +101,8 @@ store
       if (process.env.RIESGO_INCENDIOS_SYNC_ENABLED !== "false" && process.env.DATABASE_URL) {
         require("./lib/riesgoIncendiosIndiceService").iniciar();
       }
-      // WRF-SMN: con WRF_PRECARGA=1 deja lista cada corrida (4 por día) en segundo plano, así la pantalla del
-      // ensamble no espera la descarga. Apagado por defecto: son ≈150 MB por corrida.
-      if (process.env.WRF_PRECARGA === "1") {
-        const precargar = () => require("./lib/ensamble").precargarWrf().then(() => console.log("[WRF-SMN] corrida lista en caché")).catch((err) => console.error("[WRF-SMN precarga]", err.message));
-        setTimeout(precargar, 30_000); setInterval(precargar, 30 * 60_000);
-      }
+      // Ensamble: cada 10 minutos mira si algún modelo tiene una corrida nueva (Open-Meteo, WRF-SMN) y la guarda en la base.
+      if (process.env.ENSAMBLE_SYNC_ENABLED !== "false") require("./lib/ensamble").iniciarDescargas();
       console.log(
         process.env.DATABASE_URL
           ? "[store] persistencia: Postgres"

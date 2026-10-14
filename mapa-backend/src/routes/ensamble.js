@@ -1,6 +1,6 @@
 const express = require("express");
 const requireAuth = require("../middleware/requireAuth");
-const { pronosticoEnsamble, progresoEnsamble } = require("../lib/ensamble");
+const { pronosticoEnsamble, progresoEnsamble, estadoDescargas, buscarActualizaciones } = require("../lib/ensamble");
 const { propuestaInforme } = require("../lib/informeEnsamble");
 const { generarDocx } = require("../lib/informePronostico");
 
@@ -11,7 +11,7 @@ const soloConModulo = require("../middleware/requireModulo")("ensamble");
 // Lo que dice cada modelo en el centroide de cada uno de los 17 departamentos, entre ?desde= y ?hasta=
 // («AAAA-MM-DDTHH:MM», hora de Misiones). Se consulta en el momento, cada vez: no hay caché.
 router.get("/ensamble", requireAuth, soloConModulo, async (req, res) => {
-  try { res.set("Cache-Control", "no-store").json(await pronosticoEnsamble({ desde: req.query.desde, hasta: req.query.hasta, modelos: String(req.query.modelos || "").split(",").filter(Boolean) })); }
+  try { res.set("Cache-Control", "no-store").json(await pronosticoEnsamble({ desde: req.query.desde, hasta: req.query.hasta, intervalo: req.query.intervalo || undefined, modelos: String(req.query.modelos || "").split(",").filter(Boolean) })); }
   catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
     console.error("[ensamble]", e); res.status(502).json({ error: `No se pudo consultar a los modelos: ${e.cause?.code || e.message}. Probá de nuevo en unos minutos.` });
@@ -20,6 +20,18 @@ router.get("/ensamble", requireAuth, soloConModulo, async (req, res) => {
 
 // Avance de lo que se descarga (WRF-SMN y MONAN): la pantalla lo mira sólo mientras dura una consulta.
 router.get("/ensamble/progreso", requireAuth, soloConModulo, (req, res) => res.set("Cache-Control", "no-store").json(progresoEnsamble()));
+
+// Qué se descargó de cada modelo (corrida, última descarga) y cuándo se espera la próxima. El servidor lo baja solo, apenas sale cada corrida.
+router.get("/ensamble/estado", requireAuth, soloConModulo, async (req, res) => {
+  try { res.set("Cache-Control", "no-store").json({ ahora: new Date().toISOString(), modelos: await estadoDescargas() }); }
+  catch (e) { console.error("[ensamble estado]", e); res.status(500).json({ error: "No se pudo leer el estado de las descargas." }); }
+});
+
+// Busca ya corridas nuevas (sin esperar la revisión de cada 10 minutos); devuelve el estado y las descargas siguen en segundo plano.
+router.post("/ensamble/actualizar", requireAuth, soloConModulo, async (req, res) => {
+  try { buscarActualizaciones().catch((e) => console.error("[ensamble actualizar]", e)); await new Promise((r) => setTimeout(r, 1500)); res.set("Cache-Control", "no-store").json({ ahora: new Date().toISOString(), modelos: await estadoDescargas() }); }
+  catch (e) { console.error("[ensamble actualizar]", e); res.status(500).json({ error: "No se pudo buscar actualizaciones." }); }
+});
 
 // Informe de pronóstico (cajón del ensamble): valores propuestos a partir de los modelos elegidos...
 router.post("/ensamble/informe/propuesta", requireAuth, soloConModulo, express.json({ limit: "100kb" }), async (req, res) => {

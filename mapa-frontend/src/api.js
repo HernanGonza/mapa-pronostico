@@ -621,8 +621,15 @@ export async function descargarExcelInformeDiario(datos) {
 }
 
 // --- Ensamble multimodelo (en desarrollo, módulo «ensamble») ---
-export async function getEnsamble({ desde, hasta, modelos }) {
-  return handleJson(await fetch(`${API_URL}/api/ensamble?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&modelos=${encodeURIComponent(modelos.join(","))}`, { cache: "no-store", ...CON_SESION }));
+export async function getEnsamble({ desde, hasta, modelos, intervalo = "dia" }) {
+  return handleJson(await fetch(`${API_URL}/api/ensamble?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&intervalo=${encodeURIComponent(intervalo)}&modelos=${encodeURIComponent(modelos.join(","))}`, { cache: "no-store", ...CON_SESION }));
+}
+// Qué descargó el servidor de cada modelo (corrida, última descarga, próxima estimada) y búsqueda inmediata de corridas nuevas.
+export async function getEnsambleEstado() {
+  return handleJson(await fetch(`${API_URL}/api/ensamble/estado`, { cache: "no-store", ...CON_SESION }));
+}
+export async function actualizarEnsamble() {
+  return handleJson(await fetch(`${API_URL}/api/ensamble/actualizar`, { method: "POST", cache: "no-store", ...CON_SESION }));
 }
 export async function getEnsambleProgreso() {
   return handleJson(await fetch(`${API_URL}/api/ensamble/progreso`, { cache: "no-store", ...CON_SESION }));

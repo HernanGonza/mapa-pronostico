@@ -31,6 +31,8 @@ const HORAS_MAX = 72;
 // 10 m, m/s) y dirViento10 (dirección, °). Cada una es un bloque de ≈2–4 MB: en total ≈12 MB por hora de pronóstico
 // (≈0,9 GB por corrida de 72 h). Por eso se baja en segundo plano, una vez por corrida (ver `precargar`).
 const VARIABLES_HORARIAS = ["PP", "HR2", "magViento10", "dirViento10"];
+// T2 (temperatura a 2 m, °C) sólo se baja cuando se pide un intervalo menor al día: para el día alcanzan las Tmax/Tmin calibradas.
+const VARIABLE_TEMPERATURA = "T2";
 const claveDe = (frec, variable, plazo) => `${frec}|${variable}|${plazo}`;
 // Cada archivo abierto ocupa ≈37 MB de memoria mientras se lee: más conexiones bajan más rápido pero pesan más.
 const CONCURRENCIA = Math.max(1, Number(process.env.WRF_CONCURRENCIA) || 6);
@@ -192,10 +194,11 @@ const enCurso = new Map(); // «corrida|archivo|variable» → promesa: dos cons
 
 /**
  * Lo que dice el WRF-SMN en cada punto para el rango [desde, hasta] («AAAA-MM-DDTHH:MM», hora de Misiones).
- * Devuelve { corrida, porHora: { PP|HR2|magViento10|dirViento10: Map(stamp → [valor por punto]) }, diario: { tmax: Map(fecha → […]), tmin: … } };
+ * Devuelve { corrida, porHora: { PP|HR2|magViento10|dirViento10 (y T2 si `temperatura`): Map(stamp → [valor por punto]) }, diario: { tmax: Map(fecha → […]), tmin: … } };
  * lo que no cubre el modelo (más de 72 h, o un archivo que no está) simplemente no figura.
  */
-async function wrfSmn({ desde, hasta, puntos }) {
+async function wrfSmn({ desde, hasta, puntos, temperatura = false }) {
+  const horarias = temperatura ? [...VARIABLES_HORARIAS, VARIABLE_TEMPERATURA] : VARIABLES_HORARIAS;
   const init = await corridaVigente(), id = `${idCorrida(init)}-p${puntos.length}`, cache = cacheDe(id); // las lecturas se guardan por posición: otra lista de puntos, otra caché
   const celdas = await celdasDe(puntos, init);
   const initMs = init.getTime();
@@ -218,7 +221,7 @@ async function wrfSmn({ desde, hasta, puntos }) {
 
   // Un trabajo = un archivo con las variables que todavía no están en caché.
   const trabajos = [
-    ...horas.map((h) => ({ frec: "01H", plazo: h.plazo, variables: VARIABLES_HORARIAS })),
+    ...horas.map((h) => ({ frec: "01H", plazo: h.plazo, variables: horarias })),
     ...dias.map((d) => ({ frec: "24H", plazo: d.plazo, variables: [d.tmin && "Tmin", d.tmax && "Tmax"].filter(Boolean) })),
   ].map((t) => ({ ...t, url: urlArchivo(init, t.frec, t.plazo), variables: t.variables.filter((v) => !cache[claveDe(t.frec, v, t.plazo)]) })).filter((t) => t.variables.length);
   const avisos = [];
@@ -247,8 +250,8 @@ async function wrfSmn({ desde, hasta, puntos }) {
   }
 
   // Valor por punto de cada variable horaria, hora a hora (clave «AAAA-MM-DDTHH:00», hora de Misiones).
-  const porHora = Object.fromEntries(VARIABLES_HORARIAS.map((v) => [v, new Map()])), diario = { tmax: new Map(), tmin: new Map() };
-  for (const h of horas) for (const v of VARIABLES_HORARIAS) if (cache[claveDe("01H", v, h.plazo)]) porHora[v].set(h.stamp, cache[claveDe("01H", v, h.plazo)]);
+  const porHora = Object.fromEntries(horarias.map((v) => [v, new Map()])), diario = { tmax: new Map(), tmin: new Map() };
+  for (const h of horas) for (const v of horarias) if (cache[claveDe("01H", v, h.plazo)]) porHora[v].set(h.stamp, cache[claveDe("01H", v, h.plazo)]);
   for (const d of dias) {
     if (d.tmax && cache[claveDe("24H", "Tmax", d.plazo)]) diario.tmax.set(d.fecha, cache[claveDe("24H", "Tmax", d.plazo)]);
     if (d.tmin && cache[claveDe("24H", "Tmin", d.plazo)]) diario.tmin.set(d.fecha, cache[claveDe("24H", "Tmin", d.plazo)]);
@@ -264,7 +267,7 @@ const enFondo = new Map(); // «rango» → promesa de la consulta en marcha
  * minutos en un solo pedido HTTP no sobrevive a los proxies que hay entre el navegador y el servidor.
  */
 async function wrfConEspera(args, esperaMs = 8000) {
-  const k = `${args.desde}|${args.hasta}`;
+  const k = `${args.desde}|${args.hasta}|${args.temperatura ? "T" : ""}`;
   let trabajo = enFondo.get(k);
   if (!trabajo) {
     trabajosActivos++;
@@ -277,11 +280,17 @@ async function wrfConEspera(args, esperaMs = 8000) {
   return r || { pendiente: true, progreso: progreso() };
 }
 
+/** Baja (o completa en caché) todo lo que cubre el rango, contando como trabajo activo para `progreso()`; devuelve lo mismo que `wrfSmn`. */
+async function wrfCompleto(args) {
+  trabajosActivos++;
+  try { return await wrfSmn(args); } finally { trabajosActivos--; }
+}
+
 /** Deja en caché las 72 h de la corrida vigente (lluvia + temperaturas diarias), para que las consultas sean instantáneas. */
 async function precargar(puntos) {
   const init = await corridaVigente(), dia = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
   const desde = `${dia(init.getTime())}T00:00`, hasta = `${dia(init.getTime() + 4 * 86400000)}T23:00`;
-  return wrfConEspera({ desde, hasta, puntos }, 0).then(() => enFondo.get(`${desde}|${hasta}`));
+  return wrfConEspera({ desde, hasta, puntos }, 0).then(() => enFondo.get(`${desde}|${hasta}|`));
 }
 
-module.exports = { wrfSmn, wrfConEspera, corridaVigente, leerRala, progreso, precargar };
+module.exports = { wrfSmn, wrfCompleto, wrfConEspera, corridaVigente, leerRala, progreso, precargar };

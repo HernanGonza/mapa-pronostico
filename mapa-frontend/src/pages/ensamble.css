@@ -207,3 +207,18 @@
 .ens-modelo--apagado .ens-interruptor::after { left: 2px; }
 .ens-sin-consultar { margin-top: 1px; font-size: 0.72rem; }
 .ens-lado-titulo, .ens-lado .ens-nota { font-size: 0.74rem; }
+
+/* ---------- Intervalo de tiempo y detalle hora por hora ---------- */
+.ens-intervalos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; font-size: 0.8rem; color: var(--text-muted); }
+.ens-chip--on, .ens-chip--on:hover:not(:disabled) { background: var(--verde-600); border-color: var(--verde-600); color: #fff; }
+.ens-intervalos-nota { margin: 8px 0 0; }
+.ens-matriz td button { white-space: nowrap; }
+.ens-desglose { display: grid; gap: 12px; margin-top: 8px; padding-top: 14px; border-top: 2px solid var(--border-strong); }
+.ens-detalle tfoot th, .ens-detalle tfoot td { background: var(--surface-2); font-weight: 600; padding: 7px 6px; border-top: 2px solid var(--border-strong); }
+.ens-detalle tbody th small { color: var(--text-muted); font-weight: 400; }
+
+/* ---------- Descargas del servidor ---------- */
+.ens-descargas { margin: 4px 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.82rem; color: var(--text-muted); display: grid; gap: 4px; }
+.ens-descargas p { margin: 0; }
+.ens-descargas strong { color: var(--heading); font-weight: 600; }
+.ens-modelo-datos { display: block; margin-top: 4px; font-size: 0.72rem; line-height: 1.35; color: var(--text-muted); }
