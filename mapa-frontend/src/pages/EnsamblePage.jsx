@@ -30,8 +30,8 @@ const CATALOGO = [
   { id: "icon_seamless", nombre: "ICON", detalle: "Alemania (DWD) · consenso", nota: "Alemania (DWD). Validador de consenso." },
   { id: "gem_seamless", nombre: "GEM", detalle: "Canadá (ECCC) · consenso", nota: "Canadá (ECCC). Validador de consenso." },
   { id: "wrf_smn", nombre: "WRF-SMN", detalle: "Argentina (SMN) · 4 km, 72 h · tormentas", nota: "Servicio Meteorológico Nacional, 4 km, hasta 72 h. Tormentas y lluvia convectiva. Aporta temperatura, lluvia, humedad y viento; no publica ráfagas, nubosidad ni sensación térmica. Pesa (≈12 MB por hora de pronóstico): tarda en bajar la primera vez." },
-  { id: "monan_3km", nombre: "MONAN 3 km", detalle: "Brasil (CPTEC) · 3 km, 72 h · convección", nota: "CPTEC/INPE (Brasil), regional, 3 km, hasta 72 h (una corrida por día, 00 UTC). Es el único con ráfagas, CAPE, reflectividad de radar y helicidad de ascenso: tormentas severas. Sin nubosidad." },
-  { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", nota: "CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
+  { id: "monan_3km", nombre: "MONAN 3 km", detalle: "Brasil (CPTEC) · 3 km, 72 h · convección", deshabilitado: true, nota: "Apagado: el CPTEC/INPE puso el MONAN detrás de usuario y clave. CPTEC/INPE (Brasil), regional, 3 km, hasta 72 h (una corrida por día, 00 UTC). Es el único con ráfagas, CAPE, reflectividad de radar y helicidad de ascenso: tormentas severas. Sin nubosidad." },
+  { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", deshabilitado: true, nota: "Apagado: el CPTEC/INPE puso el MONAN detrás de usuario y clave. CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
 ];
 const fechaDe = (f) => new Date(`${f}T12:00:00-03:00`);
 const diaCorto = (f) => fechaDe(f).toLocaleDateString("es-AR", { timeZone: AR, weekday: "short" }).replace(".", "");
@@ -156,7 +156,7 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia }) {
 export default function EnsamblePage() {
   const [datos, setDatos] = useState(null), [error, setError] = useState(""), [cargando, setCargando] = useState(false);
   const [clave, setClave] = useState("tmax"), [deptoId, setDeptoId] = useState("4");
-  const [prendidos, setPrendidos] = useState(() => new Set(CATALOGO.map((m) => m.id))); // los que se consultan al tocar «Consultar»
+  const [prendidos, setPrendidos] = useState(() => new Set(CATALOGO.filter((m) => !m.deshabilitado).map((m) => m.id))); // los que se consultan al tocar «Consultar»
   const [dia, setDia] = useState(null);
   // Rango a consultar (hora de Misiones). La pantalla NO pide nada sola: sólo al tocar «Consultar».
   const [fDesde, setFDesde] = useState(hoyART()), [hDesde, setHDesde] = useState("00:00");
@@ -204,7 +204,7 @@ export default function EnsamblePage() {
   const visibles = useMemo(() => new Set([...prendidos].filter((id) => !datos || consultados.has(id))), [prendidos, consultados, datos]);
   const pendientes = datos?.pendientes || [];
   const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id) && !pendientes.includes(id)) : [];
-  const alternar = (id) => setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
+  const alternar = (id) => CATALOGO.find((m) => m.id === id)?.deshabilitado || setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
   const filas = useMemo(() => (datos && variable ? datos.departamentos.map((d) => ({ d, celdas: d.dias.map((x) => resumir(x[clave].valores, visibles, variable)) })) : []), [datos, variable, clave, visibles]);
   const resumenDepto = depto && variable ? depto.dias.map((x) => resumir(x[clave].valores, visibles, variable)) : [];
   const generado = datos ? new Date(datos.generado).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "";
@@ -216,9 +216,10 @@ export default function EnsamblePage() {
         <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador; con el informe del cajón se arma el pronóstico del día y se puede publicar.</p></div>
       <h2>Modelos</h2>
       <div className="ens-modelos" role="group" aria-label="Modelos">
-        {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} className={`ens-modelo${prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
+        {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} disabled={!!m.deshabilitado} className={`ens-modelo${m.deshabilitado ? " ens-modelo--pendiente" : prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
           <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
           <span className="ens-modelo-origen">{m.detalle}</span>
+          {m.deshabilitado && <span className="ens-sin-consultar">Desactivado hasta tener acceso al CPTEC</span>}
           {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{pendientes.includes(m.id) ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
         </button>)}
       </div>

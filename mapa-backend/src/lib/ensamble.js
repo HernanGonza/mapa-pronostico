@@ -32,6 +32,7 @@ function puntosDelEnsamble() {
   return [...deptos.map((d) => ({ id: String(d.id), nombre: d.nombre, ...centroides.get(String(d.id)) })), ...ciudades];
 }
 
+// `deshabilitado`: motivo por el que no se puede consultar (siempre apagado; se ignora aunque lo pidan).
 // `fuente`: de dónde sale. `aporta`: variables que el modelo publica (el WRF-SMN no da ráfagas ni viento).
 const MODELOS = [
   { id: "ecmwf_ifs025", nombre: "ECMWF", origen: "Centro Europeo", rol: "Referencia a 3–10 días", fuente: "open-meteo" },
@@ -39,8 +40,8 @@ const MODELOS = [
   { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso", fuente: "open-meteo" },
   { id: "gem_seamless", nombre: "GEM", origen: "Canadá (ECCC)", rol: "Validador de consenso", fuente: "open-meteo" },
   { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", fuente: "wrf", aporta: ["tmax", "tmin", "lluvia", "hmin", "hmax", "viento", "dirviento"] },
-  { id: "monan_3km", nombre: "MONAN 3 km", origen: "Brasil (CPTEC/INPE) · regional, hasta 72 h", rol: "Tormentas y convección", fuente: "monan", producto: "03km" },
-  { id: "monan_10km", nombre: "MONAN 10 km", origen: "Brasil (CPTEC/INPE) · global, hasta 11 días", rol: "Mediano plazo", fuente: "monan", producto: "10km" },
+  { id: "monan_3km", nombre: "MONAN 3 km", origen: "Brasil (CPTEC/INPE) · regional, hasta 72 h", rol: "Tormentas y convección", fuente: "monan", producto: "03km", deshabilitado: "Sin acceso: el CPTEC/INPE lo puso detrás de usuario y clave (13/10)." },
+  { id: "monan_10km", nombre: "MONAN 10 km", origen: "Brasil (CPTEC/INPE) · global, hasta 11 días", rol: "Mediano plazo", fuente: "monan", producto: "10km", deshabilitado: "Apagado hasta conseguir el acceso al CPTEC/INPE." },
 ];
 
 // `agrega`: cómo se resume el día a partir de los valores horarios (dentro del rango pedido): max, min, sum,
@@ -195,7 +196,7 @@ function valorMonan(mon, serie, agrega, p, desdeDia, hastaDia) {
 async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   const e = errorDeRango(desde, hasta);
   if (e) throw Object.assign(new Error(e), { status: 400 });
-  const elegidos = MODELOS.filter((m) => (ids || []).includes(m.id));
+  const elegidos = MODELOS.filter((m) => !m.deshabilitado && (ids || []).includes(m.id));
   if (!elegidos.length || (ids || []).some((id) => !MODELOS.some((m) => m.id === id))) throw Object.assign(new Error("Elegí al menos un modelo (ids válidos)."), { status: 400 });
   const deOpenMeteo = elegidos.filter((m) => m.fuente === "open-meteo"), conWrf = elegidos.some((m) => m.fuente === "wrf"), deMonan = elegidos.filter((m) => m.fuente === "monan");
 

@@ -54,6 +54,7 @@ const RE_ARCHIVO = /^(MONAN_DIAG_[A-Z]_POS_[A-Z0-9]+)_(\d{10})_(\d{10})\.\d{2}\.
 async function listar(url) {
   const r = await pedir(url);
   if (r.status === 404) return null;
+  if (r.status === 401) throw new Error("el CPTEC/INPE puso el MONAN 3 km detrás de usuario y clave (desde el 13/10; «Área restrita - MONAN»). Hay que pedirles acceso.");
   if (!r.ok) throw new Error(`MONAN: HTTP ${r.status} al listar ${url}.`);
   return [...(await r.text()).matchAll(/<a href="([^"?]+)">/g)].map((m) => decodeURIComponent(m[1])).filter((x) => !x.startsWith("/"));
 }
