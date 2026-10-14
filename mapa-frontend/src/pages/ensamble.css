@@ -222,3 +222,12 @@
 .ens-descargas p { margin: 0; }
 .ens-descargas strong { color: var(--heading); font-weight: 600; }
 .ens-modelo-datos { display: block; margin-top: 4px; font-size: 0.72rem; line-height: 1.35; color: var(--text-muted); }
+
+/* ---------- Zoom del gráfico ---------- */
+.ens-zoom { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); }
+.ens-zoom > span { margin-right: auto; }
+.ens-zoom button { font: inherit; font-size: 0.85rem; min-width: 34px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.ens-zoom button:hover:not(:disabled) { background: var(--surface-3); }
+.ens-zoom button:disabled { opacity: 0.45; cursor: default; }
+.ens-grafico--zoom { cursor: grab; touch-action: none; }
+.ens-grafico--zoom:active { cursor: grabbing; }

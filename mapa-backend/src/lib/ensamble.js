@@ -93,7 +93,7 @@ const RE_FECHAHORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 // «rango» son intervalos entre dos horas (la lluvia es lo acumulado entre ambas: no cuenta la lluvia de la hora anterior al
 // inicio); los de calendario cuentan todas las horas desde las 00:00 (como siempre).
 const INTERVALOS = { hora: { horas: 1 }, "3h": { horas: 3 }, "6h": { horas: 6 }, "12h": { horas: 12 }, dia: { calendario: "dia" }, mes: { calendario: "mes" }, anio: { calendario: "anio" }, rango: {} };
-const MAX_PERIODOS = 72; // más columnas que esto no se leen (y pesa la respuesta)
+const MAX_PERIODOS = 240; // 10 días por hora. Con los 17 departamentos son ≈12 MB de JSON (≈1 MB ya comprimido por la red)
 const HORA_MS = 3600e3;
 const stampMs = (stamp) => Date.parse(`${stamp}:00Z`); // aritmética de horas sobre el reloj de Misiones (sin zona)
 const stampDe = (ms) => new Date(ms).toISOString().slice(0, 16);
@@ -239,7 +239,7 @@ function valorMonan(mon, serie, agrega, p, desdeDia, hastaDia, exclusivo = false
  * departamentos (17) y ciudades (13, las del informe): [{ id, nombre, lat, lng, dias: [{ fecha, tmax: { valores: { <modelo>: n|null }, media, min, max,
  * rango, discrepan, modelos }, … }] }] }. Un modelo que no cubre todas las horas de un día queda en null ese día.
  */
-async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia" }) {
+async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia", conCiudades = true }) {
   const e = errorDeRango(desde, hasta);
   if (e) throw Object.assign(new Error(e), { status: 400 });
   if (!INTERVALOS[intervalo]) throw Object.assign(new Error(`Intervalo desconocido: ${intervalo}.`), { status: 400 });
@@ -280,7 +280,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
   const consultados = elegidos.filter((m) => (m.fuente === "open-meteo" && omPorModelo[m.id]) || (m.fuente === "wrf" && wrf && !wrf.pendiente) || (m.fuente === "monan" && monPorId[m.id] && !monPorId[m.id].pendiente));
   if (wrf?.avisos?.length) avisos.push(...wrf.avisos.map((a) => `WRF-SMN: ${a}`));
 
-  const resultados = lista.map((d, i) => {
+  const resultados = lista.slice(0, conCiudades ? lista.length : N_DEPARTAMENTOS).map((d, i) => { // las ciudades son sólo para el informe: la pantalla no las pide
     const c = d;
     return {
       id: d.id, nombre: d.nombre, lat: redondear(c.lat, 3), lng: redondear(c.lng, 3),

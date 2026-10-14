@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import CampoFecha from "../components/CampoFecha";
@@ -140,16 +140,46 @@ function Marca({ forma, color, x = 0, y = 0, r = 5 }) {
 const Icono = ({ id }) => <svg className="ens-marca" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><Marca forma={ESTILO[id].forma} color={ESTILO[id].color} x={7} y={7} r={4.5} /></svg>;
 
 /**
- * Gráfico de líneas interactivo: al pasar el mouse (o con las flechas ← →) marca el día con una guía y muestra
- * el valor de cada modelo, el intervalo y la diferencia; al hacer clic se deja fijado (y se resalta ese día en
- * la tabla de abajo). El modelo más cercano al puntero se destaca.
+ * Gráfico de líneas interactivo: al pasar el mouse (o con las flechas ← →) marca el período con una guía y muestra
+ * el valor de cada modelo, el intervalo y la diferencia; al hacer clic se deja fijado (y se resalta en la tabla de
+ * abajo). El modelo más cercano al puntero se destaca. Con muchos períodos (por ejemplo, 10 días por hora) se puede
+ * hacer zoom: rueda del mouse (o botones ＋ −, o las teclas + y -), arrastrar para moverse y doble clic (o «Ver todo») para volver.
  */
 function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "dia" }) {
   const W = 760, H = 270, L = 46, R = 14, T = 14, B = 34;
-  const [hover, setHover] = useState(null); // { i: día, m: id del modelo más cercano }
-  const dias = depto.dias, activos = modelos.filter((m) => visibles.has(m.id));
-  const todos = dias.flatMap((d) => activos.map((m) => d[variable.clave].valores[m.id])).filter((x) => x != null);
-  if (!todos.length) return <p className="ens-vacio">Prendé al menos un modelo.</p>;
+  const [hover, setHover] = useState(null); // { i: período, m: id del modelo más cercano }
+  const [vista, setVista] = useState(null); // zoom: { a, b } (primer y último período a la vista) o null = todo
+  const svgRef = useRef(null), arrastre = useRef(null), clipId = useId().replace(/:/g, "");
+  const dias = depto.dias, n = dias.length, activos = modelos.filter((m) => visibles.has(m.id));
+  useEffect(() => setVista(null), [depto.id, variable.clave, n, intervalo]); // otros datos: se vuelve a ver todo
+  const a = vista ? Math.max(0, vista.a) : 0, b = vista ? Math.min(n - 1, vista.b) : n - 1;
+  const nVis = b - a + 1, enVista = (i) => i >= a && i <= b;
+  const MIN_SPAN = Math.min(n - 1, 5); // como mínimo, 6 períodos a la vista
+
+  // Acerca o aleja alrededor de `frac` (0 = borde izquierdo del gráfico, 1 = derecho).
+  const zoomEn = (factor, frac = 0.5) => {
+    if (n < 3) return;
+    const span = b - a, nuevo = Math.max(MIN_SPAN, Math.min(n - 1, Math.round(span * factor)));
+    const centro = a + span * frac, na = Math.min(Math.max(0, Math.round(centro - nuevo * frac)), n - 1 - nuevo);
+    setVista(nuevo >= n - 1 ? null : { a: na, b: na + nuevo });
+  };
+  const zoomRef = useRef(zoomEn); zoomRef.current = zoomEn;
+  useEffect(() => { // la rueda tiene que ser un listener nativo no pasivo para que no desplace la página mientras se hace zoom
+    const el = svgRef.current;
+    if (!el) return undefined;
+    const alRodar = (e) => {
+      if (n < 7) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), frac = Math.min(1, Math.max(0, ((((e.clientX - r.left) / r.width) * W) - L) / (W - L - R)));
+      zoomRef.current(e.deltaY < 0 ? 0.75 : 1.33, frac);
+    };
+    el.addEventListener("wheel", alRodar, { passive: false });
+    return () => el.removeEventListener("wheel", alRodar);
+  }, [n, depto.id, variable.clave]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const enRango = dias.slice(a, b + 1);
+  const todos = enRango.flatMap((d) => activos.map((m) => d[variable.clave].valores[m.id])).filter((x) => x != null);
+  if (!todos.length) return <p className="ens-vacio">{activos.length ? "Sin datos en esta parte del rango." : "Prendé al menos un modelo."}</p>;
   let lo = Math.min(...todos), hi = Math.max(...todos);
   if (variable.circular) { lo = 0; hi = 360; } // direcciones: toda la rosa
   else if (variable.unidad === "%") { lo = 0; hi = 100; }
@@ -158,47 +188,73 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "
     if (hi - lo < 1) hi = lo + 1;
     const pad = (hi - lo) * 0.08; hi += pad; if (lo !== 0) lo -= pad;
   }
-  const x = (i) => (dias.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (dias.length - 1));
+  const x = (i) => (b === a ? (L + W - R) / 2 : L + ((i - a) * (W - L - R)) / (b - a));
   const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
   const ticks = Array.from({ length: 5 }, (_, k) => lo + ((hi - lo) * k) / 4);
   const etiquetaEje = (t) => (variable.circular ? ["N", "E", "S", "O", "N"][Math.round(t / 90)] : num(t, variable.decimales === 0 ? 0 : t % 1 ? 1 : 0));
-  const banda = dias.map((d, i) => ({ i, r: resumir(d[variable.clave].valores, visibles, variable, d.horas) })).filter((b) => b.r.n > 1);
-  const paso = Math.max(1, Math.ceil(dias.length / 12)); // con muchas columnas, se rotula una de cada tantas
+  const banda = enRango.map((d, k) => ({ i: a + k, r: resumir(d[variable.clave].valores, visibles, variable, d.horas) })).filter((q) => q.r.n > 1);
+  const paso = Math.max(1, Math.ceil(nVis / 12)); // con muchos períodos a la vista, se rotula uno de cada tantos
+  const radio = nVis > 120 ? 0 : nVis > 60 ? 2.2 : nVis > 30 ? 3.2 : 5; // marcadores más chicos cuanto más hay
 
-  const activo = hover?.i ?? dia; // el día que se está mirando: el del puntero, o el fijado con un clic
-  const cercano = (e) => { // día y modelo más cercanos al puntero
+  const activo = hover?.i ?? dia; // el período que se está mirando: el del puntero, o el fijado con un clic
+  const cercano = (e) => { // período y modelo más cercanos al puntero
     const r = e.currentTarget.getBoundingClientRect(), px = ((e.clientX - r.left) / r.width) * W, py = ((e.clientY - r.top) / r.height) * H;
-    let i = 0, mejorX = Infinity;
-    dias.forEach((_, k) => { const d = Math.abs(x(k) - px); if (d < mejorX) { mejorX = d; i = k; } });
+    const i = Math.min(b, Math.max(a, b === a ? a : Math.round(a + ((px - L) / (W - L - R)) * (b - a))));
     let m = null, mejorY = Infinity;
     for (const mod of activos) { const v = dias[i][variable.clave].valores[mod.id]; if (v != null && Math.abs(y(v) - py) < mejorY) { mejorY = Math.abs(y(v) - py); m = mod.id; } }
     return { i, m };
   };
+  const alBajar = (e) => { if (vista && e.button === 0) { arrastre.current = { x0: e.clientX, a, b, movido: false }; e.currentTarget.setPointerCapture?.(e.pointerId); } };
+  const alMover = (e) => {
+    const g = arrastre.current;
+    if (g) { // arrastrando con zoom: se corre la ventana
+      const r = e.currentTarget.getBoundingClientRect(), porPunto = ((r.width * (W - L - R)) / W) / Math.max(1, g.b - g.a), dx = e.clientX - g.x0;
+      if (Math.abs(dx) > 4) g.movido = true;
+      if (g.movido) { const d = Math.round(-dx / porPunto), na = Math.min(Math.max(0, g.a + d), n - 1 - (g.b - g.a)); setVista({ a: na, b: na + (g.b - g.a) }); setHover(null); return; }
+    }
+    setHover(cercano(e));
+  };
+  const alSoltar = () => { if (arrastre.current?.movido) arrastre.current.suprimirClic = true; setTimeout(() => { arrastre.current = null; }, 0); };
   const tecla = (e) => {
+    if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomEn(0.6); return; }
+    if (e.key === "-") { e.preventDefault(); zoomEn(1.6); return; }
+    if (e.key === "0") { e.preventDefault(); setVista(null); return; }
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    const paso = e.key === "ArrowRight" ? 1 : -1, i = Math.min(dias.length - 1, Math.max(0, (activo ?? (paso > 0 ? -1 : dias.length)) + paso));
+    const sentido = e.key === "ArrowRight" ? 1 : -1, i = Math.min(n - 1, Math.max(0, (activo ?? (sentido > 0 ? a - 1 : b + 1)) + sentido));
     onDia(i); setHover(null);
+    if (vista && !enVista(i)) { const ancho = b - a, na = Math.min(Math.max(0, sentido > 0 ? i - ancho : i), n - 1 - ancho); setVista({ a: na, b: na + ancho }); }
   };
-  const dato = activo != null ? dias[activo] : null, resumen = dato ? resumir(dato[variable.clave].valores, visibles, variable, dato.horas) : null;
-  const izquierda = activo != null && x(activo) > W * 0.55; // la ventanita se abre hacia el lado con lugar
+  const dato = activo != null && enVista(activo) ? dias[activo] : null, resumen = dato ? resumir(dato[variable.clave].valores, visibles, variable, dato.horas) : null;
+  const izquierda = dato && x(activo) > W * 0.55; // la ventanita se abre hacia el lado con lugar
 
   return (
     <div className="ens-grafico-caja">
-      <svg className="ens-grafico" viewBox={`0 0 ${W} ${H}`} role="img" tabIndex={0} aria-label={`${variable.nombre} por modelo, ${depto.nombre}. Usá las flechas para recorrer los períodos.`}
-        onPointerMove={(e) => setHover(cercano(e))} onPointerLeave={() => setHover(null)} onClick={(e) => { const { i } = cercano(e); onDia(dia === i ? null : i); }} onKeyDown={tecla}>
+      {n > 6 && <div className="ens-zoom" role="group" aria-label="Zoom del gráfico">
+        <span>{vista ? `${etiquetaLarga(dias[a], intervalo)} → ${etiquetaLarga(dias[b], intervalo)}` : `Todo el rango (${n} períodos)`}</span>
+        <button type="button" onClick={() => zoomEn(0.6)} disabled={nVis <= MIN_SPAN + 1} aria-label="Acercar" title="Acercar (rueda del mouse o +)">＋</button>
+        <button type="button" onClick={() => zoomEn(1.6)} disabled={!vista} aria-label="Alejar" title="Alejar (rueda del mouse o -)">－</button>
+        <button type="button" onClick={() => setVista(null)} disabled={!vista} title="Volver a ver todo el rango (doble clic o 0)">Ver todo</button>
+      </div>}
+      <svg ref={svgRef} className={`ens-grafico${vista ? " ens-grafico--zoom" : ""}`} viewBox={`0 0 ${W} ${H}`} role="img" tabIndex={0} aria-label={`${variable.nombre} por modelo, ${depto.nombre}. Usá las flechas para recorrer los períodos y + o - para el zoom.`}
+        onPointerDown={alBajar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar} onPointerLeave={() => setHover(null)}
+        onDoubleClick={() => setVista(null)}
+        onClick={(e) => { if (arrastre.current?.suprimirClic) return; const { i } = cercano(e); onDia(dia === i ? null : i); }} onKeyDown={tecla}>
+        <defs><clipPath id={clipId}><rect x={L} y={T - 4} width={W - L - R} height={H - T - B + 8} /></clipPath></defs>
         {ticks.map((t) => <g key={t}><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="ens-grilla" /><text x={L - 8} y={y(t) + 4} textAnchor="end" className="ens-eje">{etiquetaEje(t)}</text></g>)}
-        {dias.map((d, i) => (i % paso === 0 || i === activo) && <text key={`${d.desde}|${i}`} x={x(i)} y={H - 10} textAnchor="middle" className={`ens-eje${i === activo ? " ens-eje--on" : ""}`}>{intervalo === "dia" ? `${diaCorto(d.fecha)} ${diaMes(d.fecha).split("/")[0]}` : etiquetaPeriodo(d, intervalo).a}</text>)}
-        {banda.length > 1 && <polygon className="ens-banda" points={[...banda.map((b) => `${x(b.i)},${y(b.r.max)}`), ...banda.slice().reverse().map((b) => `${x(b.i)},${y(b.r.min)}`)].join(" ")} />}
-        {activo != null && <line x1={x(activo)} x2={x(activo)} y1={T} y2={H - B} className={`ens-guia${activo === dia ? " ens-guia--fija" : ""}`} />}
-        {activos.map((m) => {
-          const { color, forma } = ESTILO[m.id];
-          const pts = dias.map((d, i) => ({ i, v: d[variable.clave].valores[m.id] })).filter((p) => p.v != null);
-          return <g key={m.id}>
-            <polyline fill="none" stroke={color} strokeWidth={hover?.m === m.id ? 3 : 2} strokeLinejoin="round" points={pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} opacity={hover && hover.m !== m.id ? 0.35 : 0.85} />
-            {pts.map((p) => <Marca key={p.i} forma={forma} color={color} x={x(p.i)} y={y(p.v)} r={p.i === activo ? (hover?.m === m.id ? 8 : 6.5) : 5} />)}
-          </g>;
-        })}
+        {enRango.map((d, k) => { const i = a + k; return (k % paso === 0 || i === activo) && <text key={`${d.desde}|${i}`} x={x(i)} y={H - 10} textAnchor="middle" className={`ens-eje${i === activo ? " ens-eje--on" : ""}`}>{intervalo === "dia" ? `${diaCorto(d.fecha)} ${diaMes(d.fecha).split("/")[0]}` : etiquetaPeriodo(d, intervalo).a}</text>; })}
+        <g clipPath={`url(#${clipId})`}>
+          {banda.length > 1 && <polygon className="ens-banda" points={[...banda.map((q) => `${x(q.i)},${y(q.r.max)}`), ...banda.slice().reverse().map((q) => `${x(q.i)},${y(q.r.min)}`)].join(" ")} />}
+          {activo != null && enVista(activo) && <line x1={x(activo)} x2={x(activo)} y1={T} y2={H - B} className={`ens-guia${activo === dia ? " ens-guia--fija" : ""}`} />}
+          {activos.map((m) => {
+            const { color, forma } = ESTILO[m.id];
+            const pts = enRango.map((d, k) => ({ i: a + k, v: d[variable.clave].valores[m.id] })).filter((p) => p.v != null);
+            return <g key={m.id}>
+              <polyline fill="none" stroke={color} strokeWidth={hover?.m === m.id ? 3 : nVis > 60 ? 1.5 : 2} strokeLinejoin="round" points={pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} opacity={hover && hover.m !== m.id ? 0.35 : 0.85} />
+              {pts.filter((p) => radio > 0 || p.i === activo).map((p) => <Marca key={p.i} forma={forma} color={color} x={x(p.i)} y={y(p.v)} r={p.i === activo ? (hover?.m === m.id ? 8 : 6.5) : radio} />)}
+            </g>;
+          })}
+        </g>
       </svg>
       {dato && resumen && <div className={`ens-tip${izquierda ? " ens-tip--izq" : ""}${activo === dia ? " ens-tip--fija" : ""}`} style={{ left: `${(x(activo) / W) * 100}%` }} role="status">
         <p className="ens-tip-dia">{etiquetaLarga(dato, intervalo)}{activo === dia && <span> · fijado</span>}</p>
@@ -207,7 +263,7 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "
         <p className="ens-tip-pie"><span>Intervalo</span><strong>{fmtIntervaloLargo(resumen, variable)}</strong></p>
         {resumen.n > 1 && <p className="ens-tip-pie"><span>Diferencia</span><strong className={resumen.discrepan ? "ens-alerta" : ""}>{fmtDif(resumen, variable)}{resumen.discrepan ? " · discrepan" : ""}</strong></p>}
       </div>}
-      <p className="ens-nota">Pasá el mouse por el gráfico para ver el detalle de cada período; un clic lo deja fijado.</p>
+      <p className="ens-nota">Pasá el mouse por el gráfico para ver el detalle de cada período; un clic lo deja fijado.{n > 6 ? " Rueda del mouse: zoom · arrastrar: moverse (con zoom) · doble clic: ver todo." : ""}</p>
     </div>
   );
 }
@@ -378,7 +434,7 @@ export default function EnsamblePage() {
             <span>Ver por</span>
             {INTERVALOS.map((i) => <button key={i.id} type="button" className={`ens-chip${intervalo === i.id ? " ens-chip--on" : ""}`} aria-pressed={intervalo === i.id} disabled={cargando} onClick={() => cambiarIntervalo(i.id)}>{i.txt}</button>)}
           </div>
-          <p className="ens-nota ens-intervalos-nota">{{ hora: "Una columna por hora (hasta 72 horas de rango). La lluvia es lo acumulado en esa hora.", "3h": "Una columna cada 3 horas, de 00 a 03, de 03 a 06…", "6h": "Una columna cada 6 horas, de 00 a 06, de 06 a 12…", "12h": "Una columna cada 12 horas (de 00 a 12 y de 12 a 24).", dia: "Una columna por día. Al tocar una, abajo se abre el detalle hora por hora.", mes: "Los modelos llegan a 10 días: «Mes» y «Año» resumen lo que haya del rango dentro de ese mes o año.", anio: "Los modelos llegan a 10 días: «Mes» y «Año» resumen lo que haya del rango dentro de ese mes o año.", rango: "Una sola columna con todo el rango: la lluvia es lo acumulado entre las dos horas elegidas." }[intervalo]}</p>
+          <p className="ens-nota ens-intervalos-nota">{{ hora: "Una columna por hora (hasta 10 días de rango, 240 columnas). La lluvia es lo acumulado en esa hora.", "3h": "Una columna cada 3 horas, de 00 a 03, de 03 a 06…", "6h": "Una columna cada 6 horas, de 00 a 06, de 06 a 12…", "12h": "Una columna cada 12 horas (de 00 a 12 y de 12 a 24).", dia: "Una columna por día. Al tocar una, abajo se abre el detalle hora por hora.", mes: "Los modelos llegan a 10 días: «Mes» y «Año» resumen lo que haya del rango dentro de ese mes o año.", anio: "Los modelos llegan a 10 días: «Mes» y «Año» resumen lo que haya del rango dentro de ese mes o año.", rango: "Una sola columna con todo el rango: la lluvia es lo acumulado entre las dos horas elegidas." }[intervalo]}</p>
           <div className="ens-rango-pie">
             <span className="ens-atajos"><span>Atajos</span>{ATAJOS.map((a) => <button key={a.txt} type="button" className="ens-chip" disabled={cargando} onClick={() => atajo(a.dias)}>{a.txt}</button>)}</span>
             <button type="submit" className="ens-consultar" disabled={cargando}>{cargando ? "Consultando…" : datos ? "Consultar de nuevo" : "Consultar"}</button>

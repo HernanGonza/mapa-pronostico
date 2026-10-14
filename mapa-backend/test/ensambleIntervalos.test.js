@@ -21,8 +21,9 @@ test("día, mes y año agrupan por calendario; rango es un solo período", () =>
   assert.equal(r.length, 1); assert.equal(r[0].horas, 30);
 });
 
-test("más de 72 columnas se rechaza", () => {
-  assert.throws(() => periodosDe("hora", "2026-10-14T00:00", "2026-10-18T00:00", horas("2026-10-14T00:00", "2026-10-18T00:00")), /máximo es 72/);
+test("más de 240 columnas se rechaza", () => {
+  assert.equal(periodosDe("hora", "2026-10-14T00:00", "2026-10-24T00:00", horas("2026-10-14T00:00", "2026-10-24T00:00")).length, 240);
+  assert.throws(() => periodosDe("hora", "2026-10-14T00:00", "2026-10-25T00:00", horas("2026-10-14T00:00", "2026-10-25T00:00")), /máximo es 240/);
 });
 
 test("horarios fijos: último y próximo", () => {
