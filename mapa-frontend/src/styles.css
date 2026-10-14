@@ -1821,3 +1821,10 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
   .arr-vista--arriba .admin-panel, .arr-vista--abajo .admin-panel, .arr-vista--tira .admin-panel { max-height: none; }
   .arr-hint { margin-left: 0; }
 }
+
+/* Selector de capas del mapa de arroyos */
+.arr-capas { position: absolute; top: 12px; right: 56px; z-index: 5; font-size: 13px; }
+.arr-capas__boton { background: #fff; border: 1px solid #d8e2dc; border-radius: 10px; padding: 7px 14px; font: inherit; font-weight: 600; color: #193d2c; box-shadow: 0 2px 10px #16332520; cursor: pointer; }
+.arr-capas__lista { margin-top: 6px; background: #fff; border: 1px solid #d8e2dc; border-radius: 12px; padding: 10px 14px; box-shadow: 0 4px 20px #16332525; display: grid; gap: 6px; color: #193d2c; }
+.arr-capas__lista label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.arr-capas__lista small { color: #5d6f64; font-size: 11px; max-width: 200px; }

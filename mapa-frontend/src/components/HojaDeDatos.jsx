@@ -9,6 +9,9 @@ import { anomalia, csvCrudo, estadistica, porDia, redondear, tablaCruda } from "
 const MAX_FILAS_CRUDAS = 1500;
 const coma = (n, d = 1) => (n == null ? "" : (Math.round(n * 10 ** d) / 10 ** d).toString().replace(".", ","));
 const corto = (nombre) => nombre.split(" - ")[0];
+const hhmm = (t) => { const l = new Date(t - 3 * 36e5).toISOString(); return `${l.slice(8, 10)}/${l.slice(5, 7)} ${l.slice(11, 16)}`; };
+/** "12/10 09:00 → 13/10 09:00" */
+const textoJornada = (j) => `${hhmm(j.desde)} → ${hhmm(j.hasta)}`;
 const ddmm = (f) => f.split("-").reverse().slice(0, 2).join("/");
 
 function Numero({ valor, alCambiar, etiqueta }) {
@@ -45,14 +48,18 @@ function Resumen({ estaciones, clima, setClima, numero, irA }) {
     return { e, r, lluvia: r && !r.sinLluvia ? r.lluviaTotal : null, mes, media, anom: anomalia(mes, media) };
   });
   const lluvias = estadistica(filas.map((f) => f.lluvia));
+  // Jornadas de 9 a 9 (una columna por cada una; sólo si el rango abarca más de una).
+  const jornadas = [...new Map(estaciones.flatMap((e) => e.jornadas || []).map((j) => [j.desde, j])).values()].sort((a, b) => a.desde - b.desde);
+  const columnasJ = jornadas.length > 1 ? jornadas : [];
   return <div className="hoja-scroll"><table className="hoja-tabla">
-    <thead><tr><th>Estación</th><th>Red</th><th className="num">Lluvia del período (mm)</th><th className="num">Máx. en 30 min / 1 h (mm)</th><th className="num">Ráfaga (km/h)</th><th className="num">Temp. mín / máx (°C)</th><th className="num hoja-edit">Acumulado del mes (mm)</th><th className="num hoja-edit">Media del mes (mm)</th><th className="num">Anomalía (mm)</th></tr></thead>
+    <thead><tr><th>Estación</th><th>Red</th><th className="num">Lluvia del período (mm)</th>{columnasJ.map((j) => <th key={j.desde} className="num" title={j.completa ? "Jornada completa de 9 a 9" : "Jornada parcial: el rango empieza o termina dentro de ella"}>{textoJornada(j)} (mm){j.completa ? "" : " *"}</th>)}<th className="num">Máx. en 30 min / 1 h (mm)</th><th className="num">Ráfaga (km/h)</th><th className="num">Temp. mín / máx (°C)</th><th className="num hoja-edit">Acumulado del mes (mm)</th><th className="num hoja-edit">Media del mes (mm)</th><th className="num">Anomalía (mm)</th></tr></thead>
     <tbody>{filas.map(({ e, r, lluvia, mes, media, anom }) => {
       const ex = e.extremas, tmin = ex?.tmin ?? r?.tMin?.c, tmax = ex?.tmax ?? r?.tMax?.c;
       return <tr key={e.clave}>
         <th scope="row"><button type="button" className="btn-link" onClick={() => irA(e.clave)}>{corto(e.nombre)}</button></th>
         <td>{e.red}</td>
         <td className="num">{!r ? <em>sin datos</em> : r.sinLluvia ? <em>no mide</em> : <strong>{coma(lluvia)}</strong>}</td>
+        {columnasJ.map((j) => <td key={j.desde} className="num">{r && !r.sinLluvia ? coma(e.jornadas?.find((x) => x.desde === j.desde)?.mm) : ""}</td>)}
         <td className="num">{r?.lluvia30 ? `${coma(r.lluvia30.mm)}${r.lluvia30.hora ? ` · ${r.lluvia30.hora}` : ""}${r.lluvia30.minutos === 60 ? " (1 h)" : ""}` : ""}</td>
         <td className="num">{r?.rafaga ? `${coma(r.rafaga.kmh)}${r.rafaga.hora ? ` · ${r.rafaga.hora}` : ""}` : ""}</td>
         <td className="num">{tmin != null || tmax != null ? `${coma(tmin) || "—"} / ${coma(tmax) || "—"}` : ""}</td>
@@ -62,11 +69,12 @@ function Resumen({ estaciones, clima, setClima, numero, irA }) {
       </tr>;
     })}</tbody>
     <tfoot>
-      <tr><th scope="row" colSpan={2}>Máxima del período</th><td className="num">{coma(lluvias.max)}</td><td colSpan={6} /></tr>
-      <tr><th scope="row" colSpan={2}>Promedio de las estaciones</th><td className="num">{coma(lluvias.prom)}</td><td colSpan={6} /></tr>
-      <tr><th scope="row" colSpan={2}>Estaciones con lluvia</th><td className="num">{filas.filter((f) => f.lluvia > 0).length} de {lluvias.n}</td><td colSpan={6} /></tr>
+      <tr><th scope="row" colSpan={2}>Máxima del período</th><td className="num">{coma(lluvias.max)}</td><td colSpan={6 + columnasJ.length} /></tr>
+      <tr><th scope="row" colSpan={2}>Promedio de las estaciones</th><td className="num">{coma(lluvias.prom)}</td><td colSpan={6 + columnasJ.length} /></tr>
+      <tr><th scope="row" colSpan={2}>Estaciones con lluvia</th><td className="num">{filas.filter((f) => f.lluvia > 0).length} de {lluvias.n}</td><td colSpan={6 + columnasJ.length} /></tr>
     </tfoot>
   </table>
+  {columnasJ.length > 0 && <p className="admin-panel__hint">Las estaciones leen de 9 a 9: cada columna es una jornada (la lluvia desde las 09:00 hasta las 09:00 del día siguiente). * jornada parcial, porque el rango empieza o termina dentro de ella.</p>}
   <p className="admin-panel__hint">Las dos columnas de color son para escribir (como en la planilla del mes): con el acumulado del mes y la media, la anomalía se calcula sola. Tocá el nombre de una estación para ver todos sus datos.</p></div>;
 }
 
@@ -85,10 +93,14 @@ function Estacion({ e }) {
     <div className="hoja-cab"><strong>{e.nombre}</strong><span>{e.red} · {r ? `${r.registros} registros` : "sin datos en este rango"}</span>
       {cruda.filas.length > 0 && <button type="button" className="btn" onClick={() => bajar(`${e.clave}-datos-crudos.csv`, csvCrudo(e))}>Descargar datos crudos (CSV)</button>}</div>
     {e.avisoDatos && <p className="paso-aviso" role="status">Faltan datos: {e.avisoDatos}.</p>}
-    {dias.length > 0 && <table className="hoja-tabla hoja-tabla--angosta"><caption>Por día</caption>
-      <thead><tr><th>Día</th><th className="num">Lluvia (mm)</th><th className="num">Temp. mín (°C)</th><th className="num">Temp. máx (°C)</th><th className="num">Ráfaga máx. (km/h)</th></tr></thead>
-      <tbody>{dias.map((d) => <tr key={d.dia}><th scope="row">{ddmm(d.dia)}</th><td className="num">{e.resumen?.sinLluvia ? "" : coma(d.lluvia)}</td><td className="num">{coma(d.tMin)}</td><td className="num">{coma(d.tMax)}</td><td className="num">{coma(d.rafaga)}</td></tr>)}</tbody>
-      <tfoot><tr><th scope="row">TOTAL</th><td className="num">{r?.sinLluvia ? "no mide" : coma(redondear(total.suma))}</td><td className="num">{coma(r?.tMin?.c)}</td><td className="num">{coma(r?.tMax?.c)}</td><td className="num">{coma(r?.rafaga?.kmh)}</td></tr></tfoot></table>}
+    {e.jornadas?.length > 0 && <table className="hoja-tabla hoja-tabla--angosta"><caption>Lluvia por jornada de 9 a 9</caption>
+      <thead><tr><th>Jornada</th><th className="num">Lluvia (mm)</th></tr></thead>
+      <tbody>{e.jornadas.map((j) => <tr key={j.desde}><th scope="row">{textoJornada(j)}{j.completa ? "" : " *"}</th><td className="num">{coma(j.mm)}</td></tr>)}</tbody>
+      <tfoot><tr><th scope="row">TOTAL</th><td className="num">{coma(r?.lluviaTotal)}</td></tr></tfoot></table>}
+    {dias.length > 0 && <table className="hoja-tabla hoja-tabla--angosta"><caption>Por día{e.jornadas?.length ? " (temperatura y viento, día calendario)" : ""}</caption>
+      <thead><tr><th>Día</th>{!e.jornadas?.length && <th className="num">Lluvia (mm)</th>}<th className="num">Temp. mín (°C)</th><th className="num">Temp. máx (°C)</th><th className="num">Ráfaga máx. (km/h)</th></tr></thead>
+      <tbody>{dias.map((d) => <tr key={d.dia}><th scope="row">{ddmm(d.dia)}</th>{!e.jornadas?.length && <td className="num">{e.resumen?.sinLluvia ? "" : coma(d.lluvia)}</td>}<td className="num">{coma(d.tMin)}</td><td className="num">{coma(d.tMax)}</td><td className="num">{coma(d.rafaga)}</td></tr>)}</tbody>
+      <tfoot><tr><th scope="row">TOTAL</th>{!e.jornadas?.length && <td className="num">{r?.sinLluvia ? "no mide" : coma(redondear(total.suma))}</td>}<td className="num">{coma(r?.tMin?.c)}</td><td className="num">{coma(r?.tMax?.c)}</td><td className="num">{coma(r?.rafaga?.kmh)}</td></tr></tfoot></table>}
     {cruda.filas.length > 0 && <>
       <table className="hoja-tabla"><caption>Todos los datos que trajo la estación ({cruda.filas.length} registros)</caption>
         <thead><tr>{cruda.columnas.map((c) => <th key={c}>{c}</th>)}</tr></thead>

@@ -661,4 +661,6 @@ export async function borrarPuntoArroyo(id) {
   const res = await fetch(`${API_URL}/api/arroyos/puntos/${encodeURIComponent(id)}`, { method: "DELETE", ...CON_SESION });
   if (!res.ok) await handleJson(res);
 }
+/** Capas de apoyo del mapa de arroyos: "rutas", "puentes" o "criticos" (SIG de Vialidad Provincial). */
+export function getCapaArroyos(capa) { return getEstatico(`${API_URL}/api/arroyos/capas/${capa}`); }
 export async function getArroyosPublico() { return handleJson(await fetch(`${API_URL}/api/arroyos/publico`, { cache: "no-store" })); }

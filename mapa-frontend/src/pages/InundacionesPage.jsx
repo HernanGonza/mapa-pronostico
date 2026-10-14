@@ -73,7 +73,8 @@ export default function InundacionesPage() {
     setBorrador({ id, inicial, form: inicial }); setCajon(true);
   }
   const cambiar = (k, v) => setBorrador((b) => ({ ...b, form: { ...b.form, [k]: v } }));
-  const ubicar = ([lat, lng]) => setBorrador((b) => (b ? { ...b, form: { ...b.form, lat: String(lat), lng: String(lng) } } : b));
+  const ubicar = ([lat, lng], desde) => setBorrador((b) => (b ? { ...b, form: { ...b.form, lat: String(lat), lng: String(lng),
+    ...(desde?.ruta && !b.form.ruta ? { ruta: desde.ruta } : {}), ...(desde?.nombre && !b.form.nombre ? { nombre: desde.nombre } : {}) } } : b));
   async function descartar() {
     if (sucio && !(await confirmar({ titulo: "¿Descartar este punto?", texto: "Se pierde lo que escribiste.", confirmar: "Descartar", peligro: true }))) return;
     setBorrador(null); setCajon(false); setErrorForm("");

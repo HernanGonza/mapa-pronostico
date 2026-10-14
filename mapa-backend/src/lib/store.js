@@ -53,6 +53,9 @@ async function init() {
     ssl: sslDeshabilitado ? false : { rejectUnauthorized: false },
     max: 3,
   });
+  // Si el servidor corta una conexión inactiva (db_termination, reinicio del pooler) el pool emite 'error';
+  // sin este manejador Node muere. El pool descarta esa conexión y abre otra en la próxima consulta.
+  pool.on("error", (err) => console.error("[store] conexión del pool cerrada por la base:", err.message));
   // `options: -c search_path=...` en la connection string no siempre
   // sobrevive a un pooler (Supavisor) entre medio — se fija a mano en
   // cada conexión nueva del pool, que es lo que efectivamente respeta.

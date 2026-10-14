@@ -280,11 +280,34 @@ async function serieDelRango(e, dias, t0, t1) {
   // no está), sigue con lo que hay y lo anota.
   if (!ok.length) throw partes[0].error;
   const porT = (a, b) => a.t - b.t;
+  // Una lectura por instante: el SNIH devuelve "desde el día pedido hasta lo último", así que el pedido del día 12 ya trae
+  // el 13 y el pedido del 13 lo repite (la lluvia se sumaba dos veces). El INTA también repite algún registro.
+  const unica = (filas) => { const vistos = new Set(); return filas.sort(porT).filter((r) => (vistos.has(r.t) ? false : vistos.add(r.t))); };
   return {
-    serie: ok.flatMap((p) => p.serie).sort(porT), crudo: ok.flatMap((p) => p.crudo).sort(porT), sinLluvia: ok.some((p) => p.sinLluvia),
+    serie: unica(ok.flatMap((p) => p.serie)), crudo: unica(ok.flatMap((p) => p.crudo)), sinLluvia: ok.some((p) => p.sinLluvia),
     extremasPorDia: ok.some((p) => p.extremas !== undefined) ? dias.map((d) => ({ fecha: d, ...(ok.find((p) => p.fecha === d)?.extremas || { tmax: null, tmin: null }) })) : undefined,
     faltan: partes.filter((p) => p.error).map((p) => `${p.fecha.split("-").reverse().slice(0, 2).join("/")}: ${p.error.message}`),
   };
+}
+
+/**
+ * Lluvia por jornada de 9 a 9 (las estaciones convencionales leen a las 9 de la mañana): cada tramo va de las 09:00 de un
+ * día a las 09:00 del siguiente, recortado al rango pedido. Una lectura estampada a las 09:00 es la lluvia del intervalo que
+ * termina a esa hora, así que cuenta para la jornada que cierra (inicio excluido, fin incluido).
+ */
+const HORA_CORTE = 9 * 60 * MIN, DIA = 24 * 60 * MIN;
+function lluviaPorJornada(serie, t0, t1) {
+  const medianoche = Math.floor((t0 - OFFSET_MS) / DIA) * DIA + OFFSET_MS; // 00:00 de Misiones del día de t0
+  let ini = medianoche + HORA_CORTE;
+  if (ini >= t0 + 1) ini -= DIA; // primer corte a las 9 en o antes del inicio
+  const jornadas = [];
+  for (; ini < t1; ini += DIA) {
+    const a = Math.max(ini, t0), b = Math.min(ini + DIA, t1);
+    if (b <= a) continue;
+    const mm = serie.filter((r) => r.t > a && r.t <= b).reduce((acc, r) => acc + r.lluvia, 0);
+    jornadas.push({ desde: a, hasta: b, mm: Math.round(mm * 10) / 10, completa: a === ini && b === ini + DIA });
+  }
+  return jornadas;
 }
 
 /** Junta todo para el rango (hora de Misiones). Las estaciones que fallan quedan con `error`. */
@@ -302,8 +325,11 @@ async function recolectar({ fecha, fechaHasta = fecha, desde = "00:00", hasta = 
       const conEx = (extremasPorDia || []).filter((x) => x.tmax != null || x.tmin != null);
       const extremo = (k, f) => { const v = conEx.map((x) => x[k]).filter((n) => n != null); return v.length ? f(...v) : null; };
       const extremas = extremasPorDia ? (conEx.length ? { tmax: extremo("tmax", Math.max), tmin: extremo("tmin", Math.min) } : null) : undefined;
+      // La lluvia del rango cuenta lo que cayó DESPUÉS del inicio (la lectura estampada justo en el inicio es del intervalo anterior).
+      const paraResumen = serie.map((r) => (r.t <= t0 && r.lluvia ? { ...r, lluvia: 0 } : r));
+      const jornadas = sinLluvia ? null : lluviaPorJornada(serie, t0, t1 - 59 * 1000);
       return {
-        ...base, resumen: resumir(serie, { sinLluvia, ventanaCaida: e.horaria ? 60 : 30, ventanaLluvia: e.horaria ? 60 : 30, conDia }), ...(extremas !== undefined && { extremas, extremasPorDia }),
+        ...base, ...(jornadas && jornadas.length && { jornadas }), resumen: resumir(paraResumen, { sinLluvia, ventanaCaida: e.horaria ? 60 : 30, ventanaLluvia: e.horaria ? 60 : 30, conDia }), ...(extremas !== undefined && { extremas, extremasPorDia }),
         ...(faltan.length && { avisoDatos: faltan.join(" · ") }),
         serie: serie.map((r) => ({ t: r.t, lluvia: sinLluvia ? null : r.lluvia, rafaga: r.rafaga, ...(r.viento !== undefined && { viento: r.viento }), temperatura: r.temperatura, humedad: r.humedad ?? null })), crudo,
       };
