@@ -32,6 +32,8 @@ const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 const CuencasPage = lazy(() => import("./pages/CuencasPage"));
 const EmbedCuencasMapaPage = lazy(() => import("./pages/EmbedCuencasMapaPage"));
 const EmbedCuencasTarjetasPage = lazy(() => import("./pages/EmbedCuencasTarjetasPage"));
+const EmbedArroyosMapaPage = lazy(() => import("./pages/EmbedArroyosMapaPage"));
+const EmbedArroyosTarjetasPage = lazy(() => import("./pages/EmbedArroyosTarjetasPage"));
 const TvPage = lazy(() => import("./pages/TvPage"));
 const DemostracionPage = lazy(() => import("./pages/DemostracionPage"));
 const TransmisionPage = lazy(() => import("./pages/TransmisionPage"));
@@ -110,6 +112,8 @@ export default function App() {
           <Route path="/embed/historico" element={<EmbedHistoricoPage />} />
           <Route path="/embed/cuencas-mapa" element={<EmbedCuencasMapaPage />} />
           <Route path="/embed/cuencas-tarjetas" element={<EmbedCuencasTarjetasPage />} />
+          <Route path="/embed/arroyos-mapa" element={<EmbedArroyosMapaPage />} />
+          <Route path="/embed/arroyos-tarjetas" element={<EmbedArroyosTarjetasPage />} />
           {/* Pantalla para transmitir por YouTube (OBS → fuente de navegador 1920×1080). Pública. */}
           <Route path="/tv" element={<TvPage />} />
           <Route path="/tv/extendido" element={<TvExtendidoPage />} />

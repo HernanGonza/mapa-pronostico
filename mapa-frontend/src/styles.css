@@ -1763,3 +1763,61 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .usuarios-modulos { border: 1px solid var(--map-border, rgba(0, 0, 0, 0.15)); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
 .usuarios-modulos legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
 .usuarios-modulos__opcion { display: block; padding: 3px 0; cursor: pointer; }
+
+/* Inundaciones: monitor de arroyos (reusa las tarjetas de cuencas) */
+.cuencas-tarjeta--corte { border-top-color: #b42332; }
+.cuencas-tarjeta--sin_umbral { border-top-color: #3b6ea5; }
+.cuencas-tarjeta--sin_datos, .cuencas-tarjeta--sin_sensor { border-top-color: #8793a0; }
+.cuencas-estado--corte { background: #ffe1e5; color: #992030; }
+.cuencas-estado--sin_umbral { background: #e3edf8; color: #274a73; }
+.arroyos-tarjeta--sel { box-shadow: 0 0 0 2px var(--accent); cursor: default; }
+.arroyos-tarjeta--inactivo { opacity: .6; }
+.arroyos-tendencia { margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.arroyos-tendencia--sube { color: #b94716; }
+.arroyos-tendencia--baja { color: #237346; }
+.arroyos-spark { display: block; width: 100%; height: 54px; margin: 8px 0 2px; color: var(--heading); }
+.arroyos-form__fila { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.arroyos-form__fila--3 { grid-template-columns: repeat(3, 1fr); }
+.arroyos-ayuda { margin: 0; font-size: 12px; font-weight: 400; color: var(--text-muted); line-height: 1.4; }
+.arroyos-form__umbrales { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 8px; }
+.arroyos-form__umbrales legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.arroyos-form__activo { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.ens-cajon textarea.paso-texto { width: 100%; font: inherit; }
+.arroyos-pie-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.arroyos-embed-tarjeta { position: absolute; z-index: 5; top: 10px; left: 10px; width: min(330px, calc(100% - 20px)); max-height: calc(100% - 20px); overflow-y: auto; border-radius: 10px; box-shadow: 0 6px 22px #0004; }
+.arroyos-embed-tarjeta .cuencas-tarjeta { margin: 0; }
+.arroyos-embed-tarjeta .municipio-popover__close { position: static; margin-left: auto; }
+
+/* Barra de la pantalla: cómo se ordena (vista), consultar y agregar */
+.arr-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.arr-vistas { display: inline-flex; border: 1px solid var(--border-strong, var(--border)); border-radius: 8px; overflow: hidden; }
+.arr-vista-boton { display: grid; place-items: center; width: 36px; height: 34px; background: var(--surface); color: var(--text-muted); border: 0; border-right: 1px solid var(--border); cursor: pointer; }
+.arr-vista-boton:last-child { border-right: 0; }
+.arr-vista-boton:hover { background: var(--surface-2); color: var(--heading); }
+.arr-vista-boton--on { background: var(--accent); color: var(--accent-contrast, #fff); }
+.arr-barra .btn { display: inline-flex; align-items: center; gap: 6px; }
+.arr-borrador { position: relative; padding-right: 26px; }
+.arr-borrador .ens-cajon-punto { top: 8px; right: 8px; }
+.arr-hint { margin: 0 0 0 auto; }
+
+/* Vistas: el .admin-layout trae 2 columnas (panel | mapa); acá se reacomoda */
+.arroyos-tarjetas { margin-top: 10px; }
+.arr-vista--arriba, .arr-vista--abajo, .arr-vista--tira { grid-template-columns: 1fr; }
+.arr-vista--arriba { grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "header" "panel" "map"; }
+.arr-vista--abajo { grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "header" "map" "panel"; }
+.arr-vista--tira { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "header" "map" "panel"; }
+.arr-vista--arriba .admin-panel, .arr-vista--abajo .admin-panel, .arr-vista--tarjetas .admin-panel { border-right: 0; }
+.arr-vista--arriba .admin-panel { border-bottom: 1px solid var(--border); }
+.arr-vista--abajo .admin-panel, .arr-vista--tira .admin-panel { border-top: 1px solid var(--border); }
+.arr-vista--arriba .arroyos-tarjetas, .arr-vista--abajo .arroyos-tarjetas, .arr-vista--tarjetas .arroyos-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; }
+.arr-vista--tarjetas .admin-panel { max-width: 1400px; margin: 0 auto; width: 100%; }
+.arr-vista--tira .admin-panel { max-height: 330px; padding-top: 12px; }
+.arr-vista--tira .arr-titulo, .arr-vista--tira .arr-pie, .arr-vista--tira .cuencas-avisos { display: none; }
+.arr-vista--tira .arroyos-tarjetas { flex-direction: row; overflow-x: auto; margin: 0; padding-bottom: 6px; align-items: flex-start; }
+.arr-vista--tira .arroyos-tarjetas .cuencas-tarjeta { flex: 0 0 290px; }
+@media (max-width: 860px) {
+  .arr-vista--arriba, .arr-vista--abajo, .arr-vista--tira { height: auto; }
+  .arr-vista--abajo, .arr-vista--tira { grid-template-areas: "header" "map" "panel"; grid-template-rows: auto minmax(360px, 55vh) auto; }
+  .arr-vista--arriba .admin-panel, .arr-vista--abajo .admin-panel, .arr-vista--tira .admin-panel { max-height: none; }
+  .arr-hint { margin-left: 0; }
+}

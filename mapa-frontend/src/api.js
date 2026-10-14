@@ -643,3 +643,15 @@ export async function descargarInformeDocx(borrador) {
   a.href = url; a.download = `PREVISION DEL TIEMPO ${borrador.emision.fecha}.docx`; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
+
+// Inundaciones: monitor de arroyos internos (puntos con estación del SNIH y puntos sin sensor).
+const jsonPost = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });
+export async function getArroyos() { return handleJson(await fetch(`${API_URL}/api/arroyos`, { cache: "no-store", ...CON_SESION })); }
+export async function actualizarArroyos() { return handleJson(await fetch(`${API_URL}/api/arroyos/actualizar`, { method: "POST", cache: "no-store", ...CON_SESION })); }
+export async function crearPuntoArroyo(punto) { return handleJson(await fetch(`${API_URL}/api/arroyos/puntos`, jsonPost("POST", punto))); }
+export async function editarPuntoArroyo(id, punto) { return handleJson(await fetch(`${API_URL}/api/arroyos/puntos/${encodeURIComponent(id)}`, jsonPost("PUT", punto))); }
+export async function borrarPuntoArroyo(id) {
+  const res = await fetch(`${API_URL}/api/arroyos/puntos/${encodeURIComponent(id)}`, { method: "DELETE", ...CON_SESION });
+  if (!res.ok) await handleJson(res);
+}
+export async function getArroyosPublico() { return handleJson(await fetch(`${API_URL}/api/arroyos/publico`, { cache: "no-store" })); }
