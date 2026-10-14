@@ -216,7 +216,7 @@ export default function EnsamblePage() {
         <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador; con el informe del cajón se arma el pronóstico del día y se puede publicar.</p></div>
       <h2>Modelos</h2>
       <div className="ens-modelos" role="group" aria-label="Modelos">
-        {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} disabled={!!m.deshabilitado} className={`ens-modelo${m.deshabilitado ? " ens-modelo--pendiente" : prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
+        {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} disabled={!!m.deshabilitado} className={`ens-modelo${m.deshabilitado ? " ens-modelo--apagado ens-modelo--no-disponible" : prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
           <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
           <span className="ens-modelo-origen">{m.detalle}</span>
           {m.deshabilitado && <span className="ens-sin-consultar">Desactivado hasta tener acceso al CPTEC</span>}

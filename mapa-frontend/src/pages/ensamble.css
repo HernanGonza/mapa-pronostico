@@ -11,6 +11,12 @@
 .ens-modelo--apagado { opacity: 0.45; border-left-style: dashed; }
 .ens-modelo--pendiente { cursor: default; border-left-style: dashed; background: var(--surface-2); opacity: 0.8; }
 .ens-modelo--pendiente:hover { background: var(--surface-2); }
+/* Modelo no disponible (desactivado a propósito): todo en gris, interruptor apagado y sin respuesta al clic. */
+.ens-modelo--no-disponible, .ens-modelo--no-disponible:hover { cursor: not-allowed; opacity: 0.6; background: var(--surface-2); border-color: var(--border); border-left-color: var(--border-strong); border-left-style: solid; }
+.ens-modelo--no-disponible .ens-modelo-cab strong, .ens-modelo--no-disponible .ens-modelo-origen, .ens-modelo--no-disponible .ens-sin-consultar { color: var(--text-muted); }
+.ens-modelo--no-disponible .ens-interruptor { background: var(--border-strong); }
+.ens-modelo--no-disponible .ens-interruptor::after { left: 2px; }
+.ens-modelo--no-disponible svg, .ens-modelo--no-disponible img { filter: grayscale(1); }
 .ens-modelo-cab { display: flex; align-items: center; gap: 7px; }
 .ens-modelo-cab strong { font-size: 1.05rem; color: var(--c); }
 .ens-modelo-estado { margin-left: auto; font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
