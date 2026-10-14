@@ -75,7 +75,7 @@ const SERIE_MONAN = {
 const HORARIAS = [...new Set(VARIABLES.flatMap((v) => [v.horaria, v.ponderaCon].filter(Boolean)))];
 const msDeStamp = (stamp) => Date.parse(`${stamp}:00-03:00`); // «AAAA-MM-DDTHH:MM» hora de Misiones
 
-const TIMEOUT_MS = 40000; // Open-Meteo suele responder en 2 s, pero a veces se pone lento
+const TIMEOUT_MS = 24000; // Open-Meteo suele responder en 2 s, pero a veces se pone lento. Con el reintento no pasa de ~50 s: el proxy del ministerio corta la consulta a los 60 s (504).
 const DIAS_ATRAS = 7, DIAS_ADELANTE = 9, DIAS_MAX = 10; // lo que cubren los modelos (ECMWF llega a 10 días).
 const RE_FECHAHORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
@@ -86,7 +86,7 @@ async function pedir(url) {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const r = await fetch(url, { signal: controller.signal });
-    if (!r.ok) throw new Error(`Open-Meteo: HTTP ${r.status}.`);
+    if (!r.ok) throw Object.assign(new Error(r.status === 429 ? "Open-Meteo: límite de consultas alcanzado (HTTP 429)." : `Open-Meteo: HTTP ${r.status}.`), { status: r.status });
     return await r.json();
   } catch (e) {
     throw e.name === "AbortError" ? new Error("Open-Meteo: tiempo de espera agotado.") : e;
@@ -208,22 +208,21 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   const dias = fechas.map((fecha) => ({ fecha, horas: horasRango.filter((t) => t.startsWith(fecha)).length }));
   const avisos = [];
 
-  // Open-Meteo (ECMWF, GFS, ICON, GEM): un solo pedido con todos los puntos.
-  let puntos = null, horas = [];
-  let openMeteoFallo = false;
-  const pedidoOpenMeteo = (async () => {
-    if (!deOpenMeteo.length) return;
+  // Open-Meteo (ECMWF, GFS, ICON, GEM): un pedido por modelo, en paralelo, con todos los puntos. Uno solo con los cuatro
+  // pesa demasiado (desde el server del ministerio daba timeout o 429). Si un modelo no responde, los otros se muestran igual.
+  const omPorModelo = {}; // id → { puntos, horas }
+  const pedidoOpenMeteo = Promise.all(deOpenMeteo.map(async (m) => {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${puntosGeo.map((c) => c.lat.toFixed(3)).join(",")}&longitude=${puntosGeo.map((c) => c.lng.toFixed(3)).join(",")}`
-      + `&hourly=${HORARIAS.join(",")}&models=${deOpenMeteo.map((m) => m.id).join(",")}`
+      + `&hourly=${HORARIAS.join(",")}&models=${m.id}`
       + `&timezone=${encodeURIComponent(ART)}&start_date=${desde.slice(0, 10)}&end_date=${hasta.slice(0, 10)}`;
-    // Si Open-Meteo no responde (o tarda de más) no se cae todo: se reintenta una vez y, si sigue, se avisa y se muestran los otros modelos.
+    // Se reintenta una vez; si sigue sin responder se avisa y se muestran los otros modelos.
     let data = null, ultimo = null;
-    for (let intento = 0; intento < 2 && !data; intento++) { try { data = await pedir(url); } catch (e) { ultimo = e; } }
-    if (!data) { openMeteoFallo = true; console.error("[ensamble] Open-Meteo:", ultimo?.message); avisos.push(`Open-Meteo no respondió (${ultimo?.cause?.code || ultimo?.message}): ECMWF, GFS, ICON y GEM no figuran en esta consulta. Probá de nuevo en un rato.`); return; }
-    puntos = Array.isArray(data) ? data : [data];
-    if (puntos.length !== lista.length || !puntos[0]?.hourly?.time) { openMeteoFallo = true; avisos.push("Open-Meteo devolvió una respuesta inesperada: ECMWF, GFS, ICON y GEM no figuran en esta consulta."); return; }
-    horas = puntos[0].hourly.time;
-  })();
+    for (let intento = 0; intento < 2 && !data; intento++) { try { data = await pedir(url); } catch (e) { ultimo = e; if (e.status === 429) break; } } // 429: reintentar enseguida sólo empeora el límite
+    if (!data) { console.error(`[ensamble] Open-Meteo (${m.nombre}):`, ultimo?.message); avisos.push(`${m.nombre}: Open-Meteo no respondió (${ultimo?.cause?.code || ultimo?.message}). Probá de nuevo en un rato.`); return; }
+    const pts = Array.isArray(data) ? data : [data];
+    if (pts.length !== lista.length || !pts[0]?.hourly?.time) { avisos.push(`${m.nombre}: Open-Meteo devolvió una respuesta inesperada.`); return; }
+    omPorModelo[m.id] = { puntos: pts, horas: pts[0].hourly.time };
+  }));
   // WRF-SMN: aparte, desde AWS. Si falla, los demás modelos igual se muestran y se avisa.
   const pedidoWrf = conWrf ? wrfConEspera({ desde, hasta, puntos: puntosGeo }).catch((err) => { console.error(err); avisos.push(`WRF-SMN: ${err.message}`); return null; }) : Promise.resolve(null);
   // MONAN (CPTEC/INPE): una lectura por producto (3 km y/o 10 km), también aparte y también sin trabar si tarda.
@@ -233,11 +232,11 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
   const wrfPendiente = !!wrf?.pendiente; // sigue bajando: la pantalla vuelve a consultar cuando termine
   const pendientes = elegidos.filter((m) => (m.fuente === "wrf" && wrfPendiente) || (m.fuente === "monan" && monPorId[m.id]?.pendiente)).map((m) => m.id);
   // Los modelos que traen datos en esta respuesta (el que sigue bajando, o que falló, no figura todavía).
-  const consultados = elegidos.filter((m) => (m.fuente === "open-meteo" && !openMeteoFallo) || (m.fuente === "wrf" && wrf && !wrf.pendiente) || (m.fuente === "monan" && monPorId[m.id] && !monPorId[m.id].pendiente));
+  const consultados = elegidos.filter((m) => (m.fuente === "open-meteo" && omPorModelo[m.id]) || (m.fuente === "wrf" && wrf && !wrf.pendiente) || (m.fuente === "monan" && monPorId[m.id] && !monPorId[m.id].pendiente));
   if (wrf?.avisos?.length) avisos.push(...wrf.avisos.map((a) => `WRF-SMN: ${a}`));
 
   const resultados = lista.map((d, i) => {
-    const c = d, hourly = puntos?.[i]?.hourly;
+    const c = d;
     return {
       id: d.id, nombre: d.nombre, lat: redondear(c.lat, 3), lng: redondear(c.lng, 3),
       dias: fechas.map((fecha) => {
@@ -246,9 +245,9 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids }) {
           const valores = {};
           for (const m of consultados) {
             let v = null;
-            if (m.fuente === "open-meteo") { // con un solo modelo Open-Meteo no agrega el sufijo al nombre de la variable
-              const col = (nombre) => hourly?.[deOpenMeteo.length === 1 ? nombre : `${nombre}_${m.id}`];
-              if (variable.horaria) v = agregar(horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null);
+            if (m.fuente === "open-meteo") { 
+              const om = omPorModelo[m.id], col = (nombre) => om.puntos[i]?.hourly?.[nombre]; // un pedido por modelo: las variables vienen sin sufijo
+              if (variable.horaria) v = agregar(om.horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null);
             } else if (m.fuente === "monan") {
               const par = SERIE_MONAN[variable.clave];
               if (par) v = valorMonan(monPorId[m.id], par[0], par[1], i, desdeDia, hastaDia);
