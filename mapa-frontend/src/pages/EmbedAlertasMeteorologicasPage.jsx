@@ -62,7 +62,7 @@ export default function EmbedAlertasMeteorologicasPage() {
     const verde = fijada || manualesVigentes.at(-1);
     const zonas = verde?.zonas || data.catalogo.departamentos.map((d) => ({ id: String(d.id), categoria: "Verde" }));
     return <div className="embed-risk"><SelloDemo />{error && <div className="embed-warning" role="status">No se pudo actualizar. Se muestra lo último recibido.</div>}
-      <RiesgoMap embed geo={data.geo} zonas={zonas} iconos={[]} catalogo={data.catalogo} publicadoEn={verde?.publicadoEn} titulo="Alertas meteorológicas · Sin alertas vigentes" />
+      <RiesgoMap embed geo={data.geo} zonas={zonas} iconos={[]} catalogo={data.catalogo} publicadoEn={verde?.publicadoEn} titulo="Alertas meteorológicas" metaTitulo="Sin alertas publicadas" />
     </div>;
   }
   const actual = tarjetas.find((t) => t.clave === elegida) || tarjetas[0];

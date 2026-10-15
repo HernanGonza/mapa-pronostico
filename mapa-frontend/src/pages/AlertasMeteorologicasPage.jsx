@@ -321,7 +321,7 @@ export default function AlertasMeteorologicasPage() {
       </>}
     </section>
     <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenesPlaca}>
-      {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} metaTitulo={sinNadaPublicado ? 'Misiones · No hay ninguna alerta publicada' : undefined} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
+      {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} metaTitulo={sinNadaPublicado ? 'Sin alertas publicadas' : undefined} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
     </PlacaPreview>
   </div>;
 }
