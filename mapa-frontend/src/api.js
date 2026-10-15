@@ -66,11 +66,10 @@ export async function guardarCorreoDestinatarios(destinatarios) {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destinatarios }), ...CON_SESION,
   }))).destinatarios;
 }
-/** Envía el pronóstico: docx + rtf adjuntos, a los ids elegidos de la lista (en copia oculta). */
-export async function enviarPronosticoPorCorreo({ docx, rtf, asunto, cuerpo, ids }) {
+/** Envía el pronóstico: el PDF adjunto, a los ids elegidos de la lista (en copia oculta). */
+export async function enviarPronosticoPorCorreo({ pdf, asunto, cuerpo, ids }) {
   const form = new FormData();
-  form.append("docx", docx);
-  form.append("rtf", rtf);
+  form.append("pdf", pdf);
   form.append("asunto", asunto);
   form.append("cuerpo", cuerpo);
   form.append("ids", JSON.stringify(ids));
@@ -650,6 +649,14 @@ export async function descargarInformeDocx(borrador) {
   a.href = url; a.download = `PREVISION DEL TIEMPO ${borrador.emision.fecha}.docx`; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
+
+// Previsión del tiempo: el informe armado en el panel, como PDF (cifrado y con marca de agua) y los datos del sol y la luna.
+export async function generarInformePdf(informe) {
+  const r = await fetch(`${API_URL}/api/pronostico/informe-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el PDF.");
+  return r.blob();
+}
+export async function getAstronomia(fecha) { return handleJson(await fetch(`${API_URL}/api/pronostico/astronomia?fecha=${encodeURIComponent(fecha)}`, { cache: "no-store", ...CON_SESION })); }
 
 // Inundaciones: monitor de arroyos internos (puntos con estación del SNIH y puntos sin sensor).
 const jsonPost = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });

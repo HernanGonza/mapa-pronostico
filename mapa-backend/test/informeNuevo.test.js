@@ -21,7 +21,7 @@ test("el informe generado se lee de vuelta: las 13 ciudades del mapa, con zona y
   const r = await leer(borrador());
   assert.equal(r.filas.length, 13);
   assert.deepEqual(r.filas.map((f) => f.LOCALIDAD), CIUDADES.map((c) => c.nombre));
-  assert.deepEqual(r.filas.slice(0, 2).map((f) => [f.TMIN, f.TMAX, f.CONDICION, f.ZONA]), [["10", "20", "parcialmente nublado", "Sur"], ["11", "21", "tormentas aisladas", "Sur"]]);
+  assert.deepEqual(r.filas.slice(0, 2).map((f) => [f.TMIN, f.TMAX, f.CONDICION, f.ZONA]), [["10", "20", "Parcialmente nublado", "Sur"], ["11", "21", "Tormentas aisladas", "Sur"]]);
   assert.equal(r.filas.find((f) => f.LOCALIDAD === "PUERTO IGUAZÚ").ZONA, "Norte");
   assert.equal(r.filas.find((f) => f.LOCALIDAD === "OBERÁ").ZONA, "Centro");
   assert.ok(r.filas.every((f) => /^-?\d+$/.test(f.TMIN) && /^-?\d+$/.test(f.TMAX)), "las temperaturas salen como números enteros, sin «º C»");
@@ -32,8 +32,8 @@ test("el extendido tiene «Hoy» (de la tabla de zonas) y los dos días siguient
   assert.deepEqual(extendido.zonas.map((z) => z.zona), ["Sur", "Centro", "Norte"]);
   const sur = extendido.zonas[0].dias;
   assert.deepEqual(sur.map((d) => d.etiqueta), ["Hoy", "Viernes", "Sábado"]);
-  assert.deepEqual([sur[0].tmin, sur[0].tmax, sur[0].condicion], ["12", "18", "chaparrones aislados"]);
-  assert.deepEqual([sur[1].fecha, sur[1].tmin, sur[1].tmax, sur[1].condicion], ["16 de octubre", "15", "23", "chaparrones y tormentas"]);
+  assert.deepEqual([sur[0].tmin, sur[0].tmax, sur[0].condicion], ["12", "18", "Chaparrones"]);
+  assert.deepEqual([sur[1].fecha, sur[1].tmin, sur[1].tmax, sur[1].condicion], ["16 de octubre", "15", "23", "Chaparrones + Tormentas"]);
 });
 
 test("los textos de los dos días y la fecha sugerida salen del informe", async () => {

@@ -1,5 +1,7 @@
 import MunicipioInfo from "./MunicipioInfo";
 import { colorPorCondicion, LEYENDA } from "../lib/condiciones";
+// El mapa de la web no lleva referencias de color: todos los municipios del mismo tono (lo que importa está en la tarjeta).
+export const colorUniforme = () => "#9fc4b0";
 export const colorPronostico = dato => colorPorCondicion(dato?.pronostico?.CONDICION);
 export const infoPronostico = (dato, { onCerrar, fecha }) => <MunicipioInfo municipio={dato} onCerrar={onCerrar} fecha={fecha} />;
 /** Referencias de color como franja fina abajo, de lado a lado (igual que alertas y riesgo de incendios). */

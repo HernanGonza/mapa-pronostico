@@ -1828,3 +1828,45 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .arr-capas__lista { margin-top: 6px; background: #fff; border: 1px solid #d8e2dc; border-radius: 12px; padding: 10px 14px; box-shadow: 0 4px 20px #16332525; display: grid; gap: 6px; color: #193d2c; }
 .arr-capas__lista label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .arr-capas__lista small { color: #5d6f64; font-size: 11px; max-width: 200px; }
+
+/* Selector de condiciones del tiempo (lista fija, varias a la vez) */
+.weather-icon-grupo { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0; }
+.cond-selector { position: relative; min-width: 0; }
+.cond-selector__fichas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px; border: 1px solid #cbd8d0; border-radius: 10px; background: #fff; min-height: 38px; }
+.cond-selector--invalido .cond-selector__fichas { border-color: #b42332; }
+.cond-ficha { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 6px; border-radius: 999px; background: #eaf2ee; color: #193d2c; font-size: 13px; }
+.cond-ficha__quitar { border: 0; background: transparent; cursor: pointer; font-size: 16px; line-height: 1; color: #5d6f64; padding: 0 4px; }
+.cond-ficha__quitar:hover { color: #b42332; }
+.cond-selector__mas { border: 1px dashed #7a9a89; background: transparent; border-radius: 999px; padding: 3px 10px; font: inherit; font-weight: 700; color: #237346; cursor: pointer; }
+.cond-selector__mas span { font-weight: 600; }
+.cond-selector__lista { position: absolute; z-index: 30; left: 0; top: calc(100% + 4px); width: min(420px, 86vw); max-height: 360px; overflow: auto; background: #fff; border: 1px solid #cbd8d0; border-radius: 12px; box-shadow: 0 10px 30px #16332533; padding: 10px; display: grid; gap: 10px; }
+.cond-selector__grupo strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #5d6f64; margin-bottom: 4px; }
+.cond-selector__opciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; }
+.cond-opcion { display: flex; align-items: center; gap: 6px; text-align: left; border: 1px solid transparent; background: #f5f8f6; border-radius: 8px; padding: 4px 8px; font: inherit; font-size: 13px; cursor: pointer; color: #193d2c; }
+.cond-opcion:hover { background: #e3eee8; }
+.cond-opcion--on { border-color: #237346; background: #dcefe4; font-weight: 600; }
+.cond-opcion i { margin-left: auto; color: #237346; font-style: normal; }
+.cond-selector--compacto .cond-selector__fichas { padding: 2px; min-height: 32px; gap: 3px; }
+.cond-selector--compacto .cond-ficha { padding: 1px 3px; }
+.extendido-editor__zona .extendido-editor__cond { display: grid; gap: 3px; color: var(--text-muted); }
+.extendido-editor__zona input[type="checkbox"] { width: auto; }
+
+/* Tarjeta de un municipio: condiciones con ícono de día y de noche */
+.municipio-popover__prono { display: grid; gap: 8px; }
+.municipio-popover__conds { display: grid; gap: 2px; }
+.municipio-popover__conds-cab, .municipio-popover__cond-fila { display: grid; grid-template-columns: 44px 44px 1fr; align-items: center; gap: 6px; }
+.municipio-popover__conds-cab { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--map-text-muted); border-bottom: 1px solid rgba(255,255,255,.2); padding-bottom: 2px; }
+.municipio-popover__conds-cab span { text-align: center; }
+.municipio-popover__conds-cab span:last-child { text-align: left; }
+
+/* Informe del día (Previsión del tiempo) */
+.pron-boton-informe { max-width: none; width: 100%; }
+.pron-temps { grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
+.pron-localidades { display: grid; gap: 12px; }
+.pron-dia { display: grid; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.pron-dia:first-of-type { border-top: 0; padding-top: 0; }
+
+/* El cajón del informe del día es más ancho (la mitad de la pantalla, siempre): hay mucho para cargar. */
+.ens-cajon.ens-cajon--ancho { --ancho-cajon: 50vw; }
+.ens-cajon.ens-cajon--ancho .pron-localidades { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.ens-cajon.ens-cajon--ancho .ens-cajon-cuerpo { padding: 18px 24px 28px; }

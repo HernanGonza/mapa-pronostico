@@ -1,136 +1,128 @@
 import { normalize } from "./normalizeText";
 
 /**
- * Catálogo canónico de condiciones climáticas.
+ * Catálogo de condiciones del tiempo (lista fija, la del cuadro de íconos del informe). Una localidad o un día puede
+ * llevar VARIAS: se guardan como un solo texto unido con « + » («Parcialmente nublado + Chaparrones»), que es lo que
+ * viaja por todo el sistema (mapa, tarjetas, placas, PDF).
  *
- * Las claves (`nombre`) coinciden con los nombres de archivo de los íconos
- * del backend (data/materiales/imgs/*.png) para que el ícono resuelva
- * siempre. El operador elige de esta lista en el panel — no se escribe a
- * mano — así nunca hay un typo que rompa color/ícono.
+ * Cada condición tiene su ícono de día y de noche: son los del Servicio Meteorológico Nacional (cuadro «Referencias» de
+ * smn.gob.ar/pronostico), en public/iconos/smn y copiados en mapa-backend/data/iconos-smn para el PDF y las placas. El orden del catálogo es de menor a mayor severidad: con varias
+ * condiciones, el color del mapa de la placa sale de la más severa.
  *
- * `grupo` agrupa condiciones parecidas para la leyenda del mapa (que
- * muestra ~8 entradas, no 19). `color` sale de la paleta del brandbook:
- * amarillo/verde = tiempo estable, azules = lluvia (más oscuro = más
- * intensa), periwinkle = chaparrones, rosa Lapacho = tormenta (el evento
- * "de alerta" se lleva el color emblema de la marca).
+ * Espejo (reducido) en mapa-backend/src/lib/condiciones.js: si se cambia algo acá, cambiarlo allá.
  */
 
 export const GRUPOS = {
-  // Paleta del 04/10/2026: cielo (sin lluvia) y después de menor a mayor intensidad. El orden es
-  // el de la leyenda. Tiene que coincidir con mapa-backend/src/lib/condiciones.js (la placa).
+  // Paleta del 04/10/2026: cielo (sin lluvia) y después de menor a mayor intensidad. El orden es el de la leyenda.
   despejado: { label: "Despejado", color: "#FFD000" },
   parcial: { label: "Parcialmente nublado", color: "#A2C2D6" },
   nublado: { label: "Nublado / cubierto", color: "#B0B5B8" },
+  niebla: { label: "Niebla y viento", color: "#9AA9B5" },
   lloviznas: { label: "Lloviznas", color: "#4CAF50" },
   lluvias: { label: "Lluvias", color: "#2196F3" },
   chaparrones: { label: "Chaparrones", color: "#1565C0" },
   intensas: { label: "Lluvias intensas", color: "#FF9800" },
   tormentas: { label: "Tormentas", color: "#9C27B0" },
+  nieve: { label: "Nieve y ventisca", color: "#7FD1E8" },
 };
 
-export const SIN_DATO = { label: "Sin dato", color: "#c9d3a3" };
-
-const CONDICIONES = [
-  { nombre: "despejado", grupo: "despejado" },
-  { nombre: "algo nublado", grupo: "parcial" },
-  { nombre: "parcialmente nublado", grupo: "parcial" },
-  { nombre: "nublado", grupo: "nublado" },
-  { nombre: "cubierto", grupo: "nublado" },
-  { nombre: "lloviznas", grupo: "lloviznas" },
-  { nombre: "lluvia leve", grupo: "lloviznas" },
-  { nombre: "lluvias debiles", grupo: "lloviznas" },
-  { nombre: "lluvias leves", grupo: "lloviznas" },
-  { nombre: "lluvias aisladas", grupo: "lluvias" },
-  { nombre: "lluvias y lloviznas", grupo: "lluvias" },
-  { nombre: "lluvias", grupo: "lluvias" },
-  { nombre: "lluvias intensas", grupo: "intensas" },
-  { nombre: "chaparrones aislados", grupo: "chaparrones" },
-  { nombre: "chaparrones", grupo: "chaparrones" },
-  { nombre: "tormentas aisladas", grupo: "tormentas" },
-  { nombre: "chaparrones y tormentas", grupo: "tormentas" },
-  { nombre: "lluvias y tormentas aisladas", grupo: "tormentas" },
-  { nombre: "lluvias y tormentas", grupo: "tormentas" },
+/** Las categorías con las que se agrupan en el selector (no son los grupos de color). */
+export const CATEGORIAS = [
+  { id: "cielo", titulo: "Cielo" }, { id: "viento", titulo: "Viento y niebla" }, { id: "lluvia", titulo: "Lluvia" },
+  { id: "tormenta", titulo: "Tormentas" }, { id: "nieve", titulo: "Nieve y ventisca" },
 ];
 
-const POR_NOMBRE = new Map(CONDICIONES.map((c) => [normalize(c.nombre), c]));
+export const CATALOGO = [
+  { id: "despejado", nombre: "Despejado", cat: "cielo", grupo: "despejado", dia: "smn/3.png", noche: "smn/5.png" },
+  { id: "ligeramente-nublado", nombre: "Ligeramente nublado", cat: "cielo", grupo: "parcial", dia: "smn/13.png", noche: "smn/14.png" },
+  { id: "algo-nublado", nombre: "Algo nublado", cat: "cielo", grupo: "parcial", dia: "smn/19.png", noche: "smn/20.png" },
+  { id: "parcialmente-nublado", nombre: "Parcialmente nublado", cat: "cielo", grupo: "parcial", dia: "smn/25.png", noche: "smn/26.png" },
+  { id: "mayormente-nublado", nombre: "Mayormente nublado", cat: "cielo", grupo: "nublado", dia: "smn/37.png", noche: "smn/38.png" },
+  { id: "nublado", nombre: "Nublado", cat: "cielo", grupo: "nublado", dia: "smn/43.png", noche: "smn/43.png" },
+  { id: "ventoso", nombre: "Ventoso", cat: "viento", grupo: "niebla", dia: "smn/51.png", noche: "smn/51.png" },
+  { id: "neblina", nombre: "Neblina", cat: "viento", grupo: "niebla", dia: "smn/61.png", noche: "smn/61.png" },
+  { id: "niebla", nombre: "Niebla", cat: "viento", grupo: "niebla", dia: "smn/67.png", noche: "smn/67.png" },
+  { id: "niebla-helada", nombre: "Niebla helada", cat: "viento", grupo: "niebla", dia: "smn/69.png", noche: "smn/69.png" },
+  { id: "llovizna", nombre: "Llovizna", cat: "lluvia", grupo: "lloviznas", dia: "smn/71.png", noche: "smn/71.png" },
+  { id: "lluvias-aisladas", nombre: "Lluvias aisladas", cat: "lluvia", grupo: "lluvias", dia: "smn/72.png", noche: "smn/72.png" },
+  { id: "lluvias", nombre: "Lluvias", cat: "lluvia", grupo: "lluvias", dia: "smn/73.png", noche: "smn/73.png" },
+  { id: "chaparrones", nombre: "Chaparrones", cat: "lluvia", grupo: "chaparrones", dia: "smn/74.png", noche: "smn/75.png" },
+  { id: "lluvias-fuertes", nombre: "Lluvias fuertes", cat: "lluvia", grupo: "intensas", dia: "smn/83.png", noche: "smn/83.png" },
+  { id: "tormentas-aisladas", nombre: "Tormentas aisladas", cat: "tormenta", grupo: "tormentas", dia: "smn/76.png", noche: "smn/76.png" },
+  { id: "tormentas", nombre: "Tormentas", cat: "tormenta", grupo: "tormentas", dia: "smn/81.png", noche: "smn/81.png" },
+  { id: "tormentas-fuertes", nombre: "Tormentas fuertes", cat: "tormenta", grupo: "tormentas", dia: "smn/89.png", noche: "smn/89.png" },
+  { id: "lluvias-y-nevadas", nombre: "Lluvias y nevadas", cat: "nieve", grupo: "nieve", dia: "smn/77.png", noche: "smn/77.png" },
+  { id: "nevadas", nombre: "Nevadas", cat: "nieve", grupo: "nieve", dia: "smn/79.png", noche: "smn/79.png" },
+  { id: "nevadas-fuertes", nombre: "Nevadas fuertes", cat: "nieve", grupo: "nieve", dia: "smn/85.png", noche: "smn/85.png" },
+  { id: "ventisca-baja", nombre: "Ventisca baja", cat: "nieve", grupo: "nieve", dia: "smn/96.png", noche: "smn/96.png" },
+  { id: "ventisca", nombre: "Ventisca", cat: "nieve", grupo: "nieve", dia: "smn/94.png", noche: "smn/94.png" },
+  { id: "ventisca-alta", nombre: "Ventisca alta", cat: "nieve", grupo: "nieve", dia: "smn/92.png", noche: "smn/92.png" },
+];
+export const SIN_DATO = { label: "Sin dato", color: "#c9d3a3" };
 
-/**
- * Resuelve una condición escrita de cualquier forma. Primero busca el nombre exacto; si no está, y el texto junta varias
- * condiciones («NUBLADO,CHAPARRONES AISLADOS», «nublado con lluvias»), toma la más severa de las que reconoce (la que
- * está más abajo en el catálogo), que es la que define el color del mapa.
- */
-function resolver(condicion) {
-  if (!condicion) return null;
-  const exacta = POR_NOMBRE.get(normalize(condicion));
-  if (exacta) return exacta;
-  const partes = String(condicion).split(/[,;/+]|\s+con\s+|\s+e\s+/i).map((p) => POR_NOMBRE.get(normalize(p))).filter(Boolean);
-  return partes.length ? partes.reduce((a, b) => (CONDICIONES.indexOf(b) > CONDICIONES.indexOf(a) ? b : a)) : null;
+const POR_ID = new Map(CATALOGO.map((c) => [c.id, c]));
+const POR_NOMBRE = new Map(CATALOGO.map((c) => [normalize(c.nombre), c]));
+// Nombres de antes (y de los .docx viejos) → condiciones del catálogo nuevo.
+const ALIAS = {
+  lloviznas: ["llovizna"], "lluvia leve": ["llovizna"], "lluvias debiles": ["llovizna"], "lluvias leves": ["llovizna"],
+  cubierto: ["nublado"], "lluvias y lloviznas": ["lluvias", "llovizna"], "lluvias intensas": ["lluvias-fuertes"],
+  "chaparrones aislados": ["chaparrones"], "chaparrones y tormentas": ["chaparrones", "tormentas"],
+  "lluvias y tormentas aisladas": ["lluvias", "tormentas-aisladas"], "lluvias y tormentas": ["lluvias", "tormentas"],
+  "lluvia": ["lluvias"], "tormenta": ["tormentas"], "chaparron": ["chaparrones"],
+};
+const POR_ALIAS = new Map(Object.entries(ALIAS).map(([k, v]) => [normalize(k), v.map((id) => POR_ID.get(id))]));
+
+/** Las condiciones del catálogo que nombra un texto («Nublado + Chaparrones», «NUBLADO,CHAPARRONES AISLADOS»), sin repetir y en el orden escrito. */
+export function partesCondicion(texto) {
+  const t = String(texto ?? "").trim();
+  if (!t) return [];
+  const entero = POR_NOMBRE.get(normalize(t)) || null;
+  const vistos = new Set(), salida = [];
+  const agregar = (lista) => lista.forEach((c) => { if (c && !vistos.has(c.id)) { vistos.add(c.id); salida.push(c); } });
+  if (entero) { agregar([entero]); return salida; }
+  if (POR_ALIAS.has(normalize(t))) { agregar(POR_ALIAS.get(normalize(t))); return salida; }
+  for (const parte of t.split(/\s*[+,;/]\s*|\s+con\s+|\s+y\s+/i)) {
+    const n = normalize(parte);
+    if (!n) continue;
+    agregar(POR_NOMBRE.has(n) ? [POR_NOMBRE.get(n)] : POR_ALIAS.get(n) || []);
+  }
+  return salida;
 }
 
-/** Lista para poblar el <select> del panel, en orden de "severidad". */
-export const CONDICIONES_CANONICAS = CONDICIONES.map((c) => c.nombre);
+/** El texto que se guarda para una lista de condiciones (ids o entradas del catálogo): «A + B». */
+export const unirCondiciones = (lista) => (lista || []).map((c) => (typeof c === "string" ? POR_ID.get(c) : c)).filter(Boolean).map((c) => c.nombre).join(" + ");
 
-/** Grupos en el orden en que se muestran en la leyenda del mapa. */
-export const LEYENDA = Object.entries(GRUPOS).map(([id, g]) => ({ id, ...g }));
+/** `true` si hay algo elegido o escrito. */
+export const hayCondicion = (condicion) => String(condicion ?? "").trim() !== "";
+/** `true` si el texto se entiende con el catálogo (aunque venga escrito de otra forma). */
+export const esCondicionConocida = (condicion) => partesCondicion(condicion).length > 0;
+/** El texto normalizado al catálogo («NUBLADO,CHAPARRONES AISLADOS» → «Nublado + Chaparrones»), o null si no se reconoce nada. */
+export const condicionCanonica = (condicion) => { const p = partesCondicion(condicion); return p.length ? unirCondiciones(p) : null; };
 
-// Cómo se lee cada condición en el <select> (los nombres canónicos son los de los archivos de
-// ícono, sin tildes). Sólo para mostrar: el valor que se guarda sigue siendo el canónico.
-const TILDES = { debiles: "débiles" };
-export const etiquetaCondicion = (nombre) => {
-  const t = String(nombre).split(" ").map((p) => TILDES[p] || p).join(" ");
-  return t.charAt(0).toUpperCase() + t.slice(1);
-};
+/** La más severa de las condiciones (la que manda para el color). */
+const masSevera = (texto) => partesCondicion(texto).reduce((a, b) => (!a || CATALOGO.indexOf(b) > CATALOGO.indexOf(a) ? b : a), null);
 
-/**
- * Las condiciones agrupadas por color, en el orden de la leyenda: para el <select> con <optgroup>,
- * así se ve en qué color del mapa cae cada una.
- *   [{ id, label, color, condiciones: [{ nombre, etiqueta }] }]
- */
-export const CONDICIONES_POR_GRUPO = LEYENDA.map((g) => ({
-  ...g, condiciones: CONDICIONES.filter((c) => c.grupo === g.id).map((c) => ({ nombre: c.nombre, etiqueta: etiquetaCondicion(c.nombre) })),
-}));
-
-/**
- * Color con el que se pinta el municipio en el mapa. Cae a `SIN_DATO` si
- * la condición no está en el catálogo (no debería pasar si viene del
- * <select>, pero el .docx podría traer texto inesperado).
- */
+/** Color de la placa / del mapa de administración: el de la condición más severa; `SIN_DATO` si no se reconoce ninguna. */
 export function colorPorCondicion(condicion) {
-  if (!condicion) return SIN_DATO.color;
-  const c = resolver(condicion);
+  const c = masSevera(condicion);
   return c ? GRUPOS[c.grupo].color : SIN_DATO.color;
 }
-
 export function grupoDeCondicion(condicion) {
-  if (!condicion) return null;
-  const c = resolver(condicion);
+  const c = masSevera(condicion);
   return c ? GRUPOS[c.grupo] : null;
 }
+/** `true` si alguna de las condiciones es una tormenta. */
+export const esTormenta = (condicion) => partesCondicion(condicion).some((c) => c.cat === "tormenta");
 
-/**
- * El estado del tiempo es texto libre (pueden apilarse varias condiciones: «nublado, chaparrones aislados y tormentas»):
- * sólo hace falta que no esté vacío. El color y el ícono salen de la más severa que se reconozca; si no se reconoce
- * ninguna, el municipio se pinta como «sin dato» pero el texto se publica igual.
- */
-export const hayCondicion = (condicion) => String(condicion ?? "").trim() !== "";
+/** Íconos de cada condición: [{ id, nombre, dia, noche }] (nombres de archivo de public/iconos, sin .svg). */
+export const iconosDeCondicion = (condicion) => partesCondicion(condicion).map(({ id, nombre, dia, noche }) => ({ id, nombre, dia, noche }));
 
-/** `true` si la condición está en el catálogo canónico. */
-export function esCondicionConocida(condicion) {
-  return resolver(condicion) != null;
-}
+/** Grupos en el orden en que se muestran en la leyenda del mapa de administración. */
+export const LEYENDA = Object.entries(GRUPOS).map(([id, g]) => ({ id, ...g }));
 
-/**
- * Devuelve el nombre canónico exacto (el que usan los <option> del
- * <select> y los archivos de ícono) para una condición escrita de
- * cualquier forma — o null si no está en el catálogo.
- */
-export function condicionCanonica(condicion) {
-  const c = resolver(condicion);
-  return c ? c.nombre : null;
-}
+/** Nombres para sugerencias / listas simples. */
+export const CONDICIONES_CANONICAS = CATALOGO.map((c) => c.nombre);
+export const etiquetaCondicion = (nombre) => nombre;
 
-/** `true` si la condición corresponde a tormenta (para resaltar en el UI). */
-export function esTormenta(condicion) {
-  const c = resolver(condicion);
-  return !!c && c.grupo === "tormentas";
-}
+/** El catálogo agrupado por categoría para el selector: [{ id, titulo, condiciones }]. */
+export const CONDICIONES_POR_CATEGORIA = CATEGORIAS.map((k) => ({ ...k, condiciones: CATALOGO.filter((c) => c.cat === k.id) }));

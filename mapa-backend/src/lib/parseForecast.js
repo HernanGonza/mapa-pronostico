@@ -1,3 +1,5 @@
+const { condicionCanonica } = require("./condiciones");
+
 /**
  * El .docx de Alerta Temprana trae la temperatura con el símbolo de grado
  * pegado ("24°", a veces "24º") — lo sacamos así queda un número limpio
@@ -7,8 +9,8 @@ function limpiarTemperatura(s) {
   return (s || "").replace(/[°º]/g, "").trim();
 }
 
-// La condición es texto libre (puede traer varias, «NUBLADO,CHAPARRONES AISLADOS»): se guarda como vino, sin espacios de más.
-const condicionDe = (s) => (s || "").replace(/\s+/g, " ").trim();
+// «NUBLADO,CHAPARRONES AISLADOS» → «Nublado + Chaparrones»; si no se entiende, queda como vino (se corrige a mano).
+const condicionDe = (s) => { const t = (s || "").replace(/\s+/g, " ").trim(); return condicionCanonica(t) || t; };
 
 /**
  * Convierte una tabla cruda (array de filas -> array de celdas) en filas

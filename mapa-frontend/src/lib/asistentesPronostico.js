@@ -3,7 +3,7 @@ import { asistente, pasoVistaPrevia, htmlPlacaLista, pasoRepublicar, opciones, l
 import { htmlCambios } from "./pasosMapa";
 import { publicarEnRedes } from "./publicarEnRedes";
 import * as api from "../api";
-import { CONDICIONES_CANONICAS, colorPorCondicion, etiquetaCondicion, hayCondicion } from "./condiciones";
+import { CONDICIONES_CANONICAS, colorPorCondicion, condicionCanonica, esCondicionConocida, etiquetaCondicion } from "./condiciones";
 
 /**
  * Asistentes de "Previsión del tiempo" (todo dentro de un modal, paso a paso):
@@ -17,7 +17,7 @@ export const tempInvalida = (v) => {
   return !Number.isInteger(n) || n < -15 || n > 55;
 };
 const ZONAS = ["Norte", "Centro", "Sur"];
-export const filaInvalida = (r) => tempInvalida(r.TMIN) || tempInvalida(r.TMAX) || Number(r.TMIN) > Number(r.TMAX) || !hayCondicion(r.CONDICION);
+export const filaInvalida = (r) => tempInvalida(r.TMIN) || tempInvalida(r.TMAX) || Number(r.TMIN) > Number(r.TMAX) || !esCondicionConocida(r.CONDICION);
 
 const pasoArchivo = (parse) => ({
   pregunta: "¿De qué día es el pronóstico?", ayuda: "Elegí la fecha y subí el .docx que manda Alerta Temprana (sirve el de siempre y también el informe nuevo «Previsión del tiempo para la provincia de Misiones»). Si ya hay un pronóstico cargado, podés seguir sin subir uno nuevo.",
@@ -66,11 +66,11 @@ const pasoLocalidades = {
   },
   leer: (popup, s) => ({ filas: s.filas.map((r, i) => {
     const v = (campo) => popup.querySelector(`[data-i="${i}"][data-campo="${campo}"]`).value;
-    return { ...r, TMIN: v("TMIN"), TMAX: v("TMAX"), CONDICION: v("CONDICION"), ZONA: v("ZONA") };
+    return { ...r, TMIN: v("TMIN"), TMAX: v("TMAX"), CONDICION: condicionCanonica(v("CONDICION")) || v("CONDICION"), ZONA: v("ZONA") };
   }) }),
   validar: (s) => {
     const mala = s.filas.find(filaInvalida);
-    if (mala) return `Revisá ${mala.LOCALIDAD}: temperaturas fuera de rango (−15 a 55), mínima mayor que la máxima o condición vacía.`;
+    if (mala) return `Revisá ${mala.LOCALIDAD}: temperaturas fuera de rango (−15 a 55), mínima mayor que la máxima o una condición que no está en la lista (podés juntar varias con « + »).`;
     const sinZona = s.filas.find((r) => !ZONAS.includes(r.ZONA));
     return sinZona ? `Elegí la zona de ${sinZona.LOCALIDAD} (norte, centro o sur).` : null;
   },

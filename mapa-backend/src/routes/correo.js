@@ -7,12 +7,11 @@ const correoStore = require("../lib/correoStore");
 const router = express.Router();
 const MAX_ARCHIVO = 20 * 1024 * 1024;
 const MAX_ASUNTO = 200, MAX_CUERPO = 5000;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ARCHIVO, files: 2 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ARCHIVO, files: 1 } });
 
-// El .docx es un zip ("PK") y el .rtf empieza con "{\rtf": se mira el contenido, no sólo el nombre.
+// El pronóstico va en PDF (empieza con "%PDF-"): se mira el contenido, no sólo el nombre.
 const ARCHIVOS = {
-  docx: { tipo: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ok: (b) => b.subarray(0, 2).toString("latin1") === "PK" },
-  rtf: { tipo: "application/rtf", ok: (b) => b.subarray(0, 5).toString("latin1") === "{\\rtf" },
+  pdf: { tipo: "application/pdf", ok: (b) => b.subarray(0, 5).toString("latin1") === "%PDF-" },
 };
 
 const responderError = (res, e, texto) => {
@@ -38,11 +37,11 @@ router.put("/correo/destinatarios", requireAuth, express.json({ limit: "64kb" })
 
 /**
  * Envía el pronóstico del día. multipart/form-data:
- *   docx, rtf   los dos archivos adjuntos
+ *   pdf         el informe en PDF (adjunto)
  *   asunto, cuerpo
  *   ids         JSON con los ids de la lista a los que se manda (sólo de la lista fija)
  */
-router.post("/correo/pronostico", requireAuth, upload.fields([{ name: "docx", maxCount: 1 }, { name: "rtf", maxCount: 1 }]), async (req, res) => {
+router.post("/correo/pronostico", requireAuth, upload.fields([{ name: "pdf", maxCount: 1 }]), async (req, res) => {
   const asunto = String(req.body?.asunto || "").trim(), cuerpo = String(req.body?.cuerpo || "").trim();
   if (!asunto || asunto.length > MAX_ASUNTO || /[\r\n]/.test(asunto)) return res.status(400).json({ error: `Escribí el asunto (una línea, hasta ${MAX_ASUNTO} caracteres).` });
   if (!cuerpo || cuerpo.length > MAX_CUERPO) return res.status(400).json({ error: `Escribí el mensaje (hasta ${MAX_CUERPO} caracteres).` });

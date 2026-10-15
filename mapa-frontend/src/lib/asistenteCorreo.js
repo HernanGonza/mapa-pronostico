@@ -3,7 +3,7 @@ import { esc } from "./ui";
 
 /**
  * Asistentes del envío del pronóstico por correo (todo en un modal, paso a paso):
- *  - enviarPronosticoPorCorreo: archivos (docx + rtf) → destinatarios → asunto y mensaje → revisar → enviar.
+ *  - enviarPronosticoPorCorreo: el PDF → destinatarios → asunto y mensaje → revisar → enviar.
  *  - editarDestinatariosPorPasos: editar la lista fija (agregar, cambiar, quitar) → revisar cambios → guardar.
  * El correo sale desde la casilla institucional (Microsoft 365), con los destinatarios en copia oculta.
  */
@@ -24,7 +24,7 @@ function guardar(clave, valor) {
 
 const cuerpoPorDefecto = (fecha) => `Buen día.
 
-Les compartimos el pronóstico del tiempo para la provincia de Misiones del ${fechaDMA(fecha)}, en formato Word (.docx) y RTF.
+Les compartimos el pronóstico del tiempo para la provincia de Misiones del ${fechaDMA(fecha)}, en formato PDF.
 
 Saludos cordiales,
 Dirección General de Alerta Temprana
@@ -41,32 +41,24 @@ function campoArchivo({ id, etiqueta, acepta, archivo }) {
 
 function pasoArchivos() {
   return {
-    pregunta: "¿Qué archivos se mandan?",
-    ayuda: "Van adjuntos los dos: el .docx del pronóstico y el .rtf. El .docx es el que cargaste; podés cambiarlo si hace falta.",
+    pregunta: "¿Qué archivo se manda?",
+    ayuda: "Va adjunto el informe en PDF. Si armaste el informe del día en el panel, ya está elegido; podés cambiarlo por otro PDF si hace falta.",
     html: (s) => `<div class="paso-captura">
-        ${campoArchivo({ id: "paso-docx", etiqueta: "Pronóstico en Word (.docx)", acepta: ".docx", archivo: s.docx })}
-        ${campoArchivo({ id: "paso-rtf", etiqueta: "Pronóstico en RTF (.rtf)", acepta: ".rtf", archivo: s.rtf })}
+        ${campoArchivo({ id: "paso-pdf", etiqueta: "Pronóstico en PDF", acepta: ".pdf,application/pdf", archivo: s.pdf })}
       </div>`,
     alMostrar: (popup) => {
-      for (const id of ["paso-docx", "paso-rtf"]) {
-        const input = popup.querySelector(`#${id}`);
-        input.addEventListener("change", () => {
-          const f = input.files[0];
-          popup.querySelector(`#${id}-nombre`).textContent = f ? `Elegido: ${f.name} (${tamano(f.size)})` : "Todavía no elegiste el archivo.";
-        });
-      }
+      const input = popup.querySelector("#paso-pdf");
+      input.addEventListener("change", () => {
+        const f = input.files[0];
+        if (f) popup.querySelector("#paso-pdf-nombre").textContent = `Elegido: ${f.name} (${tamano(f.size)})`;
+      });
     },
     // Si no se elige otro, queda el que ya estaba (volver atrás no lo pierde).
-    leer: (popup) => {
-      const docx = popup.querySelector("#paso-docx").files[0], rtf = popup.querySelector("#paso-rtf").files[0];
-      return { ...(docx ? { docx } : {}), ...(rtf ? { rtf } : {}) };
-    },
+    leer: (popup) => { const pdf = popup.querySelector("#paso-pdf").files[0]; return pdf ? { pdf } : {}; },
     validar: (s) => {
-      if (!s.docx) return "Elegí el archivo .docx del pronóstico.";
-      if (!/\.docx$/i.test(s.docx.name)) return "El primer archivo tiene que ser un .docx.";
-      if (!s.rtf) return "Elegí el archivo .rtf del pronóstico.";
-      if (!/\.rtf$/i.test(s.rtf.name)) return "El segundo archivo tiene que ser un .rtf.";
-      if (s.docx.size > 20 * 1024 * 1024 || s.rtf.size > 20 * 1024 * 1024) return "Cada archivo puede pesar hasta 20 MB.";
+      if (!s.pdf) return "Elegí el PDF del pronóstico.";
+      if (!/\.pdf$/i.test(s.pdf.name)) return "El archivo tiene que ser un PDF.";
+      if (s.pdf.size > 20 * 1024 * 1024) return "El archivo puede pesar hasta 20 MB.";
       return null;
     },
   };
@@ -110,7 +102,7 @@ function pasoRevision(lista, estado) {
           <div><dt>Para</dt><dd>${elegidos.length} destinatario${elegidos.length === 1 ? "" : "s"}, en copia oculta
             <details><summary>Ver lista</summary><p class="paso-resumen__texto">${elegidos.map((d) => esc(nombreDe(d))).join("<br>")}</p></details></dd></div>
           <div><dt>Asunto</dt><dd>${esc(s.asunto)}</dd></div>
-          <div><dt>Adjuntos</dt><dd>${esc(s.docx.name)} (${tamano(s.docx.size)})<br>${esc(s.rtf.name)} (${tamano(s.rtf.size)})</dd></div>
+          <div><dt>Adjunto</dt><dd>${esc(s.pdf.name)} (${tamano(s.pdf.size)})</dd></div>
           <div><dt>Mensaje</dt><dd class="paso-resumen__texto">${esc(s.cuerpo)}</dd></div>
         </dl>`;
     },
@@ -119,14 +111,14 @@ function pasoRevision(lista, estado) {
 }
 
 /**
- * docx: el .docx cargado en la página (o null); fecha: "AAAA-MM-DD" del pronóstico.
+ * pdf: el PDF del informe (o null); fecha: "AAAA-MM-DD" del pronóstico.
  * estado: { configurado, remitente }; destinatarios: la lista fija [{ id, nombre, email }].
- * enviar({ docx, rtf, asunto, cuerpo, ids }) → { enviados }
+ * enviar({ pdf, asunto, cuerpo, ids }) → { enviados }
  */
-export function enviarPronosticoPorCorreo({ docx, fecha, estado, destinatarios, enviar }) {
+export function enviarPronosticoPorCorreo({ pdf, fecha, estado, destinatarios, enviar }) {
   const pasos = [pasoArchivos(), pasoDestinatarios(destinatarios), pasoMensaje, pasoRevision(destinatarios, estado)];
   const inicial = {
-    docx, rtf: null,
+    pdf,
     ids: destinatarios.map((d) => d.id),
     asunto: `Pronóstico del tiempo — ${fechaDMA(fecha)}`,
     // El mensaje recordado puede traer la fecha de otro día: se reemplaza por la de hoy.
@@ -135,7 +127,7 @@ export function enviarPronosticoPorCorreo({ docx, fecha, estado, destinatarios, 
   return asistente({
     pasos, estado: inicial, textoEnviar: "Enviar", ancho: 760,
     enviar: async (s) => {
-      const r = await enviar({ docx: s.docx, rtf: s.rtf, asunto: s.asunto, cuerpo: s.cuerpo, ids: s.ids });
+      const r = await enviar({ pdf: s.pdf, asunto: s.asunto, cuerpo: s.cuerpo, ids: s.ids });
       guardar(CLAVE_MENSAJE, s.cuerpo);
       return { tipo: "ok", titulo: "¡Enviado!", datos: r, html: `<p>El pronóstico salió desde ${esc(r.remitente || "la casilla institucional")} a ${r.enviados} destinatario${r.enviados === 1 ? "" : "s"}.</p>` };
     },

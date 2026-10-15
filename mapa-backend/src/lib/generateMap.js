@@ -5,7 +5,7 @@ const { createCanvas, loadImage, registerFont } = require("canvas");
 const coordinates = require("../config/coordinates");
 const { proyectar } = require("../config/projection");
 const { formatoFecha } = require("./dateUtils");
-const { resolveIconPath } = require("./iconResolver");
+const { resolveIconPath, cargarIcono } = require("./iconResolver");
 const { armarMunicipiosConPronostico } = require("./municipios");
 const { colorPorCondicion } = require("./condiciones");
 
@@ -268,7 +268,7 @@ async function renderForecastCanvas({ forecastRows, date = new Date() }) {
         `[generateMap] Ícono no encontrado para condición "${row.CONDICION}"`
       );
     }
-    return { coord, row, icon: iconPath ? await loadImage(iconPath) : null };
+    return { coord, row, icon: iconPath ? await cargarIcono(iconPath) : null };
   }));
 
   const CARD_W = 226 * scale;

@@ -5,7 +5,8 @@ import CampoFecha from "./CampoFecha";
 import * as api from "../api";
 import { Link } from "react-router-dom";
 import { confirmar, esc } from "../lib/ui";
-import { hayCondicion, CONDICIONES_CANONICAS, etiquetaCondicion } from "../lib/condiciones";
+import { hayCondicion } from "../lib/condiciones";
+import SelectorCondiciones from "./SelectorCondiciones";
 import { filaInvalida } from "../lib/asistentesPronostico";
 import { hayInvalidosExtendido } from "./PronosticoExtendidoEditor";
 import { origenDe } from "./PronosticoPublicado";
@@ -25,7 +26,6 @@ export const ZONAS = ["Sur", "Centro", "Norte"];
 const CLAVE = "ensamble-informe-v1";
 const AR = "America/Argentina/Buenos_Aires";
 // Los estados del tiempo que reconoce el mapa (con ellos, lo escrito entra al mapa público sin correcciones).
-const ESTADOS = CONDICIONES_CANONICAS.map(etiquetaCondicion);
 const ALERTAS = ["s/a", "Amarillo Tormentas", "Naranja Tormentas", "Rojo Tormentas", "Amarillo Lluvias", "Amarillo Vientos", "Amarillo Temperaturas extremas"];
 
 const hoyART = () => new Intl.DateTimeFormat("en-CA", { timeZone: AR }).format(new Date());
@@ -154,7 +154,7 @@ const PasoZonas = ({ b, set }) => <>
     <Texto texto="Sens. térmica" valor={b.zonas[z].sens} alCambiar={(v) => set(`zonas.${z}.sens`, v)} filas={2} />
     <Linea texto="Humedad relativa" valor={b.zonas[z].humedad} alCambiar={(v) => set(`zonas.${z}.humedad`, v)} />
     <Texto texto="Vientos" valor={b.zonas[z].vientos} alCambiar={(v) => set(`zonas.${z}.vientos`, v)} filas={2} />
-    <Linea texto="Estado del tiempo" valor={b.zonas[z].estado} alCambiar={(v) => set(`zonas.${z}.estado`, v)} list="ens-estados" />
+    <div className="paso-etiqueta"><span>Estado del tiempo</span><SelectorCondiciones valor={b.zonas[z].estado} alCambiar={(v) => set(`zonas.${z}.estado`, v)} etiqueta={`Estado del tiempo, zona ${z}`} /></div>
     <Linea texto="Alerta" valor={b.zonas[z].alerta} alCambiar={(v) => set(`zonas.${z}.alerta`, v)} list="ens-alertas" />
   </div></section>)}
 </>;
@@ -165,7 +165,7 @@ const PasoCiudades = ({ b, set }) => <>
     {CIUDADES.map((c, i) => <tr key={c}><th scope="row">{c}</th>
       <td><Celda valor={b.ciudades[i].tmin} alCambiar={(v) => set(`ciudades.${i}.tmin`, v)} etiqueta={`Mínima de ${c}`} inputMode="numeric" ancho="3.2em" /></td>
       <td><Celda valor={b.ciudades[i].tmax} alCambiar={(v) => set(`ciudades.${i}.tmax`, v)} etiqueta={`Máxima de ${c}`} inputMode="numeric" ancho="3.2em" /></td>
-      <td><Celda valor={b.ciudades[i].estado} alCambiar={(v) => set(`ciudades.${i}.estado`, v)} etiqueta={`Estado del tiempo en ${c}`} lista="ens-estados" /></td>
+      <td><SelectorCondiciones compacto valor={b.ciudades[i].estado} alCambiar={(v) => set(`ciudades.${i}.estado`, v)} etiqueta={`Estado del tiempo en ${c}`} /></td>
       <td><Celda valor={b.ciudades[i].alerta} alCambiar={(v) => set(`ciudades.${i}.alerta`, v)} etiqueta={`Alerta en ${c}`} lista="ens-alertas" /></td></tr>)}
   </tbody></table>
 </>;
@@ -177,7 +177,7 @@ const PasoExtendido = ({ b, set }) => <>
       {b.extendido[z].map((d, i) => <tr key={d.fecha}><th scope="row">{ddmmaaaa(d.fecha)}</th>
         <td><Celda valor={d.tmin} alCambiar={(v) => set(`extendido.${z}.${i}.tmin`, v)} etiqueta={`Mínima ${z} ${ddmmaaaa(d.fecha)}`} inputMode="numeric" ancho="3.2em" /></td>
         <td><Celda valor={d.tmax} alCambiar={(v) => set(`extendido.${z}.${i}.tmax`, v)} etiqueta={`Máxima ${z} ${ddmmaaaa(d.fecha)}`} inputMode="numeric" ancho="3.2em" /></td>
-        <td><Celda valor={d.estado} alCambiar={(v) => set(`extendido.${z}.${i}.estado`, v)} etiqueta={`Tiempo ${z} ${ddmmaaaa(d.fecha)}`} lista="ens-estados" /></td>
+        <td><SelectorCondiciones compacto valor={d.estado} alCambiar={(v) => set(`extendido.${z}.${i}.estado`, v)} etiqueta={`Tiempo ${z} ${ddmmaaaa(d.fecha)}`} /></td>
         <td><Celda valor={d.alerta} alCambiar={(v) => set(`extendido.${z}.${i}.alerta`, v)} etiqueta={`Alerta ${z} ${ddmmaaaa(d.fecha)}`} lista="ens-alertas" /></td></tr>)}
     </tbody></table></section>)}
 </>;
@@ -326,7 +326,6 @@ export default function InformeEnsamble({ informe, abierto, onCerrar, prendidos,
         <button type="button" className="btn btn--ghost" disabled={paso === 0} onClick={() => setPaso(paso - 1)}><Icono icono={ChevronLeft} size={16} /> Atrás</button>
         {!ultimo && <button type="button" className="btn btn--primary" onClick={() => setPaso(paso + 1)}>Siguiente <Icono icono={ChevronRight} size={16} /></button>}
       </footer>
-      <datalist id="ens-estados">{ESTADOS.map((e) => <option key={e} value={e} />)}</datalist>
       <datalist id="ens-alertas">{ALERTAS.map((a) => <option key={a} value={a} />)}</datalist>
     </aside>
   </>;

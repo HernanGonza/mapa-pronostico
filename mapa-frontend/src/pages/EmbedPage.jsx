@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import BaseMap from "../components/BaseMap";
-import { colorPronostico, infoPronostico, LeyendaPronostico } from "../components/PronosticoMapContent";
+import { colorUniforme, infoPronostico } from "../components/PronosticoMapContent";
 import {
   getMapaActual,
   getMunicipiosGeojson,
@@ -64,10 +64,9 @@ export default function EmbedPage() {
     <BaseMap embed
       poligonos={municipiosGeojson}
       datos={municipios}
-      colorDe={colorPronostico}
-            renderInfo={infoPronostico}
-            leyenda={<LeyendaPronostico />}
-            titulo="Previsión del tiempo"
+      colorDe={colorUniforme}
+      renderInfo={infoPronostico}
+      titulo="Previsión del tiempo"
       publicadoEn={publicadoEn}
       fechaPronostico={fechaPronostico}
     />

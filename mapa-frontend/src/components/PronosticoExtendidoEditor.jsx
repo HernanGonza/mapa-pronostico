@@ -1,4 +1,5 @@
-import { CONDICIONES_CANONICAS, colorPorCondicion, etiquetaCondicion, hayCondicion } from "../lib/condiciones";
+import { hayCondicion } from "../lib/condiciones";
+import SelectorCondiciones from "./SelectorCondiciones";
 
 const ZONA_NOMBRES = ["Sur", "Centro", "Norte"];
 const MAX_DIAS = 3;
@@ -58,7 +59,6 @@ export default function PronosticoExtendidoEditor({ extendido, onChange, disable
 
   return (
     <div className="extendido-editor">
-      <datalist id="ext-condiciones">{CONDICIONES_CANONICAS.map((c) => <option key={c} value={etiquetaCondicion(c)} />)}</datalist>
       {Array.from({ length: numDias }).map((_, diaIdx) => (
         <fieldset className="extendido-editor__dia" key={diaIdx} disabled={disabled}>
           <legend>{diaIdx === 0 ? "Hoy" : extendido.zonas[0].dias[diaIdx]?.etiqueta || `Día ${diaIdx + 1}`}</legend>
@@ -80,12 +80,9 @@ export default function PronosticoExtendidoEditor({ extendido, onChange, disable
                   <label>Máx
                     <input type="number" aria-label={`Máxima ${z.zona}`} value={d.tmax ?? ""} className={tempInvalida(d.tmax) ? "is-invalid" : ""} onChange={(e) => actualizarDia(zonaIdx, diaIdx, "tmax", e.target.value)} />
                   </label>
-                  <label>Condición
-                    <div className="cond-cell">
-                      <span className="cond-swatch" style={{ background: colorPorCondicion(d.condicion) }} />
-                      <input type="text" list="ext-condiciones" aria-label={`Condición ${z.zona}`} value={d.condicion ?? ""} placeholder="Ej.: nublado, chaparrones aislados" className={hayCondicion(d.condicion) ? "" : "is-invalid"} onChange={(e) => actualizarDia(zonaIdx, diaIdx, "condicion", e.target.value)} />
-                    </div>
-                  </label>
+                  <div className="extendido-editor__cond"><span>Condición</span>
+                    <SelectorCondiciones valor={d.condicion} alCambiar={(v) => actualizarDia(zonaIdx, diaIdx, "condicion", v)} etiqueta={`Condición ${z.zona}`} invalido={!hayCondicion(d.condicion)} />
+                  </div>
                 </div>
               );
             })}

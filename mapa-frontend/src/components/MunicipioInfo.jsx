@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getSolDeMunicipio, getLunaDeMunicipio } from "../api";
 import WeatherIcon from "./WeatherIcon";
+import { iconosCondicion } from "../lib/iconoCondicion";
 
 /** Dato astronómico del municipio en la fecha del pronóstico (`pedir` = getSolDeMunicipio o getLunaDeMunicipio); si no hay dato, no se muestra nada. */
 function useAstro(pedir, id, fecha) {
@@ -50,19 +51,21 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
 
       {pronostico ? (
         <div className="municipio-popover__prono">
-          <WeatherIcon condicion={pronostico.CONDICION} size={56} />
-          <div>
-            <div className="municipio-popover__temps">
-              <span className="municipio-popover__tmin">
-                {pronostico.TMIN}°
-              </span>
-              <span className="municipio-popover__tmax">
-                {pronostico.TMAX}°
-              </span>
-            </div>
-            <div className="municipio-popover__cond">
-              {pronostico.CONDICION}
-            </div>
+          <div className="municipio-popover__temps">
+            <span className="municipio-popover__tmin">{pronostico.TMIN}°</span>
+            <span className="municipio-popover__tmax">{pronostico.TMAX}°</span>
+          </div>
+          {/* Una fila por cada condición (pueden ser varias): ícono de día, de noche y el estado. */}
+          <div className="municipio-popover__conds">
+            <div className="municipio-popover__conds-cab"><span>Día</span><span>Noche</span><span>Estado</span></div>
+            {iconosCondicion(pronostico.CONDICION).map((c) => (
+              <div className="municipio-popover__cond-fila" key={c.id}>
+                <img className="weather-icon" src={c.dia} width={40} height={40} alt="" draggable={false} />
+                <img className="weather-icon" src={c.noche} width={40} height={40} alt="" draggable={false} />
+                <span className="municipio-popover__cond">{c.nombre}</span>
+              </div>
+            ))}
+            {!iconosCondicion(pronostico.CONDICION).length && <div className="municipio-popover__cond">{pronostico.CONDICION}</div>}
           </div>
         </div>
       ) : (

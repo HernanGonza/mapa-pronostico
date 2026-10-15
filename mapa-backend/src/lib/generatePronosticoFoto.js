@@ -3,7 +3,7 @@ const fs = require("fs");
 const { createCanvas, loadImage } = require("canvas");
 const coordinates = require("../config/coordinates");
 const { formatoFecha } = require("./dateUtils");
-const { resolveIconPath } = require("./iconResolver");
+const { resolveIconPath, cargarIcono } = require("./iconResolver");
 const { armarMunicipiosConPronostico } = require("./municipios");
 const { colorPorCondicion } = require("./condiciones");
 const { OAK_SANS } = require("./fuentes");
@@ -135,7 +135,7 @@ async function dibujarCapaMapa(forecastRows, estilo = "oscura") {
     const row = byLocalidad.get(coord.LOCALIDAD.trim().toUpperCase());
     if (!row) return null;
     const iconPath = resolveIconPath(imgsDir, row.CONDICION);
-    return { coord, row, icon: iconPath ? await loadImage(iconPath) : null };
+    return { coord, row, icon: iconPath ? await cargarIcono(iconPath) : null };
   }))).filter(Boolean);
   const CARD_W = 226 * scale, CARD_H = 94 * scale, MARGEN = 22 * scale, GAP = 18 * scale;
   const ocupadas = [];
