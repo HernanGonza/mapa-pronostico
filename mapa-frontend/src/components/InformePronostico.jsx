@@ -192,7 +192,7 @@ const PasoInformes = ({ b, set }) => <>
 </>;
 
 /** Lo que falta para poder cargarlo en el mapa público. */
-function problemasParaMapa(b) {
+export function problemasParaMapa(b) {
   const p = [];
   const revisar = (nombre, tmin, tmax, condicion) => {
     if (!entero(tmin) || !entero(tmax)) p.push(`${nombre}: falta la mínima o la máxima (sólo el número, de −15 a 55)`);
@@ -213,7 +213,7 @@ function faltantes(b) {
   return f;
 }
 
-function PasoRevision({ b, alUsarEnMapa, usadoEnMapa }) {
+function PasoRevision({ b, alPublicar }) {
   const [estado, setEstado] = useState({ trabajando: "", error: "" });
   const problemas = useMemo(() => problemasParaMapa(b), [b]);
   const falta = faltantes(b);
@@ -228,7 +228,7 @@ function PasoRevision({ b, alUsarEnMapa, usadoEnMapa }) {
     } catch (e) { setEstado({ trabajando: "", error: e.message }); }
   }
   return <>
-    <p className="paso__ayuda">El informe sale en <strong>PDF</strong>, con marca de agua y protegido (se puede abrir e imprimir; no copiar ni modificar). Los mismos datos se pueden <strong>cargar en la pantalla</strong> para ver el mapa y publicarlo.</p>
+    <p className="paso__ayuda">El informe sale en <strong>PDF</strong>, con marca de agua y protegido (se puede abrir e imprimir; no copiar ni modificar). El informe es lo que arma el mapa: apenas está completo, el <strong>mapa de la pantalla</strong> ya lo muestra, y el mapa público (el embed) se actualiza recién cuando lo <strong>publicás</strong>.</p>
     {falta.length > 0 ? <p className="paso-aviso" role="status">Todavía falta: {falta.join(", ")}. Podés generar el PDF igual.</p> : <p className="paso-aviso ens-ok" role="status">Está todo completo.</p>}
     <div className="ens-hoja" aria-label="Resumen del informe">
       <h3>PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES</h3>
@@ -242,11 +242,11 @@ function PasoRevision({ b, alUsarEnMapa, usadoEnMapa }) {
     </div>
     {estado.error && <p className="paso-aviso" role="alert">{estado.error}</p>}
     {problemas.length > 0 && <div className="paso-aviso" role="status"><strong>Para cargarlo en el mapa falta:</strong><ul className="ens-problemas">{problemas.slice(0, 5).map((x) => <li key={x}>{x}</li>)}</ul>{problemas.length > 5 && <small>…y {problemas.length - 5} más.</small>}</div>}
-    {usadoEnMapa && <p className="paso-aviso ens-ok" role="status">Cargado en la pantalla: revisá el mapa y tocá «Revisar y publicar».</p>}
+    {problemas.length === 0 && <p className="paso-aviso ens-ok" role="status">El mapa de la pantalla ya muestra este informe. Todavía no está publicado: el mapa público cambia cuando lo publicás.</p>}
     <div className="ens-acciones-informe">
-      <button type="button" className="btn btn--primary" disabled={!!estado.trabajando} onClick={() => pdf("ver")}>{estado.trabajando || "Ver el PDF"}</button>
+      <button type="button" className="btn btn--primary" disabled={problemas.length > 0 || !!estado.trabajando} onClick={alPublicar} title={problemas.length ? "Completá lo que falta para poder publicar" : undefined}>Publicar en los mapas</button>
+      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("ver")}>{estado.trabajando || "Ver el PDF"}</button>
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("bajar")}>Descargar PDF</button>
-      <button type="button" className="btn btn--ghost" disabled={problemas.length > 0 || !!estado.trabajando} onClick={alUsarEnMapa}>Cargar en la pantalla (mapa)</button>
     </div>
   </>;
 }
@@ -268,12 +268,11 @@ export function BotonInformePronostico({ abierto, onClick, hayBorrador }) {
 }
 
 /** El cajón: se abre y se oculta con el botón; lo escrito queda guardado en `informe`. */
-export default function InformePronostico({ informe, abierto, onCerrar, publicado, alUsarEnMapa }) {
+export default function InformePronostico({ informe, abierto, onCerrar, publicado, alPublicar }) {
   const { borrador: b, paso, setPaso, setCampo, reemplazar, reiniciar } = informe;
   const cuerpo = useRef(null);
-  const [usado, setUsado] = useState(false);
   const p = PASOS[Math.min(paso, PASOS.length - 1)], ultimo = paso === PASOS.length - 1;
-  useEffect(() => { cuerpo.current?.scrollTo({ top: 0 }); setUsado(false); }, [paso]);
+  useEffect(() => { cuerpo.current?.scrollTo({ top: 0 }); }, [paso]);
 
   async function empezarDeNuevo() {
     if (await confirmar({ titulo: "¿Empezar un informe nuevo?", texto: "Se borra todo lo escrito en este borrador.", confirmar: "Empezar de nuevo", peligro: true })) reiniciar();
@@ -287,7 +286,7 @@ export default function InformePronostico({ informe, abierto, onCerrar, publicad
     : ZONAS.includes(p.id) ? <PasoZona b={b} set={setCampo} zona={p.id} />
     : p.id === "extendido" ? <PasoExtendido b={b} set={setCampo} />
     : p.id === "informes" ? <PasoInformes b={b} set={setCampo} />
-    : <PasoRevision b={b} usadoEnMapa={usado} alUsarEnMapa={() => { alUsarEnMapa(aMapa(b)); setUsado(true); }} />;
+    : <PasoRevision b={b} alPublicar={alPublicar} />;
 
   return <aside id="ens-cajon" className={`ens-cajon ens-cajon--ancho${abierto ? " ens-cajon--abierto" : ""}`} aria-label="Informe de pronóstico" {...(abierto ? {} : { inert: "" })}>
     <header className="ens-cajon-cab">

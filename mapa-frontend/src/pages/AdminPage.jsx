@@ -8,7 +8,7 @@ import EmbedShare from "../components/EmbedShare";
 import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos, filaInvalida } from "../lib/asistentesPronostico";
 import PronosticoPublicado, { usePublicado, origenDe } from "../components/PronosticoPublicado";
 import BrandHeader from "../components/BrandHeader";
-import InformePronostico, { BotonInformePronostico, useInformePronostico } from "../components/InformePronostico";
+import InformePronostico, { BotonInformePronostico, useInformePronostico, aMapa, problemasParaMapa } from "../components/InformePronostico";
 import { enviarPronosticoPorCorreo, editarDestinatariosPorPasos } from "../lib/asistenteCorreo";
 import { notificar } from "../lib/ui";
 import {
@@ -168,8 +168,12 @@ export default function AdminPage() {
     filas, fecha: fechaPronostico, parse: (archivo) => parseDocx(archivo),
     aplicar: ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e || extendido || null); setError(null); setMensajeOk(null); },
   });
-  /** Lo que arma el cajón del informe pasa a la pantalla: se ve en el mapa y se publica con «Revisar y publicar». */
-  const usarInforme = ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e); setError(null); setMensajeOk(null); setCajon(false); };
+  // El informe es lo que arma el mapa: apenas está completo, el mapa de esta pantalla lo muestra (el mapa público sólo cambia al publicar).
+  useEffect(() => {
+    if (!informe.hayAlgo || problemasParaMapa(informe.borrador).length) return;
+    const m = aMapa(informe.borrador);
+    setFilas(m.filas); setFechaPronostico(m.fecha); setExtendido(m.extendido); setError(null);
+  }, [informe.borrador, informe.hayAlgo]);
   const crearPlaca = () => crearPlacaPronostico({
     enRedes: PRONOSTICO_EN_REDES,
     epigrafe: `Previsión del tiempo · ${fechaPronostico.split("-").reverse().join("/")}`, filas,
@@ -265,7 +269,7 @@ export default function AdminPage() {
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
-      <InformePronostico informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} publicado={publicado} alUsarEnMapa={usarInforme} />
+      <InformePronostico informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} publicado={publicado} alPublicar={revisarYPublicar} />
 
       <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico"
         sinRedes={PRONOSTICO_EN_REDES ? null : "Todavía no aprobada para redes: se puede descargar para revisarla, pero no publicar."}>
