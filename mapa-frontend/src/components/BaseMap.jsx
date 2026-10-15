@@ -10,7 +10,7 @@ const SIN_DATO = "#d5dbd5";
 
 const BaseMap = forwardRef(function BaseMap({
   poligonos, datos = [], colorDe, renderInfo, campoEtiqueta = "nombre",
-  leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false,
+  leyenda, titulo, publicadoEn, fechaPronostico, interactive = true, enableCapture = false, metaTitulo: metaFija,
   regionLabel = 'Misiones', embed = false, bajoTitulo = null,
 }, ref) {
   const containerRef = useRef(null);
@@ -27,9 +27,10 @@ const BaseMap = forwardRef(function BaseMap({
   actual.current = { poligonos, datos, colorDe, campoEtiqueta, selected };
   const activo = datos.find(d => String(d.id) === selected);
   const fechaPublicacion = publicadoEn && (fechaPronostico || fechaLarga(publicadoEn));
-  const metaTitulo = embed && publicadoEn
+  const metaTituloCalculado = embed && publicadoEn
     ? `Publicado ${tiempoRelativo(publicadoEn)}`
     : `${regionLabel} · ${publicadoEn ? `Publicado ${tiempoRelativo(publicadoEn)} · ${fechaPublicacion}` : "Vista previa · sin publicar"}`;
+  const metaTitulo = metaFija || metaTituloCalculado; // `metaTitulo` (opcional) reemplaza el texto de abajo del título
 
   useEffect(() => {
     if (!webglOk || !containerRef.current) return;

@@ -60,6 +60,17 @@ export default function AlertasMeteorologicasPage() {
   const republicar = !!publicado && !cambios;
   const detalle = zonasCambiadas.map(z => ({ nombre: catalogo?.departamentos.find(d => String(d.id) === String(z.id))?.nombre || String(z.id), antes: antes(z.id), despues: z.categoria }));
 
+  // El mapa de la página sigue a lo publicado: cuando la alerta que muestra vence (o se despublica) y no hay un borrador en
+  // marcha, el mapa se apaga: todo en verde y arriba dice que no hay nada publicado (como el mapa público).
+  const hayAlgunaVigente = !!pendientes && (vigentes?.length > 0 || enFila.length > 0);
+  const sinNadaPublicado = !!pendientes && !!catalogo && !publicado && !nueva && !cambios;
+  useEffect(() => {
+    if (!pendientes || !catalogo || nueva || cambios || !publicado) return;
+    if ([...(vigentes || []), ...enFila].some(x => x.id === publicado.id)) return;
+    setZonas(catalogo.departamentos.map(d => ({ id: String(d.id), categoria: 'Verde' })));
+    setIconos([]); setPublicado(null); setSeleccionada(null); setImagenes(null);
+  }, [pendientes, catalogo, publicado, nueva, cambios]);
+
   // «Nueva alerta»: borrador en blanco (aparece arriba de la pila) y directo a armar el mapa.
   async function nuevaAlerta() {
     if (cambios && !(await confirmar({ titulo: '¿Empezar una alerta nueva?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Empezar de cero' }))) return;
@@ -281,7 +292,7 @@ export default function AlertasMeteorologicasPage() {
       <div className="editor-heading"><h1>Alertas meteorológicas</h1><p>Cada tarjeta es una alerta publicada: se edita, se le sacan placas para redes y se despublica desde ahí.</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
-        <PublicationStatus changed={cambios} published={publicado} />
+        <PublicationStatus changed={cambios} published={publicado}>{sinNadaPublicado && (hayAlgunaVigente ? 'Elegí una tarjeta para verla en el mapa de acá.' : 'No hay ninguna alerta publicada: el mapa público está todo en verde.')}</PublicationStatus>
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={nuevaAlerta}>Nueva alerta</button>
         </div>
@@ -310,7 +321,7 @@ export default function AlertasMeteorologicasPage() {
       </>}
     </section>
     <PlacaPreview vista={vista} onVista={setVista} titulo="alertas meteorológicas" imagenes={imagenesPlaca}>
-      {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
+      {catalogo && geo ? <RiesgoMap geo={geo} zonas={zonas} iconos={iconos} catalogo={catalogo} publicadoEn={cambios ? null : publicado?.publicadoEn} metaTitulo={sinNadaPublicado ? 'Misiones · No hay ninguna alerta publicada' : undefined} /> : <div className="admin-map-area__vacio">Preparando mapa…</div>}
     </PlacaPreview>
   </div>;
 }
