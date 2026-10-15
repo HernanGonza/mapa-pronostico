@@ -635,8 +635,8 @@ export async function getEnsambleProgreso() {
 }
 
 // Informe de pronóstico del cajón del ensamble: valores propuestos por los modelos y el .docx sobre la plantilla oficial.
-export async function proponerInforme({ emision, diaTablas, modelos }) {
-  return handleJson(await fetch(`${API_URL}/api/ensamble/informe/propuesta`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emision, diaTablas, modelos }), cache: "no-store", ...CON_SESION }));
+export async function proponerInforme({ emision, diaTablas, modelos, diasExtendido }) {
+  return handleJson(await fetch(`${API_URL}/api/ensamble/informe/propuesta`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emision, diaTablas, modelos, diasExtendido }), cache: "no-store", ...CON_SESION }));
 }
 /** El .docx del informe, completado sobre la plantilla oficial (Blob). */
 export async function generarInformeDocx(borrador) {

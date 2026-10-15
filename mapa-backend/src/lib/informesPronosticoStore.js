@@ -22,7 +22,7 @@ async function init() {
   await store.init();
   initPromise = store.getPool()
     .query(`CREATE TABLE IF NOT EXISTS pronostico_informes (
-       id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+       id             bigint PRIMARY KEY,
        fecha          date NOT NULL,
        borrador       jsonb NOT NULL,
        meta           jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -30,6 +30,8 @@ async function init() {
        creado_en      timestamptz NOT NULL DEFAULT now(),
        actualizado_en timestamptz NOT NULL DEFAULT now()
      )`)
+    // La numeración es correlativa: el número sale de «el mayor + 1», no de una secuencia (que dejaría huecos al borrar).
+    .then(() => store.getPool().query(`ALTER TABLE pronostico_informes ALTER COLUMN id DROP IDENTITY IF EXISTS`))
     .then(() => console.log("[informesPronosticoStore] Postgres listo (tabla pronostico_informes)"))
     .catch((e) => { initPromise = null; throw e; });
   return initPromise;
@@ -73,13 +75,19 @@ async function crear({ borrador, usuario = null }) {
   await init();
   const p = store.getPool();
   if (p) {
-    const { rows } = await p.query(
-      `INSERT INTO pronostico_informes (fecha, borrador, creado_por) VALUES ($1::date, $2::jsonb, $3)
-       RETURNING id, fecha::text AS fecha, borrador, meta, creado_por, creado_en, actualizado_en`, [borrador.fecha, JSON.stringify(borrador), usuario]);
-    return aInforme(rows[0]);
+    const client = await p.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`LOCK TABLE pronostico_informes IN EXCLUSIVE MODE`);
+      const { rows } = await client.query(
+        `INSERT INTO pronostico_informes (id, fecha, borrador, creado_por) VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pronostico_informes), $1::date, $2::jsonb, $3)
+         RETURNING id, fecha::text AS fecha, borrador, meta, creado_por, creado_en, actualizado_en`, [borrador.fecha, JSON.stringify(borrador), usuario]);
+      await client.query("COMMIT");
+      return aInforme(rows[0]);
+    } catch (e) { await client.query("ROLLBACK").catch(() => {}); throw e; } finally { client.release(); }
   }
   const d = leerArchivo(), ahora = new Date().toISOString();
-  const fila = { id: d.siguiente++, fecha: borrador.fecha, borrador, meta: {}, creado_por: usuario, creado_en: ahora, actualizado_en: ahora };
+  const fila = { id: Math.max(0, ...d.informes.map((i) => i.id)) + 1, fecha: borrador.fecha, borrador, meta: {}, creado_por: usuario, creado_en: ahora, actualizado_en: ahora };
   d.informes.push(fila); escribirArchivo(d);
   return aInforme(fila);
 }

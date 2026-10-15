@@ -86,6 +86,35 @@ export function desdeDatos({ filas, extendido, fecha }) {
 }
 export const desdePublicado = (actual) => desdeDatos({ filas: actual?.filas, extendido: actual?.extendido, fecha: actual?.fechaPronostico });
 
+/**
+ * Vuelca en el borrador lo que proponen los modelos del ensamble (temperaturas, humedad y viento por zona, las 13 localidades,
+ * el extendido y los datos generales). Sólo llena lo que está vacío: lo que ya escribió el equipo no se pisa.
+ * Devuelve { borrador, puestos, respetados }.
+ */
+export function desdePropuesta(borrador, propuesta, ciudades) {
+  let b = borrador, puestos = 0, respetados = 0;
+  const llenar = (camino, valor) => {
+    const v = String(valor ?? "").replace(/\s*\n\s*/g, " / ").trim();
+    if (!v) return;
+    const actual = camino.split(".").reduce((o, k) => o?.[k], b);
+    if (String(actual ?? "").trim()) { respetados++; return; }
+    b = poner(b, camino, v); puestos++;
+  };
+  for (const z of ZONAS) {
+    const pz = propuesta.zonas?.[z];
+    if (pz) { llenar(`zonas.${z}.tmin`, pz.tmin); llenar(`zonas.${z}.tmax`, pz.tmax); llenar(`zonas.${z}.humedad`, pz.humedad); llenar(`zonas.${z}.viento`, pz.vientos); }
+    (propuesta.extendido?.[z] || []).forEach((d, i) => { if (b.extendido[z][i]) { llenar(`extendido.${z}.${i}.tmin`, d.tmin); llenar(`extendido.${z}.${i}.tmax`, d.tmax); } });
+  }
+  (propuesta.ciudades || []).forEach((c, k) => {
+    const i = b.localidades.findIndex((l) => l.localidad === ciudades[k]);
+    if (i >= 0) { llenar(`localidades.${i}.tmin`, c.tmin); llenar(`localidades.${i}.tmax`, c.tmax); }
+  });
+  llenar("generales.vientos", propuesta.provincia?.vientos);
+  llenar("generales.humedad", propuesta.provincia?.humedad);
+  llenar("informes.0.precipitaciones", propuesta.provincia?.precipitaciones);
+  return { borrador: b, puestos, respetados };
+}
+
 /** Copia de `obj` con `valor` en `camino` ("zonas.Sur.tmin", "localidades.3.condicion"). */
 export const poner = (obj, camino, valor) => {
   const [k, ...resto] = camino.split(".");
@@ -133,6 +162,32 @@ function PasoGenerales({ b, set, publicado, alCargarPublicado }) {
     <Linea texto="Presión" valor={b.generales.presion} alCambiar={(v) => set("generales.presion", v)} placeholder="1010 – 1016 HPA" />
     <Linea texto="Riesgo" valor={b.generales.riesgo} alCambiar={(v) => set("generales.riesgo", v)} />
     <Linea texto="Aviso de alerta (toda la provincia)" valor={b.avisoGeneral} alCambiar={(v) => set("avisoGeneral", v)} />
+  </>;
+}
+
+// El orden de las 13 ciudades en la propuesta del ensamble (backend/lib/ensamble.js).
+const CIUDADES_ENSAMBLE = ["POSADAS", "L. N. ALEM", "APÓSTOLES", "SAN JAVIER", "MONTECARLO", "JARDÍN AMÉRICA", "SAN VICENTE", "A. DEL VALLE", "OBERÁ", "PUERTO IGUAZÚ", "BDO. DE IRIGOYEN", "ELDORADO", "SAN PEDRO"];
+
+/** Sólo en el ensamble: completa las temperaturas, la humedad y el viento con el promedio de los modelos prendidos. */
+function PasoModelos({ b, reemplazar, modelos }) {
+  const [estado, setEstado] = useState({ cargando: false, mensaje: "", avisos: [] });
+  async function completar() {
+    setEstado({ cargando: true, mensaje: "", avisos: [] });
+    try {
+      const r = await api.proponerInforme({ emision: { fecha: b.fecha, hora: Number(String(b.emision).slice(0, 2)) || 9 }, diaTablas: 0, diasExtendido: [1, 2], modelos: [...modelos.prendidos] });
+      const { borrador, puestos, respetados } = desdePropuesta(b, r.propuesta, CIUDADES_ENSAMBLE);
+      reemplazar(borrador);
+      setEstado({ cargando: false, avisos: r.avisos, mensaje: `Se completaron ${puestos} campos con el promedio de ${r.modelos.length} modelo${r.modelos.length === 1 ? "" : "s"} para el ${ddmmaaaa(r.fechaTablas)}.${respetados ? ` Se respetaron ${respetados} que ya estaban escritos.` : ""}` });
+    } catch (e) { setEstado({ cargando: false, mensaje: "", avisos: [e.message] }); }
+  }
+  const usados = modelos.catalogo.filter((m) => modelos.prendidos.has(m.id)).map((m) => m.nombre);
+  return <>
+    <p className="paso__ayuda">Completa con el <strong>promedio de los modelos prendidos</strong> (los de la izquierda del ensamble): mínima y máxima de las zonas, de las 13 localidades y del extendido, más humedad y viento. Pide datos recién cuando tocás el botón.</p>
+    <ul className="paso-lista"><li>Modelos: <strong>{usados.join(", ") || "ninguno"}</strong> <small>(se cambian en el ensamble)</small></li><li>Día de los datos: <strong>{encabezadoDia(b.fecha)}</strong></li></ul>
+    <button type="button" className="btn btn--primary" disabled={estado.cargando || !usados.length} onClick={completar}>{estado.cargando ? "Consultando a los modelos…" : "Completar con los modelos"}</button>
+    {estado.mensaje && <p className="paso-aviso ens-ok" role="status">{estado.mensaje}</p>}
+    {estado.avisos.map((a) => <p key={a} className="paso-aviso" role="alert">{a}</p>)}
+    <p className="paso-nota">Las condiciones, los avisos y el texto de los días los elige el equipo en los pasos siguientes. Lo que ya escribiste no se pisa.</p>
   </>;
 }
 
@@ -243,14 +298,16 @@ function PasoRevision({ b, alPublicar, esNuevo, alGuardar, guardando }) {
   </>;
 }
 
-const PASOS = [
+const PASO_MODELOS = { id: "modelos", titulo: "Completar con los modelos" };
+const PASOS_BASE = [
   { id: "generales", titulo: "Fecha y datos generales" }, { id: "resumen", titulo: "Resumen por zona" },
   { id: "Norte", titulo: "Zona Norte" }, { id: "Centro", titulo: "Zona Centro" }, { id: "Sur", titulo: "Zona Sur" },
   { id: "extendido", titulo: "Pronóstico extendido" }, { id: "informes", titulo: "Informes de los días" }, { id: "revision", titulo: "Revisión y PDF" },
 ];
 
 /** El cajón: se abre y se oculta; lo escrito se guarda solo en el servidor (cada informe es una tarjeta). */
-export default function InformePronostico({ informe, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, publicado, alPublicar, alGuardar, guardando }) {
+export default function InformePronostico({ informe, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, publicado, alPublicar, alGuardar, guardando, modelos = null, alNuevo = null, verTodos = null }) {
+  const PASOS = useMemo(() => (modelos ? [PASOS_BASE[0], PASO_MODELOS, ...PASOS_BASE.slice(1)] : PASOS_BASE), [!!modelos]); // eslint-disable-line react-hooks/exhaustive-deps
   const b = informe?.borrador;
   const cuerpo = useRef(null);
   const p = PASOS[Math.min(paso, PASOS.length - 1)], ultimo = paso === PASOS.length - 1;
@@ -266,6 +323,7 @@ export default function InformePronostico({ informe, abierto, onCerrar, paso, se
     reemplazar(desdePublicado(publicado));
   }
   const contenido = p.id === "generales" ? <PasoGenerales b={b} set={setCampo} publicado={publicado} alCargarPublicado={cargarPublicado} />
+    : p.id === "modelos" ? <PasoModelos b={b} reemplazar={reemplazar} modelos={modelos} />
     : p.id === "resumen" ? <PasoResumen b={b} set={setCampo} />
     : ZONAS.includes(p.id) ? <PasoZona b={b} set={setCampo} zona={p.id} />
     : p.id === "extendido" ? <PasoExtendido b={b} set={setCampo} />
@@ -276,7 +334,7 @@ export default function InformePronostico({ informe, abierto, onCerrar, paso, se
   return <aside id="ens-cajon" className={`ens-cajon ens-cajon--ancho${abierto ? " ens-cajon--abierto" : ""}`} aria-label="Informe de pronóstico" {...(abierto ? {} : { inert: "" })}>
     <header className="ens-cajon-cab">
       <div><h2>{esNuevo ? "Informe nuevo" : `Informe #${informe.id}`} · {encabezadoDia(b.fecha)}</h2><p className={!esNuevo && guardado?.estado === "error" ? "pron-guardado--error" : undefined} role="status">{textoGuardado}</p></div>
-      <div className="ens-cajon-acciones"><button type="button" className="btn-link" onClick={empezarDeNuevo}>Vaciar</button><button type="button" className="btn btn--ghost" onClick={onCerrar}>Ocultar <Icono icono={ChevronRight} size={16} /></button></div>
+      <div className="ens-cajon-acciones">{alNuevo && !esNuevo && <button type="button" className="btn-link" onClick={alNuevo}>Informe nuevo</button>}{verTodos}<button type="button" className="btn-link" onClick={empezarDeNuevo}>Vaciar</button><button type="button" className="btn btn--ghost" onClick={onCerrar}>Ocultar <Icono icono={ChevronRight} size={16} /></button></div>
     </header>
     <div className="ens-cajon-cuerpo" ref={cuerpo}>
       <div className="paso-cabecera"><div className="paso-barra" role="progressbar" aria-label="Progreso" aria-valuemin={0} aria-valuemax={PASOS.length} aria-valuenow={paso + 1}><i style={{ "--desde": `${(paso / PASOS.length) * 100}%`, "--p": `${((paso + 1) / PASOS.length) * 100}%` }} /></div>

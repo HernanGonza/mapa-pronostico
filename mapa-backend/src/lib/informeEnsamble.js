@@ -60,14 +60,14 @@ async function humedadHoraria(fecha, modelosOpenMeteo) {
 }
 
 /**
- * { emision: { fecha, hora }, diaTablas: 0|1, modelos: [ids] } → { propuesta, fechaTablas, modelos, avisos }.
+ * { emision: { fecha, hora }, diaTablas: 0|1, modelos: [ids], diasExtendido: [2, 3] (días después de la emisión) } → { propuesta, fechaTablas, modelos, avisos }.
  * Pide el ensamble de los 4 días desde la fecha de emisión (los dos con texto y los dos del extendido).
  */
-async function propuestaInforme({ emision, diaTablas = 0, modelos }) {
+async function propuestaInforme({ emision, diaTablas = 0, modelos, diasExtendido = [2, 3] }) {
   const fecha = emision?.fecha;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || "")) throw Object.assign(new Error("Falta la fecha de emisión."), { status: 400 });
-  const dia = diaTablas === 1 ? 1 : 0, fechaTablas = sumarDias(fecha, dia), extendido = [sumarDias(fecha, 2), sumarDias(fecha, 3)];
-  const r = await pronosticoEnsamble({ desde: `${fecha}T00:00`, hasta: `${sumarDias(fecha, 3)}T23:00`, modelos });
+  const dia = diaTablas === 1 ? 1 : 0, fechaTablas = sumarDias(fecha, dia), extendido = diasExtendido.map((n) => sumarDias(fecha, n)), ultimo = Math.max(...diasExtendido, 1);
+  const r = await pronosticoEnsamble({ desde: `${fecha}T00:00`, hasta: `${sumarDias(fecha, ultimo)}T23:00`, modelos });
   const avisos = [...r.avisos];
   if (r.pendientes?.length) avisos.push(`${r.pendientes.map((id) => MODELOS.find((m) => m.id === id)?.nombre || id).join(", ")} todavía se está${r.pendientes.length > 1 ? "n" : ""} descargando: esta propuesta no ${r.pendientes.length > 1 ? "los incluye" : "lo incluye"}. Volvé a completar cuando termine para sumarlo.`);
   const usados = r.modelos.map((m) => m.id);

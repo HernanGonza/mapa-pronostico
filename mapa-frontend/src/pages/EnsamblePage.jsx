@@ -445,7 +445,7 @@ export default function EnsamblePage() {
               : <span>Consultando a los modelos…</span>}
           </div>}
         </div>
-        <BotonInforme abierto={cajon} onClick={() => setCajon((a) => !a)} escritos={informe.escritos} />
+        <BotonInforme abierto={cajon} onClick={() => { if (!cajon) informe.preparar(); setCajon((a) => !a); }} escritos={informe.escritos} />
         {datos && !cargando && <span className="ens-actualizado">Último pedido a las {generado}</span>}
       </form>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}

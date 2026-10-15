@@ -35,8 +35,9 @@ router.post("/ensamble/actualizar", requireAuth, soloConModulo, async (req, res)
 
 // Informe de pronóstico (cajón del ensamble): valores propuestos a partir de los modelos elegidos...
 router.post("/ensamble/informe/propuesta", requireAuth, soloConModulo, express.json({ limit: "100kb" }), async (req, res) => {
-  const { emision, diaTablas, modelos } = req.body || {};
-  try { res.set("Cache-Control", "no-store").json(await propuestaInforme({ emision, diaTablas, modelos: Array.isArray(modelos) ? modelos : [] })); }
+  const { emision, diaTablas, modelos, diasExtendido } = req.body || {};
+  const dias = Array.isArray(diasExtendido) && diasExtendido.length && diasExtendido.length <= 4 && diasExtendido.every((n) => Number.isInteger(n) && n >= 1 && n <= 7) ? diasExtendido : undefined;
+  try { res.set("Cache-Control", "no-store").json(await propuestaInforme({ emision, diaTablas, modelos: Array.isArray(modelos) ? modelos : [], diasExtendido: dias })); }
   catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
     console.error("[ensamble informe]", e); res.status(502).json({ error: `No se pudieron calcular los valores: ${e.cause?.code || e.message}.` });
