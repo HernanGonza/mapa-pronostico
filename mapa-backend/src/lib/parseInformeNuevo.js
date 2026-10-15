@@ -24,7 +24,8 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const limpio = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
 /** «12º C» → «12». Vacío si no hay número. */
 const numero = (s) => { const m = /-?\d+(?:[.,]\d+)?/.exec(String(s ?? "")); return m ? String(Math.round(Number(m[0].replace(",", ".")))) : ""; };
-const condicion = (s) => { const t = limpio(s); return condicionCanonica(t) || t; };
+// Texto libre (puede traer varias condiciones): una sola y conocida se normaliza a su nombre canónico; una combinación queda como vino.
+const condicion = (s) => { const t = limpio(s), c = condicionCanonica(t); return c && normalize(c) === normalize(t) ? c : t; };
 
 /** ¿Es el informe nuevo? Lo delata la tabla «PRINCIPALES CIUDADES» (el .docx de siempre trae sólo tablas de localidades). */
 const esInformeNuevo = (tablas) => tablas.some((t) => /PRINCIPALES\s+CIUDADES/i.test(t?.[0]?.[0] || ""));

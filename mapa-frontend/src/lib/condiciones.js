@@ -54,6 +54,19 @@ const CONDICIONES = [
 
 const POR_NOMBRE = new Map(CONDICIONES.map((c) => [normalize(c.nombre), c]));
 
+/**
+ * Resuelve una condición escrita de cualquier forma. Primero busca el nombre exacto; si no está, y el texto junta varias
+ * condiciones («NUBLADO,CHAPARRONES AISLADOS», «nublado con lluvias»), toma la más severa de las que reconoce (la que
+ * está más abajo en el catálogo), que es la que define el color del mapa.
+ */
+function resolver(condicion) {
+  if (!condicion) return null;
+  const exacta = POR_NOMBRE.get(normalize(condicion));
+  if (exacta) return exacta;
+  const partes = String(condicion).split(/[,;/+]|\s+con\s+|\s+e\s+/i).map((p) => POR_NOMBRE.get(normalize(p))).filter(Boolean);
+  return partes.length ? partes.reduce((a, b) => (CONDICIONES.indexOf(b) > CONDICIONES.indexOf(a) ? b : a)) : null;
+}
+
 /** Lista para poblar el <select> del panel, en orden de "severidad". */
 export const CONDICIONES_CANONICAS = CONDICIONES.map((c) => c.nombre);
 
@@ -84,19 +97,26 @@ export const CONDICIONES_POR_GRUPO = LEYENDA.map((g) => ({
  */
 export function colorPorCondicion(condicion) {
   if (!condicion) return SIN_DATO.color;
-  const c = POR_NOMBRE.get(normalize(condicion));
+  const c = resolver(condicion);
   return c ? GRUPOS[c.grupo].color : SIN_DATO.color;
 }
 
 export function grupoDeCondicion(condicion) {
   if (!condicion) return null;
-  const c = POR_NOMBRE.get(normalize(condicion));
+  const c = resolver(condicion);
   return c ? GRUPOS[c.grupo] : null;
 }
 
+/**
+ * El estado del tiempo es texto libre (pueden apilarse varias condiciones: «nublado, chaparrones aislados y tormentas»):
+ * sólo hace falta que no esté vacío. El color y el ícono salen de la más severa que se reconozca; si no se reconoce
+ * ninguna, el municipio se pinta como «sin dato» pero el texto se publica igual.
+ */
+export const hayCondicion = (condicion) => String(condicion ?? "").trim() !== "";
+
 /** `true` si la condición está en el catálogo canónico. */
 export function esCondicionConocida(condicion) {
-  return POR_NOMBRE.has(normalize(condicion));
+  return resolver(condicion) != null;
 }
 
 /**
@@ -105,12 +125,12 @@ export function esCondicionConocida(condicion) {
  * cualquier forma — o null si no está en el catálogo.
  */
 export function condicionCanonica(condicion) {
-  const c = condicion ? POR_NOMBRE.get(normalize(condicion)) : null;
+  const c = resolver(condicion);
   return c ? c.nombre : null;
 }
 
 /** `true` si la condición corresponde a tormenta (para resaltar en el UI). */
 export function esTormenta(condicion) {
-  const c = POR_NOMBRE.get(normalize(condicion));
+  const c = resolver(condicion);
   return !!c && c.grupo === "tormentas";
 }

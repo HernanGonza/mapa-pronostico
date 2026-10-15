@@ -25,8 +25,7 @@ import {
 } from "../api";
 import {
   colorPorCondicion,
-  condicionCanonica,
-  esCondicionConocida,
+  hayCondicion,
   esTormenta,
 } from "../lib/condiciones";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
@@ -147,7 +146,7 @@ export default function AdminPage() {
           tempInvalida(r.TMIN) ||
           tempInvalida(r.TMAX) ||
           Number(r.TMIN) > Number(r.TMAX) ||
-          !esCondicionConocida(r.CONDICION)
+          !hayCondicion(r.CONDICION)
       ),
     [filas]
   );

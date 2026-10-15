@@ -3,7 +3,7 @@ import { asistente, pasoVistaPrevia, htmlPlacaLista, pasoRepublicar, opciones, l
 import { htmlCambios } from "./pasosMapa";
 import { publicarEnRedes } from "./publicarEnRedes";
 import * as api from "../api";
-import { CONDICIONES_POR_GRUPO, colorPorCondicion, condicionCanonica, esCondicionConocida } from "./condiciones";
+import { CONDICIONES_CANONICAS, colorPorCondicion, etiquetaCondicion, hayCondicion } from "./condiciones";
 
 /**
  * Asistentes de "Previsión del tiempo" (todo dentro de un modal, paso a paso):
@@ -17,7 +17,7 @@ export const tempInvalida = (v) => {
   return !Number.isInteger(n) || n < -15 || n > 55;
 };
 const ZONAS = ["Norte", "Centro", "Sur"];
-export const filaInvalida = (r) => tempInvalida(r.TMIN) || tempInvalida(r.TMAX) || Number(r.TMIN) > Number(r.TMAX) || !esCondicionConocida(r.CONDICION);
+export const filaInvalida = (r) => tempInvalida(r.TMIN) || tempInvalida(r.TMAX) || Number(r.TMIN) > Number(r.TMAX) || !hayCondicion(r.CONDICION);
 
 const pasoArchivo = (parse) => ({
   pregunta: "¿De qué día es el pronóstico?", ayuda: "Elegí la fecha y subí el .docx que manda Alerta Temprana (sirve el de siempre y también el informe nuevo «Previsión del tiempo para la provincia de Misiones»). Si ya hay un pronóstico cargado, podés seguir sin subir uno nuevo.",
@@ -48,9 +48,8 @@ const pasoArchivo = (parse) => ({
   validar: (s) => (!s.fecha ? "Elegí la fecha del pronóstico." : !s.filas ? "Subí el archivo .docx del día." : null),
 });
 
-/** Opciones del <select> de condición, agrupadas por el color del mapa (como la leyenda). */
-const htmlOpcionesCondicion = (elegida) => CONDICIONES_POR_GRUPO.map((g) => `<optgroup label="${esc(g.label)}">${g.condiciones.map((c) =>
-  `<option value="${esc(c.nombre)}" ${c.nombre === elegida ? "selected" : ""}>${esc(c.etiqueta)}</option>`).join("")}</optgroup>`).join("");
+/** Sugerencias para el campo de condición (es texto libre: se puede escribir cualquier combinación). */
+const htmlSugerenciasCondicion = () => `<datalist id="paso-condiciones">${CONDICIONES_CANONICAS.map((c) => `<option value="${esc(etiquetaCondicion(c))}"></option>`).join("")}</datalist>`;
 
 const pasoLocalidades = {
   pregunta: "Revisá y corregí las localidades", ayuda: "Son los puntos que reporta el .docx; el resto de los municipios toma el dato del más cercano. Mínima y máxima en °C. La zona decide qué pronóstico extendido muestra la tarjeta de cada municipio.",
@@ -58,12 +57,12 @@ const pasoLocalidades = {
       <td>${esc(r.LOCALIDAD)}</td>
       <td><input type="number" class="paso-celda" data-i="${i}" data-campo="TMIN" value="${esc(r.TMIN)}" aria-label="Mínima de ${esc(r.LOCALIDAD)}"></td>
       <td><input type="number" class="paso-celda" data-i="${i}" data-campo="TMAX" value="${esc(r.TMAX)}" aria-label="Máxima de ${esc(r.LOCALIDAD)}"></td>
-      <td><div class="cond-cell"><span class="cond-swatch" data-swatch="${i}" style="background:${colorPorCondicion(r.CONDICION)}" aria-hidden="true"></span><select class="paso-select" data-i="${i}" data-campo="CONDICION" aria-label="Condición de ${esc(r.LOCALIDAD)}">${esCondicionConocida(r.CONDICION) ? "" : `<option value="">${esc(r.CONDICION || "(elegir)")} — sin reconocer</option>`}${htmlOpcionesCondicion(condicionCanonica(r.CONDICION))}</select></div></td>
-      <td><select class="paso-select" data-i="${i}" data-campo="ZONA" aria-label="Zona de ${esc(r.LOCALIDAD)}">${ZONAS.includes(r.ZONA) ? "" : `<option value="">(elegir)</option>`}${ZONAS.map((z) => `<option value="${z}" ${z === r.ZONA ? "selected" : ""}>${z}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>`,
+      <td><div class="cond-cell"><span class="cond-swatch" data-swatch="${i}" style="background:${colorPorCondicion(r.CONDICION)}" aria-hidden="true"></span><input type="text" list="paso-condiciones" class="paso-select paso-condicion" data-i="${i}" data-campo="CONDICION" value="${esc(r.CONDICION)}" placeholder="Ej.: nublado, chaparrones aislados" aria-label="Condición de ${esc(r.LOCALIDAD)}"></div></td>
+      <td><select class="paso-select" data-i="${i}" data-campo="ZONA" aria-label="Zona de ${esc(r.LOCALIDAD)}">${ZONAS.includes(r.ZONA) ? "" : `<option value="">(elegir)</option>`}${ZONAS.map((z) => `<option value="${z}" ${z === r.ZONA ? "selected" : ""}>${z}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>${htmlSugerenciasCondicion()}</div>`,
   alMostrar: (popup) => {
     popup.querySelectorAll(".paso-celda").forEach((el) => el.addEventListener("input", () => el.classList.toggle("is-invalid", tempInvalida(el.value))));
     // El cuadradito de al lado muestra el color con que queda en el mapa.
-    popup.querySelectorAll('[data-campo="CONDICION"]').forEach((el) => el.addEventListener("change", () => { popup.querySelector(`[data-swatch="${el.dataset.i}"]`).style.background = colorPorCondicion(el.value); }));
+    popup.querySelectorAll('[data-campo="CONDICION"]').forEach((el) => el.addEventListener("input", () => { popup.querySelector(`[data-swatch="${el.dataset.i}"]`).style.background = colorPorCondicion(el.value); }));
   },
   leer: (popup, s) => ({ filas: s.filas.map((r, i) => {
     const v = (campo) => popup.querySelector(`[data-i="${i}"][data-campo="${campo}"]`).value;
@@ -71,7 +70,7 @@ const pasoLocalidades = {
   }) }),
   validar: (s) => {
     const mala = s.filas.find(filaInvalida);
-    if (mala) return `Revisá ${mala.LOCALIDAD}: temperaturas fuera de rango (−15 a 55), mínima mayor que la máxima o condición sin reconocer.`;
+    if (mala) return `Revisá ${mala.LOCALIDAD}: temperaturas fuera de rango (−15 a 55), mínima mayor que la máxima o condición vacía.`;
     const sinZona = s.filas.find((r) => !ZONAS.includes(r.ZONA));
     return sinZona ? `Elegí la zona de ${sinZona.LOCALIDAD} (norte, centro o sur).` : null;
   },

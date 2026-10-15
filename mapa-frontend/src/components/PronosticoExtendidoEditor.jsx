@@ -1,4 +1,4 @@
-import { CONDICIONES_POR_GRUPO, colorPorCondicion, condicionCanonica, esCondicionConocida } from "../lib/condiciones";
+import { CONDICIONES_CANONICAS, colorPorCondicion, etiquetaCondicion, hayCondicion } from "../lib/condiciones";
 
 const ZONA_NOMBRES = ["Sur", "Centro", "Norte"];
 const MAX_DIAS = 3;
@@ -21,7 +21,7 @@ function tempInvalida(v) {
 export function hayInvalidosExtendido(extendido) {
   if (!extendido?.zonas?.length) return true;
   return extendido.zonas.some((z) =>
-    z.dias.some((d) => tempInvalida(d.tmin) || tempInvalida(d.tmax) || Number(d.tmin) > Number(d.tmax) || !esCondicionConocida(d.condicion))
+    z.dias.some((d) => tempInvalida(d.tmin) || tempInvalida(d.tmax) || Number(d.tmin) > Number(d.tmax) || !hayCondicion(d.condicion))
   ) || extendido.zonas.some((z) => z.dias.some((d) => !d.etiqueta?.trim()));
 }
 
@@ -58,6 +58,7 @@ export default function PronosticoExtendidoEditor({ extendido, onChange, disable
 
   return (
     <div className="extendido-editor">
+      <datalist id="ext-condiciones">{CONDICIONES_CANONICAS.map((c) => <option key={c} value={etiquetaCondicion(c)} />)}</datalist>
       {Array.from({ length: numDias }).map((_, diaIdx) => (
         <fieldset className="extendido-editor__dia" key={diaIdx} disabled={disabled}>
           <legend>{diaIdx === 0 ? "Hoy" : extendido.zonas[0].dias[diaIdx]?.etiqueta || `Día ${diaIdx + 1}`}</legend>
@@ -82,11 +83,7 @@ export default function PronosticoExtendidoEditor({ extendido, onChange, disable
                   <label>Condición
                     <div className="cond-cell">
                       <span className="cond-swatch" style={{ background: colorPorCondicion(d.condicion) }} />
-                      <select aria-label={`Condición ${z.zona}`} value={condicionCanonica(d.condicion) || ""} className={esCondicionConocida(d.condicion) ? "" : "is-invalid"} onChange={(e) => actualizarDia(zonaIdx, diaIdx, "condicion", e.target.value)}>
-                        {!esCondicionConocida(d.condicion) && <option value="">{d.condicion || "(elegir)"}</option>}
-                        {/* Agrupadas por el color del mapa, como la leyenda. */}
-                        {CONDICIONES_POR_GRUPO.map((g) => <optgroup key={g.id} label={g.label}>{g.condiciones.map((c) => <option key={c.nombre} value={c.nombre}>{c.etiqueta}</option>)}</optgroup>)}
-                      </select>
+                      <input type="text" list="ext-condiciones" aria-label={`Condición ${z.zona}`} value={d.condicion ?? ""} placeholder="Ej.: nublado, chaparrones aislados" className={hayCondicion(d.condicion) ? "" : "is-invalid"} onChange={(e) => actualizarDia(zonaIdx, diaIdx, "condicion", e.target.value)} />
                     </div>
                   </label>
                 </div>

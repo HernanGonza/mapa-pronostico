@@ -7,6 +7,9 @@ function limpiarTemperatura(s) {
   return (s || "").replace(/[°º]/g, "").trim();
 }
 
+// La condición es texto libre (puede traer varias, «NUBLADO,CHAPARRONES AISLADOS»): se guarda como vino, sin espacios de más.
+const condicionDe = (s) => (s || "").replace(/\s+/g, " ").trim();
+
 /**
  * Convierte una tabla cruda (array de filas -> array de celdas) en filas
  * de pronóstico. Asume: columna 0 = LOCALIDAD, 1 = TMIN, 2 = TMAX,
@@ -18,7 +21,7 @@ function tableToRows(table) {
     LOCALIDAD: (cells[0] || "").trim(),
     TMIN: limpiarTemperatura(cells[1]),
     TMAX: limpiarTemperatura(cells[2]),
-    CONDICION: (cells[3] || "").trim(),
+    CONDICION: condicionDe(cells[3]),
   }));
 }
 

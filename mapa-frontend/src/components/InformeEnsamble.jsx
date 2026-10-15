@@ -5,7 +5,7 @@ import CampoFecha from "./CampoFecha";
 import * as api from "../api";
 import { Link } from "react-router-dom";
 import { confirmar, esc } from "../lib/ui";
-import { esCondicionConocida, CONDICIONES_CANONICAS, etiquetaCondicion } from "../lib/condiciones";
+import { hayCondicion, CONDICIONES_CANONICAS, etiquetaCondicion } from "../lib/condiciones";
 import { filaInvalida } from "../lib/asistentesPronostico";
 import { hayInvalidosExtendido } from "./PronosticoExtendidoEditor";
 import { origenDe } from "./PronosticoPublicado";
@@ -205,7 +205,7 @@ function problemasParaMapa(b) {
   const revisar = (nombre, tmin, tmax, estado) => {
     if (mala(tmin) || mala(tmax)) p.push(`${nombre}: falta la mínima o la máxima (sólo el número, en °C)`);
     else if (Number(tmin) > Number(tmax)) p.push(`${nombre}: la mínima supera la máxima`);
-    if (!esCondicionConocida(estado)) p.push(`${nombre}: ${String(estado ?? "").trim() ? `«${estado}» no está en la lista de estados del tiempo` : "falta el estado del tiempo"}`);
+    if (!hayCondicion(estado)) p.push(`${nombre}: falta el estado del tiempo`);
   };
   b.ciudades.forEach((c, i) => revisar(CIUDADES[i], c.tmin, c.tmax, c.estado));
   ZONAS.forEach((z) => { const d = b.zonas[z]; if (d.tmin || d.tmax || d.estado) revisar(`Zona ${z}`, d.tmin, d.tmax, d.estado); }); // la zona vacía se resume con sus ciudades
@@ -228,7 +228,7 @@ function PasoRevision({ b }) {
       const archivo = new File([await api.generarInformeDocx(b)], `PREVISION DEL TIEMPO ${b.emision.fecha}.docx`, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
       const { filas, extendido } = await api.parseDocx(archivo);
       const fecha = b.dias[b.diaTablas].fecha;
-      if (!filas?.length || filas.some(filaInvalida) || !extendido || hayInvalidosExtendido(extendido)) throw new Error("El mapa no acepta algo del informe (temperaturas fuera de rango o un estado del tiempo que no reconoce). Revisá las ciudades, las zonas y el extendido.");
+      if (!filas?.length || filas.some(filaInvalida) || !extendido || hayInvalidosExtendido(extendido)) throw new Error("El mapa no acepta algo del informe (temperaturas fuera de rango o un estado del tiempo vacío). Revisá las ciudades, las zonas y el extendido.");
       const actual = await api.getPublicado().catch(() => null); // lo que se ve ahora y desde dónde se hizo
       const ok = await confirmar({
         titulo: "¿Publicar en el mapa público?", confirmar: "Publicar ahora", cancelar: "Todavía no",

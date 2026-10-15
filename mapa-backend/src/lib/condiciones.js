@@ -47,16 +47,29 @@ const CONDICIONES = [
 
 const POR_NOMBRE = new Map(CONDICIONES.map((c) => [normalize(c.nombre), c]));
 
+/**
+ * Resuelve una condición escrita de cualquier forma. Primero busca el nombre exacto; si no está, y el texto junta varias
+ * condiciones («NUBLADO,CHAPARRONES AISLADOS», «nublado con lluvias»), toma la más severa de las que reconoce (la que
+ * está más abajo en el catálogo), que es la que define el color del mapa.
+ */
+function resolver(condicion) {
+  if (!condicion) return null;
+  const exacta = POR_NOMBRE.get(normalize(condicion));
+  if (exacta) return exacta;
+  const partes = String(condicion).split(/[,;/+]|\s+con\s+|\s+e\s+/i).map((p) => POR_NOMBRE.get(normalize(p))).filter(Boolean);
+  return partes.length ? partes.reduce((a, b) => (CONDICIONES.indexOf(b) > CONDICIONES.indexOf(a) ? b : a)) : null;
+}
+
 /** Mismo criterio que el mapa interactivo: color por condición, o SIN_DATO. */
 function colorPorCondicion(condicion) {
   if (!condicion) return SIN_DATO;
-  const c = POR_NOMBRE.get(normalize(condicion));
+  const c = resolver(condicion);
   return c ? GRUPOS[c.grupo] : SIN_DATO;
 }
 
 /** Nombre canónico exacto (el de los íconos) de una condición escrita de cualquier forma, o null si no está en el catálogo. */
 function condicionCanonica(condicion) {
-  const c = condicion ? POR_NOMBRE.get(normalize(condicion)) : null;
+  const c = resolver(condicion);
   return c ? c.nombre : null;
 }
 
