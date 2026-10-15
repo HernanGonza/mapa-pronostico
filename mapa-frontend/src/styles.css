@@ -1870,3 +1870,24 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .ens-cajon.ens-cajon--ancho { --ancho-cajon: 50vw; }
 .ens-cajon.ens-cajon--ancho .pron-localidades { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .ens-cajon.ens-cajon--ancho .ens-cajon-cuerpo { padding: 18px 24px 28px; }
+
+/* Informes del día (tarjetas de «Previsión del tiempo») */
+.pron-tarjeta .pron-fecha { color: var(--text-muted); font-size: 13px; }
+.pron-tarjeta .pron-fecha::first-letter, .pron-dia-titulo::first-letter { text-transform: uppercase; }
+.pron-pila ul { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 10px; }
+.pron-pila { display: grid; gap: 6px; }
+.pron-insignias { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+.pron-insignia { padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); }
+.pron-insignia--mapas { background: #1f7a4d; border-color: #1f7a4d; color: #fff; }
+.pron-insignia--listo { background: #e3f0fb; border-color: #9cc5e8; color: #1c4f7e; }
+.pron-insignia--antes { background: #eee; color: #555; }
+.pron-insignia--borrador { background: #fff3d6; border-color: #e8c66b; color: #7a5a00; }
+.pron-insignia--enviado { background: #e6f4ea; border-color: #8bc7a0; color: #1d6b3a; }
+.pron-insignia--placa { background: #f3e7fb; border-color: #c9a2e8; color: #5f2a86; }
+.pron-insignia--no { font-weight: 600; opacity: .75; }
+.pron-zonas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.pron-zona { display: grid; justify-items: start; gap: 2px; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.pron-zona__temps i { font-style: normal; color: #1f5f9e; } .pron-zona__temps b { color: #b3262f; }
+.pron-detalle { display: block; color: var(--text-muted); line-height: 1.45; }
+.pron-guardado--error { color: #b3262f; font-weight: 600; }
+.pron-dia-titulo { margin: 14px 0 6px; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text-muted); }

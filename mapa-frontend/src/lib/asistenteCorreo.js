@@ -3,9 +3,9 @@ import { esc } from "./ui";
 
 /**
  * Asistentes del envío del pronóstico por correo (todo en un modal, paso a paso):
- *  - enviarPronosticoPorCorreo: el PDF → destinatarios → asunto y mensaje → revisar → enviar.
+ *  - enviarPronosticoPorCorreo: destinatarios → asunto y mensaje → revisar → enviar (con el PDF del informe de la tarjeta).
  *  - editarDestinatariosPorPasos: editar la lista fija (agregar, cambiar, quitar) → revisar cambios → guardar.
- * El correo sale desde la casilla institucional (Microsoft 365), con los destinatarios en copia oculta.
+ * El correo sale desde la casilla configurada en el servidor (Gmail o Microsoft 365), con los destinatarios en copia oculta.
  */
 const MAX_ASUNTO = 200, MAX_CUERPO = 5000;
 const RE_EMAIL = /^[^\s@<>(),;:"]+@[^\s@<>(),;:"]+\.[^\s@<>(),;:"]{2,}$/;
@@ -30,39 +30,7 @@ Saludos cordiales,
 Dirección General de Alerta Temprana
 Ministerio de Ecología y Recursos Naturales Renovables de Misiones`;
 
-// --- Enviar el pronóstico ---------------------------------------------------------------------
-
-function campoArchivo({ id, etiqueta, acepta, archivo }) {
-  return `<label class="paso-etiqueta">${etiqueta}
-      <input type="file" class="paso-input" id="${id}" accept="${acepta}">
-    </label>
-    <p class="paso-captura__nombre" id="${id}-nombre">${archivo ? `Elegido: ${esc(archivo.name)} (${tamano(archivo.size)})` : "Todavía no elegiste el archivo."}</p>`;
-}
-
-function pasoArchivos() {
-  return {
-    pregunta: "¿Qué archivo se manda?",
-    ayuda: "Va adjunto el informe en PDF. Si armaste el informe del día en el panel, ya está elegido; podés cambiarlo por otro PDF si hace falta.",
-    html: (s) => `<div class="paso-captura">
-        ${campoArchivo({ id: "paso-pdf", etiqueta: "Pronóstico en PDF", acepta: ".pdf,application/pdf", archivo: s.pdf })}
-      </div>`,
-    alMostrar: (popup) => {
-      const input = popup.querySelector("#paso-pdf");
-      input.addEventListener("change", () => {
-        const f = input.files[0];
-        if (f) popup.querySelector("#paso-pdf-nombre").textContent = `Elegido: ${f.name} (${tamano(f.size)})`;
-      });
-    },
-    // Si no se elige otro, queda el que ya estaba (volver atrás no lo pierde).
-    leer: (popup) => { const pdf = popup.querySelector("#paso-pdf").files[0]; return pdf ? { pdf } : {}; },
-    validar: (s) => {
-      if (!s.pdf) return "Elegí el PDF del pronóstico.";
-      if (!/\.pdf$/i.test(s.pdf.name)) return "El archivo tiene que ser un PDF.";
-      if (s.pdf.size > 20 * 1024 * 1024) return "El archivo puede pesar hasta 20 MB.";
-      return null;
-    },
-  };
-}
+// --- Enviar el pronóstico (el PDF lo arma el servidor con el informe de la tarjeta) -------------------------------
 
 function pasoDestinatarios(lista) {
   return {
@@ -96,40 +64,39 @@ function pasoRevision(lista, estado) {
     ayuda: estado.configurado ? "Al confirmar, el correo sale en el momento." : "",
     html: (s) => {
       const elegidos = lista.filter((d) => s.ids.includes(d.id));
-      return `${estado.configurado ? "" : `<p class="paso__error" role="alert">El servidor todavía no tiene cargados los datos de Microsoft 365 (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET y MAIL_FROM), así que no se puede enviar. Podés revisar todo igual.</p>`}
+      return `${estado.configurado ? "" : `<p class="paso__error" role="alert">El servidor todavía no tiene configurada la casilla de envío (GMAIL_USER y GMAIL_APP_PASSWORD, o los datos de Microsoft 365), así que no se puede enviar. Podés revisar todo igual.</p>`}
         <dl class="paso-resumen">
           <div><dt>De</dt><dd>${esc(estado.remitente || "alertatemprana@ecologia.misiones.gob.ar")}</dd></div>
           <div><dt>Para</dt><dd>${elegidos.length} destinatario${elegidos.length === 1 ? "" : "s"}, en copia oculta
             <details><summary>Ver lista</summary><p class="paso-resumen__texto">${elegidos.map((d) => esc(nombreDe(d))).join("<br>")}</p></details></dd></div>
           <div><dt>Asunto</dt><dd>${esc(s.asunto)}</dd></div>
-          <div><dt>Adjunto</dt><dd>${esc(s.pdf.name)} (${tamano(s.pdf.size)})</dd></div>
+          <div><dt>Adjunto</dt><dd>${esc(s.adjunto)} <small>(el PDF se arma con este informe)</small></dd></div>
           <div><dt>Mensaje</dt><dd class="paso-resumen__texto">${esc(s.cuerpo)}</dd></div>
         </dl>`;
     },
-    validar: () => (estado.configurado ? null : "Falta configurar Microsoft 365 en el servidor: todavía no se puede enviar."),
+    validar: () => (estado.configurado ? null : "Falta configurar la casilla de envío en el servidor (Gmail o Microsoft 365): todavía no se puede enviar."),
   };
 }
 
 /**
- * pdf: el PDF del informe (o null); fecha: "AAAA-MM-DD" del pronóstico.
- * estado: { configurado, remitente }; destinatarios: la lista fija [{ id, nombre, email }].
- * enviar({ pdf, asunto, cuerpo, ids }) → { enviados }
+ * fecha: "AAAA-MM-DD" del informe; estado: { configurado, remitente }; destinatarios: la lista fija [{ id, nombre, email }].
+ * enviar({ asunto, cuerpo, ids }) → { enviados, remitente }. El PDF lo arma el servidor con el informe de la tarjeta.
  */
-export function enviarPronosticoPorCorreo({ pdf, fecha, estado, destinatarios, enviar }) {
-  const pasos = [pasoArchivos(), pasoDestinatarios(destinatarios), pasoMensaje, pasoRevision(destinatarios, estado)];
+export function enviarPronosticoPorCorreo({ fecha, estado, destinatarios, enviar }) {
+  const pasos = [pasoDestinatarios(destinatarios), pasoMensaje, pasoRevision(destinatarios, estado)];
   const inicial = {
-    pdf,
+    adjunto: `PREVISION DEL TIEMPO ${fecha}.pdf`,
     ids: destinatarios.map((d) => d.id),
     asunto: `Pronóstico del tiempo — ${fechaDMA(fecha)}`,
-    // El mensaje recordado puede traer la fecha de otro día: se reemplaza por la de hoy.
+    // El mensaje recordado puede traer la fecha de otro día: se reemplaza por la de este informe.
     cuerpo: (leerGuardado(CLAVE_MENSAJE) || cuerpoPorDefecto(fecha)).replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, fechaDMA(fecha)),
   };
   return asistente({
     pasos, estado: inicial, textoEnviar: "Enviar", ancho: 760,
     enviar: async (s) => {
-      const r = await enviar({ pdf: s.pdf, asunto: s.asunto, cuerpo: s.cuerpo, ids: s.ids });
+      const r = await enviar({ asunto: s.asunto, cuerpo: s.cuerpo, ids: s.ids });
       guardar(CLAVE_MENSAJE, s.cuerpo);
-      return { tipo: "ok", titulo: "¡Enviado!", datos: r, html: `<p>El pronóstico salió desde ${esc(r.remitente || "la casilla institucional")} a ${r.enviados} destinatario${r.enviados === 1 ? "" : "s"}.</p>` };
+      return { tipo: "ok", titulo: "¡Enviado!", datos: r, html: `<p>El pronóstico salió desde ${esc(r.remitente || "la casilla de envío")} a ${r.enviados} destinatario${r.enviados === 1 ? "" : "s"}.</p>` };
     },
   });
 }

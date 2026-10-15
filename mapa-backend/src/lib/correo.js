@@ -1,4 +1,11 @@
 /**
+ * Envío de correo. Hay dos vías, y se usa la que esté configurada (con las dos, Gmail):
+ *
+ *  1. Gmail (SMTP con «contraseña de aplicación»): GMAIL_USER (la dirección) y GMAIL_APP_PASSWORD (16 letras, que se genera
+ *     en la cuenta de Google con la verificación en dos pasos activada: myaccount.google.com/apppasswords). Opcional:
+ *     MAIL_FROM_NOMBRE (cómo se ve el remitente; por defecto «Alerta Temprana — Ecología Misiones»).
+ *  2. Microsoft 365 (API Graph), cuando el administrador entregue los datos (abajo).
+ *
  * Envío de correo desde la casilla institucional (Microsoft 365) con la API de
  * Microsoft Graph, sin SDK: `fetch` nativo, como el resto del backend.
  *
@@ -22,9 +29,45 @@ const TIMEOUT_MS = 60_000;
 
 const env = (k) => (process.env[k] || "").trim();
 
+const gmailConfigurado = () => !!(env("GMAIL_USER") && env("GMAIL_APP_PASSWORD"));
+const microsoftConfigurado = () => !!(env("MS_TENANT_ID") && env("MS_CLIENT_ID") && env("MS_CLIENT_SECRET") && env("MAIL_FROM"));
+
+/** { configurado, remitente, via: "gmail" | "microsoft" | null } */
 function estado() {
-  const configurado = !!(env("MS_TENANT_ID") && env("MS_CLIENT_ID") && env("MS_CLIENT_SECRET") && env("MAIL_FROM"));
-  return { configurado, remitente: env("MAIL_FROM") || null };
+  if (gmailConfigurado()) return { configurado: true, remitente: env("GMAIL_USER"), via: "gmail" };
+  if (microsoftConfigurado()) return { configurado: true, remitente: env("MAIL_FROM"), via: "microsoft" };
+  return { configurado: false, remitente: env("MAIL_FROM") || env("GMAIL_USER") || null, via: null };
+}
+
+// --- Gmail (SMTP) ----------------------------------------------------------------------------------------------
+let transporteGmail = null; // se arma al primer envío; los tests lo reemplazan con _usarTransporte
+function transporte() {
+  if (!transporteGmail) {
+    transporteGmail = require("nodemailer").createTransport({
+      host: "smtp.gmail.com", port: 465, secure: true, auth: { user: env("GMAIL_USER"), pass: env("GMAIL_APP_PASSWORD").replace(/\s+/g, "") },
+      connectionTimeout: 20_000, greetingTimeout: 20_000, socketTimeout: 60_000,
+    });
+  }
+  return transporteGmail;
+}
+function mensajeDeGmail(e) {
+  if (e.code === "EAUTH" || /535|Username and Password not accepted|Invalid login/i.test(e.message)) return "Gmail rechazó el usuario o la contraseña de aplicación (GMAIL_USER / GMAIL_APP_PASSWORD). Tiene que ser una «contraseña de aplicación» de 16 letras, no la contraseña de la cuenta.";
+  if (e.code === "ETIMEDOUT" || e.code === "ESOCKET" || e.code === "ECONNECTION" || e.code === "ENETUNREACH") return `No se pudo conectar con Gmail (${e.code}). Revisá la conexión a internet del servidor.`;
+  if (/552|size|too large/i.test(e.message)) return "Gmail no aceptó el mensaje por su tamaño.";
+  if (/550|5\.4\.5|Daily user sending limit|quota/i.test(e.message)) return "Gmail alcanzó el límite diario de envíos de la cuenta. Probá de nuevo más tarde.";
+  return `Gmail no pudo enviar el correo: ${e.message}`;
+}
+async function enviarGmail({ asunto, cuerpo, destinatarios, adjuntos }) {
+  const usuario = env("GMAIL_USER");
+  try {
+    await transporte().sendMail({
+      from: { name: env("MAIL_FROM_NOMBRE") || "Alerta Temprana — Ecología Misiones", address: usuario },
+      to: usuario, // los destinatarios van en copia oculta: en «Para» va la propia casilla, así queda copia
+      bcc: destinatarios.map((d) => (d.nombre ? { name: d.nombre.replace(/[",<>]/g, " "), address: d.email } : d.email)),
+      subject: asunto, text: cuerpo,
+      attachments: adjuntos.map((a) => ({ filename: a.nombre, content: a.buffer, contentType: a.tipo })),
+    });
+  } catch (e) { throw error(502, mensajeDeGmail(e)); }
 }
 
 function error(status, mensaje) {
@@ -110,8 +153,9 @@ async function adjuntar(buzon, idMensaje, { nombre, tipo, buffer }) {
  *   destinatarios: [{ nombre, email }]   adjuntos: [{ nombre, tipo, buffer }]
  */
 async function enviar({ asunto, cuerpo, destinatarios, adjuntos = [] }) {
-  const { configurado, remitente } = estado();
-  if (!configurado) throw error(503, "El envío por correo todavía no está configurado en el servidor: faltan los datos de Microsoft 365 (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET y MAIL_FROM).");
+  const { configurado, remitente, via } = estado();
+  if (!configurado) throw error(503, "El envío por correo todavía no está configurado en el servidor: falta GMAIL_USER y GMAIL_APP_PASSWORD (Gmail) o los datos de Microsoft 365 (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET y MAIL_FROM).");
+  if (via === "gmail") return enviarGmail({ asunto, cuerpo, destinatarios, adjuntos });
   const buzon = `/users/${encodeURIComponent(remitente)}`;
   const borrador = await graph("POST", `${buzon}/messages`, {
     subject: asunto,
@@ -129,4 +173,4 @@ async function enviar({ asunto, cuerpo, destinatarios, adjuntos = [] }) {
   }
 }
 
-module.exports = { estado, enviar, mensajeDeMicrosoft, _reiniciarToken: () => { tokenCache = null; } };
+module.exports = { estado, enviar, mensajeDeMicrosoft, _reiniciarToken: () => { tokenCache = null; }, _usarTransporte: (t) => { transporteGmail = t; } };

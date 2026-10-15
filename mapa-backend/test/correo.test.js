@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const ENV = { MS_TENANT_ID: "TEN", MS_CLIENT_ID: "CLI", MS_CLIENT_SECRET: "SEC", MAIL_FROM: "alertatemprana@ecologia.misiones.gob.ar" };
 let previo, fetchOriginal;
-beforeEach(() => { previo = { ...process.env }; Object.assign(process.env, ENV); fetchOriginal = global.fetch; require("../src/lib/correo")._reiniciarToken(); });
+beforeEach(() => { previo = { ...process.env }; delete process.env.GMAIL_USER; delete process.env.GMAIL_APP_PASSWORD; Object.assign(process.env, ENV); fetchOriginal = global.fetch; require("../src/lib/correo")._reiniciarToken(); });
 afterEach(() => { global.fetch = fetchOriginal; process.env = previo; });
 const correo = () => require("../src/lib/correo");
 const json = (o, status = 200) => ({ ok: status < 400, status, json: async () => o });
@@ -31,7 +31,7 @@ test("sin los datos de Microsoft avisa que falta configurar, sin llamar a la red
   delete process.env.MS_CLIENT_SECRET;
   global.fetch = async () => { throw new Error("no debería llamar"); };
   assert.equal(correo().estado().configurado, false);
-  await assert.rejects(correo().enviar({ asunto: "x", cuerpo: "y", destinatarios: DEST }), { status: 503, message: /MS_CLIENT_SECRET/ });
+  await assert.rejects(correo().enviar({ asunto: "x", cuerpo: "y", destinatarios: DEST }), { status: 503, message: /MS_CLIENT_SECRET|GMAIL_APP_PASSWORD/ });
 });
 
 test("envía como la casilla institucional: destinatarios en copia oculta, adjuntos y envío", async () => {
@@ -84,4 +84,25 @@ test("la lista de destinatarios se valida y normaliza", () => {
   assert.match(normalizarLista([{ email: "no-es-mail" }]).error, /Fila 1/);
   assert.match(normalizarLista([{ email: "a@b.com" }, { email: "A@b.com" }]).error, /repetida/);
   assert.ok(LISTA_BASE.every(([, email]) => !normalizarLista([{ email }]).error), "la lista base es válida");
+});
+
+test("con Gmail configurado envía por SMTP: copia oculta, la casilla en «Para» y el PDF adjunto", async () => {
+  process.env.GMAIL_USER = "alerta@gmail.com"; process.env.GMAIL_APP_PASSWORD = "abcd efgh ijkl mnop";
+  const enviados = [];
+  correo()._usarTransporte({ sendMail: async (m) => { enviados.push(m); } });
+  assert.deepEqual(correo().estado(), { configurado: true, remitente: "alerta@gmail.com", via: "gmail" });
+  global.fetch = async () => { throw new Error("Gmail no usa la API de Microsoft"); };
+  await correo().enviar({ asunto: "Pronóstico", cuerpo: "Buen día", destinatarios: DEST, adjuntos: [{ nombre: "p.pdf", tipo: "application/pdf", buffer: Buffer.from("%PDF-") }] });
+  assert.equal(enviados.length, 1);
+  assert.equal(enviados[0].to, "alerta@gmail.com");
+  assert.deepEqual(enviados[0].bcc, [{ name: "Canal 12", address: "a@gmail.com" }, "b@gmail.com"]);
+  assert.equal(enviados[0].attachments[0].filename, "p.pdf");
+  correo()._usarTransporte(null);
+});
+
+test("Gmail: una contraseña rechazada se explica en castellano", async () => {
+  process.env.GMAIL_USER = "alerta@gmail.com"; process.env.GMAIL_APP_PASSWORD = "mala";
+  correo()._usarTransporte({ sendMail: async () => { throw Object.assign(new Error("Invalid login: 535"), { code: "EAUTH" }); } });
+  await assert.rejects(correo().enviar({ asunto: "x", cuerpo: "y", destinatarios: DEST }), { status: 502, message: /contraseña de aplicación/ });
+  correo()._usarTransporte(null);
 });

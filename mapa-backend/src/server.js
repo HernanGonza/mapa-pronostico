@@ -83,6 +83,7 @@ app.use("/api", require("./routes/sol"));
 app.use("/api", require("./routes/informesDiarios"));
 app.use("/api", require("./routes/ensamble"));
 app.use("/api", require("./routes/arroyos"));
+app.use("/api", require("./routes/informesPronostico"));
 app.use("/api", require("./routes/notificaciones"));
 
 // Prepara la conexión a la base (si hay DATABASE_URL) antes de escuchar.

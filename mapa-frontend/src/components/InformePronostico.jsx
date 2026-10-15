@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, ChevronRight, ChevronLeft } from "lucide";
+import { ChevronRight, ChevronLeft } from "lucide";
 import Icono from "./Icono";
 import CampoFecha from "./CampoFecha";
 import SelectorCondiciones from "./SelectorCondiciones";
@@ -70,46 +70,36 @@ export function aMapa(b) {
   return { filas, extendido, fecha: b.fecha };
 }
 
-/** Arma un borrador a partir de lo que está publicado (para corregirlo en vez de empezar de cero). */
-export function desdePublicado(actual) {
+/** Arma un borrador a partir de las 13 localidades y el extendido (lo publicado, o lo que trae un .docx): para corregirlo en vez de empezar de cero. */
+export function desdeDatos({ filas, extendido, fecha }) {
   const b = borradorVacio();
-  if (actual?.fechaPronostico) b.fecha = String(actual.fechaPronostico).slice(0, 10);
-  b.localidades = b.localidades.map((l) => { const f = (actual?.filas || []).find((x) => String(x.LOCALIDAD).trim().toUpperCase() === l.localidad); return f ? { ...l, tmin: String(f.TMIN), tmax: String(f.TMAX), condicion: f.CONDICION } : l; });
-  for (const z of actual?.extendido?.zonas || []) {
+  if (fecha) b.fecha = String(fecha).slice(0, 10);
+  b.localidades = b.localidades.map((l) => { const f = (filas || []).find((x) => String(x.LOCALIDAD).trim().toUpperCase() === l.localidad); return f ? { ...l, tmin: String(f.TMIN), tmax: String(f.TMAX), condicion: f.CONDICION } : l; });
+  for (const z of extendido?.zonas || []) {
     if (!ZONAS.includes(z.zona)) continue;
     const [hoy, ...dias] = z.dias || [];
     if (hoy) b.zonas[z.zona] = { ...b.zonas[z.zona], tmin: String(hoy.tmin ?? ""), tmax: String(hoy.tmax ?? ""), condicion: hoy.condicion || "" };
     dias.slice(0, 2).forEach((d, i) => { b.extendido[z.zona][i] = { ...b.extendido[z.zona][i], tmin: String(d.tmin ?? ""), tmax: String(d.tmax ?? ""), condicion: d.condicion || "" }; });
   }
-  (actual?.extendido?.informes || []).slice(0, 3).forEach((i, n) => { b.informes[n] = { ...b.informes[n], resumen: i.texto || "" }; });
+  (extendido?.informes || []).slice(0, 3).forEach((i, n) => { b.informes[n] = { ...b.informes[n], resumen: i.texto || "" }; });
   return conFechas(b);
 }
+export const desdePublicado = (actual) => desdeDatos({ filas: actual?.filas, extendido: actual?.extendido, fecha: actual?.fechaPronostico });
 
-const leerGuardado = () => { try { const g = JSON.parse(localStorage.getItem(CLAVE)); return g?.borrador ? g : null; } catch { return null; } };
-const poner = (obj, camino, valor) => {
+/** Copia de `obj` con `valor` en `camino` ("zonas.Sur.tmin", "localidades.3.condicion"). */
+export const poner = (obj, camino, valor) => {
   const [k, ...resto] = camino.split(".");
   const copia = Array.isArray(obj) ? [...obj] : { ...obj };
   copia[k] = resto.length ? poner(obj[k], resto.join("."), valor) : valor;
   return copia;
 };
-
-/** El borrador y el paso; se guarda solo. Lo usa la pantalla (siempre montada) para que ocultar el cajón no pierda nada. */
-export function useInformePronostico() {
-  const [estado, setEstado] = useState(() => { const g = leerGuardado(); return g ? { borrador: g.borrador, paso: g.paso || 0 } : { borrador: borradorVacio(), paso: 0 }; });
-  useEffect(() => { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch { /* sin almacenamiento: sigue andando, sólo que no se guarda */ } }, [estado]);
-  const hayAlgo = useMemo(() => JSON.stringify(estado.borrador) !== JSON.stringify(borradorVacio()), [estado.borrador]);
-  return {
-    ...estado, hayAlgo,
-    setCampo: (camino, valor) => setEstado((e) => {
-      let borrador = poner(e.borrador, camino, valor);
-      if (camino === "fecha") borrador = conFechas(borrador);
-      return { ...e, borrador };
-    }),
-    setPaso: (paso) => setEstado((e) => ({ ...e, paso })),
-    reemplazar: (borrador) => setEstado({ borrador: conFechas(borrador), paso: 0 }),
-    reiniciar: () => setEstado({ borrador: borradorVacio(), paso: 0 }),
-  };
+/** Aplica un cambio de campo al borrador (la fecha arrastra los días que dependen de ella). */
+export function conCampo(borrador, camino, valor) {
+  const b = poner(borrador, camino, valor);
+  return camino === "fecha" ? conFechas(b) : b;
 }
+/** ¿El borrador tiene algo escrito? (si no, es uno vacío). */
+export const borradorConAlgo = (b) => JSON.stringify({ ...b, fecha: null, extendido: null, informes: b.informes.map((i) => ({ ...i, fecha: null })) }) !== JSON.stringify({ ...borradorVacio(), fecha: null, extendido: null, informes: borradorVacio().informes.map((i) => ({ ...i, fecha: null })) });
 
 // --- piezas de los pasos ---------------------------------------------------------------------------------------
 const Etiqueta = ({ texto, children }) => <label className="paso-etiqueta"><span>{texto}</span>{children}</label>;
@@ -213,7 +203,7 @@ function faltantes(b) {
   return f;
 }
 
-function PasoRevision({ b, alPublicar }) {
+function PasoRevision({ b, alPublicar, esNuevo, alGuardar, guardando }) {
   const [estado, setEstado] = useState({ trabajando: "", error: "" });
   const problemas = useMemo(() => problemasParaMapa(b), [b]);
   const falta = faltantes(b);
@@ -228,7 +218,7 @@ function PasoRevision({ b, alPublicar }) {
     } catch (e) { setEstado({ trabajando: "", error: e.message }); }
   }
   return <>
-    <p className="paso__ayuda">El informe sale en <strong>PDF</strong>, con marca de agua y protegido (se puede abrir e imprimir; no copiar ni modificar). El informe es lo que arma el mapa: apenas está completo, el <strong>mapa de la pantalla</strong> ya lo muestra, y el mapa público (el embed) se actualiza recién cuando lo <strong>publicás</strong>.</p>
+    <p className="paso__ayuda">El informe sale en <strong>PDF</strong>, con marca de agua y protegido (se puede abrir e imprimir; no copiar ni modificar). Cuando el informe está completo, la tarjeta puede <strong>publicarse en los mapas</strong>; hasta entonces el mapa público (el embed) no cambia.</p>
     {falta.length > 0 ? <p className="paso-aviso" role="status">Todavía falta: {falta.join(", ")}. Podés generar el PDF igual.</p> : <p className="paso-aviso ens-ok" role="status">Está todo completo.</p>}
     <div className="ens-hoja" aria-label="Resumen del informe">
       <h3>PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES</h3>
@@ -242,9 +232,11 @@ function PasoRevision({ b, alPublicar }) {
     </div>
     {estado.error && <p className="paso-aviso" role="alert">{estado.error}</p>}
     {problemas.length > 0 && <div className="paso-aviso" role="status"><strong>Para cargarlo en el mapa falta:</strong><ul className="ens-problemas">{problemas.slice(0, 5).map((x) => <li key={x}>{x}</li>)}</ul>{problemas.length > 5 && <small>…y {problemas.length - 5} más.</small>}</div>}
-    {problemas.length === 0 && <p className="paso-aviso ens-ok" role="status">El mapa de la pantalla ya muestra este informe. Todavía no está publicado: el mapa público cambia cuando lo publicás.</p>}
+    {problemas.length === 0 && <p className="paso-aviso ens-ok" role="status">Informe completo: se puede publicar en los mapas.</p>}
+    {esNuevo && <p className="paso-aviso" role="status"><strong>Todavía no está guardado.</strong> La tarjeta del informe aparece en la pila cuando lo guardes.</p>}
     <div className="ens-acciones-informe">
-      <button type="button" className="btn btn--primary" disabled={problemas.length > 0 || !!estado.trabajando} onClick={alPublicar} title={problemas.length ? "Completá lo que falta para poder publicar" : undefined}>Publicar en los mapas</button>
+      {esNuevo && <button type="button" className="btn btn--primary" disabled={guardando} onClick={alGuardar}>{guardando ? "Guardando…" : "Guardar informe"}</button>}
+      <button type="button" className={`btn${esNuevo ? "" : " btn--primary"}`} disabled={esNuevo || problemas.length > 0 || !!estado.trabajando} onClick={alPublicar} title={esNuevo ? "Guardá el informe primero" : problemas.length ? "Completá lo que falta para poder publicar" : undefined}>Publicar en los mapas</button>
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("ver")}>{estado.trabajando || "Ver el PDF"}</button>
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("bajar")}>Descargar PDF</button>
     </div>
@@ -257,28 +249,20 @@ const PASOS = [
   { id: "extendido", titulo: "Pronóstico extendido" }, { id: "informes", titulo: "Informes de los días" }, { id: "revision", titulo: "Revisión y PDF" },
 ];
 
-/** El botón que abre y oculta el cajón. */
-export function BotonInformePronostico({ abierto, onClick, hayBorrador }) {
-  return <button type="button" className={`ens-boton-informe pron-boton-informe${abierto ? " ens-boton-informe--abierto" : ""}`} onClick={onClick} aria-expanded={abierto} aria-controls="ens-cajon">
-    <Icono icono={abierto ? ChevronRight : FileText} size={30} strokeWidth={1.5} />
-    <span className="ens-boton-informe-texto"><strong>{abierto ? "Ocultar el informe" : "Armar el informe del día"}</strong>
-      <small>{abierto ? "Lo escrito queda guardado" : hayBorrador ? "Seguir con el borrador guardado" : "Paso a paso, con salida en PDF"}</small></span>
-    {!abierto && hayBorrador && <i className="ens-cajon-punto" title="Hay un borrador guardado" />}
-  </button>;
-}
-
-/** El cajón: se abre y se oculta con el botón; lo escrito queda guardado en `informe`. */
-export default function InformePronostico({ informe, abierto, onCerrar, publicado, alPublicar }) {
-  const { borrador: b, paso, setPaso, setCampo, reemplazar, reiniciar } = informe;
+/** El cajón: se abre y se oculta; lo escrito se guarda solo en el servidor (cada informe es una tarjeta). */
+export default function InformePronostico({ informe, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, publicado, alPublicar, alGuardar, guardando }) {
+  const b = informe?.borrador;
   const cuerpo = useRef(null);
   const p = PASOS[Math.min(paso, PASOS.length - 1)], ultimo = paso === PASOS.length - 1;
-  useEffect(() => { cuerpo.current?.scrollTo({ top: 0 }); }, [paso]);
+  useEffect(() => { cuerpo.current?.scrollTo({ top: 0 }); }, [paso, informe?.id]);
+  const esNuevo = informe?.id == null;
+  if (!informe) return <aside id="ens-cajon" className="ens-cajon ens-cajon--ancho" aria-label="Informe de pronóstico" inert="" />;
 
   async function empezarDeNuevo() {
-    if (await confirmar({ titulo: "¿Empezar un informe nuevo?", texto: "Se borra todo lo escrito en este borrador.", confirmar: "Empezar de nuevo", peligro: true })) reiniciar();
+    if (await confirmar({ titulo: "¿Vaciar este informe?", texto: "Se borra todo lo escrito en este informe.", confirmar: "Vaciar", peligro: true })) { reemplazar(borradorVacio()); setPaso(0); }
   }
   async function cargarPublicado() {
-    if (informe.hayAlgo && !(await confirmar({ titulo: "¿Partir de lo publicado?", texto: "Se reemplaza lo que escribiste en este borrador.", confirmar: "Reemplazar", peligro: true }))) return;
+    if (borradorConAlgo(b) && !(await confirmar({ titulo: "¿Partir de lo publicado?", texto: "Se reemplaza lo que escribiste en este informe.", confirmar: "Reemplazar", peligro: true }))) return;
     reemplazar(desdePublicado(publicado));
   }
   const contenido = p.id === "generales" ? <PasoGenerales b={b} set={setCampo} publicado={publicado} alCargarPublicado={cargarPublicado} />
@@ -286,12 +270,13 @@ export default function InformePronostico({ informe, abierto, onCerrar, publicad
     : ZONAS.includes(p.id) ? <PasoZona b={b} set={setCampo} zona={p.id} />
     : p.id === "extendido" ? <PasoExtendido b={b} set={setCampo} />
     : p.id === "informes" ? <PasoInformes b={b} set={setCampo} />
-    : <PasoRevision b={b} alPublicar={alPublicar} />;
+    : <PasoRevision b={b} alPublicar={alPublicar} esNuevo={esNuevo} alGuardar={alGuardar} guardando={guardando} />;
+  const textoGuardado = esNuevo ? "Sin guardar: la tarjeta aparece cuando lo guardes, en el último paso" : guardado?.estado === "error" ? `No se pudo guardar: ${guardado.error}` : guardado?.estado === "guardando" ? "Guardando…" : guardado?.hora ? `Guardado ${guardado.hora}` : "Se guarda solo";
 
   return <aside id="ens-cajon" className={`ens-cajon ens-cajon--ancho${abierto ? " ens-cajon--abierto" : ""}`} aria-label="Informe de pronóstico" {...(abierto ? {} : { inert: "" })}>
     <header className="ens-cajon-cab">
-      <div><h2>Informe del día</h2><p>Borrador guardado en este navegador</p></div>
-      <div className="ens-cajon-acciones"><button type="button" className="btn-link" onClick={empezarDeNuevo}>Empezar de nuevo</button><button type="button" className="btn btn--ghost" onClick={onCerrar}>Ocultar <Icono icono={ChevronRight} size={16} /></button></div>
+      <div><h2>{esNuevo ? "Informe nuevo" : `Informe #${informe.id}`} · {encabezadoDia(b.fecha)}</h2><p className={!esNuevo && guardado?.estado === "error" ? "pron-guardado--error" : undefined} role="status">{textoGuardado}</p></div>
+      <div className="ens-cajon-acciones"><button type="button" className="btn-link" onClick={empezarDeNuevo}>Vaciar</button><button type="button" className="btn btn--ghost" onClick={onCerrar}>Ocultar <Icono icono={ChevronRight} size={16} /></button></div>
     </header>
     <div className="ens-cajon-cuerpo" ref={cuerpo}>
       <div className="paso-cabecera"><div className="paso-barra" role="progressbar" aria-label="Progreso" aria-valuemin={0} aria-valuemax={PASOS.length} aria-valuenow={paso + 1}><i style={{ "--desde": `${(paso / PASOS.length) * 100}%`, "--p": `${((paso + 1) / PASOS.length) * 100}%` }} /></div>
@@ -301,6 +286,7 @@ export default function InformePronostico({ informe, abierto, onCerrar, publicad
     <footer className="ens-cajon-pie">
       <button type="button" className="btn btn--ghost" disabled={paso === 0} onClick={() => setPaso(paso - 1)}><Icono icono={ChevronLeft} size={16} /> Atrás</button>
       {!ultimo && <button type="button" className="btn btn--primary" onClick={() => setPaso(paso + 1)}>Siguiente <Icono icono={ChevronRight} size={16} /></button>}
+      {ultimo && esNuevo && <button type="button" className="btn btn--primary" disabled={guardando} onClick={alGuardar}>{guardando ? "Guardando…" : "Guardar informe"}</button>}
     </footer>
   </aside>;
 }

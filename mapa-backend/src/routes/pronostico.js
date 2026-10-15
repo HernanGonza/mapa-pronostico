@@ -220,6 +220,13 @@ router.post("/pronostico/render-png", requireAuth, express.json(), async (req, r
  */
 router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) => {
   try {
+    // Si la placa es de un informe, queda anotada en ese informe (para su badge y para volver a verla desde su tarjeta).
+    const informeId = Number.isInteger(Number(req.body?.informeId)) ? Number(req.body.informeId) : null;
+    const vincular = async (placa) => {
+      if (informeId == null || !placa) return placa;
+      await require("../lib/informesPronosticoStore").actualizarMeta(informeId, (m) => ({ ...m, placa: { id: placa.id, generadoEn: placa.generadoEn, feedUrl: placa.feedUrl, historiasUrl: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre, por: req.usuario?.nombre || req.usuario?.email || null } })).catch((e) => console.error("[placa] no se pudo anotar en el informe:", e.message));
+      return placa;
+    };
     let filas = req.body && req.body.filas;
     const fechaPronostico = req.body && req.body.fechaPronostico;
     if (!filas) {
@@ -240,7 +247,7 @@ router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) =
       if (error) return res.status(400).json({ error });
       return await require("../lib/placasPendientes").resolver(req, res, {
         generar: () => foto.generarPlacaPronosticoFotoAmbos({ forecastRows: filas, date: fecha, fondo, etiqueta, frase, estiloTarjeta }),
-        guardar: (pngs) => placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, fondo, etiqueta, frase, estiloTarjeta, ...pngs }),
+        guardar: async (pngs) => vincular(await placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, fondo, etiqueta, frase, estiloTarjeta, ...pngs })),
       });
     }
     await require("../lib/placasPendientes").resolver(req, res, {
@@ -252,7 +259,7 @@ router.post("/pronostico/placa", requireAuth, express.json(), async (req, res) =
         const historiasPng = await generateForecastMapHistorias({ forecastRows: filas, date: fecha });
         return { feedPng, historiasPng };
       },
-      guardar: (pngs) => placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, ...pngs }),
+      guardar: async (pngs) => vincular(await placas.crear({ fechaPronostico, usuarioId: req.usuario.usuarioId, ...pngs })),
     });
   } catch (err) {
     console.error(err);

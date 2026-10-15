@@ -79,10 +79,10 @@ const pasoLocalidades = {
 export function cargarPronostico({ filas, fecha, parse, aplicar }) {
   return asistente({
     // Ancho: la tabla de localidades (mín, máx, condición y zona) tiene que entrar entera.
-    estado: { filas, fecha, extendido: null }, textoEnviar: "Aplicar al mapa", ancho: 1100,
+    estado: { filas, fecha, extendido: null }, textoEnviar: "Crear el informe", ancho: 1100,
     pasos: [pasoArchivo(parse), pasoLocalidades],
-    enviar: async (s) => { aplicar({ filas: s.filas, fecha: s.fecha, extendido: s.extendido }); return { tipo: "ok", titulo: "Pronóstico cargado", datos: true,
-      html: `<p>El mapa ya muestra el borrador con ${s.filas.length} localidades.${s.extendido ? " Este .docx también trae el pronóstico de 3 días: lo corregís en su pantalla." : ""} Cuando esté listo, tocá «Revisar y publicar».</p>` }; },
+    enviar: async (s) => { await aplicar({ filas: s.filas, fecha: s.fecha, extendido: s.extendido }); return { tipo: "ok", titulo: "Informe creado", datos: true,
+      html: `<p>Se creó un informe nuevo con las ${s.filas.length} localidades${s.extendido ? " y el pronóstico de 3 días" : ""} del .docx. Aparece como una tarjeta más: desde ahí lo editás, lo publicás en los mapas, lo mandás por correo o hacés la placa.</p>` }; },
   });
 }
 

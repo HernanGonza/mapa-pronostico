@@ -5,19 +5,22 @@ import PlacaPreview from "../components/PlacaPreview";
 import BaseMap from "../components/BaseMap";
 import { colorUniforme, infoPronostico } from "../components/PronosticoMapContent";
 import EmbedShare from "../components/EmbedShare";
-import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos, filaInvalida } from "../lib/asistentesPronostico";
+import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos } from "../lib/asistentesPronostico";
 import PronosticoPublicado, { usePublicado, origenDe } from "../components/PronosticoPublicado";
 import BrandHeader from "../components/BrandHeader";
-import InformePronostico, { BotonInformePronostico, useInformePronostico, aMapa, problemasParaMapa } from "../components/InformePronostico";
+import InformePronostico, { aMapa, borradorConAlgo, borradorVacio, conCampo, desdeDatos, problemasParaMapa } from "../components/InformePronostico";
+import TarjetaInformePronostico, { estadoDeInforme } from "../components/TarjetaInformePronostico";
+import { useInformesPronostico } from "../lib/useInformesPronostico";
 import { enviarPronosticoPorCorreo, editarDestinatariosPorPasos } from "../lib/asistenteCorreo";
-import { notificar } from "../lib/ui";
+import { notificar, confirmar } from "../lib/ui";
 import {
   generarInformePdf,
   parseDocx,
+  enviarInformePorCorreo,
+  marcarInformePublicado,
   getCorreoEstado,
   getCorreoDestinatarios,
   guardarCorreoDestinatarios,
-  enviarPronosticoPorCorreo as enviarCorreo,
   publicar,
   generarPronosticoPlaca,
   getUltimaPlacaPronostico,
@@ -25,11 +28,6 @@ import {
   getMapaPreview,
   getMunicipiosGeojson,
 } from "../api";
-import {
-  colorPorCondicion,
-  esCondicionConocida,
-  esTormenta,
-} from "../lib/condiciones";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
 
 // Placa del pronóstico para redes: estuvo desactivada (pedido 02/10); vuelve el 04/10 con el estilo
@@ -39,11 +37,6 @@ const PLACA_REDES_ACTIVA = true;
 // descargan para revisarlas. El backend también lo frena (routes/redes.js, PRONOSTICO_EN_REDES).
 const PRONOSTICO_EN_REDES = false;
 
-const CAMPOS = [
-  ["TMIN", "Mín"],
-  ["TMAX", "Máx"],
-];
-
 function descargarBlob(blob, nombre) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -51,12 +44,6 @@ function descargarBlob(blob, nombre) {
   a.download = nombre;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function tempInvalida(v) {
-  if (v == null || String(v).trim() === "") return true;
-  const n = Number(v);
-  return !Number.isInteger(n) || n < -15 || n > 55;
 }
 
 /** Diferencias entre lo editado y lo último publicado, por localidad. */
@@ -90,118 +77,167 @@ function calcularCambios(editadas, publicadas) {
   return cambios;
 }
 
+const CLAVE_NUEVO = "pronostico-informe-nuevo-v1";
+
 export default function AdminPage() {
-  const [filas, setFilas] = useState(null);
-  const [extendido, setExtendido] = useState(null);
-  const [publicado, setPublicado] = useState(null); // { publicadoEn, filas }
+  const [publicado, setPublicado] = useState(null); // lo que muestran ahora los mapas públicos: { publicadoEn, filas, extendido, fechaPronostico }
   const metaPublicado = usePublicado(publicado?.publicadoEn); // desde dónde se hizo lo publicado (panel o ensamble) y quién
   const [municipiosPreview, setMunicipiosPreview] = useState(null);
   const [municipiosGeojson, setMunicipiosGeojson] = useState(null);
   const [cargando, setCargando] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState(null);
   const [mensajeOk, setMensajeOk] = useState(null);
-  const [fechaPronostico, setFechaPronostico] = useState(new Date().toISOString().slice(0, 10));
   const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
-  // El informe del día se arma en un cajón por pasos (sale en PDF); lo que carga alimenta el mapa de esta pantalla.
-  const informe = useInformePronostico();
+  // Los informes del día: varios por día, cada uno es una tarjeta (guardada en el servidor). El cajón edita el que se abre.
+  const inf = useInformesPronostico();
+  const { informes } = inf;
+  const [abiertoId, setAbiertoId] = useState(null); // id de un informe guardado, o "nuevo" (el que se está armando y todavía no se guardó)
+  // Un informe nuevo no es una tarjeta hasta que se guarda (último paso del cajón): mientras tanto es sólo un borrador que no se pierde al cerrar.
+  const [nuevo, setNuevo] = useState(() => { try { return JSON.parse(localStorage.getItem(CLAVE_NUEVO))?.borrador || null; } catch { return null; } });
+  const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  useEffect(() => { try { if (nuevo) localStorage.setItem(CLAVE_NUEVO, JSON.stringify({ borrador: nuevo })); else localStorage.removeItem(CLAVE_NUEVO); } catch { /* sin almacenamiento */ } }, [nuevo]);
   const [cajon, setCajon] = useState(false);
-  // «Placa para redes» muestra siempre la última placa generada (también al volver a la página).
+  const [paso, setPaso] = useState(0);
+  const [vistaId, setVistaId] = useState(undefined); // el informe cuyo mapa se ve acá (undefined = todavía no se eligió; null = lo publicado)
+  const mapaRef = useRef(null);
+  const [correo, setCorreo] = useState(null); // { configurado, remitente, via } del servidor
+  useEffect(() => { getCorreoEstado().then(setCorreo).catch(() => {}); }, []);
+
+  // «Placa para redes» muestra la última placa generada (también al volver a la página).
   useEffect(() => {
     let vivo = true;
     getUltimaPlacaPronostico().then((placa) => { if (vivo && placa) setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre }); }).catch(() => {});
     return () => { vivo = false; };
   }, []);
-  const mapaRef = useRef(null);
+  useEffect(() => { getMunicipiosGeojson().then(setMunicipiosGeojson).catch(() => {}); }, []);
+  useEffect(() => { getActual().then((actual) => { if (actual) setPublicado(actual); }).catch(() => {}); }, []);
 
+  // Al abrir la pantalla, el mapa muestra el informe que está en los mapas ahora (o, si no hay, el más reciente).
   useEffect(() => {
-    getMunicipiosGeojson().then(setMunicipiosGeojson).catch(() => {});
-  }, []);
+    if (vistaId !== undefined || !informes) return;
+    const ahora = informes.find((i) => publicado && i.meta?.publicadoEn && new Date(i.meta.publicadoEn).getTime() === new Date(publicado.publicadoEn).getTime());
+    setVistaId(ahora?.id ?? null);
+  }, [informes, publicado, vistaId]);
 
-  useEffect(() => {
-    getActual()
-      .then((actual) => {
-        if (actual) {
-          setPublicado(actual);
-          setFilas(actual.filas);
-          setExtendido(actual.extendido || null);
-          if (actual.fechaPronostico) setFechaPronostico(actual.fechaPronostico);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const informeAbierto = abiertoId === "nuevo" ? (nuevo ? { id: null, borrador: nuevo, meta: {} } : null) : informes?.find((i) => i.id === abiertoId) || null;
+  const informeVista = informes?.find((i) => i.id === vistaId) || null;
+  // El mapa de acá muestra el informe elegido si está completo; si no (o si no hay ninguno elegido), lo publicado.
+  const datosVista = useMemo(() => (informeVista && !problemasParaMapa(informeVista.borrador).length ? aMapa(informeVista.borrador) : null), [informeVista]);
+  const filas = datosVista?.filas ?? publicado?.filas ?? null;
+  const extendido = datosVista ? datosVista.extendido : publicado?.extendido || null;
+  const fechaPronostico = datosVista?.fecha ?? (publicado?.fechaPronostico ? String(publicado.fechaPronostico).slice(0, 10) : "");
 
   useEffect(() => {
     if (!filas) return;
-    const t = setTimeout(() => {
-      getMapaPreview(filas, extendido)
-        .then(setMunicipiosPreview)
-        .catch((err) => setError(err.message));
-    }, 400);
+    const t = setTimeout(() => { getMapaPreview(filas, extendido).then(setMunicipiosPreview).catch((err) => setError(err.message)); }, 400);
     return () => clearTimeout(t);
   }, [filas, extendido]);
 
-  const hayInvalidos = useMemo(
-    () =>
-      !!filas &&
-      filas.some(
-        (r) =>
-          tempInvalida(r.TMIN) ||
-          tempInvalida(r.TMAX) ||
-          Number(r.TMIN) > Number(r.TMAX) ||
-          !esCondicionConocida(r.CONDICION)
-      ),
-    [filas]
-  );
-
-  const cambios = useMemo(
-    () => calcularCambios(filas || [], publicado?.filas),
-    [filas, publicado]
-  );
-
-  const fechaCambiada = !!filas && fechaPronostico !== (publicado?.fechaPronostico || "");
+  const cambios = useMemo(() => calcularCambios(filas || [], publicado?.filas), [filas, publicado]);
+  const fechaCambiada = !!filas && fechaPronostico !== (publicado?.fechaPronostico ? String(publicado.fechaPronostico).slice(0, 10) : "");
   const sucio = !!filas && (!publicado || !!cambios?.length || fechaCambiada);
 
-  // --- Asistentes (todo dentro de un modal, paso a paso) ---
-  // El formato anterior sigue disponible: subir el .docx de Alerta Temprana (se lee igual que siempre) y corregir los datos.
+  const aviso = (msg) => { setMensajeOk(msg); setError(null); };
+  const fallo = (e) => { setError(e.message); setMensajeOk(null); };
+
+  // --- Acciones de las tarjetas ---
+  /** Abre el cajón con un informe nuevo SIN guardar (si ya había uno a medias, sigue con ese). */
+  function nuevoInforme(borrador) {
+    if (borrador || !nuevo) setNuevo(borrador || borradorVacio());
+    setPaso(0); setAbiertoId("nuevo"); setCajon(true);
+  }
+  async function guardarNuevo() {
+    if (!nuevo || guardandoNuevo) return;
+    setGuardandoNuevo(true);
+    try {
+      const n = await inf.crear(nuevo);
+      setNuevo(null); setAbiertoId(n.id); setVistaId(n.id);
+      aviso(`Informe #${n.id} guardado: ya es una tarjeta de la pila.`);
+    } catch (e) { fallo(e); } finally { setGuardandoNuevo(false); }
+  }
+  function editar(i) {
+    if (abiertoId !== i.id) setPaso(0);
+    setAbiertoId(i.id); setVistaId(i.id); setCajon(true);
+  }
+  async function duplicar(i) {
+    if (nuevo && borradorConAlgo(nuevo) && !(await confirmar({ titulo: "Hay un informe sin guardar", texto: "Si seguís, se descarta para empezar con la copia.", confirmar: "Descartar y seguir", peligro: true }))) return;
+    nuevoInforme(structuredClone(i.borrador));
+  }
+  async function borrarInforme(i) {
+    if (!(await confirmar({ titulo: `¿Borrar el informe #${i.id}?`, texto: i.meta?.publicadoEn ? "Ya se publicó en los mapas: borrarlo no cambia lo que se ve ahora, sólo saca la tarjeta." : "Se pierde lo escrito.", confirmar: "Borrar", peligro: true }))) return;
+    try { await inf.borrar(i.id); if (abiertoId === i.id) { setCajon(false); setAbiertoId(null); } if (vistaId === i.id) setVistaId(null); } catch (e) { fallo(e); }
+  }
   const cargarDocx = () => cargarPronostico({
-    filas, fecha: fechaPronostico, parse: (archivo) => parseDocx(archivo),
-    aplicar: ({ filas: f, fecha, extendido: e }) => { setFilas(f); setFechaPronostico(fecha); setExtendido(e || extendido || null); setError(null); setMensajeOk(null); },
-  });
-  // El informe es lo que arma el mapa: apenas está completo, el mapa de esta pantalla lo muestra (el mapa público sólo cambia al publicar).
-  useEffect(() => {
-    if (!informe.hayAlgo || problemasParaMapa(informe.borrador).length) return;
-    const m = aMapa(informe.borrador);
-    setFilas(m.filas); setFechaPronostico(m.fecha); setExtendido(m.extendido); setError(null);
-  }, [informe.borrador, informe.hayAlgo]);
-  const crearPlaca = () => crearPlacaPronostico({
-    enRedes: PRONOSTICO_EN_REDES,
-    epigrafe: `Previsión del tiempo · ${fechaPronostico.split("-").reverse().join("/")}`, filas,
-    vistaPrevia: (valores) => generarPronosticoPlaca(filas, fechaPronostico, { ...valores, vistaPrevia: true }),
-    guardar: async (token, valores) => {
-      const placa = await generarPronosticoPlaca(filas, fechaPronostico, { ...valores, confirmarToken: token });
-      setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
-      setVista("placa");
-      return placa;
-    },
-  });
-  const revisarYPublicar = () => publicarPronosticoPorPasos({
-    cantidad: filas.length, sinPublicar: !publicado, fecha: fechaPronostico, fechaCambiada, cambios, republicar: !sucio,
-    // Si lo publicado se hizo desde el ensamble, se avisa: esto lo reemplaza (así no se pisa sin querer lo que armó el otro).
-    publicadoDesde: metaPublicado?.origen === "ensamble" ? `${origenDe(metaPublicado).toLowerCase()}, el ${new Date(metaPublicado.publicadoEn).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}${metaPublicado.publicadoPor ? ` por ${metaPublicado.publicadoPor}` : ""}` : null,
-    publicar: async () => { setPublicado(await publicar(filas, fechaPronostico, extendido)); setMensajeOk("Publicado. El mapa público ya muestra esta versión."); },
+    filas: null, fecha: new Date().toISOString().slice(0, 10), parse: (archivo) => parseDocx(archivo),
+    aplicar: async ({ filas: f, fecha, extendido: e }) => { const n = await inf.crear(desdeDatos({ filas: f, fecha, extendido: e })); setVistaId(n.id); },
   });
 
-  // Correo: la lista y el estado se piden al abrir, así siempre están al día.
-  async function enviarPorCorreo() {
+  async function verPdf(i, bajar = false) {
+    setError(null);
     try {
+      const blob = await generarInformePdf(i.borrador), url = URL.createObjectURL(blob);
+      if (bajar) { const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha}.pdf` }); document.body.append(a); a.click(); a.remove(); }
+      else window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { fallo(e); }
+  }
+
+  const publicarInforme = async (i) => {
+    if (problemasParaMapa(i.borrador).length) return;
+    const m = aMapa(i.borrador);
+    const cambiosI = calcularCambios(m.filas, publicado?.filas);
+    const fechaI = m.fecha !== (publicado?.fechaPronostico ? String(publicado.fechaPronostico).slice(0, 10) : "");
+    const esActual = estadoDeInforme(i, publicado).enMapas;
+    await inf.guardarYa(i.id);
+    return publicarPronosticoPorPasos({
+      cantidad: m.filas.length, sinPublicar: !publicado, fecha: m.fecha, fechaCambiada: fechaI, cambios: cambiosI, republicar: esActual && !cambiosI?.length && !fechaI,
+      // Si lo publicado se hizo desde el ensamble, se avisa: esto lo reemplaza (así no se pisa sin querer lo que armó el otro).
+      publicadoDesde: metaPublicado?.origen === "ensamble" ? `${origenDe(metaPublicado).toLowerCase()}, el ${new Date(metaPublicado.publicadoEn).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}${metaPublicado.publicadoPor ? ` por ${metaPublicado.publicadoPor}` : ""}` : null,
+      publicar: async () => {
+        const p = await publicar(m.filas, m.fecha, m.extendido);
+        setPublicado(p); setVistaId(i.id);
+        try { inf.mezclar(await marcarInformePublicado(i.id, p.publicadoEn)); } catch { await inf.refrescarMeta(i.id); }
+        aviso(`Publicado el informe #${i.id}. Los mapas públicos ya muestran esta versión.`);
+      },
+    });
+  };
+
+  const crearPlaca = (i) => {
+    if (problemasParaMapa(i.borrador).length) return;
+    const m = aMapa(i.borrador);
+    return crearPlacaPronostico({
+      enRedes: PRONOSTICO_EN_REDES,
+      epigrafe: `Previsión del tiempo · ${m.fecha.split("-").reverse().join("/")}`, filas: m.filas,
+      vistaPrevia: (valores) => generarPronosticoPlaca(m.filas, m.fecha, { ...valores, vistaPrevia: true, informeId: i.id }),
+      guardar: async (token, valores) => {
+        const placa = await generarPronosticoPlaca(m.filas, m.fecha, { ...valores, confirmarToken: token, informeId: i.id });
+        setImagenes({ feed: placa.feedUrl, historias: placa.historiasUrl, feedNombre: placa.feedNombre, historiasNombre: placa.historiasNombre });
+        setVista("placa"); setVistaId(i.id); inf.refrescarMeta(i.id);
+        return placa;
+      },
+    });
+  };
+  const verPlaca = (i) => {
+    const pl = i.meta?.placa;
+    if (!pl) return;
+    setImagenes({ feed: pl.feedUrl, historias: pl.historiasUrl, feedNombre: pl.feedNombre, historiasNombre: pl.historiasNombre });
+    setVista("placa"); setVistaId(i.id);
+  };
+
+  // Correo: la lista y el estado se piden al abrir, así siempre están al día. El PDF lo arma el servidor con este informe.
+  async function enviarPorCorreo(i) {
+    setOcupado(true);
+    try {
+      await inf.guardarYa(i.id);
       const [estado, destinatarios] = await Promise.all([getCorreoEstado(), getCorreoDestinatarios()]);
-      if (!destinatarios.length) { notificar("error", "La lista de destinatarios está vacía: cargala en «Destinatarios del email»."); return; }
-      // El PDF sale del informe armado en el cajón (si no hay borrador, queda para elegir otro archivo en el asistente).
-      let pdf = null;
-      if (informe.hayAlgo) { try { pdf = new File([await generarInformePdf(informe.borrador)], `PREVISION DEL TIEMPO ${informe.borrador.fecha}.pdf`, { type: "application/pdf" }); } catch (e) { notificar("error", `No se pudo armar el PDF del informe: ${e.message}`); } }
-      await enviarPronosticoPorCorreo({ pdf, fecha: fechaPronostico, estado, destinatarios, enviar: enviarCorreo });
-    } catch (e) { notificar("error", e.message); }
+      if (!destinatarios.length) { notificar("error", "La lista de destinatarios está vacía: cargala en «Destinatarios del correo»."); return; }
+      await enviarPronosticoPorCorreo({
+        fecha: i.borrador.fecha, estado, destinatarios,
+        enviar: async (datos) => { const r = await enviarInformePorCorreo(i.id, datos); if (r.informe) inf.mezclar(r.informe); return r; },
+      });
+    } catch (e) { notificar("error", e.message); } finally { setOcupado(false); }
   }
   async function editarDestinatarios() {
     try { await editarDestinatariosPorPasos({ destinatarios: await getCorreoDestinatarios(), guardar: guardarCorreoDestinatarios }); }
@@ -218,16 +254,19 @@ export default function AdminPage() {
       const blob = await (await fetch(dataUrl)).blob();
       descargarBlob(blob, `mapa_captura_${Date.now()}.png`);
     } catch (err) {
-      setError(
-        "No se pudo capturar el mapa. Usá 'Generar placa para redes', que es la vía confiable. Detalle: " +
-          err.message
-      );
+      setError("No se pudo capturar el mapa. Usá «Placa para redes» en la tarjeta, que es la vía confiable. Detalle: " + err.message);
     } finally {
       setCargando(false);
     }
   }
 
   const relativo = tiempoRelativo(publicado?.publicadoEn);
+  // La pila, agrupada por día (lo más reciente arriba).
+  const dias = useMemo(() => {
+    const porDia = new Map();
+    for (const i of informes || []) porDia.set(i.fecha, [...(porDia.get(i.fecha) || []), i]);
+    return [...porDia.entries()];
+  }, [informes]);
 
   return (
     <div className="admin-layout">
@@ -245,31 +284,42 @@ export default function AdminPage() {
       </BrandHeader>
 
       <div className="admin-panel" id="contenido-principal" tabIndex={-1}>
-        <div className="editor-heading"><h1>Previsión del tiempo</h1><p>Cargá el pronóstico y revisá los datos. Los cambios se ven en el mapa antes de publicar.</p></div>
+        <div className="editor-heading"><h1>Previsión del tiempo</h1><p>Cada informe del día es una tarjeta: se arma, se publica en los mapas, se manda por correo y tiene su placa para redes.</p></div>
         <PublicationStatus changed={sucio} published={publicado} />
         <PronosticoPublicado meta={metaPublicado} />
-        {error && <div className="alert alert--error" role="alert">{error}</div>}
+        {(error || inf.error) && <div className="alert alert--error" role="alert">{error || inf.error}</div>}
         {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
         <div className="admin-acciones">
-          <BotonInformePronostico abierto={cajon} onClick={() => setCajon((a) => !a)} hayBorrador={informe.hayAlgo} />
-          <button className="btn btn--block" onClick={cargarDocx}>{filas ? "Subir o corregir con un .docx" : "Subir un .docx (formato anterior)"}</button>
-          {PLACA_REDES_ACTIVA && <button className="btn btn--block" disabled={!filas || hayInvalidos} onClick={crearPlaca}>Crear placa para redes</button>}
-          <button className="btn btn--block" disabled={!filas || hayInvalidos || !fechaPronostico} onClick={revisarYPublicar}>{sucio ? "Revisar y publicar" : "Republicar"}</button>
-          <button className="btn btn--block" onClick={enviarPorCorreo}>Enviar por email</button>
-          <button className="btn btn--ghost btn--block" disabled={!filas} onClick={onCapturarDesdeElMapa}>Capturar mapa actual</button>
-          <button className="btn btn--ghost btn--block" onClick={editarDestinatarios}>Destinatarios del email</button>
+          <button className="btn btn--primary btn--block" onClick={() => nuevoInforme()}>{nuevo && borradorConAlgo(nuevo) ? "Seguir con el informe sin guardar" : "Nuevo informe"}</button>
+          <button className="btn btn--block" onClick={cargarDocx}>Subir un .docx (formato anterior)</button>
+          <button className="btn btn--ghost btn--block" onClick={editarDestinatarios}>Destinatarios del correo</button>
+          <button className="btn btn--ghost btn--block" disabled={!filas || cargando} onClick={onCapturarDesdeElMapa}>Capturar el mapa de acá</button>
         </div>
-        <p className="admin-panel__hint">{!filas ? "Armá el informe del día con el botón de arriba (sale en PDF) o subí el .docx del formato anterior: el mapa se arma solo." : hayInvalidos ? "Hay datos por corregir: abrí «Armar el informe del día» y revisá las localidades." : sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>
-        {extendido && (
-          <div className="alert alert--ok" role="status">
-            Hay pronóstico extendido cargado (los dos días siguientes, por zona). También lo corregís en la pantalla del{" "}
-            <Link to="/panel/pronostico-3-dias">pronóstico de 3 días</Link>.
+
+        {correo && !correo.configurado && <div className="alert alert--error" role="status">El envío por correo todavía no está configurado en el servidor: faltan <code>GMAIL_USER</code> y <code>GMAIL_APP_PASSWORD</code> (la contraseña de aplicación de la cuenta de Gmail). Hasta entonces el botón «Enviar por correo» no puede mandar.</div>}
+        {correo?.configurado && <p className="admin-panel__hint">Los correos salen desde {correo.remitente} ({correo.via === "gmail" ? "Gmail" : "Microsoft 365"}).</p>}
+        {!informes ? <p className="admin-panel__hint">Cargando los informes…</p> : !informes.length ? <p className="admin-panel__hint">Todavía no hay informes de los últimos días. Armá uno con «Nuevo informe» o subí el .docx del formato anterior.</p> : (
+          <div className="pron-pila">
+            {dias.map(([fecha, lista]) => <section key={fecha} aria-label={`Informes del ${fecha}`}>
+              <h2 className="pron-dia-titulo">{new Date(`${fecha}T12:00:00Z`).toLocaleDateString("es-AR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" })} · {lista.length} informe{lista.length === 1 ? "" : "s"}</h2>
+              <ul className="avisos-lista">
+                {lista.map((i) => <TarjetaInformePronostico key={i.id} informe={i} actual={publicado} enElMapa={i.id === vistaId} guardado={inf.guardado[i.id]} ocupado={ocupado} acciones={{
+                  editar: () => editar(i), verEnMapa: () => { setVista("mapa"); setVistaId(i.id); }, publicar: () => publicarInforme(i),
+                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
+                  enviar: () => enviarPorCorreo(i), destinatarios: editarDestinatarios, duplicar: () => duplicar(i), borrar: () => borrarInforme(i),
+                }} />)}
+              </ul>
+            </section>)}
           </div>
         )}
+        <p className="admin-panel__hint">{vistaId == null ? "El mapa de la derecha muestra lo publicado. Tocá una tarjeta para ver ese informe en el mapa." : !datosVista ? "Ese informe todavía está incompleto: el mapa muestra lo publicado." : sucio ? "El mapa de la derecha muestra el informe elegido, que todavía no está publicado." : "El mapa de la derecha coincide con lo publicado."}</p>
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
-      <InformePronostico informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} publicado={publicado} alPublicar={revisarYPublicar} />
+      <InformePronostico informe={informeAbierto} abierto={cajon && !!informeAbierto} onCerrar={() => setCajon(false)} paso={paso} setPaso={setPaso}
+        setCampo={(camino, valor) => (abiertoId === "nuevo" ? setNuevo((b) => conCampo(b, camino, valor)) : abiertoId != null && inf.setCampo(abiertoId, camino, valor))}
+        reemplazar={(b) => (abiertoId === "nuevo" ? setNuevo(b) : abiertoId != null && inf.reemplazar(abiertoId, b))}
+        guardado={inf.guardado[abiertoId]} publicado={publicado} alPublicar={() => informeAbierto && publicarInforme(informeAbierto)} alGuardar={guardarNuevo} guardando={guardandoNuevo} />
 
       <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico"
         sinRedes={PRONOSTICO_EN_REDES ? null : "Todavía no aprobada para redes: se puede descargar para revisarla, pero no publicar."}>
@@ -287,7 +337,7 @@ export default function AdminPage() {
           />
         ) : (
           <div className="admin-map-area__vacio">
-            Armá el informe del día o subí un .docx para ver el mapa.
+            Armá un informe o subí un .docx para ver el mapa.
           </div>
         )}
       </PlacaPreview>

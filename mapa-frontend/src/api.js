@@ -658,6 +658,24 @@ export async function generarInformePdf(informe) {
 }
 export async function getAstronomia(fecha) { return handleJson(await fetch(`${API_URL}/api/pronostico/astronomia?fecha=${encodeURIComponent(fecha)}`, { cache: "no-store", ...CON_SESION })); }
 
+// Informes de pronóstico del día (tarjetas de «Previsión del tiempo»): borrador, PDF, lo publicado, correos y placa de cada uno.
+const jsonInf = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });
+export async function getInformesPronostico() { return (await handleJson(await fetch(`${API_URL}/api/pronostico/informes`, { cache: "no-store", ...CON_SESION }))).informes; }
+export async function crearInformePronostico(borrador) { return handleJson(await fetch(`${API_URL}/api/pronostico/informes`, jsonInf("POST", { borrador }))); }
+export async function guardarInformePronostico(id, borrador) { return handleJson(await fetch(`${API_URL}/api/pronostico/informes/${id}`, jsonInf("PUT", { borrador }))); }
+export async function borrarInformePronostico(id) {
+  const r = await fetch(`${API_URL}/api/pronostico/informes/${id}`, { method: "DELETE", ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo borrar el informe.");
+}
+export async function marcarInformePublicado(id, publicadoEn) { return handleJson(await fetch(`${API_URL}/api/pronostico/informes/${id}/publicado`, jsonInf("POST", { publicadoEn }))); }
+export async function enviarInformePorCorreo(id, { asunto, cuerpo, ids }) { return handleJson(await fetch(`${API_URL}/api/pronostico/informes/${id}/enviar`, jsonInf("POST", { asunto, cuerpo, ids }))); }
+/** El PDF de un informe guardado (Blob). */
+export async function getPdfInformePronostico(id) {
+  const r = await fetch(`${API_URL}/api/pronostico/informes/${id}/pdf`, { cache: "no-store", ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el PDF.");
+  return r.blob();
+}
+
 // Inundaciones: monitor de arroyos internos (puntos con estación del SNIH y puntos sin sensor).
 const jsonPost = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });
 export async function getArroyos() { return handleJson(await fetch(`${API_URL}/api/arroyos`, { cache: "no-store", ...CON_SESION })); }
