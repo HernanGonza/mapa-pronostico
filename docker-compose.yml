@@ -36,8 +36,12 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       WHATSAPP_NUMERO: ${WHATSAPP_NUMERO:-}
-      # Envío del pronóstico por correo desde la casilla de Microsoft 365 —
-      # ver docs/correo.md. Sin estas variables el envío avisa que falta configurarlo.
+      # Envío del pronóstico por correo — ver docs/correo.md. Con Gmail alcanzan GMAIL_USER y
+      # GMAIL_APP_PASSWORD; Microsoft 365 queda como alternativa. Sin ninguna, el envío avisa que falta configurarlo.
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      MAIL_FROM_NOMBRE: ${MAIL_FROM_NOMBRE:-}
+      PDF_OWNER_PASSWORD: ${PDF_OWNER_PASSWORD:-}
       MS_TENANT_ID: ${MS_TENANT_ID:-}
       MS_CLIENT_ID: ${MS_CLIENT_ID:-}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}

@@ -28,6 +28,11 @@ const DATA = path.join(__dirname, "..", "..", "data");
 const FUENTE = { normal: path.join(DATA, "alertas", "OakSans-Regular.ttf"), bold: path.join(DATA, "alertas", "OakSans-Bold.ttf"), titulo: path.join(DATA, "alertas", "aviso-especial", "OakSans-ExtraBold.ttf") };
 const LOGOS = { alerta: path.join(DATA, "brand", "alerta-temprana.png"), flor: path.join(DATA, "brand", "ecologia-flor.png") };
 
+// Nombres completos (encabezado, pie y fuente del informe).
+const DIRECCION = "Dirección General de Alerta Temprana";
+const SUBSECRETARIA = "Subsecretaría de Ordenamiento Territorial";
+const MINISTERIO = "Ministerio de Ecología y Recursos Naturales Renovables de la Provincia de Misiones";
+
 const VERDE = "#3E6C51", VERDE_OSCURO = "#234131", CREMA = "#FAF4EB", GRIS = "#5d6f64", LINEA = "#cdd8d1", ROJO = "#B3262F", AZUL = "#1F5F9E";
 const ZONAS = ["Norte", "Centro", "Sur"];
 const M = 36, ANCHO = 595.28 - 2 * M, PIE = 36;
@@ -81,7 +86,7 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
 
   const chunks = [];
   const doc = new PDFDocument({
-    size: "A4", margins: { top: M, bottom: PIE + 10, left: M, right: M }, bufferPages: true, pdfVersion: "1.7ext3",
+    size: "A4", margins: { top: M, bottom: PIE + 18, left: M, right: M }, bufferPages: true, pdfVersion: "1.7ext3",
     ownerPassword: claveDuenio || crypto.randomBytes(24).toString("hex"),
     permissions: { printing: "highResolution", modifying: false, copying: false, annotating: false, fillingForms: false, contentAccessibility: true, documentAssembly: false },
     info: { Title: `Previsión del tiempo para la provincia de Misiones — ${fechaCorta(b.fecha)}`, Author: "Dirección General de Alerta Temprana — Ministerio de Ecología y RNR de Misiones", Subject: "Previsión del tiempo", Creator: "Sistema de Alerta Temprana" },
@@ -171,11 +176,16 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   // --- encabezado -----------------------------------------------------------------------------------------------
   doc.image(LOGOS.alerta, M - 6, M - 14, { width: 92 });
   doc.image(LOGOS.flor, M + ANCHO - 44, M - 2, { width: 44 });
-  doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(17).text("PREVISIÓN DEL TIEMPO", M + 96, M - 4, { width: ANCHO - 150, lineBreak: false });
-  doc.font("Oak-Bold").fontSize(11).fillColor(VERDE).text("PARA LA PROVINCIA DE MISIONES", M + 96, M + 17, { width: ANCHO - 150, lineBreak: false });
-  doc.font("Oak").fontSize(9).fillColor(GRIS).text(`Datos: ${cap(fechaLarga(b.fecha))}${b.emision ? ` · emisión ${b.emision} h` : ""}`, M + 96, M + 34, { width: ANCHO - 150, lineBreak: false });
-  doc.moveTo(M, M + 54).lineTo(M + ANCHO, M + 54).lineWidth(1.5).strokeColor(VERDE).stroke();
-  doc.y = M + 66;
+  // El título va centrado en la página (los logos quedan a los costados, sin tocarlo).
+  const centro = { x: M, width: ANCHO, align: "center", lineBreak: false };
+  doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(18).text("PREVISIÓN DEL TIEMPO", centro.x, M - 6, centro);
+  doc.font("Oak-Bold").fontSize(11.5).fillColor(VERDE).text("PARA LA PROVINCIA DE MISIONES", centro.x, M + 16, centro);
+  doc.font("Oak-Bold").fontSize(8.5).fillColor(VERDE_OSCURO).text(DIRECCION, centro.x, M + 33, centro);
+  doc.font("Oak").fontSize(7.5).fillColor(GRIS).text(SUBSECRETARIA, centro.x, M + 44, centro);
+  doc.text(MINISTERIO, centro.x, M + 54, centro);
+  doc.font("Oak").fontSize(9).fillColor(GRIS).text(`Datos: ${cap(fechaLarga(b.fecha))}${b.emision ? ` · emisión ${b.emision} h` : ""}`, centro.x, M + 70, centro);
+  doc.moveTo(M, M + 86).lineTo(M + ANCHO, M + 86).lineWidth(1.5).strokeColor(VERDE).stroke();
+  doc.y = M + 98;
 
   // --- datos generales --------------------------------------------------------------------------------------------
   const g = b.generales || {};
@@ -254,14 +264,17 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   espacio(40);
   doc.moveTo(M, doc.y).lineTo(M + ANCHO, doc.y).lineWidth(0.5).strokeColor(LINEA).stroke();
   doc.y += 6;
-  doc.font("Oak").fontSize(8.5).fillColor(GRIS).text("FUENTE: Dirección General de Alerta Temprana – Subsecretaría de Ordenamiento Territorial – Ministerio de Ecología y RNR de la Provincia de Misiones.", M, doc.y, { width: ANCHO });
+  doc.font("Oak").fontSize(8.5).fillColor(GRIS).text(`FUENTE: ${DIRECCION} – ${SUBSECRETARIA} – ${MINISTERIO}.`, M, doc.y, { width: ANCHO });
 
   // pie con el número de página, en todas (se escribe al final, cuando se sabe cuántas son)
   const paginas = doc.bufferedPageRange();
   for (let i = 0; i < paginas.count; i++) {
     doc.switchToPage(paginas.start + i);
     doc.page.margins.bottom = 0; // para poder escribir en la franja del pie sin que pdfkit salte de página
-    doc.font("Oak").fontSize(8).fillColor(GRIS).text(`Ministerio de Ecología y RNR de Misiones · Alerta Temprana — Página ${i + 1} de ${paginas.count}`, M, doc.page.height - 26, { width: ANCHO, align: "center", lineBreak: false });
+    doc.moveTo(M, doc.page.height - 44).lineTo(M + ANCHO, doc.page.height - 44).lineWidth(0.5).strokeColor(LINEA).stroke();
+    doc.font("Oak-Bold").fontSize(7.5).fillColor(VERDE_OSCURO).text(`${DIRECCION} · ${SUBSECRETARIA}`, M, doc.page.height - 38, { width: ANCHO, align: "center", lineBreak: false });
+    doc.font("Oak").fontSize(7.5).fillColor(GRIS).text(MINISTERIO, M, doc.page.height - 28, { width: ANCHO, align: "center", lineBreak: false });
+    doc.text(`Página ${i + 1} de ${paginas.count}`, M, doc.page.height - 18, { width: ANCHO, align: "center", lineBreak: false });
   }
   doc.end();
   return terminado;
