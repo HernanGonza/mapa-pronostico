@@ -18,9 +18,6 @@ const { loadMunicipios, armarMunicipiosConPronostico } = require("../lib/municip
 const coordinates = require("../config/coordinates");
 const requireAuth = require("../middleware/requireAuth");
 const { generarInformePdf } = require("../lib/informePronosticoPdf");
-const { solDeMunicipio } = require("../lib/solar");
-const { lunaDeMunicipio } = require("../lib/luna");
-const SunCalc = require("suncalc");
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -413,26 +410,6 @@ router.post("/pronostico/informe-pdf", requireAuth, express.json({ limit: "1mb" 
     console.error("[informe-pdf]", e);
     res.status(500).json({ error: `No se pudo armar el PDF: ${e.message}` });
   }
-});
-
-/**
- * GET /api/pronostico/astronomia?fecha=AAAA-MM-DD
- * Sol y luna del día para los «datos generales» del informe (tomados en Oberá, el centro de la provincia):
- * { sol: "5:59 - 18:41", luna: "Sale 9:03 15/10/2026 - Se oculta 23:32 15/10/2026", faseLunar: "LUNA CRECIENTE, 6 DÍAS DE EDAD (28 % ILUMINADA)." }
- */
-router.get("/pronostico/astronomia", requireAuth, async (req, res) => {
-  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.fecha || "")) ? req.query.fecha : nowInArgentina().toISOString().slice(0, 10);
-  const centro = loadMunicipios().find((m) => m.nombre === "OBERA");
-  if (!centro) return res.status(404).json({ error: "No se encontró el municipio de referencia" });
-  const sinCero = (h) => String(h || "").replace(/^0/, "");
-  const ddmmaaaa = fecha.split("-").reverse().join("/");
-  const [sol, luna] = await Promise.all([solDeMunicipio(centro.id, fecha), Promise.resolve(lunaDeMunicipio(centro.id, fecha))]);
-  const edad = Math.round(SunCalc.getMoonIllumination(new Date(`${fecha}T15:00:00Z`)).phase * 29.530588);
-  res.json({
-    sol: sol ? `${sinCero(sol.amanecer)} - ${sinCero(sol.anochecer)}` : "",
-    luna: luna ? `${luna.sale ? `Sale ${sinCero(luna.sale)} ${ddmmaaaa}` : "No sale este día"} - ${luna.sePone ? `Se oculta ${sinCero(luna.sePone)} ${ddmmaaaa}` : "No se oculta este día"}` : "",
-    faseLunar: luna ? `${luna.fase.toUpperCase()}, ${edad} ${edad === 1 ? "DÍA" : "DÍAS"} DE EDAD (${luna.iluminacion} % ILUMINADA).` : "",
-  });
 });
 
 router.get("/materiales/icono/:condicion", (req, res) => {

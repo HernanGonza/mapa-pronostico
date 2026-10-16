@@ -11,8 +11,7 @@ import "../pages/ensamble.css"; // el cajón lateral (.ens-cajon) y los pasos so
 /**
  * Informe «PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES» armado paso a paso en el panel, en un cajón lateral que se
  * puede ocultar sin perder nada (el borrador se guarda solo en el navegador). Los pasos siguen el orden del informe de la
- * DGAT que se usaba en Word: datos generales, resumen por zona, el detalle de cada zona con sus localidades, el pronóstico
- * extendido y los informes de los días. El final es un PDF (cifrado y con marca de agua) que arma el servidor, y los mismos
+ * DGAT: el texto de cada día y después las tablas (provincia, zonas, ciudades y pronóstico extendido). El final es un PDF (cifrado y con marca de agua) que arma el servidor, y los mismos
  * datos alimentan el mapa público (`aMapa`).
  */
 export const ZONAS = ["Norte", "Centro", "Sur"];
@@ -48,7 +47,7 @@ export function borradorVacio() {
   const f = hoyART();
   return conFechas({
     fecha: f, emision: "09:00",
-    generales: { sol: "", luna: "", vientos: "", humedad: "", presion: "", faseLunar: "", riesgo: "BAJO PARA TODA LA PROVINCIA." }, avisoGeneral: "SIN AVISOS.",
+    generales: { vientos: "", humedad: "", presion: "", riesgo: "BAJO PARA TODA LA PROVINCIA." }, avisoGeneral: "SIN AVISOS.",
     zonas: Object.fromEntries(ZONAS.map((z) => [z, zonaVacia()])),
     localidades: ZONAS.flatMap((z) => LOCALIDADES[z].map((localidad) => ({ localidad, zona: z, tmin: "", tmax: "", condicion: "" }))),
     extendido: Object.fromEntries(ZONAS.map((z) => [z, [diaVacio(f), diaVacio(f)]])),
@@ -140,23 +139,18 @@ const Temps = ({ min, max, alMin, alMax, etiqueta }) => <div className="ens-par 
 </div>;
 const Condicion = ({ texto = "Condición", ...resto }) => <div className="paso-etiqueta"><span>{texto}</span><SelectorCondiciones etiqueta={texto} {...resto} /></div>;
 
-function PasoGenerales({ b, set, publicado, alCargarPublicado }) {
-  const [estado, setEstado] = useState({ cargando: false, error: "" });
-  async function calcular() {
-    setEstado({ cargando: true, error: "" });
-    try { const a = await api.getAstronomia(b.fecha); set("generales.sol", a.sol); set("generales.luna", a.luna); set("generales.faseLunar", a.faseLunar); setEstado({ cargando: false, error: "" }); }
-    catch (e) { setEstado({ cargando: false, error: e.message }); }
-  }
+function PasoFecha({ b, set, publicado, alCargarPublicado }) {
   return <>
-    <p className="paso__ayuda">La fecha define los días del pronóstico extendido (los dos siguientes) y de los informes. Estos son los «datos generales» del encabezado del informe.</p>
+    <p className="paso__ayuda">La fecha define los días del pronóstico extendido (los dos siguientes) y de los informes.</p>
     <CampoFecha label="Fecha del informe" value={b.fecha} onChange={(v) => v && set("fecha", v)} />
     {publicado && <button type="button" className="btn btn--ghost" onClick={alCargarPublicado}>Partir de lo que está publicado</button>}
     <Etiqueta texto="Hora de emisión"><input className="paso-input" type="time" value={b.emision} onChange={(e) => set("emision", e.target.value)} /></Etiqueta>
-    <button type="button" className="btn" disabled={estado.cargando} onClick={calcular}>{estado.cargando ? "Calculando…" : "Calcular sol, luna y fase lunar"}</button>
-    {estado.error && <p className="paso-aviso" role="alert">{estado.error}</p>}
-    <Linea texto="Sol" valor={b.generales.sol} alCambiar={(v) => set("generales.sol", v)} placeholder="5:59 - 18:41" />
-    <Linea texto="Luna" valor={b.generales.luna} alCambiar={(v) => set("generales.luna", v)} placeholder="Sale 9:03 15/10/2026 - Se oculta 23:32 15/10/2026" />
-    <Linea texto="Fase lunar" valor={b.generales.faseLunar} alCambiar={(v) => set("generales.faseLunar", v)} />
+  </>;
+}
+
+function PasoProvincia({ b, set }) {
+  return <>
+    <p className="paso__ayuda">La tabla «Previsión para la provincia». La temperatura mínima y la máxima salen solas de las temperaturas de las ciudades; las precipitaciones, del primer día del texto.</p>
     <Linea texto="Vientos" valor={b.generales.vientos} alCambiar={(v) => set("generales.vientos", v)} placeholder="S/SO 1 - 15 km/h" />
     <Linea texto="Humedad" valor={b.generales.humedad} alCambiar={(v) => set("generales.humedad", v)} placeholder="65 - 100 %" />
     <Linea texto="Presión" valor={b.generales.presion} alCambiar={(v) => set("generales.presion", v)} placeholder="1010 – 1016 HPA" />
@@ -193,7 +187,7 @@ function PasoModelos({ b, reemplazar, modelos }) {
 
 const PasoResumen = ({ b, set }) => <>
   <p className="paso__ayuda">Lo que se espera en cada zona, de un vistazo. Las condiciones se eligen de la lista y se pueden sumar varias con el «+».</p>
-  {ZONAS.map((z) => <section key={z} className="ens-tarjeta-informe"><h3>Zona {z}</h3>
+  {ZONAS_EN_ORDEN.map((z) => <section key={z} className="ens-tarjeta-informe"><h3>Zona {z}</h3>
     <Temps min={b.zonas[z].tmin} max={b.zonas[z].tmax} alMin={(v) => set(`zonas.${z}.tmin`, v)} alMax={(v) => set(`zonas.${z}.tmax`, v)} etiqueta={z} />
     <Condicion valor={b.zonas[z].condicion} alCambiar={(v) => set(`zonas.${z}.condicion`, v)} texto={`Condición, zona ${z}`} />
     <Linea texto="Aviso de alerta" valor={b.zonas[z].aviso} alCambiar={(v) => set(`zonas.${z}.aviso`, v)} />
@@ -218,7 +212,7 @@ const PasoZona = ({ b, set, zona }) => <>
 
 const PasoExtendido = ({ b, set }) => <>
   <p className="paso__ayuda">Pronóstico extendido: los dos días que siguen a la fecha del informe, por zona.</p>
-  {ZONAS.map((z) => <section key={z} className="ens-tarjeta-informe"><h3>Zona {z}</h3>
+  {ZONAS_EN_ORDEN.map((z) => <section key={z} className="ens-tarjeta-informe"><h3>Zona {z}</h3>
     {b.extendido[z].map((d, i) => <div key={d.fecha} className="pron-dia"><strong>{encabezadoDia(d.fecha)}</strong>
       <Temps min={d.tmin} max={d.tmax} alMin={(v) => set(`extendido.${z}.${i}.tmin`, v)} alMax={(v) => set(`extendido.${z}.${i}.tmax`, v)} etiqueta={`${z} ${ddmmaaaa(d.fecha)}`} />
       <Condicion valor={d.condicion} alCambiar={(v) => set(`extendido.${z}.${i}.condicion`, v)} texto={`Condición ${z} ${ddmmaaaa(d.fecha)}`} />
@@ -252,7 +246,6 @@ export function problemasParaMapa(b) {
 /** Lo que falta escribir (no bloquea: el PDF se puede bajar igual). */
 function faltantes(b) {
   const f = [];
-  if (!b.generales.sol.trim() || !b.generales.luna.trim()) f.push("sol y luna");
   const sinTexto = b.informes.filter((i) => !i.resumen.trim()).length;
   if (sinTexto) f.push(`el texto de ${sinTexto} día${sinTexto === 1 ? "" : "s"}`);
   return f;
@@ -299,10 +292,13 @@ function PasoRevision({ b, alPublicar, esNuevo, alGuardar, guardando }) {
 }
 
 const PASO_MODELOS = { id: "modelos", titulo: "Completar con los modelos" };
+// Los pasos siguen el orden del informe de la DGAT: primero el texto de cada día y después las tablas (provincia, zonas, ciudades y extendido).
+const ZONAS_EN_ORDEN = ["Sur", "Centro", "Norte"];
 const PASOS_BASE = [
-  { id: "generales", titulo: "Fecha y datos generales" }, { id: "resumen", titulo: "Resumen por zona" },
-  { id: "Norte", titulo: "Zona Norte" }, { id: "Centro", titulo: "Zona Centro" }, { id: "Sur", titulo: "Zona Sur" },
-  { id: "extendido", titulo: "Pronóstico extendido" }, { id: "informes", titulo: "Informes de los días" }, { id: "revision", titulo: "Revisión y PDF" },
+  { id: "fecha", titulo: "Fecha del informe" }, { id: "informes", titulo: "Texto de los días" }, { id: "provincia", titulo: "Previsión para la provincia" },
+  { id: "resumen", titulo: "Previsión por zonas" },
+  ...ZONAS_EN_ORDEN.map((z) => ({ id: z, titulo: `Ciudades, zona ${z}` })),
+  { id: "extendido", titulo: "Pronóstico extendido" }, { id: "revision", titulo: "Revisión y PDF" },
 ];
 
 /** El cajón: se abre y se oculta; lo escrito se guarda solo en el servidor (cada informe es una tarjeta). */
@@ -322,7 +318,8 @@ export default function InformePronostico({ informe, abierto, onCerrar, paso, se
     if (borradorConAlgo(b) && !(await confirmar({ titulo: "¿Partir de lo publicado?", texto: "Se reemplaza lo que escribiste en este informe.", confirmar: "Reemplazar", peligro: true }))) return;
     reemplazar(desdePublicado(publicado));
   }
-  const contenido = p.id === "generales" ? <PasoGenerales b={b} set={setCampo} publicado={publicado} alCargarPublicado={cargarPublicado} />
+  const contenido = p.id === "fecha" ? <PasoFecha b={b} set={setCampo} publicado={publicado} alCargarPublicado={cargarPublicado} />
+    : p.id === "provincia" ? <PasoProvincia b={b} set={setCampo} />
     : p.id === "modelos" ? <PasoModelos b={b} reemplazar={reemplazar} modelos={modelos} />
     : p.id === "resumen" ? <PasoResumen b={b} set={setCampo} />
     : ZONAS.includes(p.id) ? <PasoZona b={b} set={setCampo} zona={p.id} />

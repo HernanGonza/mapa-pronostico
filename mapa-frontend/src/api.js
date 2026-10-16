@@ -661,7 +661,6 @@ export async function generarInformePdf(informe) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el PDF.");
   return r.blob();
 }
-export async function getAstronomia(fecha) { return handleJson(await fetch(`${API_URL}/api/pronostico/astronomia?fecha=${encodeURIComponent(fecha)}`, { cache: "no-store", ...CON_SESION })); }
 
 // Informes de pronóstico del día (tarjetas de «Previsión del tiempo»): borrador, PDF, lo publicado, correos y placa de cada uno.
 const jsonInf = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });

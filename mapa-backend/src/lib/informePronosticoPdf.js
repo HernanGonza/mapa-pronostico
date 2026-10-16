@@ -7,8 +7,8 @@ const { DIR_ICONOS } = require("./iconResolver");
 
 /**
  * Informe «PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES» en PDF, armado desde lo que se carga en el panel
- * (ya no se usa Word). Sigue el orden del informe de la DGAT: datos generales, resumen por zona, el detalle de cada zona
- * con sus localidades, el pronóstico extendido y los informes de los días.
+ * (ya no se usa Word). Sigue la estructura del informe de la DGAT (el .docx): primero el texto de cada día y después las tablas
+ * (provincia, zonas, principales ciudades y pronóstico extendido por zona).
  *
  * Protección: el PDF sale cifrado (AES-256) con clave de propietario propia y permisos acotados (se puede abrir e
  * imprimir; no copiar, modificar ni anotar). La clave es `PDF_OWNER_PASSWORD` del entorno; sin ella se usa una al azar
@@ -17,7 +17,7 @@ const { DIR_ICONOS } = require("./iconResolver");
  * El borrador (`b`) es el del asistente del panel (mapa-frontend/src/components/InformePronostico.jsx):
  * {
  *   fecha: "AAAA-MM-DD", emision: "09:00",
- *   generales: { sol, luna, vientos, humedad, presion, faseLunar, riesgo }, avisoGeneral,
+ *   generales: { vientos, humedad, presion, riesgo }, avisoGeneral,
  *   zonas: { Norte|Centro|Sur: { tmin, tmax, condicion, aviso, humedad, viento, riesgo } },
  *   localidades: [{ localidad, zona, tmin, tmax, condicion }],
  *   extendido: { Norte|Centro|Sur: [{ fecha, tmin, tmax, condicion }] },
@@ -127,51 +127,60 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
     doc.fillColor("#fff").font("Oak-Bold").fontSize(10.5).text(titulo.toUpperCase(), M + 10, y + 5.5, { width: ANCHO - 20, lineBreak: false });
     doc.y = y + 26;
   };
-  const filaDato = (rotulo, valor) => {
-    if (!String(valor ?? "").trim()) return;
-    doc.font("Oak").fontSize(9.5);
-    const alto = Math.max(14, doc.heightOfString(String(valor), { width: ANCHO - 168 }) + 3);
-    espacio(alto);
-    const y = doc.y;
-    doc.fillColor(GRIS).font("Oak-Bold").fontSize(8.5).text(rotulo.toUpperCase(), M + 4, y + 1.5, { width: 155, lineBreak: false });
-    doc.fillColor("#1b2a22").font("Oak").fontSize(9.5).text(String(valor), M + 164, y, { width: ANCHO - 168 });
-    doc.y = y + alto;
-  };
-  /** Íconos de día (uno por condición) y el texto, en una celda de `ancho`. Devuelve el alto usado. */
-  const celdaCondicion = (x, y, ancho, textoCond, alto = 26) => {
-    const lista = iconos.get(textoCond) || [];
+  /** Íconos de día (hasta `maxIconos`) y el texto de una condición, en una celda de `ancho`. */
+  const celdaCondicion = (x, y, ancho, textoCond, alto, maxIconos = 4) => {
+    const lista = (iconos.get(textoCond) || []).slice(0, maxIconos);
     let cx = x;
-    for (const c of lista.slice(0, 4)) { doc.image(c.dia, cx, y + (alto - 24) / 2, { width: 24, height: 24 }); cx += 25; }
-    doc.fillColor("#1b2a22").font("Oak").fontSize(9).text(textoCond || "—", cx + 3, y + (alto - 11) / 2 - (doc.heightOfString(textoCond || "—", { width: x + ancho - cx - 3 }) > 12 ? 5 : 0), { width: x + ancho - cx - 3 });
+    for (const c of lista) { doc.image(c.dia, cx, y + (alto - 24) / 2, { width: 24, height: 24 }); cx += 25; }
+    const ancho_t = x + ancho - cx - 3;
+    doc.fillColor("#1b2a22").font("Oak").fontSize(8.5);
+    const h = doc.heightOfString(textoCond || "—", { width: ancho_t });
+    doc.text(textoCond || "—", cx + 3, y + Math.max(2, (alto - h) / 2), { width: ancho_t });
   };
-  const tablaLocalidades = (filas) => {
-    const cols = [{ x: M + 6, w: 130 }, { x: M + 140, w: 44 }, { x: M + 190, w: 44 }, { x: M + 242, w: ANCHO - 248 }];
-    espacio(22 + 28);
-    let y = doc.y;
-    doc.rect(M, y, ANCHO, 16).fill("#eaf2ee");
-    doc.fillColor(VERDE_OSCURO).font("Oak-Bold").fontSize(8);
-    ["LOCALIDAD", "MÍN", "MÁX", "CONDICIÓN ESPERADA"].forEach((t, i) => doc.text(t, cols[i].x, y + 4.5, { width: cols[i].w, lineBreak: false }));
-    y += 16;
-    for (const f of filas) {
-      if (y + 28 > limite()) { doc.addPage(); y = doc.y; }
-      doc.moveTo(M, y + 28).lineTo(M + ANCHO, y + 28).lineWidth(0.5).strokeColor(LINEA).stroke();
-      doc.fillColor("#1b2a22").font("Oak-Bold").fontSize(9.5).text(String(f.localidad).toUpperCase(), cols[0].x, y + 9, { width: cols[0].w, lineBreak: false });
-      doc.fillColor(AZUL).font("Oak-Bold").fontSize(10.5).text(temp(f.tmin), cols[1].x, y + 8.5, { width: cols[1].w, lineBreak: false });
-      doc.fillColor(ROJO).text(temp(f.tmax), cols[2].x, y + 8.5, { width: cols[2].w, lineBreak: false });
-      celdaCondicion(cols[3].x, y, cols[3].w, f.condicion);
-      y += 28;
+  const maxIconosEn = (ancho) => Math.max(1, Math.floor((ancho - 70) / 25));
+  /**
+   * Tabla con título, encabezado de columnas y una fila por registro. Cada celda es un texto o un objeto
+   * { t, color, bold } (texto con estilo) o { cond } (íconos + condición). `cols`: [{ t, w, centro }].
+   */
+  const tabla = (titulo, cols, filas) => {
+    const xs = []; let acc = M; for (const c of cols) { xs.push(acc); acc += c.w; }
+    const alturaFila = (fila) => Math.max(28, ...fila.map((cel, i) => {
+      const c = typeof cel === "object" && cel ? cel : { t: cel };
+      const ancho = cols[i].w - 8;
+      if (c.cond !== undefined) { const n = Math.min((iconos.get(c.cond) || []).length, maxIconosEn(cols[i].w)); doc.font("Oak").fontSize(8.5); return doc.heightOfString(c.cond || "—", { width: ancho - n * 25 }) + 10; }
+      doc.font(c.bold ? "Oak-Bold" : "Oak").fontSize(9); return doc.heightOfString(String(c.t ?? "") || "—", { width: ancho }) + 10;
+    }));
+    espacio(30 + 16 + 28); // el título, el encabezado y al menos una fila juntos
+    barra(titulo);
+    const encabezado = () => {
+      if (cols.every((c) => !c.t)) return; // tabla de rótulo y valor: sin fila de encabezado
+      const y = doc.y;
+      doc.rect(M, y, ANCHO, 16).fill("#eaf2ee");
+      doc.fillColor(VERDE_OSCURO).font("Oak-Bold").fontSize(7.5);
+      cols.forEach((c, i) => doc.text(c.t, xs[i] + 4, y + 4.5, { width: c.w - 8, align: c.centro ? "center" : "left", lineBreak: false }));
+      doc.y = y + 16;
+    };
+    encabezado();
+    for (const fila of filas) {
+      const alto = alturaFila(fila);
+      if (doc.y + alto > limite()) { doc.addPage(); encabezado(); }
+      const y = doc.y;
+      fila.forEach((cel, i) => {
+        const c = typeof cel === "object" && cel ? cel : { t: cel };
+        if (c.cond !== undefined) { celdaCondicion(xs[i] + 4, y, cols[i].w - 8, c.cond, alto, maxIconosEn(cols[i].w)); return; }
+        const t = String(c.t ?? "").trim() || "—";
+        doc.fillColor(c.color || "#1b2a22").font(c.bold ? "Oak-Bold" : "Oak").fontSize(9);
+        const h = doc.heightOfString(t, { width: cols[i].w - 8, align: cols[i].centro ? "center" : "left" });
+        doc.text(t, xs[i] + 4, y + (alto - h) / 2, { width: cols[i].w - 8, align: cols[i].centro ? "center" : "left" });
+      });
+      doc.moveTo(M, y + alto).lineTo(M + ANCHO, y + alto).lineWidth(0.5).strokeColor(LINEA).stroke();
+      doc.y = y + alto;
     }
-    doc.y = y + 6;
+    doc.y += 12;
   };
-  const alerta = (valor) => {
-    const t = String(valor ?? "").trim() || "SIN AVISOS.";
-    const sin = /^sin\s+avisos?\.?$/i.test(t) || /^s\/a$/i.test(t);
-    espacio(20);
-    const y = doc.y;
-    doc.roundedRect(M, y, ANCHO, 17, 4).fill(sin ? "#eef3f0" : "#fdeaea");
-    doc.fillColor(sin ? GRIS : ROJO).font("Oak-Bold").fontSize(9).text(`AVISO DE ALERTA: ${t.toUpperCase()}`, M + 8, y + 4.5, { width: ANCHO - 16, lineBreak: false });
-    doc.y = y + 23;
-  };
+  const titulo_ = (t) => t.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
+  const ALERTA_VACIA = "—";
+  const sinAviso = (v) => { const t = String(v ?? "").trim(); return t && !/^sin\s+avisos?\.?$/i.test(t) ? t : "S/A"; };
 
   // --- encabezado -----------------------------------------------------------------------------------------------
   doc.image(LOGOS.alerta, M - 6, M - 14, { width: 92 });
@@ -187,70 +196,13 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   doc.moveTo(M, M + 86).lineTo(M + ANCHO, M + 86).lineWidth(1.5).strokeColor(VERDE).stroke();
   doc.y = M + 98;
 
-  // --- datos generales --------------------------------------------------------------------------------------------
-  const g = b.generales || {};
-  barra("Datos generales");
-  filaDato("Sol", g.sol); filaDato("Luna", g.luna); filaDato("Vientos", g.vientos); filaDato("Humedad", g.humedad);
-  filaDato("Presión", g.presion); filaDato("Fase lunar", g.faseLunar); filaDato("Índice de peligro de incendio", g.riesgo);
-  doc.y += 6;
-
-  // --- resumen por zona -------------------------------------------------------------------------------------------
-  barra("Resumen por zona");
-  for (const z of ZONAS) {
-    const d = b.zonas[z];
-    espacio(34);
-    const y = doc.y;
-    doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(11).text(z.toUpperCase(), M + 6, y + 9, { width: 60, lineBreak: false });
-    doc.font("Oak").fontSize(8).fillColor(GRIS).text("MIN – MAX", M + 70, y + 4, { width: 60, lineBreak: false });
-    doc.font("Oak-Bold").fontSize(11).fillColor(AZUL).text(temp(d.tmin), M + 70, y + 15, { width: 36, lineBreak: false });
-    doc.fillColor(ROJO).text(temp(d.tmax), M + 108, y + 15, { width: 40, lineBreak: false });
-    celdaCondicion(M + 162, y + 1, ANCHO - 168, d.condicion, 30);
-    doc.moveTo(M, y + 33).lineTo(M + ANCHO, y + 33).lineWidth(0.5).strokeColor(LINEA).stroke();
-    doc.y = y + 37;
-  }
-  alerta(b.avisoGeneral);
-
-  // --- detalle de cada zona ---------------------------------------------------------------------------------------
-  for (const z of ZONAS) {
-    const d = b.zonas[z];
-    doc.y += 4;
-    espacio(110 + 28 * b.localidades.filter((l) => l.zona === z).length); // el bloque de una zona no se corta entre páginas
-    barra(`Zona ${z}`);
-    filaDato("Humedad", d.humedad); filaDato("Viento", d.viento); filaDato("Índice de peligro de incendio", d.riesgo);
-    doc.y += 4;
-    tablaLocalidades(b.localidades.filter((l) => l.zona === z));
-    alerta(d.aviso);
-  }
-
-  // --- pronóstico extendido ---------------------------------------------------------------------------------------
-  doc.y += 8;
-  espacio(60 + 35 * (b.extendido.Norte.length || 1));
-  barra("Pronóstico extendido");
-  for (const z of ZONAS) {
-    espacio(30 + 30 * (b.extendido[z].length || 1));
-    doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(10.5).text(`ZONA ${z.toUpperCase()}`, M + 4, doc.y, { width: ANCHO, lineBreak: false });
-    doc.y += 14;
-    for (const dia of b.extendido[z]) {
-      espacio(32);
-      const y = doc.y;
-      doc.fillColor("#1b2a22").font("Oak-Bold").fontSize(9.5).text(cap(fechaDia(dia.fecha)).toUpperCase(), M + 6, y + 10, { width: 150, lineBreak: false });
-      doc.fillColor(AZUL).font("Oak-Bold").fontSize(10.5).text(temp(dia.tmin), M + 160, y + 9, { width: 44, lineBreak: false });
-      doc.fillColor(ROJO).text(temp(dia.tmax), M + 208, y + 9, { width: 44, lineBreak: false });
-      celdaCondicion(M + 262, y + 2, ANCHO - 268, dia.condicion, 28);
-      doc.moveTo(M, y + 32).lineTo(M + ANCHO, y + 32).lineWidth(0.5).strokeColor(LINEA).stroke();
-      doc.y = y + 35;
-    }
-    doc.y += 8;
-  }
-
-  // --- informes de pronóstico -------------------------------------------------------------------------------------
-  doc.y += 4;
-  barra("Informes de pronóstico");
+  // El orden es el del informe de la DGAT: primero el texto de cada día y después las tablas.
+  // --- texto de los días ------------------------------------------------------------------------------------------
   for (const inf of b.informes) {
     espacio(70);
     doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(11).text(cap(fechaDia(inf.fecha)), M + 2, doc.y, { width: ANCHO });
     doc.y += 4;
-    const partes = [[null, inf.resumen], ["Precipitaciones", inf.precipitaciones], ["Vientos", inf.vientos], ["Temperaturas", inf.temperaturas]].filter(([, t]) => String(t ?? "").trim());
+    const partes = [[null, inf.resumen], ["Precipitaciones", inf.precipitaciones], ["Vientos", inf.vientos], ["Temperaturas", inf.temperaturas], ["Recomendaciones", inf.recomendaciones]].filter(([, t]) => String(t ?? "").trim());
     for (const [rotulo, t] of partes) {
       doc.font("Oak").fontSize(9.5);
       const alto = doc.heightOfString(`${rotulo ? `${rotulo}: ` : ""}${t}`, { width: ANCHO - 6 }) + 5;
@@ -261,10 +213,52 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
     }
     doc.y += 8;
   }
+  doc.y += 4;
+
+  // --- previsión para la provincia --------------------------------------------------------------------------------
+  const g = b.generales || {};
+  const conTemp = b.localidades.filter((l) => l.tmin !== "" && l.tmin != null).map((l) => ({ n: Number(String(l.tmin).replace(",", ".")), l })).filter((x) => Number.isFinite(x.n));
+  const conTempMax = b.localidades.map((l) => ({ n: Number(String(l.tmax).replace(",", ".")), l })).filter((x) => Number.isFinite(x.n) && String(x.l.tmax).trim() !== "");
+  const extremo = (lista, cmp) => { if (!lista.length) return ""; const e = lista.reduce((a, x) => (cmp(x.n, a.n) ? x : a)); return `${temp(e.n)} en ${titulo_(e.l.localidad)}`; };
+  const rotulo = (t) => ({ t, bold: true, color: VERDE_OSCURO });
+  tabla("Previsión para la provincia de Misiones", [{ t: "", w: 130 }, { t: "", w: ANCHO - 130 }], [
+    [rotulo("TEMP. MÍNIMA"), extremo(conTemp, (a, b2) => a < b2)],
+    [rotulo("TEMP. MÁXIMA"), extremo(conTempMax, (a, b2) => a > b2)],
+    [rotulo("HUMEDAD"), g.humedad],
+    [rotulo("PRECIPITACIONES"), b.informes[0]?.precipitaciones],
+    [rotulo("VIENTOS"), g.vientos],
+  ]);
+
+  // --- previsión por zonas (en el orden del informe: Sur, Centro, Norte) -------------------------------------------
+  const POR_ZONA = ["Sur", "Centro", "Norte"];
+  tabla("Previsión por zonas de la provincia de Misiones", [
+    { t: "ZONA", w: 50 }, { t: "TEMP. MÍN", w: 42 }, { t: "TEMP. MÁX", w: 42 }, { t: "SENS. TÉRMICA", w: 56 },
+    { t: "HUMEDAD REL.", w: 62 }, { t: "VIENTOS", w: 70 }, { t: "ESTADO DEL TIEMPO", w: 116 }, { t: "ALERTA", w: ANCHO - 438 },
+  ], POR_ZONA.map((z) => { const d = b.zonas[z]; return [rotulo(z.toUpperCase()), { t: temp(d.tmin), bold: true, color: AZUL }, { t: temp(d.tmax), bold: true, color: ROJO }, d.sensacion, d.humedad, d.viento, { cond: d.condicion }, sinAviso(d.aviso)]; }));
+
+  // --- previsión por principales ciudades -------------------------------------------------------------------------
+  tabla("Previsión por principales ciudades de la provincia de Misiones", [
+    { t: "CIUDAD", w: 120 }, { t: "TEMP. MÍN", w: 52 }, { t: "TEMP. MÁX", w: 52 }, { t: "ESTADO DEL TIEMPO", w: 190 }, { t: "ALERTA", w: ANCHO - 414 },
+  ], b.localidades.map((l) => [rotulo(String(l.localidad).toUpperCase()), { t: temp(l.tmin), bold: true, color: AZUL }, { t: temp(l.tmax), bold: true, color: ROJO }, { cond: l.condicion }, sinAviso(b.zonas[l.zona]?.aviso)]));
+
+  // --- previsión extendida ----------------------------------------------------------------------------------------
+  doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(12);
+  espacio(30 + 16 + 28 * 2 + 20);
+  doc.text("PREVISIÓN EXTENDIDA", M, doc.y, { width: ANCHO, align: "center", lineBreak: false });
+  doc.y += 18;
+  for (const z of POR_ZONA) {
+    tabla(`Zona ${z}`, [
+      { t: "FECHA", w: 90 }, { t: "TEMP. MÍN", w: 52 }, { t: "TEMP. MÁX", w: 52 }, { t: "ESTADO DEL TIEMPO", w: 190 }, { t: "ALERTA", w: ANCHO - 384 },
+    ], b.extendido[z].map((d) => [rotulo(fechaCorta(d.fecha)), { t: temp(d.tmin), bold: true, color: AZUL }, { t: temp(d.tmax), bold: true, color: ROJO }, { cond: d.condicion }, d.aviso ? sinAviso(d.aviso) : ALERTA_VACIA]));
+  }
+
   espacio(40);
   doc.moveTo(M, doc.y).lineTo(M + ANCHO, doc.y).lineWidth(0.5).strokeColor(LINEA).stroke();
   doc.y += 6;
-  doc.font("Oak").fontSize(8.5).fillColor(GRIS).text(`FUENTE: ${DIRECCION} – ${SUBSECRETARIA} – ${MINISTERIO}.`, M, doc.y, { width: ANCHO });
+  doc.font("Oak-Bold").fontSize(8.5).fillColor(VERDE_OSCURO).text("INFORME ELABORADO POR", M, doc.y, { width: ANCHO });
+  doc.font("Oak").fontSize(8.5).fillColor(GRIS).text(`${DIRECCION} – ${SUBSECRETARIA} – ${MINISTERIO}.`, M, doc.y, { width: ANCHO });
+  doc.y += 4;
+  doc.font("Oak").fontSize(8).fillColor(GRIS).text("FUENTES: SERVICIOS CLIMÁTICOS DEL SMN Y DE PORTALES QUE TRABAJAN CON MODELOS METEOROLÓGICOS WRF-GFS, NOAA, ECMWF, ICON, GEM.", M, doc.y, { width: ANCHO });
 
   // pie con el número de página, en todas (se escribe al final, cuando se sabe cuántas son)
   const paginas = doc.bufferedPageRange();

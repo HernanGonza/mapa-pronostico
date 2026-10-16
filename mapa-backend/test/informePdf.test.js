@@ -10,7 +10,7 @@ const zona = (condicion = C) => ({ tmin: "16", tmax: "23", condicion, aviso: "SI
 const dias = [{ fecha: "2026-10-16", tmin: "14", tmax: "23", condicion: "Despejado" }, { fecha: "2026-10-17", tmin: "11", tmax: "22", condicion: "Algo nublado" }];
 const informe = () => ({
   fecha: "2026-10-15", emision: "09:00",
-  generales: { sol: "5:59 - 18:41", luna: "Sale 9:03", vientos: "S 1-15 km/h", humedad: "65 - 100 %", presion: "1010 HPA", faseLunar: "LUNA CRECIENTE", riesgo: "BAJO" }, avisoGeneral: "SIN AVISOS.",
+  generales: { vientos: "S 1-15 km/h", humedad: "65 - 100 %", presion: "1010 HPA", riesgo: "BAJO" }, avisoGeneral: "SIN AVISOS.",
   zonas: { Norte: zona(), Centro: zona("Tormentas aisladas"), Sur: zona("Parcialmente nublado + Lluvias") },
   localidades: [loc("PUERTO IGUAZÚ", "Norte"), loc("OBERÁ", "Centro"), loc("POSADAS", "Sur")],
   extendido: { Norte: dias, Centro: dias, Sur: dias },
