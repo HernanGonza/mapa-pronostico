@@ -280,7 +280,7 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "
       </svg>
       {dato && resumen && <div className={`ens-tip${izquierda ? " ens-tip--izq" : ""}${activo === dia ? " ens-tip--fija" : ""}`} style={{ left: `${(x(activo) / W) * 100}%` }} role="status">
         <p className="ens-tip-dia">{etiquetaLarga(dato, intervalo)}{activo === dia && <span> · fijado</span>}</p>
-        <ul>{activos.map((m) => { const v = dato[variable.clave].valores[m.id]; return <li key={m.id} className={hover?.m === m.id ? "is-cerca" : ""} style={{ "--c": ESTILO[m.id].color }}>
+        <ul>{[...activos].sort((a, b) => { const va = dato[variable.clave].valores[a.id], vb = dato[variable.clave].valores[b.id]; return va == null || vb == null ? (va == null) - (vb == null) || a.nombre.localeCompare(b.nombre, "es") : vb - va || a.nombre.localeCompare(b.nombre, "es"); }).map((m) => { const v = dato[variable.clave].valores[m.id]; return <li key={m.id} className={hover?.m === m.id ? "is-cerca" : ""} style={{ "--c": ESTILO[m.id].color }}>
           <Icono id={m.id} /><span>{m.nombre}</span><strong>{v == null ? "sin dato" : fmtVal(v, variable)}</strong></li>; })}</ul>
         <p className="ens-tip-pie"><span>Intervalo</span><strong>{fmtIntervaloLargo(resumen, variable)}</strong></p>
         {resumen.n > 1 && <p className="ens-tip-pie"><span>Diferencia</span><strong className={resumen.discrepan ? "ens-alerta" : ""}>{fmtDif(resumen, variable)}{resumen.discrepan ? " · discrepan" : ""}</strong></p>}
