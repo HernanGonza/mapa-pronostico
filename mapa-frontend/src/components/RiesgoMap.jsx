@@ -1,7 +1,7 @@
 import { forwardRef, useCallback } from "react";
 import BaseMap from "./BaseMap";
 
-export function LeyendaRiesgo({ categorias, titulo = "Riesgo de incendios forestales", fuente = "Clasificación por departamento · Ministerio de Ecología y RNR" }) {
+export function LeyendaRiesgo({ categorias, titulo = "Índice de peligro de incendios forestales", fuente = "Clasificación por departamento · Ministerio de Ecología y RNR" }) {
   return <div className="risk-legend">
     <strong>{titulo}</strong>
     <div className="risk-legend__scale">{categorias.map(c => <div key={c.nombre}>
@@ -32,7 +32,7 @@ function LeyendaFenomenos({ iconos, catalogo }) {
 }
 const RiesgoMap = forwardRef(function RiesgoMap({ geo, zonas, catalogo, publicadoEn, titulo, iconos = [], leyendas = {}, ...props }, ref) {
   const esMeteorologica = catalogo.categorias.some(c => c.nombre === "Naranja");
-  const nombreMapa = titulo || (esMeteorologica ? "Alertas meteorológicas" : "Riesgo de incendios forestales");
+  const nombreMapa = titulo || (esMeteorologica ? "Alertas meteorológicas" : "Índice de peligro de incendios forestales");
   const colorDe = useCallback(d => catalogo.categorias.find(c => c.nombre === d?.categoria)?.color, [catalogo]);
   const datos = catalogo.departamentos.map(d => ({ ...d, ...zonas.find(z => String(z.id) === String(d.id)) }));
   // Alertas meteorológicas y riesgo de incendios (embebido y panel, igual): las referencias de color

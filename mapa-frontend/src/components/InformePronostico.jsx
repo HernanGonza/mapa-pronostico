@@ -160,7 +160,7 @@ function PasoGenerales({ b, set, publicado, alCargarPublicado }) {
     <Linea texto="Vientos" valor={b.generales.vientos} alCambiar={(v) => set("generales.vientos", v)} placeholder="S/SO 1 - 15 km/h" />
     <Linea texto="Humedad" valor={b.generales.humedad} alCambiar={(v) => set("generales.humedad", v)} placeholder="65 - 100 %" />
     <Linea texto="Presión" valor={b.generales.presion} alCambiar={(v) => set("generales.presion", v)} placeholder="1010 – 1016 HPA" />
-    <Linea texto="Riesgo" valor={b.generales.riesgo} alCambiar={(v) => set("generales.riesgo", v)} />
+    <Linea texto="Índice de peligro de incendio" valor={b.generales.riesgo} alCambiar={(v) => set("generales.riesgo", v)} />
     <Linea texto="Aviso de alerta (toda la provincia)" valor={b.avisoGeneral} alCambiar={(v) => set("avisoGeneral", v)} />
   </>;
 }
@@ -201,11 +201,11 @@ const PasoResumen = ({ b, set }) => <>
 </>;
 
 const PasoZona = ({ b, set, zona }) => <>
-  <p className="paso__ayuda">Zona {zona}: humedad, viento y riesgo, y la previsión de cada localidad.</p>
+  <p className="paso__ayuda">Zona {zona}: humedad, viento e índice de peligro de incendio, y la previsión de cada localidad.</p>
   <div className="ens-grilla-informe">
     <Linea texto="Humedad" valor={b.zonas[zona].humedad} alCambiar={(v) => set(`zonas.${zona}.humedad`, v)} placeholder="65 - 100 %" />
     <Linea texto="Viento" valor={b.zonas[zona].viento} alCambiar={(v) => set(`zonas.${zona}.viento`, v)} placeholder="SO 1-15 km/h" />
-    <Linea texto="Riesgo" valor={b.zonas[zona].riesgo} alCambiar={(v) => set(`zonas.${zona}.riesgo`, v)} />
+    <Linea texto="Índice de peligro de incendio" valor={b.zonas[zona].riesgo} alCambiar={(v) => set(`zonas.${zona}.riesgo`, v)} />
     <Linea texto="Aviso de alerta" valor={b.zonas[zona].aviso} alCambiar={(v) => set(`zonas.${zona}.aviso`, v)} />
   </div>
   <div className="pron-localidades">

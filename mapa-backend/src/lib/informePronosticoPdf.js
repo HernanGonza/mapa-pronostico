@@ -130,11 +130,11 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   const filaDato = (rotulo, valor) => {
     if (!String(valor ?? "").trim()) return;
     doc.font("Oak").fontSize(9.5);
-    const alto = Math.max(14, doc.heightOfString(String(valor), { width: ANCHO - 120 }) + 3);
+    const alto = Math.max(14, doc.heightOfString(String(valor), { width: ANCHO - 168 }) + 3);
     espacio(alto);
     const y = doc.y;
-    doc.fillColor(GRIS).font("Oak-Bold").fontSize(8.5).text(rotulo.toUpperCase(), M + 4, y + 1.5, { width: 105, lineBreak: false });
-    doc.fillColor("#1b2a22").font("Oak").fontSize(9.5).text(String(valor), M + 112, y, { width: ANCHO - 120 });
+    doc.fillColor(GRIS).font("Oak-Bold").fontSize(8.5).text(rotulo.toUpperCase(), M + 4, y + 1.5, { width: 155, lineBreak: false });
+    doc.fillColor("#1b2a22").font("Oak").fontSize(9.5).text(String(valor), M + 164, y, { width: ANCHO - 168 });
     doc.y = y + alto;
   };
   /** Íconos de día (uno por condición) y el texto, en una celda de `ancho`. Devuelve el alto usado. */
@@ -191,7 +191,7 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   const g = b.generales || {};
   barra("Datos generales");
   filaDato("Sol", g.sol); filaDato("Luna", g.luna); filaDato("Vientos", g.vientos); filaDato("Humedad", g.humedad);
-  filaDato("Presión", g.presion); filaDato("Fase lunar", g.faseLunar); filaDato("Riesgo", g.riesgo);
+  filaDato("Presión", g.presion); filaDato("Fase lunar", g.faseLunar); filaDato("Índice de peligro de incendio", g.riesgo);
   doc.y += 6;
 
   // --- resumen por zona -------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
     doc.y += 4;
     espacio(110 + 28 * b.localidades.filter((l) => l.zona === z).length); // el bloque de una zona no se corta entre páginas
     barra(`Zona ${z}`);
-    filaDato("Humedad", d.humedad); filaDato("Viento", d.viento); filaDato("Riesgo", d.riesgo);
+    filaDato("Humedad", d.humedad); filaDato("Viento", d.viento); filaDato("Índice de peligro de incendio", d.riesgo);
     doc.y += 4;
     tablaLocalidades(b.localidades.filter((l) => l.zona === z));
     alerta(d.aviso);

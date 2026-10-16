@@ -84,9 +84,9 @@ export default function RiesgoIncendiosPage() {
     finally { setOcupado(false); }
   }
   return <div className="admin-layout risk-layout">
-    <BrandHeader subtitulo="Riesgo de incendios forestales"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
+    <BrandHeader subtitulo="Índice de peligro de incendios forestales"><Link to="/panel/mapas" className="btn-link">← Panel</Link></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
-      <div className="editor-heading"><h1>Riesgo de incendios</h1>
+      <div className="editor-heading"><h1>Índice de peligro de incendios</h1>
         <p>Elegí el nivel de cada zona. Los cambios se ven en el mapa antes de publicar.</p></div>
       {error && <div className="risk-message risk-message--error" role="alert">{error}{!catalogo && <button className="btn" onClick={() => setIntento(i => i + 1)}>Reintentar</button>}</div>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
@@ -102,8 +102,8 @@ export default function RiesgoIncendiosPage() {
         </div>
         <p className="admin-panel__hint">{sucio ? "Hay cambios sin publicar: el mapa de la derecha muestra el borrador." : "El mapa de la derecha coincide con lo publicado."}</p>
       </>}
-        <EmbedShare path="/embed/riesgo-incendios" title="Riesgo de incendios forestales de Misiones" />
+        <EmbedShare path="/embed/riesgo-incendios" title="Índice de peligro de incendios forestales de Misiones" />
     </section>
-    <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="riesgo de incendios">{geo && catalogo ? <RiesgoMap ref={mapaRef} geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={sucio ? null : publicado?.publicadoEn} enableCapture /> : <div className="admin-map-area__vacio">Preparando mapa de Misiones…</div>}</PlacaPreview>
+    <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="índice de peligro de incendios">{geo && catalogo ? <RiesgoMap ref={mapaRef} geo={geo} zonas={zonas} catalogo={catalogo} publicadoEn={sucio ? null : publicado?.publicadoEn} enableCapture /> : <div className="admin-map-area__vacio">Preparando mapa de Misiones…</div>}</PlacaPreview>
   </div>;
 }
