@@ -231,3 +231,6 @@
 .ens-zoom button:disabled { opacity: 0.45; cursor: default; }
 .ens-grafico--zoom { cursor: grab; touch-action: none; }
 .ens-grafico--zoom:active { cursor: grabbing; }
+
+/* Fila de zona (norte, centro, sur) que separa los departamentos de la matriz. */
+.ens-matriz tbody .ens-zona th { position: sticky; left: 0; text-align: left; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: var(--surface-2); border-bottom: 1px solid var(--border-strong, var(--border)); }

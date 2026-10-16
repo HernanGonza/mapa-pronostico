@@ -1,10 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import CampoFecha from "../components/CampoFecha";
 import CampoHora from "../components/CampoHora";
 import InformeEnsamble, { BotonInforme, useInforme } from "../components/InformeEnsamble";
 import * as api from "../api";
+import { agruparPorZona } from "../lib/zonasSmn";
 import "./ensamble.css";
 
 /**
@@ -19,6 +20,11 @@ const ESTILO = { // color + forma propios de cada modelo
   gfs_seamless: { color: "#d4572a", forma: "cuadrado" },
   icon_seamless: { color: "#2f8f5b", forma: "rombo" },
   gem_seamless: { color: "#8b3fc4", forma: "triangulo" },
+  meteofrance_arpege_world: { color: "#8d5524", forma: "pentagono" },
+  jma_gsm: { color: "#e03131", forma: "anillo" },
+  ukmo_global_deterministic_10km: { color: "#546e7a", forma: "equis" },
+  cma_grapes_global: { color: "#7f8c00", forma: "cuadrado_hueco" },
+  yr_no: { color: "#f2c200", forma: "triangulo_inv" },
   wrf_smn: { color: "#c9346c", forma: "cruz" },
   monan_3km: { color: "#c28f00", forma: "hexagono" },
   monan_10km: { color: "#00838f", forma: "estrella" },
@@ -29,9 +35,14 @@ const CATALOGO = [
   { id: "gfs_seamless", nombre: "GFS", detalle: "EE. UU. (NOAA) · viento y temperatura", nota: "EE. UU. (NOAA). Tendencias de viento y temperatura." },
   { id: "icon_seamless", nombre: "ICON", detalle: "Alemania (DWD) · consenso", nota: "Alemania (DWD). Validador de consenso." },
   { id: "gem_seamless", nombre: "GEM", detalle: "Canadá (ECCC) · consenso", nota: "Canadá (ECCC). Validador de consenso." },
+  { id: "meteofrance_arpege_world", nombre: "ARPEGE", detalle: "Francia (Météo-France) · hasta 4 días", nota: "Météo-France, modelo global propio (no deriva del ECMWF). Llega a unos 4 días. Aporta temperatura, lluvia, viento y ráfagas, humedad, nubosidad y CAPE." },
+  { id: "jma_gsm", nombre: "JMA GSM", detalle: "Japón (JMA) · hasta 11 días", nota: "Agencia Meteorológica de Japón, modelo global propio, hasta 11 días. Aporta temperatura, lluvia, viento, humedad y nubosidad; no publica ráfagas ni CAPE." },
+  { id: "ukmo_global_deterministic_10km", nombre: "UKMO", detalle: "Reino Unido (Met Office) · 10 km, 8 días", nota: "Met Office del Reino Unido, global de 10 km, hasta 8 días. Aporta temperatura, lluvia, viento y ráfagas, humedad, nubosidad, CAPE y probabilidad de lluvia." },
+  { id: "cma_grapes_global", nombre: "CMA GRAPES", detalle: "China (CMA) · hasta unos 5 días", nota: "Administración Meteorológica de China, modelo global propio. Anuncia 10 días pero hoy llega a unos 5, con datos cada 3 horas, y su servidor suele estar sobrecargado. Aporta temperatura, lluvia, viento y ráfagas, humedad, nubosidad y CAPE." },
+  { id: "yr_no", nombre: "yr.no", detalle: "Noruega (MET Norway) · hasta 2,5 días", nota: "Instituto Meteorológico de Noruega (yr.no), datos CC BY 4.0. Hasta unas 60 horas desde ahora (después el servicio sólo da pasos de 6 h y no se usan). Aporta temperatura, sensación térmica, lluvia, viento, humedad, nubosidad y punto de rocío; no publica ráfagas ni CAPE." },
   { id: "wrf_smn", nombre: "WRF-SMN", detalle: "Argentina (SMN) · 4 km, 72 h · tormentas", nota: "Servicio Meteorológico Nacional, 4 km, hasta 72 h. Tormentas y lluvia convectiva. Aporta temperatura, lluvia, humedad y viento; no publica ráfagas, nubosidad ni sensación térmica. Pesa (≈12 MB por hora de pronóstico): tarda en bajar la primera vez." },
+  { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", nota: "CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una corrida por día (00 UTC) y una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
   { id: "monan_3km", nombre: "MONAN 3 km", detalle: "Brasil (CPTEC) · 3 km, 72 h · convección", deshabilitado: true, nota: "Apagado: el CPTEC/INPE puso el MONAN detrás de usuario y clave. CPTEC/INPE (Brasil), regional, 3 km, hasta 72 h (una corrida por día, 00 UTC). Es el único con ráfagas, CAPE, reflectividad de radar y helicidad de ascenso: tormentas severas. Sin nubosidad." },
-  { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", deshabilitado: true, nota: "Apagado: el CPTEC/INPE puso el MONAN detrás de usuario y clave. CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
 ];
 const fechaDe = (f) => new Date(`${f}T12:00:00-03:00`);
 const diaCorto = (f) => fechaDe(f).toLocaleDateString("es-AR", { timeZone: AR, weekday: "short" }).replace(".", "");
@@ -134,6 +145,11 @@ function Marca({ forma, color, x = 0, y = 0, r = 5 }) {
   if (forma === "hexagono") { const q = r + 1; return <polygon points={Array.from({ length: 6 }, (_, k) => `${x + q * Math.cos((Math.PI / 3) * k)},${y + q * Math.sin((Math.PI / 3) * k)}`).join(" ")} {...p} />; }
   if (forma === "estrella") { const q = r + 2; return <polygon points={Array.from({ length: 10 }, (_, k) => { const rr = k % 2 ? q * 0.45 : q, a = (Math.PI / 5) * k - Math.PI / 2; return `${x + rr * Math.cos(a)},${y + rr * Math.sin(a)}`; }).join(" ")} {...p} />; }
   if (forma === "rombo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y} ${x},${y + r + 1} ${x - r - 1},${y}`} {...p} />;
+  if (forma === "pentagono") { const q = r + 1.5; return <polygon points={Array.from({ length: 5 }, (_, k) => `${x + q * Math.cos((2 * Math.PI / 5) * k - Math.PI / 2)},${y + q * Math.sin((2 * Math.PI / 5) * k - Math.PI / 2)}`).join(" ")} {...p} />; }
+  if (forma === "anillo") return <circle cx={x} cy={y} r={r} fill="#fff" stroke={color} strokeWidth="2.6" />;
+  if (forma === "cuadrado_hueco") return <rect x={x - r} y={y - r} width={2 * r} height={2 * r} rx="1" fill="#fff" stroke={color} strokeWidth="2.6" />;
+  if (forma === "equis") return <g transform={`rotate(45 ${x} ${y})`}><Marca forma="cruz" color={color} x={x} y={y} r={r} /></g>;
+  if (forma === "triangulo_inv") return <polygon points={`${x},${y + r + 1} ${x + r + 1},${y - r} ${x - r - 1},${y - r}`} {...p} />;
   if (forma === "triangulo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y + r} ${x - r - 1},${y + r}`} {...p} />;
   return <circle cx={x} cy={y} r={r} {...p} />;
 }
@@ -380,7 +396,12 @@ export default function EnsamblePage() {
   const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id) && !pendientes.includes(id)) : [];
   const alternar = (id) => CATALOGO.find((m) => m.id === id)?.deshabilitado || setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
   const intDatos = datos?.intervalo || "dia"; // el de la última consulta (puede no ser el que está elegido ahora)
-  const filas = useMemo(() => (datos && variable ? datos.departamentos.map((d) => ({ d, celdas: d.dias.map((x) => resumir(x[clave].valores, visibles, variable, x.horas)) })) : []), [datos, variable, clave, visibles]);
+  // Los departamentos agrupados por zona (norte, centro, sur; Guaraní, que el SMN cuenta en dos, va en la primera) y, dentro de cada una, por orden alfabético.
+  const grupos = useMemo(() => {
+    if (!datos || !variable) return [];
+    const celdasDe = (d) => d.dias.map((x) => resumir(x[clave].valores, visibles, variable, x.horas));
+    return agruparPorZona(datos.departamentos).map((z) => ({ nombre: z.nombre, filas: z.propios.map((i) => datos.departamentos[i]).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((d) => ({ d, celdas: celdasDe(d) })) })).filter((z) => z.filas.length);
+  }, [datos, variable, clave, visibles]);
   const resumenDepto = depto && variable ? depto.dias.map((x) => resumir(x[clave].valores, visibles, variable, x.horas)) : [];
 
   // Al elegir un período en la matriz o el gráfico se pide su detalle hora por hora (salvo que ya se esté viendo por hora).
@@ -473,11 +494,14 @@ export default function EnsamblePage() {
         <div className="ens-matriz-caja">
           <table className="ens-matriz">
             <thead><tr><th scope="col">Departamento</th>{datos.dias.map((f, i) => { const e = etiquetaPeriodo(f, intDatos); return <th key={`${f.desde}|${i}`} scope="col" title={intDatos === "dia" && f.horas < 24 ? `Parcial: ${f.horas} de 24 h` : undefined}><span>{e.a}</span>{e.b}{intDatos === "dia" && f.horas < 24 && <em className="ens-parcial">parcial</em>}</th>; })}</tr></thead>
-            <tbody>{filas.map(({ d, celdas }) => <tr key={d.id} className={d.id === deptoId ? "ens-fila--on" : ""}>
-              <th scope="row"><button className="btn-link" onClick={() => { setDeptoId(d.id); setDia(null); }}>{d.nombre}</button></th>
-              {celdas.map((c, i) => <td key={i} className={`${c.discrepan ? "ens-celda--disc" : ""}${d.id === deptoId && dia === i ? " ens-celda--sel" : ""}`} title={c.n ? `${c.n} modelo${c.n > 1 ? "s" : ""}: ${fmtIntervaloLargo(c, variable)}` : ""}>
-                <button type="button" onClick={() => { setDeptoId(d.id); setDia(i); }}>{fmtIntervalo(c, variable)}</button></td>)}
-            </tr>)}</tbody>
+            <tbody>{grupos.map((z) => <Fragment key={z.nombre}>
+              <tr className="ens-zona"><th scope="rowgroup" colSpan={datos.dias.length + 1}>{z.nombre === "Otros" ? "Otros" : `Zona ${z.nombre.toLowerCase()}`}</th></tr>
+              {z.filas.map(({ d, celdas }) => <tr key={d.id} className={d.id === deptoId ? "ens-fila--on" : ""}>
+                <th scope="row"><button className="btn-link" onClick={() => { setDeptoId(d.id); setDia(null); }}>{d.nombre}</button></th>
+                {celdas.map((c, i) => <td key={i} className={`${c.discrepan ? "ens-celda--disc" : ""}${d.id === deptoId && dia === i ? " ens-celda--sel" : ""}`} title={c.n ? `${c.n} modelo${c.n > 1 ? "s" : ""}: ${fmtIntervaloLargo(c, variable)}` : ""}>
+                  <button type="button" onClick={() => { setDeptoId(d.id); setDia(i); }}>{fmtIntervalo(c, variable)}</button></td>)}
+              </tr>)}
+            </Fragment>)}</tbody>
           </table>
         </div>
         <p className="ens-nota">Más allá de los primeros días ICON y GEM dejan de cubrir el horizonte: ese período el intervalo sale de menos modelos (lo dice el detalle).</p>
@@ -498,7 +522,7 @@ export default function EnsamblePage() {
           </div>
           {desglose && periodoElegido && <Desglose estado={desglose} depto={depto} variable={variable} visibles={visibles} periodo={periodoElegido} intervalo={intDatos} />}
         </>}
-        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON y GEM){datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
+        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON, GEM, ARPEGE de Météo-France, JMA GSM, UKMO del Met Office y CMA GRAPES){datos.modelos.some((m) => m.id === "yr_no") && "; yr.no, Instituto Meteorológico de Noruega (MET Norway, CC BY 4.0)"}{datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
       </>}
     </div>
     <InformeEnsamble informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} prendidos={prendidos} modelos={CATALOGO} />

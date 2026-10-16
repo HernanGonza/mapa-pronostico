@@ -5,7 +5,7 @@
  * Fuente: Open-Meteo (datos horarios agregados al rango pedido), un solo pedido con los 17 centroides y los 4 modelos globales del documento
  * «Modelos Meteorológicos Aplicados a la Provincia de Misiones» (ensamble/). El WRF-SMN (el modelo
  * regional clave para tormentas, 72 h) no está en Open-Meteo: se suma aparte, desde el bucket
- * público `smn-ar-wrf` de AWS (ver wrfSmn.js). El MONAN del CPTEC/INPE (3 km regional y 10 km global) también va aparte,
+ * público `smn-ar-wrf` de AWS (ver wrfSmn.js). El yr.no (MET Norway) también va aparte (ver yrNo.js), pero se guarda con la forma de Open-Meteo. El MONAN del CPTEC/INPE (3 km regional y 10 km global) también va aparte,
  * de sus datos abiertos (ver monan.js): es el único con ráfagas, reflectividad de radar y helicidad de ascenso.
  */
 const { loadDepartamentos, loadCentroides } = require("./departamentos");
@@ -39,9 +39,14 @@ const MODELOS = [
   { id: "gfs_seamless", nombre: "GFS", origen: "EE. UU. (NOAA)", rol: "Tendencias de viento y temperatura", fuente: "open-meteo" },
   { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso", fuente: "open-meteo" },
   { id: "gem_seamless", nombre: "GEM", origen: "Canadá (ECCC)", rol: "Validador de consenso", fuente: "open-meteo" },
+  { id: "meteofrance_arpege_world", nombre: "ARPEGE", origen: "Francia (Météo-France) · hasta 4 días", rol: "Modelo europeo independiente del ECMWF", fuente: "open-meteo" },
+  { id: "jma_gsm", nombre: "JMA GSM", origen: "Japón (JMA) · hasta 11 días", rol: "Validador de consenso a mediano plazo (sin ráfagas)", fuente: "open-meteo" },
+  { id: "ukmo_global_deterministic_10km", nombre: "UKMO", origen: "Reino Unido (Met Office) · 10 km, hasta 8 días", rol: "Validador de consenso", fuente: "open-meteo" },
+  { id: "cma_grapes_global", nombre: "CMA GRAPES", origen: "China (CMA) · hasta unos 5 días", rol: "Validador de consenso", fuente: "open-meteo" },
+  { id: "yr_no", nombre: "yr.no", origen: "Noruega (MET Norway) · hasta 2,5 días", rol: "Validador de consenso", fuente: "yr", aporta: ["tmax", "tmin", "sensmax", "sensmin", "lluvia", "viento", "dirviento", "hmin", "hmax", "nubosidad", "rocio"] },
   { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", fuente: "wrf", aporta: ["tmax", "tmin", "lluvia", "hmin", "hmax", "viento", "dirviento"] },
+  { id: "monan_10km", nombre: "MONAN 10 km", origen: "Brasil (CPTEC/INPE) · global, hasta 11 días", rol: "Mediano plazo", fuente: "monan", producto: "10km" },
   { id: "monan_3km", nombre: "MONAN 3 km", origen: "Brasil (CPTEC/INPE) · regional, hasta 72 h", rol: "Tormentas y convección", fuente: "monan", producto: "03km", deshabilitado: "Sin acceso: el CPTEC/INPE lo puso detrás de usuario y clave (13/10)." },
-  { id: "monan_10km", nombre: "MONAN 10 km", origen: "Brasil (CPTEC/INPE) · global, hasta 11 días", rol: "Mediano plazo", fuente: "monan", producto: "10km", deshabilitado: "Apagado hasta conseguir el acceso al CPTEC/INPE." },
 ];
 
 // `agrega`: cómo se resume el día a partir de los valores horarios (dentro del rango pedido): max, min, sum,
@@ -245,7 +250,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
   if (!INTERVALOS[intervalo]) throw Object.assign(new Error(`Intervalo desconocido: ${intervalo}.`), { status: 400 });
   const elegidos = MODELOS.filter((m) => !m.deshabilitado && (ids || []).includes(m.id));
   if (!elegidos.length || (ids || []).some((id) => !MODELOS.some((m) => m.id === id))) throw Object.assign(new Error("Elegí al menos un modelo (ids válidos)."), { status: 400 });
-  const deOpenMeteo = elegidos.filter((m) => m.fuente === "open-meteo"), conWrf = elegidos.some((m) => m.fuente === "wrf"), deMonan = elegidos.filter((m) => m.fuente === "monan");
+  const deOpenMeteo = elegidos.filter((m) => m.fuente === "open-meteo" || m.fuente === "yr"), conWrf = elegidos.some((m) => m.fuente === "wrf"), deMonan = elegidos.filter((m) => m.fuente === "monan");
 
   const lista = puntosDelEnsamble(), puntosGeo = lista; // departamentos y ciudades
 
@@ -277,7 +282,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
   const monPorId = Object.fromEntries(deMonan.map((m, i) => [m.id, lecturasMonan[i]]));
   const pendientes = elegidos.filter((m) => porBajar.has(m.id) || (m.fuente === "monan" && monPorId[m.id]?.pendiente)).map((m) => m.id);
   // Los modelos que traen datos en esta respuesta (el que sigue bajando, o que falló, no figura todavía).
-  const consultados = elegidos.filter((m) => (m.fuente === "open-meteo" && omPorModelo[m.id]) || (m.fuente === "wrf" && wrf && !wrf.pendiente) || (m.fuente === "monan" && monPorId[m.id] && !monPorId[m.id].pendiente));
+  const consultados = elegidos.filter((m) => ((m.fuente === "open-meteo" || m.fuente === "yr") && omPorModelo[m.id]) || (m.fuente === "wrf" && wrf && !wrf.pendiente) || (m.fuente === "monan" && monPorId[m.id] && !monPorId[m.id].pendiente));
   if (wrf?.avisos?.length) avisos.push(...wrf.avisos.map((a) => `WRF-SMN: ${a}`));
 
   const resultados = lista.slice(0, conCiudades ? lista.length : N_DEPARTAMENTOS).map((d, i) => { // las ciudades son sólo para el informe: la pantalla no las pide
@@ -292,7 +297,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
           const valores = {};
           for (const m of consultados) {
             let v = null;
-            if (m.fuente === "open-meteo") { 
+            if (m.fuente === "open-meteo" || m.fuente === "yr") {
               const om = omPorModelo[m.id], col = (nombre) => om.puntos[i]?.hourly?.[nombre]; // un pedido por modelo: las variables vienen sin sufijo
               if (variable.horaria) v = agregar(om.horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null, exclusivo);
             } else if (m.fuente === "monan") {
