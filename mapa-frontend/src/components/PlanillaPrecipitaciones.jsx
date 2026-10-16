@@ -38,7 +38,7 @@ export default function PlanillaPrecipitaciones({ estaciones, todas, mapa, anio,
   };
 
   return <div className="prec-hoja" ref={cuerpo} role="region" aria-label={`Precipitaciones de ${MESES[mes - 1]} ${anio}`} tabIndex={0}>
-    <table>
+    <table style={{ "--n-est": estaciones.length }}>
       <thead><tr><th className="prec-hoja__dia">DIA</th>
         {estaciones.map((e) => <th key={e.id} className="prec-hoja__est" title={e.lat != null ? `${e.nombre} · ${REDES[e.red]} · ${e.lat}, ${e.lng}` : `${e.nombre} · ${REDES[e.red]}`}>{e.nombre}<sup>{e.red}</sup></th>)}</tr></thead>
       <tbody>
