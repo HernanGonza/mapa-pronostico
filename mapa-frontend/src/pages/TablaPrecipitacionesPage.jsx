@@ -1,130 +1,159 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import VolverConfiguracion from "../components/VolverConfiguracion";
 import EmbedShare from "../components/EmbedShare";
+import PlanillaPrecipitaciones from "../components/PlanillaPrecipitaciones";
+import EstacionesPrecipitaciones from "../components/EstacionesPrecipitaciones";
+import ImportarPrecipitaciones from "../components/ImportarPrecipitaciones";
+import InformePrecipitaciones from "../components/InformePrecipitaciones";
+import Modal from "../components/Modal";
 import * as api from "../api";
-import { notificar } from "../lib/ui";
-import { COLUMNAS, bajarCsv, coma, filtrarYOrdenar, ordenarPor } from "../lib/precipitacionesTabla";
-import "./embedPrecipitaciones.css";
+import { confirmar, notificar } from "../lib/ui";
+import { AR, MESES, REDES, ddmmaaaa, hoy, indexar, leerNumero, mesAnterior, mesDe, mesSiguiente, normal, primerDia, ultimoDia } from "../lib/precipitacionesCalculo";
+import "./precipitaciones.css";
 
 /**
- * Tabla de precipitaciones (módulo «Tabla de precipitaciones»): todo lo que se cargó desde el informe, con su histórico.
- * Se busca, filtra y ordena como en la tabla pública, y acá además se corrige una fila, se agrega a mano, se quita y se exporta (CSV y Excel).
+ * Monitoreo de lluvias (módulo «Monitoreo de lluvias»): reemplaza al Excel. Una hoja por mes con las estaciones en columnas y los días en filas
+ * (se escribe o se pega desde Excel), con los totales, la media y la anomalía calculados. Además: las estaciones (con su ubicación y sus medias
+ * mensuales) y la importación del Excel de antes. De acá sale la página pública (tabla y mapa) y el informe.
  */
-const REDES = ["INTA", "SiNaRaMe", "RMET", "RHN", "SMN", "Manual"];
-const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-const vacia = () => ({ estacion: "", red: "Manual", desde: hoy(), hasta: hoy(), lluvia: "", max: "", maxMinutos: 30, mes: "", media: "", anomalia: "", lat: "", lng: "" });
-const aTexto = (v) => (v == null ? "" : String(v));
-const aNum = (v) => { const t = String(v ?? "").trim().replace(",", "."); return t === "" ? null : Number(t); };
-const NUMS = ["lluvia", "max", "mes", "media", "anomalia", "lat", "lng"];
-/** Lo que se manda al servidor: números reales, y la anomalía (mes − media) se calcula si se dejó vacía. */
-function paraEnviar(f) {
-  const o = { estacion: f.estacion.trim(), red: f.red, desde: f.desde, hasta: f.hasta, maxMinutos: Number(f.maxMinutos) === 60 ? 60 : 30 };
-  for (const k of NUMS) o[k] = aNum(f[k]);
-  if (o.anomalia == null && o.mes != null && o.media != null) o.anomalia = Math.round((o.mes - o.media) * 10) / 10;
-  return o;
-}
-const errorDe = (f) => {
-  if (!f.estacion.trim()) return "Escribí la estación.";
-  if (!f.desde || !f.hasta) return "Elegí las fechas.";
-  if (f.hasta < f.desde) return "«Hasta» es anterior a «desde».";
-  for (const k of NUMS) { const n = aNum(f[k]); if (n != null && !Number.isFinite(n)) return `«${k}» no es un número.`; }
-  if (Math.abs(aNum(f.lat) ?? 0) > 90 || Math.abs(aNum(f.lng) ?? 0) > 180) return "Revisá la latitud y la longitud (ej.: -27,36 y -55,90).";
-  if ((aNum(f.lat) == null) !== (aNum(f.lng) == null)) return "Cargá la latitud y la longitud juntas, o ninguna.";
-  return aNum(f.lluvia) == null ? "Falta la lluvia del período." : null;
-};
-
-function CamposFila({ f, poner, etiqueta }) {
-  const num = (k, l) => <input className="prec-ed__num" inputMode="decimal" aria-label={`${etiqueta}: ${l}`} value={f[k]} onChange={(e) => poner({ [k]: e.target.value.replace(/[^0-9.,-]/g, "") })} />;
-  return <>
-    <td><input aria-label={`${etiqueta}: estación`} maxLength={120} value={f.estacion} onChange={(e) => poner({ estacion: e.target.value })} list="prec-estaciones" /></td>
-    <td><select aria-label={`${etiqueta}: red`} value={f.red} onChange={(e) => poner({ red: e.target.value })}>{[...new Set([...REDES, f.red])].map((r) => <option key={r}>{r}</option>)}</select></td>
-    <td className="prec-ed__periodo"><input type="date" aria-label={`${etiqueta}: desde`} value={f.desde} onChange={(e) => poner({ desde: e.target.value, ...(f.hasta < e.target.value ? { hasta: e.target.value } : {}) })} />
-      <input type="date" aria-label={`${etiqueta}: hasta`} value={f.hasta} min={f.desde} onChange={(e) => poner({ hasta: e.target.value })} /></td>
-    <td className="num">{num("lluvia", "lluvia")}</td>
-    <td className="num">{num("max", "máxima")}<select aria-label={`${etiqueta}: ventana`} value={f.maxMinutos} onChange={(e) => poner({ maxMinutos: Number(e.target.value) })}><option value={30}>30 min</option><option value={60}>1 h</option></select></td>
-    <td className="num">{num("mes", "mes")}</td><td className="num">{num("media", "media")}</td><td className="num">{num("anomalia", "anomalía")}</td>
-    <td className="num">{num("lat", "latitud")}</td><td className="num">{num("lng", "longitud")}</td>
-  </>;
-}
+const aTexto = (v) => (v == null ? "" : String(v).replace(".", ","));
 
 export default function TablaPrecipitacionesPage() {
+  const [pestana, setPestana] = useState("planilla");
+  const [periodo, setPeriodo] = useState(() => mesDe(hoy()));
   const [datos, setDatos] = useState(null), [error, setError] = useState("");
-  const [q, setQ] = useState(""), [red, setRed] = useState(""), [desde, setDesde] = useState(""), [hasta, setHasta] = useState("");
-  const [orden, setOrden] = useState({ id: "hasta", dir: -1 });
-  const [editando, setEditando] = useState(null); // { id, ...campos } o { id: null } para la fila nueva
-  const [ocupado, setOcupado] = useState(false);
+  const [texto, setTexto] = useState(() => new Map()); // celdas escritas y todavía sin guardar: «id|fecha» → texto
+  const [q, setQ] = useState(""), [red, setRed] = useState(""), [inactivas, setInactivas] = useState(false);
+  const [guardando, setGuardando] = useState(false), [bajando, setBajando] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [informe, setInforme] = useState(() => params.get("informe") === "1"), [compartir, setCompartir] = useState(false);
+  const [estado, setEstado] = useState(null), [publicando, setPublicando] = useState(false); // última publicación y cambios sin publicar
 
-  const cargar = () => api.getPrecipitacionesTabla().then((r) => { setDatos(r); setError(""); }).catch((e) => setError(e.message));
-  useEffect(() => { cargar(); }, []);
+  const cargarEstado = useCallback(() => api.getEstadoPublicacionPrecipitaciones().then(setEstado).catch(() => {}), []);
+  // Planilla (borrador) del mes; cada vez que cambia algo se vuelve a contar lo que falta publicar.
+  const cargar = useCallback(() => Promise.all([api.getPrecipitacionesBorrador({ desde: primerDia(periodo.anio, periodo.mes), hasta: ultimoDia(periodo.anio, periodo.mes) })
+    .then((d) => { setDatos(d); setError(""); }).catch((e) => setError(e.message)), cargarEstado()]), [periodo, cargarEstado]);
+  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    if (!texto.size) return undefined;
+    const aviso = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [texto.size]);
 
-  const redes = useMemo(() => [...new Set((datos || []).map((r) => r.red))].sort(), [datos]);
-  const estaciones = useMemo(() => [...new Set((datos || []).map((r) => r.estacion))].sort((a, b) => a.localeCompare(b, "es")), [datos]);
-  const visibles = useMemo(() => filtrarYOrdenar(datos, { q, red, desde, hasta, orden }), [datos, q, red, desde, hasta, orden]);
-  const hayFiltros = q || red || desde || hasta;
-  const filtros = { q: q.trim(), red, desde, hasta };
+  const base = useMemo(() => indexar(datos?.diarias || []), [datos]);
+  // Lo guardado + lo que se está escribiendo: de ahí salen los totales, la media y la anomalía en vivo.
+  const mapa = useMemo(() => {
+    const m = new Map(base);
+    for (const [k, t] of texto) { const n = leerNumero(t); if (n === null) m.delete(k); else if (Number.isFinite(n) && n >= 0 && n <= 1500) m.set(k, n); }
+    return m;
+  }, [base, texto]);
+  const invalidas = useMemo(() => [...texto.values()].filter((t) => { const n = leerNumero(t); return n !== null && !(Number.isFinite(n) && n >= 0 && n <= 1500); }).length, [texto]);
 
-  const empezar = (r) => setEditando({ id: r.id, estacion: r.estacion, red: r.red, desde: r.desde, hasta: r.hasta, lluvia: aTexto(r.lluvia), max: aTexto(r.max), maxMinutos: r.maxMinutos || 30, mes: aTexto(r.mes), media: aTexto(r.media), anomalia: aTexto(r.anomalia), lat: aTexto(r.lat), lng: aTexto(r.lng) });
-  const poner = (c) => setEditando((e) => ({ ...e, ...c }));
+  const alEditar = useCallback((id, fecha, valor) => setTexto((prev) => {
+    const k = `${id}|${fecha}`, guardado = base.has(k) ? aTexto(base.get(k)) : "", n = new Map(prev);
+    if (valor === guardado || (leerNumero(valor) !== null && leerNumero(valor) === base.get(k))) n.delete(k); else n.set(k, valor);
+    return n;
+  }), [base]);
+
+  const visibles = useMemo(() => (datos?.estaciones || []).filter((e) => (inactivas || e.activa) && (!red || e.red === Number(red)) && (!q.trim() || normal(e.nombre).includes(normal(q.trim())))), [datos, inactivas, red, q]);
+
   async function guardar() {
-    const e = errorDe(editando);
-    if (e) { setError(e); return; }
-    setOcupado(true); setError("");
+    if (invalidas) { setError("Hay celdas con un valor que no es válido (marcadas en rojo): corregilas antes de guardar."); return; }
+    setGuardando(true); setError("");
     try {
-      const cuerpo = paraEnviar(editando);
-      if (editando.id == null) await api.agregarFilaPrecipitaciones(cuerpo); else await api.corregirFilaPrecipitaciones(editando.id, cuerpo);
-      setEditando(null); await cargar(); notificar("success", editando.id == null ? "Fila agregada." : "Fila guardada.");
-    } catch (err) { setError(err.message); }
-    finally { setOcupado(false); }
+      const cambios = [...texto].map(([k, t]) => { const [id, fecha] = k.split("|"); return { estacionId: Number(id), fecha, mm: leerNumero(t) }; });
+      await api.guardarPrecipitacionesDiarias(cambios);
+      setTexto(new Map()); await cargar(); notificar("success", `${cambios.length} ${cambios.length === 1 ? "celda guardada" : "celdas guardadas"}.`);
+    } catch (e) { setError(e.message); }
+    finally { setGuardando(false); }
   }
-  async function quitar(r) {
-    if (!window.confirm(`¿Quitar «${r.estacion}» (${r.desde === r.hasta ? r.desde : `${r.desde} al ${r.hasta}`}) de la tabla? Deja de verse en la página.`)) return;
-    try { await api.quitarFilaPrecipitaciones(r.id); await cargar(); notificar("success", "Fila quitada."); } catch (err) { setError(err.message); }
+  useEffect(() => {
+    const tecla = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "s" && texto.size) { e.preventDefault(); guardar(); } };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  });
+  const cambiarMes = (p) => { setPeriodo(p); };
+  const abrirInforme = (v) => { setInforme(v); if (params.has("informe")) setParams({}, { replace: true }); };
+  async function publicar() {
+    if (texto.size) { setError("Tenés cambios sin guardar en la planilla: guardalos antes de publicar."); return; }
+    setError("");
+    const p = estado?.pendientes;
+    const lineas = p ? [p.diasNuevos && `${p.diasNuevos} ${p.diasNuevos === 1 ? "día nuevo" : "días nuevos"}`, p.diasCambiados && `${p.diasCambiados} ${p.diasCambiados === 1 ? "día corregido" : "días corregidos"}`, p.diasQuitados && `${p.diasQuitados} ${p.diasQuitados === 1 ? "día quitado" : "días quitados"}`,
+      p.estaciones && `${p.estaciones} ${p.estaciones === 1 ? "cambio" : "cambios"} en estaciones`, p.medias && `${p.medias} ${p.medias === 1 ? "cambio" : "cambios"} en medias`].filter(Boolean) : [];
+    const ok = await confirmar({ titulo: "¿Publicar en la página?", confirmar: "Publicar ahora",
+      html: `<p>Se van a actualizar <strong>la tabla pública y el mapa</strong> del sitio con lo que hay cargado en la planilla${p?.ultimaFecha ? ` (hasta el ${ddmmaaaa(p.ultimaFecha)})` : ""}.</p>${lineas.length ? `<ul style="text-align:left">${lineas.map((l) => `<li>${l}</li>`).join("")}</ul>` : ""}<p>Cualquiera que abra la página va a ver estos datos.</p>` });
+    if (!ok) return;
+    setPublicando(true);
+    try { await api.publicarPrecipitaciones(); await cargarEstado(); notificar("success", "Publicado: la tabla y el mapa ya muestran los datos nuevos."); }
+    catch (e) { setError(e.message); }
+    finally { setPublicando(false); }
   }
-  const excel = () => api.descargarExcelPrecipitaciones(filtros).catch((e) => setError(e.message));
+  async function excel() {
+    setBajando(true); setError("");
+    try { await api.descargarExcelPrecipitaciones({ desde: primerDia(periodo.anio, periodo.mes), hasta: ultimoDia(periodo.anio, periodo.mes), estaciones: visibles.map((e) => e.id), borrador: true }); }
+    catch (e) { setError(e.message); } finally { setBajando(false); }
+  }
+  const anios = useMemo(() => { const a = mesDe(hoy()).anio; return Array.from({ length: 8 }, (_, i) => a + 1 - i); }, []);
 
   return <div className="admin-layout admin-layout--sin-mapa prec-admin">
-    <BrandHeader subtitulo="Tabla de precipitaciones"><VolverConfiguracion /></BrandHeader>
+    <BrandHeader subtitulo="Monitoreo de lluvias"><VolverConfiguracion /></BrandHeader>
     <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
-      <div className="editor-heading"><h1>Tabla de precipitaciones</h1>
-        <p>Todo lo que se publicó desde el informe de precipitaciones, con su histórico: cada informe suma filas y, si volvés a publicar el mismo período de una estación, la fila se actualiza. Lo que corrijas o quites acá es lo que se ve en la página.</p></div>
-      {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
-      <div className="prec-embed prec-embed--admin">
-        <div className="prec-embed__filtros">
-          <label className="prec-embed__buscar"><span>Buscar estación</span><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ej.: Posadas" /></label>
-          <label><span>Red</span><select value={red} onChange={(e) => setRed(e.target.value)}><option value="">Todas</option>{redes.map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
-          <label><span>Desde</span><input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} /></label>
-          <label><span>Hasta</span><input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} /></label>
-          {hayFiltros && <button type="button" className="prec-embed__btn" onClick={() => { setQ(""); setRed(""); setDesde(""); setHasta(""); }}>Limpiar</button>}
+      <div className="prec-cab">
+        <div><h1>Monitoreo de lluvias</h1>
+          <p>Reemplaza al Excel: cargá la lluvia de cada día por estación (o pegá desde Excel) y los totales, la media y la anomalía se calculan solos. Lo cargado es un borrador: la tabla y el mapa de la página cambian recién cuando tocás «Publicar».</p></div>
+        <div className="prec-cab__acciones">
+          <button type="button" className="prec-btn" onClick={() => setCompartir(true)}>Compartir en el sitio web</button>
+          <button type="button" className="prec-btn" aria-expanded={informe} aria-controls="prec-cajon-informe" onClick={() => abrirInforme(!informe)}>Armar informe</button>
+          <button type="button" className="prec-btn prec-btn--primario" disabled={publicando || !estado || estado.total === 0} onClick={publicar}
+            title={estado?.total === 0 ? "No hay cambios sin publicar" : "Actualiza la tabla y el mapa públicos"}>{publicando ? "Publicando…" : "Publicar en la tabla y el mapa"}</button>
         </div>
-        <div className="prec-embed__filtros">
-          <button type="button" className="prec-embed__btn prec-embed__btn--primario" disabled={editando != null} onClick={() => setEditando({ id: null, ...vacia() })}>+ Agregar fila</button>
-          <button type="button" className="prec-embed__btn" disabled={!visibles.length} onClick={() => bajarCsv(visibles)}>Descargar CSV</button>
-          <button type="button" className="prec-embed__btn" disabled={!visibles.length} onClick={excel}>Descargar Excel</button>
-          <span className="prec-embed__pie">{datos ? `${visibles.length} ${visibles.length === 1 ? "fila" : "filas"}${hayFiltros ? ` de ${datos.length}` : ""} · lo exportado respeta los filtros` : ""}</span>
-        </div>
-        <datalist id="prec-estaciones">{estaciones.map((e) => <option key={e} value={e} />)}</datalist>
-        {datos === null ? <p role="status">{error ? "" : "Cargando…"}</p> : <div className="prec-embed__tabla" role="region" aria-label="Tabla editable de precipitaciones" tabIndex={0}>
-          <table>
-            <thead><tr>{COLUMNAS.map((c) => <th key={c.id} className={c.texto ? "" : "num"} aria-sort={orden.id === c.id ? (orden.dir > 0 ? "ascending" : "descending") : "none"}>
-              <button type="button" onClick={() => setOrden((o) => ordenarPor(o, c.id))}>{c.t}<i aria-hidden="true">{orden.id === c.id ? (orden.dir > 0 ? "▲" : "▼") : ""}</i></button></th>)}<th><span className="prec-ed__acciones-cab">Acciones</span></th></tr></thead>
-            <tbody>
-              {editando?.id === null && <tr className="prec-ed__editando"><CamposFila f={editando} poner={poner} etiqueta="Fila nueva" />
-                <td className="prec-ed__acciones"><button type="button" className="prec-embed__btn prec-embed__btn--primario" disabled={ocupado} onClick={guardar}>Agregar</button><button type="button" className="prec-embed__btn" onClick={() => { setEditando(null); setError(""); }}>Cancelar</button></td></tr>}
-              {visibles.map((r) => editando?.id === r.id
-                ? <tr key={r.id} className="prec-ed__editando"><CamposFila f={editando} poner={poner} etiqueta={r.estacion} />
-                  <td className="prec-ed__acciones"><button type="button" className="prec-embed__btn prec-embed__btn--primario" disabled={ocupado} onClick={guardar}>Guardar</button><button type="button" className="prec-embed__btn" onClick={() => { setEditando(null); setError(""); }}>Cancelar</button></td></tr>
-                : <tr key={r.id}>{COLUMNAS.map((c) => <td key={c.id} className={`${c.texto ? "" : "num"}${c.id === "lluvia" ? " lluvia" : ""}`}>{c.f ? c.f(r) : c.texto ? c.v(r) : coma(c.v(r))}</td>)}
-                  <td className="prec-ed__acciones"><button type="button" className="prec-embed__btn" onClick={() => empezar(r)} disabled={editando != null}>Editar</button><button type="button" className="prec-embed__btn" onClick={() => quitar(r)} disabled={editando != null}>Quitar</button></td></tr>)}
-              {!visibles.length && editando?.id !== null && <tr><td colSpan={COLUMNAS.length + 1}>{datos?.length ? "Ninguna fila coincide con los filtros." : "Todavía no hay datos: se cargan con «Publicar en la tabla online» en el informe de precipitaciones, o con «+ Agregar fila»."}</td></tr>}
-            </tbody>
-          </table>
-        </div>}
       </div>
-      <details className="prec-admin__compartir"><summary>Compartir en el sitio web (enlaces e iframes)</summary>
-      <EmbedShare path="/embed/precipitaciones" title="Precipitaciones · Misiones" kind="historico" height={720} heading="Tabla para el sitio web" hint="Muestra siempre los datos de arriba. Copiá el enlace o el iframe para ponerla en la página." linkLabel="Enlace a la tabla pública" openLabel="Abrir la tabla ↗" />
-      <EmbedShare path="/embed/precipitaciones-mapa" title="Mapa de precipitaciones · Misiones" kind="mapa" height={640} heading="Mapa para el sitio web" hint="Las estaciones en su ubicación; al tocar una se ven sus últimos 10 días." linkLabel="Enlace al mapa" openLabel="Abrir el mapa ↗" />
-      </details>
+      {estado && <div className="prec-publicacion" role="status">
+        {estado.ultima ? <span>Última publicación: <strong>{new Date(estado.ultima.publicadoEn).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })} h</strong>{estado.ultima.por && ` · ${estado.ultima.por}`}</span> : <span><strong>Todavía no se publicó nada</strong>: la tabla y el mapa de la página están vacíos.</span>}
+        {estado.total > 0 ? <span className="prec-pendientes">{estado.total} {estado.total === 1 ? "cambio" : "cambios"} sin publicar</span> : estado.ultima && <span>Todo publicado ✓</span>}
+      </div>}
+      <div className="prec-pestanas" role="tablist" aria-label="Secciones">
+        {[["planilla", "Planilla"], ["estaciones", "Estaciones y medias"], ["importar", "Importar Excel"]].map(([id, t]) => <button key={id} type="button" role="tab" aria-selected={pestana === id} className={pestana === id ? "prec-pestana prec-pestana--on" : "prec-pestana"} onClick={() => setPestana(id)}>{t}</button>)}
+      </div>
+      {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
+
+      {pestana === "planilla" && <>
+        <div className="prec-barra">
+          <div className="prec-mes" role="group" aria-label="Mes">
+            <button type="button" className="prec-btn" aria-label="Mes anterior" onClick={() => cambiarMes(mesAnterior(periodo))}>‹</button>
+            <select aria-label="Mes" value={periodo.mes} onChange={(e) => cambiarMes({ ...periodo, mes: Number(e.target.value) })}>{MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select>
+            <select aria-label="Año" value={periodo.anio} onChange={(e) => cambiarMes({ ...periodo, anio: Number(e.target.value) })}>{[...new Set([...anios, periodo.anio])].sort((a, b) => b - a).map((a) => <option key={a}>{a}</option>)}</select>
+            <button type="button" className="prec-btn" aria-label="Mes siguiente" onClick={() => cambiarMes(mesSiguiente(periodo))}>›</button>
+            <button type="button" className="prec-btn" onClick={() => cambiarMes(mesDe(hoy()))}>Este mes</button>
+          </div>
+          <input type="search" className="prec-buscar" aria-label="Buscar estación" placeholder="Buscar estación…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select aria-label="Red" value={red} onChange={(e) => setRed(e.target.value)}><option value="">Todas las redes</option>{Object.entries(REDES).map(([v, t]) => <option key={v} value={v}>{v} · {t}</option>)}</select>
+          <label className="prec-check"><input type="checkbox" checked={inactivas} onChange={(e) => setInactivas(e.target.checked)} /> Mostrar inactivas</label>
+          <span className="prec-espacio" />
+          <button type="button" className="prec-btn" disabled={bajando || !visibles.length} onClick={excel}>{bajando ? "Armando…" : "Descargar Excel"}</button>
+          {texto.size > 0 && <><button type="button" className="prec-btn" disabled={guardando} onClick={() => setTexto(new Map())}>Descartar</button>
+            <button type="button" className="prec-btn prec-btn--primario" disabled={guardando} onClick={guardar}>{guardando ? "Guardando…" : `Guardar cambios (${texto.size})`}</button></>}
+        </div>
+        {datos === null ? <p role="status">{error ? "" : "Cargando…"}</p>
+          : !datos.estaciones.length ? <div className="prec-vacio">Todavía no hay estaciones. Importá el Excel de antes (pestaña «Importar Excel») o agregalas en «Estaciones y medias».</div>
+          : !visibles.length ? <div className="prec-vacio">Ninguna estación coincide con el filtro.</div>
+          : <PlanillaPrecipitaciones estaciones={visibles} todas={datos.estaciones} mapa={mapa} texto={texto} anio={periodo.anio} mes={periodo.mes} alEditar={alEditar} hoy={hoy()} />}
+        <p className="prec-ayuda">Enter o ↓ baja a la celda de abajo; podés pegar un bloque copiado de Excel en cualquier celda. Ctrl+S guarda. Vacío = sin dato.</p>
+      </>}
+
+      {pestana === "estaciones" && datos && <EstacionesPrecipitaciones estaciones={datos.estaciones} alCambiar={cargar} alError={setError} />}
+      {pestana === "importar" && datos && <ImportarPrecipitaciones existentes={datos.estaciones} alImportar={cargar} alError={setError} />}
+
     </section>
+
+    <Modal abierto={compartir} alCerrar={() => setCompartir(false)} titulo="Compartir en el sitio web" ancho={680}>
+      <p className="prec-ayuda">Copiá el enlace o el código para embeber (iframe) y pegalo en la página. Los dos muestran lo <strong>publicado</strong>: se actualizan solos cuando tocás «Publicar».</p>
+      <EmbedShare path="/embed/precipitaciones" title="Precipitaciones · Misiones" kind="historico" height={720} heading="Tabla" hint="La planilla por mes y el resumen de un período, con búsqueda y filtros." linkLabel="Enlace a la tabla pública" openLabel="Abrir la tabla ↗" />
+      <EmbedShare path="/embed/precipitaciones-mapa" title="Mapa de precipitaciones · Misiones" kind="mapa" height={640} heading="Mapa" hint="Las estaciones con ubicación; al tocar una se ven sus últimos 10 días." linkLabel="Enlace al mapa" openLabel="Abrir el mapa ↗" />
+    </Modal>
+    <InformePrecipitaciones abierto={informe} alCerrar={() => abrirInforme(false)} />
   </div>;
 }

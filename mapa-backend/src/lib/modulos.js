@@ -11,13 +11,12 @@ const MODULOS = [
   "alertas-automaticas",
   "inundaciones",
   "cuencas",
-  "informes-diarios",
   "tabla-precipitaciones",
   "ensamble",
 ];
 
 /** Módulos que ya no existen: si un usuario todavía los tiene asignados se ignoran en vez de dar error. */
-const RETIRADOS = ["generador-pronosticos"];
+const RETIRADOS = ["generador-pronosticos", "informes-diarios"];
 
 /** Lista saneada para guardar: sólo ids conocidos, sin repetir. `null` si no es una lista de ids válidos. */
 function normalizar(modulos) {
@@ -27,6 +26,8 @@ function normalizar(modulos) {
 }
 
 /** ¿Este usuario de sesión (rol + modulos) puede usar el módulo? */
-const tiene = (usuario, id) => !!usuario && (usuario.rol === "superadmin" || (usuario.modulos || []).includes(id));
+// «informes-diarios» (retirado) valía para el informe de precipitaciones: quien lo tenía conserva el acceso a «tabla-precipitaciones».
+const ALIAS = { "tabla-precipitaciones": "informes-diarios" };
+const tiene = (usuario, id) => !!usuario && (usuario.rol === "superadmin" || (usuario.modulos || []).includes(id) || (!!ALIAS[id] && (usuario.modulos || []).includes(ALIAS[id])));
 
 module.exports = { MODULOS, normalizar, tiene };

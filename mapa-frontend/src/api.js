@@ -587,60 +587,41 @@ export async function publicarEnRedes(payload) {
   return handleJson(res);
 }
 
-// --- Informes diarios (en desarrollo, sólo superadmin) ---
-/** `estaciones`: las claves prendidas en la pantalla; sólo esas se consultan. */
-export async function recolectarInformeDiario({ fecha, fechaHasta, desde, hasta, estaciones }) {
-  return handleJson(await fetch(`${API_URL}/api/informes-diarios/recolectar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha, fechaHasta, desde, hasta, estaciones }), cache: "no-store", ...CON_SESION }));
+// --- Precipitaciones (módulo «tabla-precipitaciones») ---
+/** Planilla de precipitaciones. Pública: estaciones con sus medias y, con rango, los mm de cada día [[estacionId, fecha, mm]]. */
+export async function getPrecipitaciones({ desde, hasta } = {}) {
+  const q = new URLSearchParams(Object.fromEntries(Object.entries({ desde, hasta }).filter(([, v]) => v)));
+  return handleJson(await fetch(`${API_URL}/api/precipitaciones/datos?${q}`, { cache: "no-store" }));
 }
-/** Las estaciones que se pueden consultar y sus redes, para los interruptores: { redes, estaciones, avisos }. */
-export async function getEstacionesInformes() {
-  return handleJson(await fetch(`${API_URL}/api/informes-diarios/estaciones`, { cache: "no-store", ...CON_SESION }));
+/** Lo que se está cargando (borrador), para la planilla y el informe del panel. */
+export async function getPrecipitacionesBorrador({ desde, hasta } = {}) {
+  const q = new URLSearchParams(Object.fromEntries(Object.entries({ desde, hasta }).filter(([, v]) => v)));
+  return handleJson(await fetch(`${API_URL}/api/precipitaciones/borrador?${q}`, { cache: "no-store", ...CON_SESION }));
 }
-/** Vuelve a redactar el texto con las estaciones que quedaron (sin volver a pedir datos). `informe`: { fecha, fechaHasta, desde, hasta, estaciones (con su resumen, sin series), smn }. */
-export async function redactarInformeDiario(informe) {
-  return (await handleJson(await fetch(`${API_URL}/api/informes-diarios/redactar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(informe), ...CON_SESION }))).resumen;
-}
-export async function getInformesDiarios() {
-  return (await handleJson(await fetch(`${API_URL}/api/informes-diarios`, { cache: "no-store", ...CON_SESION }))).informes;
-}
-export async function getInformeDiario(id) {
-  return handleJson(await fetch(`${API_URL}/api/informes-diarios/${id}`, { cache: "no-store", ...CON_SESION }));
-}
-export async function guardarInformeDiario(informe) {
-  return handleJson(await fetch(`${API_URL}/api/informes-diarios`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(informe), ...CON_SESION }));
-}
-/** Tabla online de precipitaciones (/embed/precipitaciones). Pública: filtros opcionales { desde, hasta, red, q }. */
-export async function getPrecipitacionesTabla(filtros = {}) {
-  const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)));
-  return (await handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/publico?${q}`, { cache: "no-store" }))).registros;
-}
-export async function publicarPrecipitacionesTabla({ desde, hasta, filas }) {
-  return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ desde, hasta, filas }), ...CON_SESION }));
-}
+/** Cuándo se publicó por última vez y cuántos cambios hay sin publicar. */
+export async function getEstadoPublicacionPrecipitaciones() { return handleJson(await fetch(`${API_URL}/api/precipitaciones/publicacion`, { cache: "no-store", ...CON_SESION })); }
+/** Copia el borrador a la tabla y el mapa públicos. */
+export async function publicarPrecipitaciones() { return handleJson(await fetch(`${API_URL}/api/precipitaciones/publicar`, { method: "POST", ...CON_SESION })); }
 const JSON_SESION = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });
-export async function agregarFilaPrecipitaciones(fila) { return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/fila`, JSON_SESION("POST", fila))); }
-export async function corregirFilaPrecipitaciones(id, cambios) { return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/${id}`, JSON_SESION("PATCH", cambios))); }
-export async function quitarFilaPrecipitaciones(id) { return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/${id}`, { method: "DELETE", ...CON_SESION })); }
-/** Baja el Excel con los mismos filtros. */
-export async function descargarExcelPrecipitaciones(filtros = {}) {
-  const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)));
-  const r = await fetch(`${API_URL}/api/precipitaciones-tabla/excel?${q}`);
-  if (!r.ok) throw new Error("No se pudo armar el Excel.");
+export const guardarPrecipitacionesDiarias = async (cambios) => handleJson(await fetch(`${API_URL}/api/precipitaciones/diarias`, JSON_SESION("PUT", { cambios })));
+export const crearEstacionPrecipitaciones = async (e) => handleJson(await fetch(`${API_URL}/api/precipitaciones/estaciones`, JSON_SESION("POST", e)));
+export const corregirEstacionPrecipitaciones = async (id, c) => handleJson(await fetch(`${API_URL}/api/precipitaciones/estaciones/${id}`, JSON_SESION("PATCH", c)));
+export const quitarEstacionPrecipitaciones = async (id) => handleJson(await fetch(`${API_URL}/api/precipitaciones/estaciones/${id}`, { method: "DELETE", ...CON_SESION }));
+export const ordenarEstacionesPrecipitaciones = async (ids) => handleJson(await fetch(`${API_URL}/api/precipitaciones/orden`, JSON_SESION("PUT", { ids })));
+export const guardarMediasPrecipitaciones = async (id, medias) => handleJson(await fetch(`${API_URL}/api/precipitaciones/estaciones/${id}/medias`, JSON_SESION("PUT", { medias })));
+export async function leerExcelPrecipitaciones(archivo) {
+  const f = new FormData(); f.append("archivo", archivo);
+  return handleJson(await fetch(`${API_URL}/api/precipitaciones/importar/leer`, { method: "POST", body: f, ...CON_SESION }));
+}
+export const aplicarImportacionPrecipitaciones = async (estaciones) => handleJson(await fetch(`${API_URL}/api/precipitaciones/importar/aplicar`, JSON_SESION("POST", { estaciones })));
+/** Baja el Excel con fórmulas: { desde, hasta, estaciones: [ids], informe: true|false, borrador: true|false }. Sin `borrador`, lo publicado. */
+export async function descargarExcelPrecipitaciones({ desde, hasta, estaciones, informe = false, borrador = false }) {
+  const q = new URLSearchParams({ desde, hasta, ...(estaciones?.length && { estaciones: estaciones.join(",") }), ...(informe && { informe: "1" }) });
+  const r = await fetch(`${API_URL}/api/precipitaciones/${borrador ? "excel-borrador" : "excel"}?${q}`, borrador ? CON_SESION : undefined);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el Excel.");
   const url = URL.createObjectURL(await r.blob());
-  const a = Object.assign(document.createElement("a"), { href: url, download: "precipitaciones-misiones.xlsx" });
+  const a = Object.assign(document.createElement("a"), { href: url, download: `precipitaciones-${desde}-a-${hasta}.xlsx` });
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-export async function quitarPrecipitacionesTabla({ desde, hasta }) {
-  return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/quitar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ desde, hasta }), ...CON_SESION }));
-}
-/** Excel con todo lo que trajeron las estaciones, en crudo (descarga el archivo). */
-export async function descargarExcelInformeDiario(datos) {
-  const r = await fetch(`${API_URL}/api/informes-diarios/excel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datos }), ...CON_SESION });
-  if (!r.ok) { let m = `Error ${r.status}`; try { m = (await r.json()).error || m; } catch { /* sin cuerpo */ } throw new Error(m); }
-  const nombre = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "")?.[1] || "informe-diario.xlsx";
-  const url = URL.createObjectURL(await r.blob());
-  const a = document.createElement("a"); a.href = url; a.download = nombre; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // --- Ensamble multimodelo (en desarrollo, módulo «ensamble») ---

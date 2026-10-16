@@ -9,7 +9,6 @@ const PanelPage = lazy(() => import("./pages/PanelPage"));
 const GeneradorMapasPage = lazy(() => import("./pages/GeneradorMapasPage"));
 const HistoricoPage = lazy(() => import("./pages/HistoricoPage"));
 const ConfiguracionPage = lazy(() => import("./pages/ConfiguracionPage"));
-const InformesDiariosPage = lazy(() => import("./pages/InformesDiariosPage"));
 const EnsamblePage = lazy(() => import("./pages/EnsamblePage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const RiesgoIncendiosPage = lazy(() => import("./pages/RiesgoIncendiosPage"));
@@ -67,8 +66,8 @@ export default function App() {
           <Route path="/panel/generador-pronosticos" element={<Navigate to="/panel" replace />} />
           <Route path="/panel/configuracion" element={<RutaProtegida soloSuperadmin><ConfiguracionPage /></RutaProtegida>} />
           <Route path="/panel/ensamble" element={<RutaProtegida modulo="ensamble"><EnsamblePage /></RutaProtegida>} />
-          <Route path="/panel/informe-precipitaciones" element={<RutaProtegida modulo="informes-diarios"><InformesDiariosPage /></RutaProtegida>} />
-          <Route path="/panel/precipitaciones" element={<RutaProtegida modulo={["tabla-precipitaciones", "informes-diarios"]}><TablaPrecipitacionesPage /></RutaProtegida>} />
+          <Route path="/panel/informe-precipitaciones" element={<Navigate to="/panel/precipitaciones?informe=1" replace />} />
+          <Route path="/panel/precipitaciones" element={<RutaProtegida modulo="tabla-precipitaciones"><TablaPrecipitacionesPage /></RutaProtegida>} />
           <Route path="/panel/informes-diarios" element={<Navigate to="/panel/informe-precipitaciones" replace />} />
           <Route
             path="/panel/pronostico"

@@ -12,7 +12,7 @@ import * as api from "../api";
  *   guardar(valores, token) → la placa guardada
  * valores = { subtitulo, periodo, fondo, filas: [{ nombre, nota, periodo, mes, media, anomalia }] }
  */
-const NOTAS = { "": "—", 1: "SMN", 2: "INTA", 3: "Automática", 4: "Otra red" };
+const NOTAS = { "": "—", 1: "SMN", 2: "INTA", 3: "Automática", 4: "Red Matteo" };
 const FONDOS = { lluvia: [6, 7, 8, 9, 10, 11], tormenta: [1, 2, 3, 4, 5] };
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
 const dm = (f) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;

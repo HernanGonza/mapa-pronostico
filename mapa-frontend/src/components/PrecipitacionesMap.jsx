@@ -4,7 +4,7 @@ import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { MAP_LOCALE_ES } from "../lib/mapLocale";
 import { getMunicipiosGeojson } from "../api";
-import { ESCALA } from "../lib/precipitacionesTabla";
+import { ESCALA } from "../lib/precipitacionesCalculo";
 
 const CENTRO = [-54.6, -27.0];
 
@@ -77,8 +77,8 @@ export default function PrecipitacionesMap({ estaciones, seleccionada, onSelecci
     <div ref={contenedor} className="base-map__canvas-container" />
     <div className="map-title"><img src="/brand/ecologia-flor.png" alt="" width={32} height={32} /><div><strong>Precipitaciones en Misiones</strong></div></div>
     <div className="map-legend"><div className="risk-legend">
-      <strong>Lluvia del último dato</strong>
-      <div className="map-key__items">{ESCALA.map(([d, c, t]) => <span key={d}><i style={{ background: c, borderRadius: "50%" }} /> {t}</span>)}</div>
+      <strong>Lluvia del último día con dato</strong>
+      <div className="map-key__items">{ESCALA.map(([d, c, t]) => <span key={d}><i style={{ background: c, borderRadius: "50%" }} /> {t}</span>)}<span><i style={{ background: "#8793a0", borderRadius: "50%" }} /> Sin datos en 10 días</span></div>
     </div></div>
   </div>;
 }

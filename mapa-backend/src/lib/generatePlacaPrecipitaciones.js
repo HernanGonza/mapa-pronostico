@@ -30,7 +30,7 @@ const FONDO_POR_DEFECTO = 6;
 const TITULO = "MONITOREO DE PRECIPITACIONES";
 const BANDA = "Datos recopilados por la Dirección General de Alerta Temprana";
 const MARCA_DE_AGUA = "GOBIERNO DE MISIONES  ·  ALERTA TEMPRANA  ·  ORDENAMIENTO TERRITORIAL  ·  ECOLOGÍA  ·  ";
-const NOTAS = { 1: "Estaciones del SMN", 2: "Estaciones del INTA", 3: "Estaciones automáticas", 4: "Estaciones de otras redes" };
+const NOTAS = { 1: "Estaciones del SMN", 2: "Estaciones del INTA", 3: "Estaciones automáticas", 4: "Estaciones Red Matteo" };
 const SUPER = { 1: "¹", 2: "²", 3: "³", 4: "⁴" };
 const LIMITES = { filas: 24, nombre: 40, subtitulo: 48, periodo: 20 };
 const BLANCO = "#fff", AZUL = "rgb(88,190,255)", NARANJA = "rgb(252,142,10)", GRIS = "rgb(205,212,224)";

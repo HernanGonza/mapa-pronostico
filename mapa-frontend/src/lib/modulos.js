@@ -11,8 +11,7 @@ export const MODULOS = [
   { id: "alertas-automaticas", to: "/panel/alertas-automaticas", icono: Bell, titulo: "Alertas automáticas (SMN)", descripcion: "Avisos del SMN por período y zona, en revisión." },
   { id: "inundaciones", to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Altura de los arroyos internos de Misiones (Red Hidrológica Nacional) y puntos donde una crecida corta rutas." },
   { id: "cuencas", to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
-  { id: "informes-diarios", to: "/panel/informe-precipitaciones", icono: FileText, titulo: "Informe de precipitaciones", descripcion: "Qué pasó un día (por ejemplo, una tormenta) según las estaciones oficiales del INTA y SiNaRaMe, con lo que emitió el SMN: informe con mapa, tabla y gráficos, en PDF." , enDesarrollo: false },
-  { id: "tabla-precipitaciones", to: "/panel/precipitaciones", icono: Table, titulo: "Tabla de precipitaciones", descripcion: "Histórico de lo que se carga desde el informe: buscar, filtrar, corregir, sumar filas y exportar. Es la que se muestra en la página (tabla y mapa).", enDesarrollo: false },
+  { id: "tabla-precipitaciones", to: "/panel/precipitaciones", icono: Table, titulo: "Monitoreo de lluvias", descripcion: "Planilla de lluvia por día y estación (reemplaza al Excel), con totales, media y anomalía; de ahí salen la tabla y el mapa de la página y los informes (placa, PDF y Excel).", enDesarrollo: false },
   { id: "ensamble", to: "/panel/ensamble", icono: Layers, titulo: "Ensamble multimodelo", descripcion: "Qué dice cada modelo numérico (ECMWF, GFS, ICON, GEM, WRF-SMN y MONAN) para cada departamento a 10 días, y cuánto discrepan.", enDesarrollo: false },
 ];
 
@@ -20,7 +19,9 @@ export const MODULOS = [
 export const estadoDe = (m) => (m.enDesarrollo === false ? null : "En desarrollo");
 
 /** ¿Este usuario (de useAuth) puede usar el módulo `id`? El superadmin, todos. */
-export const puedeUsar = (usuario, id) => !!usuario && (usuario.rol === "superadmin" || (usuario.modulos || []).includes(id));
+// «informes-diarios» (retirado) valía para el informe de precipitaciones: quien lo tenía conserva el acceso a «tabla-precipitaciones».
+const ALIAS = { "tabla-precipitaciones": "informes-diarios" };
+export const puedeUsar = (usuario, id) => !!usuario && (usuario.rol === "superadmin" || (usuario.modulos || []).includes(id) || (!!ALIAS[id] && (usuario.modulos || []).includes(ALIAS[id])));
 
 /** Los módulos que el usuario puede ver, en el orden del catálogo. */
 export const modulosDe = (usuario) => MODULOS.filter((m) => puedeUsar(usuario, m.id));
