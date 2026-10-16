@@ -234,3 +234,18 @@
 
 /* Fila de zona (norte, centro, sur) que separa los departamentos de la matriz. */
 .ens-matriz tbody .ens-zona th { position: sticky; left: 0; text-align: left; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: var(--surface-2); border-bottom: 1px solid var(--border-strong, var(--border)); }
+
+/* Barra de modelos plegable: cerrada queda un riel angosto con el botón y el resto es para la tabla y el gráfico. */
+.ens-lateral-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px auto; padding: 6px 12px; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.ens-lateral-toggle:hover { background: var(--surface-3); color: var(--text); }
+.ens-lateral-toggle:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 2px; }
+.ens-lateral-contenido[hidden] { display: none; }
+@media (min-width: 861px) {
+  .ens-layout { transition: grid-template-columns 0.25s ease; }
+  .ens-layout--sin-lateral { grid-template-columns: 52px minmax(0, 1fr); }
+  .ens-lateral { display: flex; flex-direction: column; }
+  .ens-lateral-toggle { align-self: flex-end; }
+  .ens-lateral--cerrada { padding: 14px 6px; overflow: hidden; box-shadow: 1px 0 0 var(--border); align-items: center; }
+  .ens-lateral--cerrada .ens-lateral-toggle { flex-direction: column; align-self: center; padding: 10px 6px; margin: 0; gap: 10px; }
+  .ens-lateral--cerrada .ens-lateral-rotulo { writing-mode: vertical-rl; letter-spacing: 0.04em; }
+}

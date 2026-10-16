@@ -1,5 +1,7 @@
 const store = require("./ensambleStore");
 const { bajarYr } = require("./yrNo");
+const bam = require("./inpeBam");
+const eta = require("./inpeEta");
 const { wrfCompleto, corridaVigente } = require("./wrfSmn");
 
 /**
@@ -12,6 +14,8 @@ const { wrfCompleto, corridaVigente } = require("./wrfSmn");
  *   - WRF-SMN: 4 corridas por día (00/06/12/18 UTC). Se mira qué corrida completa hay en el bucket de AWS; cuando aparece una nueva se baja
  *     entera (72 h; puede llevar minutos). La próxima es una estimación: inicio de la corrida + 6 h + unas 5,5 h de demora de publicación.
  *   - yr.no (MET Norway): se renueva cada ~30–60 min; se vuelve a bajar cuando pasó casi una hora desde la última descarga (ver yrNo.js).
+ *   - BAM 20 km y Eta 8 km (CPTEC/INPE): una corrida por día (00 UTC) que el INPE publica unas 8–9 h después. Se mira cuál es la última corrida completa
+ *     del servidor y, si es más nueva que la guardada, se lee lo que usa el ensamble sin bajar los archivos enteros (ver inpeBam.js e inpeEta.js).
  *   - El MONAN (apagado) sigue yendo por consulta directa: ver monan.js.
  *
  * Open-Meteo se baja con el rango que admite el ensamble: de 7 días atrás a 9 días adelante (hora de Misiones).
@@ -22,6 +26,7 @@ const REVISION_MS = 10 * 60e3;
 const META_OM = { ecmwf_ifs025: "ecmwf_ifs025", gfs_seamless: "ncep_gfs025", icon_seamless: "dwd_icon", gem_seamless: "cmc_gem_gdps",
   meteofrance_arpege_world: "meteofrance_arpege_world025", jma_gsm: "jma_gsm", ukmo_global_deterministic_10km: "ukmo_global_deterministic_10km", cma_grapes_global: "cma_grapes_global" };
 const SLOTS_GEM_UTC = [5.5, 17.5];
+const INPE_DEMORA_MS = 9 * HORA; // el INPE publica la corrida de las 00 UTC entre 7,5 y 9 h después (hora del servidor, que está en UTC)
 const YR_VIGENCIA_MS = 55 * 60e3; // yr.no renueva cada 30–60 min; no hace falta bajarlo más seguido
 const WRF_PASO_MS = 6 * HORA, WRF_DEMORA_MS = 5.5 * HORA;
 const DIAS_ATRAS = 7, DIAS_ADELANTE = 9;
@@ -84,6 +89,13 @@ function crear(ctx) {
     console.log(`[ensamble] ${m.nombre}: pronóstico guardado (${Math.round((Date.now() - t0) / 1000)} s)`);
   }
 
+  async function bajarInpe(m, modulo, bajar) {
+    const t0 = Date.now(), r = await bajar(ctx.puntos(), { alAvanzar: (h, n, s) => console.log(`[ensamble] ${m.nombre}: ${h}/${n} pasos leídos (${Math.round(s)} s)`) });
+    await store.guardar(m.id, { corrida: r.corrida, datos: r.datos, duracionMs: Date.now() - t0 });
+    de(m.id).error = null;
+    console.log(`[ensamble] ${m.nombre}: corrida ${r.corrida.slice(0, 13)}Z guardada (${Math.round((Date.now() - t0) / 1000)} s)`);
+  }
+
   async function bajarWrf(init) {
     const t0 = Date.now();
     const desde = `${diaART(init)}T00:00`, hasta = `${diaART(init + 4 * 86400000)}T23:00`;
@@ -108,6 +120,10 @@ function crear(ctx) {
         const init = (await corridaVigente()).getTime();
         e.proxima = init + WRF_PASO_MS + WRF_DEMORA_MS;
         hayNueva = !guardado || init > Date.parse(guardado.corrida); corrida = init;
+      } else if (m.fuente === "inpe-bam" || m.fuente === "inpe-eta") {
+        const init = (await (m.fuente === "inpe-bam" ? bam : eta).corridaVigente()).init;
+        e.proxima = init + 24 * HORA + INPE_DEMORA_MS;
+        hayNueva = !guardado || init > Date.parse(guardado.corrida); corrida = init;
       } else if (m.fuente === "yr") {
         const ultima = guardado ? Date.parse(guardado.descargadoEn) : 0;
         e.proxima = ultima ? ultima + YR_VIGENCIA_MS : null;
@@ -120,14 +136,14 @@ function crear(ctx) {
       }
       if (!hayNueva && !forzar) { e.error = null; return; }
       e.descargando = true; e.error = null;
-      if (m.fuente === "wrf") await bajarWrf(corrida); else if (m.fuente === "yr") await bajarYrNo(m); else await bajarOpenMeteo(m, corrida);
+      if (m.fuente === "wrf") await bajarWrf(corrida); else if (m.fuente === "yr") await bajarYrNo(m); else if (m.fuente === "inpe-bam") await bajarInpe(m, bam, bam.bajarBam); else if (m.fuente === "inpe-eta") await bajarInpe(m, eta, eta.bajarEta); else await bajarOpenMeteo(m, corrida);
     } catch (err) {
       e.error = err.cause?.code ? `${err.message} (${err.cause.code})` : err.message;
       console.error(`[ensamble] ${m.nombre}:`, e.error);
     } finally { e.descargando = false; e.revisando = false; }
   }
 
-  const bajables = () => ctx.modelos.filter((m) => !m.deshabilitado && (m.fuente === "open-meteo" || m.fuente === "wrf" || m.fuente === "yr"));
+  const bajables = () => ctx.modelos.filter((m) => !m.deshabilitado && ["open-meteo", "wrf", "yr", "inpe-bam", "inpe-eta"].includes(m.fuente));
   const tick = (forzar = false) => Promise.all(bajables().map((m) => revisar(m, forzar)));
 
   let timer = null;

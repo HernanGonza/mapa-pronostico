@@ -24,6 +24,8 @@ const ESTILO = { // color + forma propios de cada modelo
   jma_gsm: { color: "#e03131", forma: "anillo" },
   ukmo_global_deterministic_10km: { color: "#546e7a", forma: "equis" },
   cma_grapes_global: { color: "#7f8c00", forma: "cuadrado_hueco" },
+  bam_20km: { color: "#3b2f8f", forma: "rombo_hueco" },
+  eta_8km: { color: "#009e73", forma: "triangulo_hueco" },
   yr_no: { color: "#f2c200", forma: "triangulo_inv" },
   wrf_smn: { color: "#c9346c", forma: "cruz" },
   monan_3km: { color: "#c28f00", forma: "hexagono" },
@@ -39,6 +41,8 @@ const CATALOGO = [
   { id: "jma_gsm", nombre: "JMA GSM", detalle: "Japón (JMA) · hasta 11 días", nota: "Agencia Meteorológica de Japón, modelo global propio, hasta 11 días. Aporta temperatura, lluvia, viento, humedad y nubosidad; no publica ráfagas ni CAPE." },
   { id: "ukmo_global_deterministic_10km", nombre: "UKMO", detalle: "Reino Unido (Met Office) · 10 km, 8 días", nota: "Met Office del Reino Unido, global de 10 km, hasta 8 días. Aporta temperatura, lluvia, viento y ráfagas, humedad, nubosidad, CAPE y probabilidad de lluvia." },
   { id: "cma_grapes_global", nombre: "CMA GRAPES", detalle: "China (CMA) · hasta unos 5 días", nota: "Administración Meteorológica de China, modelo global propio. Anuncia 10 días pero hoy llega a unos 5, con datos cada 3 horas, y su servidor suele estar sobrecargado. Aporta temperatura, lluvia, viento y ráfagas, humedad, nubosidad y CAPE." },
+  { id: "bam_20km", nombre: "BAM", detalle: "Brasil (CPTEC/INPE) · global 20 km, 11 días", nota: "Modelo global del CPTEC/INPE (Brasil), 20 km, una corrida por día (00 UTC) hasta 11 días, con un dato cada 6 horas: las máximas y mínimas del día salen de una curva suavizada (la máxima queda algo baja). Aporta temperatura, humedad, viento, lluvia y CAPE; no publica ráfagas ni nubosidad total." },
+  { id: "eta_8km", nombre: "Eta 8 km", detalle: "Brasil (CPTEC/INPE) · regional 8 km, 11 días", nota: "Modelo regional del CPTEC/INPE (Brasil) para Sudamérica, 8 km, una corrida por día (00 UTC) hasta 11 días. Aporta temperatura, humedad, viento y lluvia; no publica ráfagas ni CAPE ni nubosidad total. Pasadas las 72 horas la temperatura y el viento se leen cada 3 horas y se interpolan." },
   { id: "yr_no", nombre: "yr.no", detalle: "Noruega (MET Norway) · hasta 2,5 días", nota: "Instituto Meteorológico de Noruega (yr.no), datos CC BY 4.0. Hasta unas 60 horas desde ahora (después el servicio sólo da pasos de 6 h y no se usan). Aporta temperatura, sensación térmica, lluvia, viento, humedad, nubosidad y punto de rocío; no publica ráfagas ni CAPE." },
   { id: "wrf_smn", nombre: "WRF-SMN", detalle: "Argentina (SMN) · 4 km, 72 h · tormentas", nota: "Servicio Meteorológico Nacional, 4 km, hasta 72 h. Tormentas y lluvia convectiva. Aporta temperatura, lluvia, humedad y viento; no publica ráfagas, nubosidad ni sensación térmica. Pesa (≈12 MB por hora de pronóstico): tarda en bajar la primera vez." },
   { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", nota: "CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una corrida por día (00 UTC) y una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
@@ -149,6 +153,8 @@ function Marca({ forma, color, x = 0, y = 0, r = 5 }) {
   if (forma === "anillo") return <circle cx={x} cy={y} r={r} fill="#fff" stroke={color} strokeWidth="2.6" />;
   if (forma === "cuadrado_hueco") return <rect x={x - r} y={y - r} width={2 * r} height={2 * r} rx="1" fill="#fff" stroke={color} strokeWidth="2.6" />;
   if (forma === "equis") return <g transform={`rotate(45 ${x} ${y})`}><Marca forma="cruz" color={color} x={x} y={y} r={r} /></g>;
+  if (forma === "rombo_hueco") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y} ${x},${y + r + 1} ${x - r - 1},${y}`} fill="#fff" stroke={color} strokeWidth="2.4" />;
+  if (forma === "triangulo_hueco") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y + r} ${x - r - 1},${y + r}`} fill="#fff" stroke={color} strokeWidth="2.4" />;
   if (forma === "triangulo_inv") return <polygon points={`${x},${y + r + 1} ${x + r + 1},${y - r} ${x - r - 1},${y - r}`} {...p} />;
   if (forma === "triangulo") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y + r} ${x - r - 1},${y + r}`} {...p} />;
   return <circle cx={x} cy={y} r={r} {...p} />;
@@ -322,6 +328,9 @@ function Desglose({ estado, depto, variable, visibles, periodo, intervalo }) {
 export default function EnsamblePage() {
   const [datos, setDatos] = useState(null), [error, setError] = useState(""), [cargando, setCargando] = useState(false);
   const [clave, setClave] = useState("tmax"), [deptoId, setDeptoId] = useState("4");
+  // La barra de modelos se puede plegar para darle todo el ancho a la tabla y al gráfico (se recuerda entre visitas).
+  const [lateralCerrado, setLateralCerrado] = useState(() => { try { return localStorage.getItem("ensamble-lateral") === "cerrado"; } catch { return false; } });
+  const alternarLateral = () => setLateralCerrado((c) => { const n = !c; try { localStorage.setItem("ensamble-lateral", n ? "cerrado" : "abierto"); } catch { /* sin almacenamiento */ } return n; });
   const [prendidos, setPrendidos] = useState(() => new Set(CATALOGO.filter((m) => !m.deshabilitado).map((m) => m.id))); // los que se consultan al tocar «Consultar»
   const [dia, setDia] = useState(null);
   const [descargas, setDescargas] = useState(null); // lo que bajó el servidor de cada modelo: { ahora, modelos: [...] }
@@ -418,9 +427,15 @@ export default function EnsamblePage() {
   }, [periodoElegido?.desde, periodoElegido?.hasta, intDatos, consultadosClave, datos?.generado]); // eslint-disable-line react-hooks/exhaustive-deps
   const generado = datos ? new Date(datos.generado).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "";
 
-  return <div className={`admin-layout ens-layout${cajon ? " ens-layout--cajon" : ""}`}>
+  return <div className={`admin-layout ens-layout${cajon ? " ens-layout--cajon" : ""}${lateralCerrado ? " ens-layout--sin-lateral" : ""}`}>
     <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>
-    <aside className="admin-panel" id="contenido-principal" tabIndex={-1}>
+    <aside className={`admin-panel ens-lateral${lateralCerrado ? " ens-lateral--cerrada" : ""}`} id="contenido-principal" tabIndex={-1}>
+      <button type="button" className="ens-lateral-toggle" aria-expanded={!lateralCerrado} aria-controls="ens-lateral-contenido" onClick={alternarLateral}
+        title={lateralCerrado ? "Mostrar la barra de modelos" : "Ocultar la barra de modelos para agrandar la tabla"}>
+        <span aria-hidden="true">{lateralCerrado ? "»" : "«"}</span>
+        <span className="ens-lateral-rotulo">{lateralCerrado ? `Modelos (${[...prendidos].filter((id) => !CATALOGO.find((m) => m.id === id)?.deshabilitado).length})` : "Ocultar"}</span>
+      </button>
+      <div id="ens-lateral-contenido" className="ens-lateral-contenido" hidden={lateralCerrado}>
       <div className="editor-heading"><h1>Ensamble multimodelo</h1>
         <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador; con el informe del cajón se arma el pronóstico del día y se puede publicar.</p></div>
       <h2>Modelos</h2>
@@ -434,6 +449,7 @@ export default function EnsamblePage() {
         </button>)}
       </div>
       <p className="ens-nota">Prendé los que querés comparar: <strong>Consultar</strong> usa sólo esos. Pasá el mouse por una tarjeta para ver el detalle.</p>
+      </div>
     </aside>
 
     <div className="admin-map-area ens-area">
@@ -522,7 +538,7 @@ export default function EnsamblePage() {
           </div>
           {desglose && periodoElegido && <Desglose estado={desglose} depto={depto} variable={variable} visibles={visibles} periodo={periodoElegido} intervalo={intDatos} />}
         </>}
-        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON, GEM, ARPEGE de Météo-France, JMA GSM, UKMO del Met Office y CMA GRAPES){datos.modelos.some((m) => m.id === "yr_no") && "; yr.no, Instituto Meteorológico de Noruega (MET Norway, CC BY 4.0)"}{datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
+        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON, GEM, ARPEGE de Météo-France, JMA GSM, UKMO del Met Office y CMA GRAPES){datos.modelos.some((m) => m.id === "bam_20km" || m.id === "eta_8km") && "; BAM y Eta 8 km del CPTEC/INPE, Brasil (datos abiertos)"}datos.modelos.some((m) => m.id === "yr_no") && "; yr.no, Instituto Meteorológico de Noruega (MET Norway, CC BY 4.0)"}{datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
       </>}
     </div>
     <InformeEnsamble informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} prendidos={prendidos} modelos={CATALOGO} />
