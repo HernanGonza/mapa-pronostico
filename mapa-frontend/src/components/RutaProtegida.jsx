@@ -6,7 +6,7 @@ import { puedeUsar } from "../lib/modulos";
  * dónde volver). Mientras se confirma la sesión, no muestra nada — así
  * no hay flash del login antes de saber si ya está logueado. */
 /** `soloSuperadmin`: pantallas en desarrollo o de poco uso, que sólo ve el superadmin (desde Configuración). */
-/** `modulo`: pantalla de un módulo habilitable por usuario (lib/modulos.js): el superadmin y quien lo tenga asignado. */
+/** `modulo`: pantalla de un módulo habilitable por usuario (lib/modulos.js): el superadmin y quien lo tenga asignado (puede ser una lista: alcanza con uno). */
 export default function RutaProtegida({ children, soloSuperadmin = false, modulo = null }) {
   const { usuario, cargando } = useAuth();
   const location = useLocation();
@@ -16,6 +16,6 @@ export default function RutaProtegida({ children, soloSuperadmin = false, modulo
     return <Navigate to="/login" state={{ desde: location.pathname }} replace />;
   }
   if (soloSuperadmin && usuario.rol !== "superadmin") return <Navigate to="/panel" replace />;
-  if (modulo && !puedeUsar(usuario, modulo)) return <Navigate to="/panel" replace />;
+  if (modulo && ![].concat(modulo).some((m) => puedeUsar(usuario, m))) return <Navigate to="/panel" replace />;
   return children;
 }

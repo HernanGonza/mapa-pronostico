@@ -609,6 +609,30 @@ export async function getInformeDiario(id) {
 export async function guardarInformeDiario(informe) {
   return handleJson(await fetch(`${API_URL}/api/informes-diarios`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(informe), ...CON_SESION }));
 }
+/** Tabla online de precipitaciones (/embed/precipitaciones). Pública: filtros opcionales { desde, hasta, red, q }. */
+export async function getPrecipitacionesTabla(filtros = {}) {
+  const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)));
+  return (await handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/publico?${q}`, { cache: "no-store" }))).registros;
+}
+export async function publicarPrecipitacionesTabla({ desde, hasta, filas }) {
+  return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ desde, hasta, filas }), ...CON_SESION }));
+}
+const JSON_SESION = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });
+export async function agregarFilaPrecipitaciones(fila) { return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/fila`, JSON_SESION("POST", fila))); }
+export async function corregirFilaPrecipitaciones(id, cambios) { return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/${id}`, JSON_SESION("PATCH", cambios))); }
+export async function quitarFilaPrecipitaciones(id) { return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/${id}`, { method: "DELETE", ...CON_SESION })); }
+/** Baja el Excel con los mismos filtros. */
+export async function descargarExcelPrecipitaciones(filtros = {}) {
+  const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)));
+  const r = await fetch(`${API_URL}/api/precipitaciones-tabla/excel?${q}`);
+  if (!r.ok) throw new Error("No se pudo armar el Excel.");
+  const url = URL.createObjectURL(await r.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: "precipitaciones-misiones.xlsx" });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export async function quitarPrecipitacionesTabla({ desde, hasta }) {
+  return handleJson(await fetch(`${API_URL}/api/precipitaciones-tabla/quitar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ desde, hasta }), ...CON_SESION }));
+}
 /** Excel con todo lo que trajeron las estaciones, en crudo (descarga el archivo). */
 export async function descargarExcelInformeDiario(datos) {
   const r = await fetch(`${API_URL}/api/informes-diarios/excel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datos }), ...CON_SESION });

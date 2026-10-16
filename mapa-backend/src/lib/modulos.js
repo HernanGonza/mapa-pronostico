@@ -12,6 +12,7 @@ const MODULOS = [
   "inundaciones",
   "cuencas",
   "informes-diarios",
+  "tabla-precipitaciones",
   "ensamble",
 ];
 

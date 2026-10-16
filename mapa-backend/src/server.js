@@ -81,6 +81,7 @@ app.use("/api", require("./routes/transmision"));
 app.use("/api", require("./routes/tv"));
 app.use("/api", require("./routes/sol"));
 app.use("/api", require("./routes/informesDiarios"));
+app.use("/api", require("./routes/precipitacionesTabla"));
 app.use("/api", require("./routes/ensamble"));
 app.use("/api", require("./routes/arroyos"));
 app.use("/api", require("./routes/informesPronostico"));

@@ -16,6 +16,7 @@ Correr en orden:
 | `006_pronostico_placas.sql` | Placa del pronóstico sobre foto: `fondo`, `etiqueta`, `frase` y `estilo_tarjeta` |
 | `007_informes_diarios.sql` | Informes diarios: tabla nueva `informes_diarios` (rango desde/hasta con fecha y hora, texto y todos los datos juntados) |
 | `008_tv_urgentes.sql` | Pantalla TV: `urgentes` en `tv_rotacion` (si los ACP y las alertas cortan la rotación) |
+| `009_precipitaciones_registros.sql` | Tabla online de precipitaciones: `precipitaciones_registros` (una fila por estación y período) |
 
 ```bash
 for f in migracionesNuevas/0*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done

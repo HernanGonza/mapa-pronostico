@@ -1,4 +1,4 @@
-import { Radar, Bell, Waves, Droplets, FileText, Layers } from "lucide";
+import { Radar, Bell, Waves, Droplets, FileText, Layers, Table } from "lucide";
 
 /**
  * Módulos del panel que se habilitan usuario por usuario (pantalla «Usuarios»). El superadmin los ve
@@ -12,6 +12,7 @@ export const MODULOS = [
   { id: "inundaciones", to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Altura de los arroyos internos de Misiones (Red Hidrológica Nacional) y puntos donde una crecida corta rutas." },
   { id: "cuencas", to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
   { id: "informes-diarios", to: "/panel/informe-precipitaciones", icono: FileText, titulo: "Informe de precipitaciones", descripcion: "Qué pasó un día (por ejemplo, una tormenta) según las estaciones oficiales del INTA y SiNaRaMe, con lo que emitió el SMN: informe con mapa, tabla y gráficos, en PDF." , enDesarrollo: false },
+  { id: "tabla-precipitaciones", to: "/panel/precipitaciones", icono: Table, titulo: "Tabla de precipitaciones", descripcion: "Histórico de lo que se carga desde el informe: buscar, filtrar, corregir, sumar filas y exportar. Es la que se muestra en la página (tabla y mapa).", enDesarrollo: false },
   { id: "ensamble", to: "/panel/ensamble", icono: Layers, titulo: "Ensamble multimodelo", descripcion: "Qué dice cada modelo numérico (ECMWF, GFS, ICON, GEM, WRF-SMN y MONAN) para cada departamento a 10 días, y cuánto discrepan.", enDesarrollo: false },
 ];
 

@@ -24,6 +24,9 @@ const AvisosCortoPlazoPage = lazy(() => import("./pages/AvisosCortoPlazoPage"));
 const AvisoEspecialPage = lazy(() => import("./pages/AvisoEspecialPage"));
 const EmbedAvisosCortoPlazoPage = lazy(() => import("./pages/EmbedAvisosCortoPlazoPage"));
 const EmbedHistoricoPage = lazy(() => import("./pages/EmbedHistoricoPage"));
+const TablaPrecipitacionesPage = lazy(() => import("./pages/TablaPrecipitacionesPage"));
+const EmbedPrecipitacionesMapaPage = lazy(() => import("./pages/EmbedPrecipitacionesMapaPage"));
+const EmbedPrecipitacionesPage = lazy(() => import("./pages/EmbedPrecipitacionesPage"));
 const InundacionesPage = lazy(() => import("./pages/InundacionesPage"));
 const PronosticoExtendidoPage = lazy(() => import("./pages/PronosticoExtendidoPage"));
 const EmbedPronosticoExtendidoPage = lazy(() => import("./pages/EmbedPronosticoExtendidoPage"));
@@ -65,6 +68,7 @@ export default function App() {
           <Route path="/panel/configuracion" element={<RutaProtegida soloSuperadmin><ConfiguracionPage /></RutaProtegida>} />
           <Route path="/panel/ensamble" element={<RutaProtegida modulo="ensamble"><EnsamblePage /></RutaProtegida>} />
           <Route path="/panel/informe-precipitaciones" element={<RutaProtegida modulo="informes-diarios"><InformesDiariosPage /></RutaProtegida>} />
+          <Route path="/panel/precipitaciones" element={<RutaProtegida modulo={["tabla-precipitaciones", "informes-diarios"]}><TablaPrecipitacionesPage /></RutaProtegida>} />
           <Route path="/panel/informes-diarios" element={<Navigate to="/panel/informe-precipitaciones" replace />} />
           <Route
             path="/panel/pronostico"
@@ -110,6 +114,8 @@ export default function App() {
           <Route path="/embed/pronostico-3-dias" element={<EmbedPronosticoExtendidoPage />} />
           <Route path="/embed/avisos-corto-plazo" element={<EmbedAvisosCortoPlazoPage />} />
           <Route path="/embed/historico" element={<EmbedHistoricoPage />} />
+          <Route path="/embed/precipitaciones-mapa" element={<EmbedPrecipitacionesMapaPage />} />
+          <Route path="/embed/precipitaciones" element={<EmbedPrecipitacionesPage />} />
           <Route path="/embed/cuencas-mapa" element={<EmbedCuencasMapaPage />} />
           <Route path="/embed/cuencas-tarjetas" element={<EmbedCuencasTarjetasPage />} />
           <Route path="/embed/arroyos-mapa" element={<EmbedArroyosMapaPage />} />

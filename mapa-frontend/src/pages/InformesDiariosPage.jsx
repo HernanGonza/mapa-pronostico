@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import * as api from "../api";
@@ -13,6 +14,8 @@ import CampoFecha from "../components/CampoFecha";
 import CampoHora from "../components/CampoHora";
 import { estacionDeManual, manualVacia } from "../lib/informesManuales";
 import PublicarEnRedes from "../components/PublicarEnRedes";
+import EmbedShare from "../components/EmbedShare";
+import { anomalia } from "../lib/informesManuales";
 import { crearPlacaPrecipitacionesPorPasos } from "../lib/asistentePlacaPrecipitaciones";
 import "./ensamble.css";
 
@@ -144,6 +147,29 @@ export default function InformesDiariosPage() {
     vistaPrevia: (v) => api.generarPlacaPrecipitaciones(v, { vistaPrevia: true }),
     guardar: async (v, token) => { const g = await api.generarPlacaPrecipitaciones(v, { confirmarToken: token }); setPlaca({ ...g, periodo: v.periodo }); return g; },
   });
+  // Tabla online (/embed/precipitaciones): una fila por estación con lluvia en el período del informe.
+  const [tablaOnline, setTablaOnline] = useState(false);
+  const periodoTabla = () => ({ desde: informe.fecha, hasta: informe.fechaHasta || informe.fecha });
+  const num = (v) => { const x = Number(String(v ?? "").replace(",", ".")); return v === "" || v == null || !Number.isFinite(x) ? null : x; };
+  async function publicarTabla() {
+    setTablaOnline(true); setError("");
+    try {
+      const filas = estaciones.filter((e) => e.resumen && !e.resumen.sinLluvia && e.resumen.lluviaTotal != null).map((e) => {
+        const mes = num(e.manual ? e.mes : clima[e.clave]?.mes), media = num(e.manual ? e.media : clima[e.clave]?.media), r = e.resumen;
+        return { clave: e.clave, estacion: e.nombre.split(" - ")[0], red: e.red, fuente: e.fuente || null, lat: e.lat ?? null, lng: e.lng ?? null, lluvia: r.lluviaTotal,
+          max: r.lluvia30?.mm || null, maxMinutos: r.lluvia30?.minutos, mes, media, anomalia: anomalia(mes, media) };
+      });
+      if (!filas.length) throw new Error("Ninguna estación prendida midió lluvia en este período.");
+      const { cargadas } = await api.publicarPrecipitacionesTabla({ ...periodoTabla(), filas });
+      notificar("success", `${cargadas} ${cargadas === 1 ? "estación cargada" : "estaciones cargadas"} en la tabla online.`);
+    } catch (e) { setError(`No se pudo cargar la tabla online: ${e.message}`); }
+    finally { setTablaOnline(false); }
+  }
+  async function quitarTabla() {
+    if (!window.confirm("¿Sacar de la tabla online todas las estaciones de este período?")) return;
+    try { const { quitadas } = await api.quitarPrecipitacionesTabla(periodoTabla()); notificar("success", `${quitadas} ${quitadas === 1 ? "fila quitada" : "filas quitadas"} de la tabla online.`); }
+    catch (e) { setError(e.message); }
+  }
   const [bajandoExcel, setBajandoExcel] = useState(false);
   async function excel() {
     setBajandoExcel(true); setError("");
@@ -170,6 +196,9 @@ export default function InformesDiariosPage() {
       <p className="admin-panel__hint">Estaciones que no llegan solas: cargá acá lo que te mandaron por otro medio. Tienen los mismos datos que las automáticas y también se prenden y apagan.</p>
       <DatosManuales manuales={manuales} alCambiar={cambiarManuales} apagadas={apagadas} alCambiarApagadas={cambiarApagadas} municipios={municipios} />
       <p className="admin-panel__hint">El INTA publica con algunas horas de demora: para el día de hoy o de ayer puede faltar el final. El SMN sube sus datos al día siguiente (las temperaturas extremas, sólo del último año).</p>
+      <h2>Tabla online</h2>
+      <p className="admin-panel__hint">Todo lo que se publica desde el informe queda en una tabla con histórico, que se ve en la página (tabla y mapa). Ahí se busca, se corrige, se suman filas a mano y se exporta.</p>
+      <Link to="/panel/precipitaciones" className="btn btn--primary">Abrir la tabla de precipitaciones</Link>
       {guardados.length > 0 && <div className="avisos-lista">
         <h2>Informes guardados</h2>
         <ul>{guardados.map((g) => <li key={g.id} className="alerta-tarjeta" onClick={() => abrir(g.id)} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") abrir(g.id); }}>
@@ -260,7 +289,17 @@ export default function InformesDiariosPage() {
               <img src={placa[`${f}Url`]} alt={`Placa de precipitaciones, ${n}`} /><figcaption>{n}</figcaption></figure>)}</div>
           </div>}
         </div>
-        <p className="admin-panel__hint">Más adelante este informe se va a conectar con el mapa de precipitaciones para publicarlo.</p>
+        <div className="informes-placa">
+          <h3>Tabla online</h3>
+          <p className="admin-panel__hint">Carga las estaciones de este informe (automáticas y manuales prendidas, con su lluvia, mes, media y anomalía) en la tabla pública, que se puede buscar y filtrar. Si ya estaban cargadas para este período, se actualizan.</p>
+          <div className="informes-acciones">
+            <button type="button" className="btn btn--primary" disabled={tablaOnline} onClick={publicarTabla}>{tablaOnline ? "Cargando…" : "Publicar en la tabla online"}</button>
+            <button type="button" className="btn" onClick={quitarTabla}>Quitar este período de la tabla</button>
+          </div>
+          <EmbedShare path="/embed/precipitaciones" title="Precipitaciones · Misiones" kind="historico" height={720} heading="Tabla para el sitio web" hint="Muestra siempre los datos cargados. Copiá el enlace o el iframe para ponerla en la página." linkLabel="Enlace a la tabla pública" openLabel="Abrir la tabla ↗" />
+          <EmbedShare path="/embed/precipitaciones-mapa" title="Mapa de precipitaciones · Misiones" kind="mapa" height={640} heading="Mapa para el sitio web" hint="Las estaciones de la tabla en su ubicación; al tocar una se ven sus últimos 10 días." linkLabel="Enlace al mapa" openLabel="Abrir el mapa ↗" />
+          <Link to="/panel/precipitaciones" className="btn">Ver y editar la tabla</Link>
+        </div>
       </div>
     </aside>}
   </div>;
