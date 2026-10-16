@@ -33,10 +33,16 @@ function puntosDelEnsamble() {
 }
 
 // Los modelos cuya descarga se guarda como series horarias con la forma de Open-Meteo (ver ensambleDescargas.js): Open-Meteo, yr.no y los del INPE.
-const FUENTES_HORARIAS = ["open-meteo", "yr", "inpe-bam", "inpe-eta"];
+const FUENTES_HORARIAS = ["open-meteo", "yr", "inpe-bam", "inpe-eta", "obs-estaciones", "obs-smn", "smn-pron"];
+const ES_REFERENCIA = new Set(["obs_estaciones", "obs_smn", "smn_pronostico"]);
 // `deshabilitado`: motivo por el que no se puede consultar (siempre apagado; se ignora aunque lo pidan).
 // `fuente`: de dónde sale. `aporta`: variables que el modelo publica (el WRF-SMN no da ráfagas ni viento).
 const MODELOS = [
+  // Referencias (`referencia: true`): no son modelos del ensamble. Se muestran junto a ellos pero NO entran en el intervalo entre modelos, la media ni «discrepan».
+  // Las `observado: true` son lo que midieron las estaciones: con eso se mide qué modelo se acerca más a la realidad.
+  { id: "obs_estaciones", nombre: "Estaciones", origen: "INTA y SiNaRaMe · lo observado", rol: "Referencia: lo que midieron las estaciones automáticas", fuente: "obs-estaciones", referencia: true, observado: true },
+  { id: "obs_smn", nombre: "SMN observado", origen: "SMN · estaciones de Misiones", rol: "Referencia: lo que midió el SMN", fuente: "obs-smn", referencia: true, observado: true },
+  { id: "smn_pronostico", nombre: "SMN pronóstico", origen: "SMN · salida numérica a 5 días", rol: "Referencia: el pronóstico del SMN en sus estaciones", fuente: "smn-pron", referencia: true },
   { id: "ecmwf_ifs025", nombre: "ECMWF", origen: "Centro Europeo", rol: "Referencia a 3–10 días", fuente: "open-meteo" },
   { id: "gfs_seamless", nombre: "GFS", origen: "EE. UU. (NOAA)", rol: "Tendencias de viento y temperatura", fuente: "open-meteo" },
   { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso", fuente: "open-meteo" },
@@ -197,15 +203,19 @@ function periodosDe(intervalo, desde, hasta, horasRango) {
   return periodos;
 }
 
-/** Resume los valores horarios de un modelo dentro de [desde, hasta]: null si falta alguna hora (el modelo no llega). */
-function agregar(horas, valores, desde, hasta, agrega, pesos = null, exclusivo = false) {
+/**
+ * Resume los valores horarios de un modelo dentro de [desde, hasta]: null si falta alguna hora (el modelo no llega). Con `minCobertura` < 1 (lo observado
+ * por las estaciones, que tienen huecos) alcanza con que haya esa fracción de las horas, y se resume con las que hay.
+ */
+function agregar(horas, valores, desde, hasta, agrega, pesos = null, exclusivo = false, minCobertura = 1) {
   const v = [], w = [];
+  let faltan = 0;
   for (let i = 0; i < horas.length; i++) {
     if (horas[i] < desde || horas[i] > hasta || (exclusivo && agrega === "sum" && horas[i] === desde)) continue;
-    if (valores?.[i] == null) return null;
+    if (valores?.[i] == null) { if (minCobertura >= 1) return null; faltan++; continue; }
     v.push(valores[i]); w.push(pesos?.[i] ?? null);
   }
-  if (!v.length) return null;
+  if (!v.length || (faltan && v.length / (v.length + faltan) < minCobertura)) return null;
   if (agrega === "sum") return v.reduce((a, b) => a + b, 0);
   if (agrega === "mean") return v.reduce((a, b) => a + b, 0) / v.length;
   if (agrega === "dir") return mediaCircular(v, w.every((x) => x != null) ? w : null);
@@ -303,7 +313,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
             let v = null;
             if (FUENTES_HORARIAS.includes(m.fuente)) {
               const om = omPorModelo[m.id], col = (nombre) => om.puntos[i]?.hourly?.[nombre]; // un pedido por modelo: las variables vienen sin sufijo
-              if (variable.horaria) v = agregar(om.horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null, exclusivo);
+              if (variable.horaria) v = agregar(om.horas, col(variable.horaria), desdeDia, hastaDia, variable.agrega, variable.ponderaCon ? col(variable.ponderaCon) : null, exclusivo, m.observado ? (variable.agrega === "sum" ? 0.85 : 0.5) : 1); // las estaciones tienen huecos: la lluvia pide casi todas las horas (si faltan, se subestima) y el resto, la mitad
             } else if (m.fuente === "monan") {
               const par = SERIE_MONAN[variable.clave];
               if (par) v = valorMonan(monPorId[m.id], par[0], par[1], i, desdeDia, hastaDia, exclusivo);
@@ -323,7 +333,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
             }
             valores[m.id] = redondear(v, variable.decimales);
           }
-          dia[variable.clave] = { valores, ...resumir(Object.values(valores), variable) };
+          dia[variable.clave] = { valores, ...resumir(Object.entries(valores).filter(([id]) => !ES_REFERENCIA.has(id)).map(([, x]) => x), variable) };
         }
         return dia;
       }),

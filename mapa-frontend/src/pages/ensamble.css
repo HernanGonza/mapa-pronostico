@@ -249,3 +249,21 @@
   .ens-lateral--cerrada .ens-lateral-toggle { flex-direction: column; align-self: center; padding: 10px 6px; margin: 0; gap: 10px; }
   .ens-lateral--cerrada .ens-lateral-rotulo { writing-mode: vertical-rl; letter-spacing: 0.04em; }
 }
+
+/* Lo observado y el SMN («Para comparar»): se distinguen de los modelos en la barra, la matriz, el gráfico y las tablas. */
+.ens-modelos--ref .ens-modelo { border-style: dashed; }
+.ens-matriz td button small.ens-obs { display: block; margin-top: 1px; font-size: 0.68rem; font-weight: 700; line-height: 1.15; color: var(--c); }
+.ens-tip li.ens-tip-ref strong { font-weight: 800; }
+.ens-tip li.ens-tip-ref { border-bottom: 1px solid var(--border); padding-bottom: 3px; margin-bottom: 3px; }
+.ens-dif { font-style: normal; font-size: 0.72rem; color: var(--text-muted); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.ens-detalle .ens-col-ref { background: color-mix(in srgb, var(--c, #000) 7%, transparent); font-weight: 700; }
+.ens-detalle thead .ens-col-ref { border-left: 2px solid var(--c, #000); }
+.ens-cercania { margin-top: 22px; }
+.ens-cercania-tabla { width: 100%; border-collapse: collapse; font-size: 0.88rem; max-width: 760px; }
+.ens-cercania-tabla th, .ens-cercania-tabla td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.ens-cercania-tabla thead th { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.ens-cercania-tabla tbody th { font-weight: 600; white-space: nowrap; }
+.ens-cercania-tabla tbody th em { font-style: normal; font-weight: 700; color: var(--verde-600, #237346); font-size: 0.78rem; }
+.ens-cercania-mejor { background: color-mix(in srgb, var(--verde-600, #237346) 10%, transparent); }
+.ens-barra { display: inline-block; width: 120px; height: 8px; background: var(--surface-3); border-radius: 4px; vertical-align: middle; margin-right: 8px; overflow: hidden; }
+.ens-barra i { display: block; height: 100%; background: var(--c); border-radius: 4px; }

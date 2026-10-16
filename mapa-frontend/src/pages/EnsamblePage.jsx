@@ -16,6 +16,9 @@ import "./ensamble.css";
  */
 const AR = "America/Argentina/Buenos_Aires";
 const ESTILO = { // color + forma propios de cada modelo
+  obs_estaciones: { color: "#000000", forma: "estrella" },
+  obs_smn: { color: "#555555", forma: "estrella_hueca" },
+  smn_pronostico: { color: "#ff6d00", forma: "estrella_hueca" },
   ecmwf_ifs025: { color: "#1f6fb2", forma: "circulo" },
   gfs_seamless: { color: "#d4572a", forma: "cuadrado" },
   icon_seamless: { color: "#2f8f5b", forma: "rombo" },
@@ -33,6 +36,11 @@ const ESTILO = { // color + forma propios de cada modelo
 };
 // Espejo de MODELOS en mapa-backend/src/lib/ensamble.js (las tarjetas existen antes de la primera consulta).
 const CATALOGO = [
+  // Referencias: no son modelos. Se muestran junto a ellos (línea gruesa en el gráfico, columna aparte en las tablas) pero no entran en el intervalo entre modelos ni en «discrepan».
+  // Las `observado` son lo que midieron las estaciones: con ellas se mide qué modelo se acerca más a la realidad.
+  { id: "obs_estaciones", nombre: "Estaciones", detalle: "INTA y SiNaRaMe · lo observado", referencia: true, observado: true, etiqueta: "Est.", nota: "Lo que midieron las estaciones automáticas del INTA (SIGA) y de SiNaRaMe (INA) en Misiones, cada 10 minutos, llevado a horas. En cada departamento es el promedio de las estaciones que están adentro (sin estaciones, queda en blanco). Sólo hay datos del pasado (hasta 7 días atrás) y las estaciones tienen huecos: un período cuenta si tiene al menos la mitad de las horas (la lluvia, el 85 %)." },
+  { id: "obs_smn", nombre: "SMN observado", detalle: "SMN · estaciones de Misiones", referencia: true, observado: true, etiqueta: "SMN", nota: "Lo que midieron las estaciones del SMN en Misiones (Posadas, Oberá, Iguazú y Bernardo de Irigoyen), de sus datos abiertos horarios: temperatura, humedad y viento medio; no traen lluvia ni ráfagas. El SMN los sube al día siguiente: lo de hoy todavía no está." },
+  { id: "smn_pronostico", nombre: "SMN pronóstico", detalle: "SMN · salida numérica a 5 días", referencia: true, etiqueta: "Pron.", nota: "La salida numérica que el SMN publica como «pronóstico a 5 días» (datos abiertos), cada 3 horas, en sus estaciones de Posadas, Oberá, Iguazú y Bernardo de Irigoyen (el archivo aclara que puede diferir del pronóstico que emite el pronosticador). Sólo tiene dato en los departamentos y ciudades que contienen o están cerca de esas estaciones. Aporta temperatura, viento y lluvia." },
   { id: "ecmwf_ifs025", nombre: "ECMWF", detalle: "Centro Europeo · 3–10 días", nota: "Centro Europeo. Referencia a 3–10 días." },
   { id: "gfs_seamless", nombre: "GFS", detalle: "EE. UU. (NOAA) · viento y temperatura", nota: "EE. UU. (NOAA). Tendencias de viento y temperatura." },
   { id: "icon_seamless", nombre: "ICON", detalle: "Alemania (DWD) · consenso", nota: "Alemania (DWD). Validador de consenso." },
@@ -48,6 +56,9 @@ const CATALOGO = [
   { id: "monan_10km", nombre: "MONAN 10 km", detalle: "Brasil (CPTEC) · 10 km, 11 días", nota: "CPTEC/INPE (Brasil), global, 10 km, hasta 11 días, una corrida por día (00 UTC) y una salida cada 3 horas (las máximas y mínimas del día son aproximadas). Trae nubosidad; sin ráfagas." },
   { id: "monan_3km", nombre: "MONAN 3 km", detalle: "Brasil (CPTEC) · 3 km, 72 h · convección", deshabilitado: true, nota: "Apagado: el CPTEC/INPE puso el MONAN detrás de usuario y clave. CPTEC/INPE (Brasil), regional, 3 km, hasta 72 h (una corrida por día, 00 UTC). Es el único con ráfagas, CAPE, reflectividad de radar y helicidad de ascenso: tormentas severas. Sin nubosidad." },
 ];
+const REFERENCIAS = new Set(CATALOGO.filter((m) => m.referencia).map((m) => m.id)); // no son modelos: no cuentan en el intervalo, la media ni «discrepan»
+const OBSERVADOS = CATALOGO.filter((m) => m.observado).map((m) => m.id);
+const ETIQUETA_REF = Object.fromEntries(CATALOGO.filter((m) => m.referencia).map((m) => [m.id, m.etiqueta]));
 const fechaDe = (f) => new Date(`${f}T12:00:00-03:00`);
 const diaCorto = (f) => fechaDe(f).toLocaleDateString("es-AR", { timeZone: AR, weekday: "short" }).replace(".", "");
 const diaMes = (f) => f.split("-").reverse().slice(0, 2).join("/");
@@ -122,11 +133,16 @@ function fmtIntervaloLargo(r, variable) {
   const a = num(r.min, variable.decimales), b = num(r.max, variable.decimales);
   return a === b ? `${a} ${variable.unidad}` : `de ${a} a ${b} ${variable.unidad}`;
 }
+/** Diferencia de un modelo con lo observado, con signo: «+1,2» (el modelo da más); las direcciones, el ángulo más corto. */
+const fmtDifObs = (v, obs, variable) => {
+  const d = variable.circular ? ((v - obs + 540) % 360) - 180 : v - obs, t = variable.circular ? `${Math.round(Math.abs(d))}°` : num(Math.abs(d), variable.decimales);
+  return `${Math.abs(d) < 0.05 ? "±" : d > 0 ? "+" : "−"}${t}`;
+};
 const difAngular = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 
 /** Estadística de los modelos prendidos (misma regla que mapa-backend/src/lib/ensamble.js). */
 function resumir(valores, visibles, variable, horas = 24) {
-  const v = Object.entries(valores).filter(([id, x]) => visibles.has(id) && x != null).map(([, x]) => x);
+  const v = Object.entries(valores).filter(([id, x]) => visibles.has(id) && !REFERENCIAS.has(id) && x != null).map(([, x]) => x);
   if (!v.length) return { media: null, min: null, max: null, rango: null, n: 0, discrepan: false, valores: [] };
   // La lluvia se acumula: el umbral de «discrepan» vale para un día y se achica en proporción si el período es más corto.
   const escala = variable.clave === "lluvia" ? Math.min(1, horas / 24) : 1;
@@ -153,6 +169,7 @@ function Marca({ forma, color, x = 0, y = 0, r = 5 }) {
   if (forma === "anillo") return <circle cx={x} cy={y} r={r} fill="#fff" stroke={color} strokeWidth="2.6" />;
   if (forma === "cuadrado_hueco") return <rect x={x - r} y={y - r} width={2 * r} height={2 * r} rx="1" fill="#fff" stroke={color} strokeWidth="2.6" />;
   if (forma === "equis") return <g transform={`rotate(45 ${x} ${y})`}><Marca forma="cruz" color={color} x={x} y={y} r={r} /></g>;
+  if (forma === "estrella_hueca") { const q = r + 2; return <polygon points={Array.from({ length: 10 }, (_, k) => { const rr = k % 2 ? q * 0.45 : q, a = (Math.PI / 5) * k - Math.PI / 2; return `${x + rr * Math.cos(a)},${y + rr * Math.sin(a)}`; }).join(" ")} fill="#fff" stroke={color} strokeWidth="2.2" />; }
   if (forma === "rombo_hueco") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y} ${x},${y + r + 1} ${x - r - 1},${y}`} fill="#fff" stroke={color} strokeWidth="2.4" />;
   if (forma === "triangulo_hueco") return <polygon points={`${x},${y - r - 1} ${x + r + 1},${y + r} ${x - r - 1},${y + r}`} fill="#fff" stroke={color} strokeWidth="2.4" />;
   if (forma === "triangulo_inv") return <polygon points={`${x},${y + r + 1} ${x + r + 1},${y - r} ${x - r - 1},${y - r}`} {...p} />;
@@ -248,6 +265,7 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "
     if (vista && !enVista(i)) { const ancho = b - a, na = Math.min(Math.max(0, sentido > 0 ? i - ancho : i), n - 1 - ancho); setVista({ a: na, b: na + ancho }); }
   };
   const dato = activo != null && enVista(activo) ? dias[activo] : null, resumen = dato ? resumir(dato[variable.clave].valores, visibles, variable, dato.horas) : null;
+  const obsDelPeriodo = dato ? OBSERVADOS.filter((id) => visibles.has(id)).map((id) => dato[variable.clave].valores[id]).find((v) => v != null) ?? null : null; // lo observado en ese período (el de «Estaciones» y, si no, el del SMN)
   const izquierda = dato && x(activo) > W * 0.55; // la ventanita se abre hacia el lado con lugar
 
   return (
@@ -272,7 +290,7 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "
             const { color, forma } = ESTILO[m.id];
             const pts = enRango.map((d, k) => ({ i: a + k, v: d[variable.clave].valores[m.id] })).filter((p) => p.v != null);
             return <g key={m.id}>
-              <polyline fill="none" stroke={color} strokeWidth={hover?.m === m.id ? 3 : nVis > 60 ? 1.5 : 2} strokeLinejoin="round" points={pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} opacity={hover && hover.m !== m.id ? 0.35 : 0.85} />
+              <polyline fill="none" stroke={color} strokeWidth={hover?.m === m.id ? 3.6 : REFERENCIAS.has(m.id) ? 3.2 : nVis > 60 ? 1.5 : 2} strokeDasharray={m.id === "smn_pronostico" ? "7 4" : undefined} strokeLinejoin="round" points={pts.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")} opacity={hover && hover.m !== m.id ? 0.35 : REFERENCIAS.has(m.id) ? 1 : 0.85} />
               {pts.filter((p) => radio > 0 || p.i === activo).map((p) => <Marca key={p.i} forma={forma} color={color} x={x(p.i)} y={y(p.v)} r={p.i === activo ? (hover?.m === m.id ? 8 : 6.5) : radio} />)}
             </g>;
           })}
@@ -280,8 +298,8 @@ function Grafico({ depto, variable, modelos, visibles, dia, onDia, intervalo = "
       </svg>
       {dato && resumen && <div className={`ens-tip${izquierda ? " ens-tip--izq" : ""}${activo === dia ? " ens-tip--fija" : ""}`} style={{ left: `${(x(activo) / W) * 100}%` }} role="status">
         <p className="ens-tip-dia">{etiquetaLarga(dato, intervalo)}{activo === dia && <span> · fijado</span>}</p>
-        <ul>{[...activos].sort((a, b) => { const va = dato[variable.clave].valores[a.id], vb = dato[variable.clave].valores[b.id]; return va == null || vb == null ? (va == null) - (vb == null) || a.nombre.localeCompare(b.nombre, "es") : vb - va || a.nombre.localeCompare(b.nombre, "es"); }).map((m) => { const v = dato[variable.clave].valores[m.id]; return <li key={m.id} className={hover?.m === m.id ? "is-cerca" : ""} style={{ "--c": ESTILO[m.id].color }}>
-          <Icono id={m.id} /><span>{m.nombre}</span><strong>{v == null ? "sin dato" : fmtVal(v, variable)}</strong></li>; })}</ul>
+        <ul>{[...activos].sort((a, b) => { const va = dato[variable.clave].valores[a.id], vb = dato[variable.clave].valores[b.id]; return va == null || vb == null ? (va == null) - (vb == null) || a.nombre.localeCompare(b.nombre, "es") : vb - va || a.nombre.localeCompare(b.nombre, "es"); }).map((m) => { const v = dato[variable.clave].valores[m.id]; return <li key={m.id} className={`${hover?.m === m.id ? "is-cerca" : ""}${REFERENCIAS.has(m.id) ? " ens-tip-ref" : ""}`} style={{ "--c": ESTILO[m.id].color }}>
+          <Icono id={m.id} /><span>{m.nombre}</span><strong>{v == null ? "sin dato" : fmtVal(v, variable)}</strong>{v != null && !REFERENCIAS.has(m.id) && obsDelPeriodo != null && <em className="ens-dif" title="Diferencia con lo observado">{fmtDifObs(v, obsDelPeriodo, variable)}</em>}</li>; })}</ul>
         <p className="ens-tip-pie"><span>Intervalo</span><strong>{fmtIntervaloLargo(resumen, variable)}</strong></p>
         {resumen.n > 1 && <p className="ens-tip-pie"><span>Diferencia</span><strong className={resumen.discrepan ? "ens-alerta" : ""}>{fmtDif(resumen, variable)}{resumen.discrepan ? " · discrepan" : ""}</strong></p>}
       </div>}
@@ -302,6 +320,7 @@ function Desglose({ estado, depto, variable, visibles, periodo, intervalo }) {
   const filas = dd ? dd.dias.map((p) => ({ p, v: p[variable.clave].valores, r: resumir(p[variable.clave].valores, visibles, variable, p.horas) })) : [];
   const suma = (id) => { const vs = filas.map((f) => f.v[id]); return vs.length && vs.every((x) => x != null) ? vs.reduce((a, b) => a + b, 0) : null; };
   const paso = dh?.intervalo === "hora" ? "hora por hora" : "cada 6 horas";
+  const nModelos = [...visibles].filter((id) => !REFERENCIAS.has(id)).length;
   return <div className="ens-desglose">
     <h2 className="ens-titulo">{paso[0].toUpperCase() + paso.slice(1)} · {depto.nombre} · {variable.nombre.toLowerCase()} <small>({etiquetaLarga(periodo, intervalo)})</small></h2>
     {estado.cargando && <p className="ens-vacio" role="status">Consultando {paso}…</p>}
@@ -310,11 +329,11 @@ function Desglose({ estado, depto, variable, visibles, periodo, intervalo }) {
       <Grafico depto={dd} variable={variable} modelos={dh.modelos} visibles={visibles} dia={sel} onDia={setSel} intervalo={dh.intervalo} />
       <div className="ens-detalle-caja">
         <table className="ens-detalle">
-          <thead><tr><th scope="col">{dh.intervalo === "hora" ? "Hora" : "Horas"}</th>{modelos.map((m) => <th key={m.id} scope="col" style={{ "--c": ESTILO[m.id].color }}><Icono id={m.id} /> {m.nombre}</th>)}<th scope="col">Intervalo</th><th scope="col">Diferencia</th></tr></thead>
+          <thead><tr><th scope="col">{dh.intervalo === "hora" ? "Hora" : "Horas"}</th>{modelos.map((m) => <th key={m.id} scope="col" className={REFERENCIAS.has(m.id) ? "ens-col-ref" : ""} style={{ "--c": ESTILO[m.id].color }}><Icono id={m.id} /> {m.nombre}</th>)}<th scope="col">Intervalo</th><th scope="col">Diferencia</th></tr></thead>
           <tbody>{filas.map(({ p, v, r }, i) => <tr key={p.desde} className={`${sel === i ? "ens-fila--on" : ""}${r.discrepan ? " ens-fila--disc" : ""}`} onClick={() => setSel(i)}>
             <th scope="row">{etiquetaPeriodo(p, dh.intervalo).a} <small>{p.fecha === periodo.fecha ? "" : etiquetaPeriodo(p, dh.intervalo).b}</small></th>
-            {modelos.map((m) => <td key={m.id}>{variable.circular ? fmtVal(v[m.id], variable) : num(v[m.id], variable.decimales)}</td>)}
-            <td><strong>{fmtIntervaloLargo(r, variable)}</strong>{r.n > 0 && r.n < visibles.size ? <small> ({r.n} de {visibles.size})</small> : null}</td>
+            {modelos.map((m) => <td key={m.id} className={REFERENCIAS.has(m.id) ? "ens-col-ref" : ""}>{variable.circular ? fmtVal(v[m.id], variable) : num(v[m.id], variable.decimales)}</td>)}
+            <td><strong>{fmtIntervaloLargo(r, variable)}</strong>{r.n > 0 && r.n < nModelos ? <small> ({r.n} de {nModelos})</small> : null}</td>
             <td>{r.n > 1 ? fmtDif(r, variable) : "—"}{r.discrepan ? <span className="ens-alerta"> discrepan</span> : null}</td>
           </tr>)}</tbody>
           {variable.clave === "lluvia" && filas.length > 1 && <tfoot><tr><th scope="row">Acumulado</th>{modelos.map((m) => <td key={m.id}><strong>{num(suma(m.id), variable.decimales)}</strong></td>)}<td colSpan={2}>Suma de las horas de arriba ({variable.unidad})</td></tr></tfoot>}
@@ -323,6 +342,51 @@ function Desglose({ estado, depto, variable, visibles, periodo, intervalo }) {
       {dh.intervalo === "hora" && <p className="ens-nota">Cada fila es la hora entre las dos horas indicadas: la lluvia es lo acumulado en ese lapso; la temperatura y el viento, lo que ocurre entre ambas. Algunos modelos publican cada 3 o 6 horas y en las horas intermedias el valor es interpolado.</p>}
     </>}
   </div>;
+}
+
+/**
+ * ¿Qué modelo se acerca más a lo observado? Con la referencia «observada» elegida se compara cada modelo prendido en todos los departamentos y períodos
+ * de la consulta donde existen las dos cifras: error medio (sin signo) y sesgo (positivo = el modelo da más que lo medido). Los modelos guardan lo
+ * último que dijeron para las horas que ya pasaron, no el pronóstico que habían hecho antes: es una comparación con su estimación más reciente.
+ */
+function Cercania({ datos, variable, visibles }) {
+  const observados = OBSERVADOS.filter((id) => visibles.has(id) && datos.modelos.some((m) => m.id === id));
+  const [elegido, setElegido] = useState(null);
+  const ref = observados.includes(elegido) ? elegido : observados[0];
+  const filas = useMemo(() => {
+    if (!ref) return [];
+    return datos.modelos.filter((m) => !CATALOGO.find((c) => c.id === m.id)?.observado && visibles.has(m.id)).map((m) => {
+      let n = 0, abs = 0, signo = 0;
+      for (const d of datos.departamentos) for (const p of d.dias) {
+        const v = p[variable.clave].valores[m.id], o = p[variable.clave].valores[ref];
+        if (v == null || o == null) continue;
+        const e = variable.circular ? ((v - o + 540) % 360) - 180 : v - o;
+        n++; abs += Math.abs(e); signo += e;
+      }
+      return { m, n, mae: n ? abs / n : null, sesgo: n ? signo / n : null };
+    }).sort((a, b) => (a.mae == null) - (b.mae == null) || a.mae - b.mae);
+  }, [datos, variable, visibles, ref]);
+  if (!ref) return null;
+  const conDatos = filas.filter((f) => f.n), peor = Math.max(...conDatos.map((f) => f.mae), 0.0001), mejor = conDatos[0];
+  const nombreRef = CATALOGO.find((c) => c.id === ref).nombre;
+  return <section className="ens-cercania" aria-label="Qué modelo se acerca más a lo observado">
+    <h2 className="ens-titulo">Cercanía a lo observado <small>({variable.nombre.toLowerCase()})</small></h2>
+    {observados.length > 1 && <div className="ens-intervalos" role="group" aria-label="Comparar con">
+      <span>Comparar con</span>{observados.map((id) => <button key={id} type="button" className={`ens-chip${ref === id ? " ens-chip--on" : ""}`} aria-pressed={ref === id} onClick={() => setElegido(id)}>{CATALOGO.find((c) => c.id === id).nombre}</button>)}
+    </div>}
+    {!conDatos.length ? <p className="ens-vacio">Todavía no hay períodos con las dos cifras (lo observado en «{nombreRef}» y lo que dice cada modelo) para {variable.nombre.toLowerCase()}. Lo observado sólo existe en el pasado (hasta 7 días atrás): elegí un rango ya transcurrido.</p> : <>
+      <table className="ens-cercania-tabla">
+        <thead><tr><th scope="col">Modelo</th><th scope="col">Error medio</th><th scope="col" title="Positivo: el modelo da más que lo medido">Sesgo</th><th scope="col">Casos</th></tr></thead>
+        <tbody>{conDatos.map((f) => <tr key={f.m.id} className={f === mejor ? "ens-cercania-mejor" : ""} style={{ "--c": ESTILO[f.m.id].color }}>
+          <th scope="row"><Icono id={f.m.id} /> {f.m.nombre}{f === mejor && <em> · el más cercano</em>}</th>
+          <td>{f.n ? <><span className="ens-barra" aria-hidden="true"><i style={{ width: `${Math.max(3, (f.mae / peor) * 100)}%` }} /></span><strong>{variable.circular ? `${Math.round(f.mae)}°` : `${num(f.mae, variable.decimales + (variable.decimales < 1 ? 1 : 0))} ${variable.unidad}`}</strong></> : "—"}</td>
+          <td>{f.n && !variable.circular ? `${f.sesgo > 0.005 ? "+" : f.sesgo < -0.005 ? "−" : "±"}${num(Math.abs(f.sesgo), variable.decimales + (variable.decimales < 1 ? 1 : 0))} ${variable.unidad}` : "—"}</td>
+          <td>{f.n}</td></tr>)}</tbody>
+      </table>
+      {filas.length > conDatos.length && <p className="ens-nota">Sin cifras para comparar en este rango: {filas.filter((f) => !f.n).map((f) => f.m.nombre).join(", ")} (no cubren esos días, o no hay lo observado en los mismos departamentos).</p>}
+      <p className="ens-nota">Se compara cada modelo con <strong>{nombreRef}</strong> en los departamentos y períodos de la tabla de arriba donde hay las dos cifras (los demás no cuentan). Error medio: cuánto se aparta en promedio, sin importar para qué lado. Los modelos guardan su estimación más reciente para las horas que ya pasaron, no el pronóstico que habían hecho antes: sirve para ver cuál describe mejor lo ocurrido, no para medir su acierto a futuro.</p>
+    </>}
+  </section>;
 }
 
 export default function EnsamblePage() {
@@ -403,12 +467,17 @@ export default function EnsamblePage() {
   const visibles = useMemo(() => new Set([...prendidos].filter((id) => !datos || consultados.has(id))), [prendidos, consultados, datos]);
   const pendientes = datos?.pendientes || [];
   const sinConsultar = datos ? [...prendidos].filter((id) => !consultados.has(id) && !pendientes.includes(id)) : [];
-  const alternar = (id) => CATALOGO.find((m) => m.id === id)?.deshabilitado || setPrendidos((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
+  const alternar = (id) => CATALOGO.find((m) => m.id === id)?.deshabilitado || setPrendidos((s) => {
+    const n = new Set(s);
+    if (!n.has(id)) n.add(id);
+    else if (REFERENCIAS.has(id) || [...n].some((x) => x !== id && !REFERENCIAS.has(x))) n.delete(id); // tiene que quedar al menos un modelo prendido
+    return n;
+  });
   const intDatos = datos?.intervalo || "dia"; // el de la última consulta (puede no ser el que está elegido ahora)
   // Los departamentos agrupados por zona (norte, centro, sur; Guaraní, que el SMN cuenta en dos, va en la primera) y, dentro de cada una, por orden alfabético.
   const grupos = useMemo(() => {
     if (!datos || !variable) return [];
-    const celdasDe = (d) => d.dias.map((x) => resumir(x[clave].valores, visibles, variable, x.horas));
+    const celdasDe = (d) => d.dias.map((x) => ({ ...resumir(x[clave].valores, visibles, variable, x.horas), refs: [...REFERENCIAS].filter((id) => visibles.has(id) && x[clave].valores[id] != null).map((id) => ({ id, v: x[clave].valores[id] })) }));
     return agruparPorZona(datos.departamentos).map((z) => ({ nombre: z.nombre, filas: z.propios.map((i) => datos.departamentos[i]).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((d) => ({ d, celdas: celdasDe(d) })) })).filter((z) => z.filas.length);
   }, [datos, variable, clave, visibles]);
   const resumenDepto = depto && variable ? depto.dias.map((x) => resumir(x[clave].valores, visibles, variable, x.horas)) : [];
@@ -427,6 +496,14 @@ export default function EnsamblePage() {
   }, [periodoElegido?.desde, periodoElegido?.hasta, intDatos, consultadosClave, datos?.generado]); // eslint-disable-line react-hooks/exhaustive-deps
   const generado = datos ? new Date(datos.generado).toLocaleString("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "";
 
+  const tarjeta = (m) => <button key={m.id} type="button" title={m.nota} disabled={!!m.deshabilitado} className={`ens-modelo${m.deshabilitado ? " ens-modelo--apagado ens-modelo--no-disponible" : prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
+          <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
+          <span className="ens-modelo-origen">{m.detalle}</span>
+          {!m.deshabilitado && (() => { const e = descargaDe(m.id); return e && <span className="ens-modelo-datos">{e.descargando ? (m.referencia ? "Actualizando…" : "Descargando una corrida nueva…") : e.descargadoEn ? (m.referencia ? `Actualizado ${cuando(e.descargadoEn)} · próxima ${proximaTxt(e)}${e.error ? ` · ${e.error}` : ""}` : `Corrida ${horaUtc(e.corrida)} · bajada ${cuando(e.descargadoEn)} · próxima ${proximaTxt(e)}`) : e.error ? `Error al descargar: ${e.error}` : "Todavía sin descargar"}</span>; })()}
+          {m.deshabilitado && <span className="ens-sin-consultar">Desactivado hasta tener acceso al CPTEC</span>}
+          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{pendientes.includes(m.id) ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
+        </button>;
+
   return <div className={`admin-layout ens-layout${cajon ? " ens-layout--cajon" : ""}${lateralCerrado ? " ens-layout--sin-lateral" : ""}`}>
     <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>
     <aside className={`admin-panel ens-lateral${lateralCerrado ? " ens-lateral--cerrada" : ""}`} id="contenido-principal" tabIndex={-1}>
@@ -438,17 +515,15 @@ export default function EnsamblePage() {
       <div id="ens-lateral-contenido" className="ens-lateral-contenido" hidden={lateralCerrado}>
       <div className="editor-heading"><h1>Ensamble multimodelo</h1>
         <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador; con el informe del cajón se arma el pronóstico del día y se puede publicar.</p></div>
+      <h2>Para comparar</h2>
+      <div className="ens-modelos ens-modelos--ref" role="group" aria-label="Referencias: lo observado y el SMN">
+        {CATALOGO.filter((m) => m.referencia).map(tarjeta)}
+      </div>
       <h2>Modelos</h2>
       <div className="ens-modelos" role="group" aria-label="Modelos">
-        {CATALOGO.map((m) => <button key={m.id} type="button" title={m.nota} disabled={!!m.deshabilitado} className={`ens-modelo${m.deshabilitado ? " ens-modelo--apagado ens-modelo--no-disponible" : prendidos.has(m.id) ? "" : " ens-modelo--apagado"}`} style={{ "--c": ESTILO[m.id].color }} onClick={() => alternar(m.id)} aria-pressed={prendidos.has(m.id)}>
-          <span className="ens-modelo-cab"><Icono id={m.id} /><strong>{m.nombre}</strong><span className="ens-interruptor" aria-hidden="true" /></span>
-          <span className="ens-modelo-origen">{m.detalle}</span>
-          {!m.deshabilitado && (() => { const e = descargaDe(m.id); return e && <span className="ens-modelo-datos">{e.descargando ? "Descargando una corrida nueva…" : e.descargadoEn ? `Corrida ${horaUtc(e.corrida)} · bajada ${cuando(e.descargadoEn)} · próxima ${proximaTxt(e)}` : e.error ? `Error al descargar: ${e.error}` : "Todavía sin descargar"}</span>; })()}
-          {m.deshabilitado && <span className="ens-sin-consultar">Desactivado hasta tener acceso al CPTEC</span>}
-          {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{pendientes.includes(m.id) ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
-        </button>)}
+        {CATALOGO.filter((m) => !m.referencia).map(tarjeta)}
       </div>
-      <p className="ens-nota">Prendé los que querés comparar: <strong>Consultar</strong> usa sólo esos. Pasá el mouse por una tarjeta para ver el detalle.</p>
+      <p className="ens-nota">Prendé los que querés comparar: <strong>Consultar</strong> usa sólo esos. «Para comparar» no son modelos: son lo que midieron las estaciones y el pronóstico del SMN, y no entran en el intervalo ni en «discrepan». Pasá el mouse por una tarjeta para ver el detalle.</p>
       </div>
     </aside>
 
@@ -515,12 +590,13 @@ export default function EnsamblePage() {
               {z.filas.map(({ d, celdas }) => <tr key={d.id} className={d.id === deptoId ? "ens-fila--on" : ""}>
                 <th scope="row"><button className="btn-link" onClick={() => { setDeptoId(d.id); setDia(null); }}>{d.nombre}</button></th>
                 {celdas.map((c, i) => <td key={i} className={`${c.discrepan ? "ens-celda--disc" : ""}${d.id === deptoId && dia === i ? " ens-celda--sel" : ""}`} title={c.n ? `${c.n} modelo${c.n > 1 ? "s" : ""}: ${fmtIntervaloLargo(c, variable)}` : ""}>
-                  <button type="button" onClick={() => { setDeptoId(d.id); setDia(i); }}>{fmtIntervalo(c, variable)}</button></td>)}
+                  <button type="button" onClick={() => { setDeptoId(d.id); setDia(i); }}>{fmtIntervalo(c, variable)}{c.refs.map((r) => <small key={r.id} className="ens-obs" style={{ "--c": ESTILO[r.id].color }}>{ETIQUETA_REF[r.id]} {fmtCelda(r.v, variable)}</small>)}</button></td>)}
               </tr>)}
             </Fragment>)}</tbody>
           </table>
         </div>
         <p className="ens-nota">Más allá de los primeros días ICON y GEM dejan de cubrir el horizonte: ese período el intervalo sale de menos modelos (lo dice el detalle).</p>
+        <Cercania datos={datos} variable={variable} visibles={visibles} />
 
         {depto && <>
           <h2 className="ens-titulo">{depto.nombre} · {variable.nombre.toLowerCase()} <small>(centroide {num(depto.lat, 2)}, {num(depto.lng, 2)})</small></h2>
@@ -541,6 +617,6 @@ export default function EnsamblePage() {
         <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON, GEM, ARPEGE de Météo-France, JMA GSM, UKMO del Met Office y CMA GRAPES){datos.modelos.some((m) => m.id === "bam_20km" || m.id === "eta_8km") && "; BAM y Eta 8 km del CPTEC/INPE, Brasil (datos abiertos)"}datos.modelos.some((m) => m.id === "yr_no") && "; yr.no, Instituto Meteorológico de Noruega (MET Norway, CC BY 4.0)"}{datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
       </>}
     </div>
-    <InformeEnsamble informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} prendidos={prendidos} modelos={CATALOGO} />
+    <InformeEnsamble informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} prendidos={new Set([...prendidos].filter((id) => !REFERENCIAS.has(id)))} modelos={CATALOGO.filter((m) => !m.referencia)} />
   </div>;
 }
