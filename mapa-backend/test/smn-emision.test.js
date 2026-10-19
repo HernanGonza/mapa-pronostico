@@ -26,10 +26,12 @@ test("un informe repartido en varios segundos cuenta como una sola emisión (cas
   assert.deepEqual(vigentes(ultimaEmision(rows)).map((r) => r.id), ["a.13.21.41.10", "a.13.21.42.1"]);
 });
 
-test("si el último informe ya no trae alertas en Misiones, no queda ninguna vigente", async () => {
-  const { ultimaEmision, vigentes } = await import("../src/lib/smn/cap.mjs");
+test("si el último informe ya no trae alertas en Misiones, sigue la de la emisión anterior hasta que termina su vigencia", async () => {
+  const { ultimaEmisionVigente, vigentes } = await import("../src/lib/smn/cap.mjs");
   const rows = [alerta("a.1", "2026-09-29T12:08:42.000Z"), alerta("b", "2026-09-29T20:00:00.000Z", [])];
-  assert.deepEqual(vigentes(ultimaEmision(rows)), []);
+  const antes = Date.parse(rows[0].infos[0].fin) - 1000;
+  assert.deepEqual(vigentes(ultimaEmisionVigente(rows, antes), antes).map((r) => r.id), ["a.1"]);
+  assert.deepEqual(ultimaEmisionVigente(rows, Date.parse(rows[0].infos[0].fin) + 1000), [], "vencida: ya no está");
 });
 
 test("la hora del SMN se lee como UTC aunque diga -03:00 (el SMN escribe UTC con ese sufijo)", async () => {

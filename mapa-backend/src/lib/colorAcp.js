@@ -69,8 +69,8 @@ function colorDeAcp(intervalos, inicio, fin = inicio, nivelPropio = null) {
 async function intervalosAlertas() {
   const [smn, manuales] = await Promise.all([
     import("./smn/store.mjs").then(async ({ actual }) => {
-      const { ultimaEmision, vigentes } = await import("./smn/cap.mjs");
-      return intervalosSmn(vigentes(ultimaEmision((await actual("SAT"))?.datos || [])));
+      const { ultimaEmisionVigente, vigentes } = await import("./smn/cap.mjs");
+      return intervalosSmn(vigentes(ultimaEmisionVigente((await actual("SAT"))?.datos || [])));
     }).catch((e) => { console.error("[colorAcp] SMN:", e.message); return []; }),
     require("./alertasMeteorologicasStore").pendientes().then(intervalosManuales)
       .catch((e) => { console.error("[colorAcp] alertas manuales:", e.message); return []; }),
