@@ -342,7 +342,7 @@ export default function AlertasMeteorologicasPage() {
             titulo: `Alerta ${c.niveles.map(n => enFemenino(n).toLowerCase()).join(' y ')} · ${(c.fenomenosLeidos?.length ? c.fenomenosLeidos : c.fenomenos).join(', ').toLowerCase()}`,
             detalle: `${c.departamentos.length} departamento${c.departamentos.length === 1 ? '' : 's'} · ${c.base.periodo} · emitida ${fechaHora(c.emitidoEn)}`,
             lineas: resumenSmn(c), aviso: c.avisos?.join(' ') || null,
-            etiqueta: c.yaPublicada ? `Ya está en la pila (#${c.yaPublicada}).` : c.actualizaA ? `El SMN actualizó la #${c.actualizaA.id}${c.actualizaA.cambios.length ? `: ${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')}` : ''}.` : null,
+            etiqueta: [c.yaNoLaLista ? 'El SMN ya no la lista en su última emisión, pero sigue vigente.' : null, c.yaPublicada ? `Ya está en la pila (#${c.yaPublicada}).` : c.actualizaA ? `El SMN actualizó la #${c.actualizaA.id}${c.actualizaA.cambios.length ? `: ${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')}` : ''}.` : null].filter(Boolean).join(' ') || null,
             textoBoton: c.yaPublicada ? 'Usar de nuevo' : c.actualizaA ? `Actualizar la #${c.actualizaA.id}` : 'Usar como base' }))}
           onElegir={(emision) => usarComoBase(emision)} />
         <div className="admin-acciones">

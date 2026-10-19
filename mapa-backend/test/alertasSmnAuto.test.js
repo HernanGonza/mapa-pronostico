@@ -60,3 +60,15 @@ test("los asistentes de placas arrancan con lo del SMN: textos, nivel anterior, 
   assert.ok(b.iconos.includes("alerta") && b.recomendaciones.length);
   assert.equal(auto.baseDe({ ...a, cambios: [] }, g).ultimos.nivel.nivelAnterior, "Amarillo", "sin cambio anotado: el nivel de abajo");
 });
+
+test("la alerta que el SMN dejó de listar se recuerda mientras siga vigente", async () => {
+  const fs = require("fs"), os = require("os"), path = require("path");
+  process.env.ALERTA_SMN_RECORDADA = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "smn-")), "recordada.json");
+  delete require.cache[require.resolve("../src/lib/alertasSmnRecibidas")];
+  const { recordar } = require("../src/lib/alertasSmnRecibidas");
+  const cand = require("../src/lib/alertasSmnBase").candidata([alerta("a", info())], DEPARTAMENTOS, { ahora: Date.parse(dia(8)) });
+  recordar(cand);
+  const guardada = JSON.parse(fs.readFileSync(process.env.ALERTA_SMN_RECORDADA, "utf8"));
+  assert.equal(guardada.emision, cand.emision);
+  assert.ok(Date.parse(guardada.fin) > Date.parse(dia(8)) && Date.parse(guardada.fin) <= Date.parse(dia(16)));
+});

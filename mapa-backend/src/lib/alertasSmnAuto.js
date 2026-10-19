@@ -119,6 +119,7 @@ async function revisar(alertas, { logger = console, notificar = notificacionesSt
     const base = require("./alertasSmnBase");
     const cand = base.candidata(alertas, departamentos(), { ahora });
     if (!cand) return avisados;
+    require("./alertasSmnRecibidas").recordar(cand); // si el SMN la deja de listar, el panel igual la muestra hasta que termine
     const { vigentes, enFila } = await pendientes();
     const { yaPublicada, actualizaA } = base.clasificar(cand, [...vigentes, ...enFila]);
     if (yaPublicada || (actualizaA && !actualizaA.cambios.length)) return avisados;
