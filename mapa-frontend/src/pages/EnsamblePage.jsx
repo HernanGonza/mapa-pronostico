@@ -400,7 +400,7 @@ export default function EnsamblePage() {
   const [buscando, setBuscando] = useState(false);
   const [intervalo, setIntervalo] = useState("dia"); // cómo se parte el rango en columnas
   const [desglose, setDesglose] = useState(null); // hora por hora del período elegido: { cargando, error, datos }
-  // Rango a consultar (hora de Misiones). La pantalla NO pide nada sola: sólo al tocar «Consultar».
+  // Rango a consultar (hora de Misiones). Al abrir se consulta solo el rango de siempre; «Consultar de nuevo» lo repite con lo que se haya cambiado.
   const [fDesde, setFDesde] = useState(hoyART()), [hDesde, setHDesde] = useState("00:00");
   const [fHasta, setFHasta] = useState(sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState("23:00");
   const [avance, setAvance] = useState(null); // descarga (WRF-SMN, MONAN) en el servidor
@@ -426,6 +426,8 @@ export default function EnsamblePage() {
       .catch((e) => { setError(e.message); setEspera(0); }).finally(() => setCargando(false));
   }
   const consultarRef = useRef(consultar); consultarRef.current = consultar;
+  // Al abrir la pantalla ya se consulta (hoy y 9 días, todos los modelos): los datos están guardados en el servidor, no hay por qué esperar un clic.
+  useEffect(() => { consultarRef.current(); }, []);
 
   // El servidor baja cada modelo solo, apenas sale una corrida nueva. Acá sólo se lee, cada minuto, qué tiene y cuándo espera lo próximo.
   const cargarDescargas = () => api.getEnsambleEstado().then(setDescargas).catch(() => {});
@@ -556,12 +558,12 @@ export default function EnsamblePage() {
               : <span>Consultando a los modelos…</span>}
           </div>}
         </div>
-        {datos && !cargando && <span className="ens-actualizado">Último pedido a las {generado}</span>}
+        {datos && !cargando && <span className="ens-actualizado">Última descarga de los modelos: <strong>{ultimaDescarga ? cuando(ultimaDescarga) : "—"}</strong> · consultado a las {generado}</span>}
       </form>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
       {datos?.avisos?.length > 0 && <div className="risk-message risk-message--error" role="alert">{datos.avisos.map((a) => <div key={a}>{a}</div>)}</div>}
       {sinConsultar.length > 0 && <div className="risk-message" role="status">Prendiste {sinConsultar.map((id) => CATALOGO.find((m) => m.id === id).nombre).join(", ")} después de consultar: todavía no tiene datos. Tocá <strong>Consultar de nuevo</strong> para sumarlo.</div>}
-      {!datos && !error && <p className="ens-vacio">Elegí el rango de fecha y hora y tocá <strong>Consultar</strong>. Los datos ya están guardados en el servidor (lo de arriba dice cuándo se bajaron), así que la consulta es instantánea.</p>}
+      {!datos && !error && <p className="ens-vacio" role="status">{cargando ? "Cargando los datos que ya tiene el servidor…" : "Elegí el rango de fecha y hora y tocá Consultar."}</p>}
       {datos && variable && <>
         <div className="ens-barra-variables">
           <div className="ens-variables-caja">
