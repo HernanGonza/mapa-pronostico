@@ -25,7 +25,7 @@
 .ens-marca { flex: none; }
 
 /* Variable y estado */
-.ens-barra { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; margin: 8px 0 4px; }
+.ens-barra-variables { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; margin: 8px 0 4px; }
 .ens-variables { display: flex; flex-wrap: wrap; gap: 6px; }
 .ens-pestana { font: inherit; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; }
 .ens-pestana:hover { background: var(--surface-2); }
@@ -91,7 +91,7 @@
 
 /* Rango de fecha y hora: una tarjeta con su título adentro */
 .ens-rango { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: stretch; margin-bottom: 16px; }
-.ens-rango-caja { flex: 0 1 760px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
+.ens-rango-caja { flex: 1 1 760px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
 .ens-rango-cab h2 { margin: 0; font-size: 1.05rem; text-transform: none; letter-spacing: 0; color: var(--heading); }
 .ens-rango-cab p { margin: 2px 0 14px; font-size: 0.82rem; color: var(--text-muted); }
 .ens-rango-campos { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 14px; }

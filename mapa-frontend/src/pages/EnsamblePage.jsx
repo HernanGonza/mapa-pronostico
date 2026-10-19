@@ -3,7 +3,6 @@ import VolverConfiguracion from "../components/VolverConfiguracion";
 import BrandHeader from "../components/BrandHeader";
 import CampoFecha from "../components/CampoFecha";
 import CampoHora from "../components/CampoHora";
-import InformeEnsamble, { BotonInforme, useInforme } from "../components/InformeEnsamble";
 import * as api from "../api";
 import { agruparPorZona } from "../lib/zonasSmn";
 import "./ensamble.css";
@@ -404,8 +403,6 @@ export default function EnsamblePage() {
   // Rango a consultar (hora de Misiones). La pantalla NO pide nada sola: sólo al tocar «Consultar».
   const [fDesde, setFDesde] = useState(hoyART()), [hDesde, setHDesde] = useState("00:00");
   const [fHasta, setFHasta] = useState(sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState("23:00");
-  const informe = useInforme(); // el borrador del informe vive acá (siempre montado): ocultar el cajón no pierde nada
-  const [cajon, setCajon] = useState(false);
   const [avance, setAvance] = useState(null); // descarga (WRF-SMN, MONAN) en el servidor
   const [espera, setEspera] = useState(0); // > 0 mientras algún modelo sigue bajando (la consulta ya mostró los demás)
   const ultimo = useRef(null); // el pedido de la última consulta, para repetirlo cuando el WRF termina
@@ -504,7 +501,7 @@ export default function EnsamblePage() {
           {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{pendientes.includes(m.id) ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
         </button>;
 
-  return <div className={`admin-layout ens-layout${cajon ? " ens-layout--cajon" : ""}${lateralCerrado ? " ens-layout--sin-lateral" : ""}`}>
+  return <div className={`admin-layout ens-layout${lateralCerrado ? " ens-layout--sin-lateral" : ""}`}>
     <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>
     <aside className={`admin-panel ens-lateral${lateralCerrado ? " ens-lateral--cerrada" : ""}`} id="contenido-principal" tabIndex={-1}>
       <button type="button" className="ens-lateral-toggle" aria-expanded={!lateralCerrado} aria-controls="ens-lateral-contenido" onClick={alternarLateral}
@@ -514,7 +511,7 @@ export default function EnsamblePage() {
       </button>
       <div id="ens-lateral-contenido" className="ens-lateral-contenido" hidden={lateralCerrado}>
       <div className="editor-heading"><h1>Ensamble multimodelo</h1>
-        <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador; con el informe del cajón se arma el pronóstico del día y se puede publicar.</p></div>
+        <p>Qué dice cada modelo numérico para cada departamento, a 10 días. Es una guía para el pronosticador.</p></div>
       <h2>Para comparar</h2>
       <div className="ens-modelos ens-modelos--ref" role="group" aria-label="Referencias: lo observado y el SMN">
         {CATALOGO.filter((m) => m.referencia).map(tarjeta)}
@@ -557,7 +554,6 @@ export default function EnsamblePage() {
               : <span>Consultando a los modelos…</span>}
           </div>}
         </div>
-        <BotonInforme abierto={cajon} onClick={() => { if (!cajon) informe.preparar(); setCajon((a) => !a); }} escritos={informe.escritos} />
         {datos && !cargando && <span className="ens-actualizado">Último pedido a las {generado}</span>}
       </form>
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
@@ -565,7 +561,7 @@ export default function EnsamblePage() {
       {sinConsultar.length > 0 && <div className="risk-message" role="status">Prendiste {sinConsultar.map((id) => CATALOGO.find((m) => m.id === id).nombre).join(", ")} después de consultar: todavía no tiene datos. Tocá <strong>Consultar de nuevo</strong> para sumarlo.</div>}
       {!datos && !error && <p className="ens-vacio">Elegí el rango de fecha y hora y tocá <strong>Consultar</strong>. Los datos ya están guardados en el servidor (lo de arriba dice cuándo se bajaron), así que la consulta es instantánea.</p>}
       {datos && variable && <>
-        <div className="ens-barra">
+        <div className="ens-barra-variables">
           <div className="ens-variables-caja">
             <div className="ens-grupos" role="tablist" aria-label="Tipo de dato">
               {[...new Set(datos.variables.map((v) => v.grupo))].map((g) => <button key={g} role="tab" aria-selected={g === variable.grupo} className={`ens-grupo${g === variable.grupo ? " ens-grupo--on" : ""}`} onClick={() => setClave(datos.variables.find((v) => v.grupo === g).clave)}>{g}</button>)}
@@ -576,10 +572,6 @@ export default function EnsamblePage() {
           </div>
         </div>
 
-        <div className="ens-intervalos ens-intervalos--resultado" role="group" aria-label="Ver la tabla, el gráfico y el detalle por">
-          <span>Ver por</span>
-          {INTERVALOS.map((i) => <button key={i.id} type="button" className={`ens-chip${intervalo === i.id ? " ens-chip--on" : ""}`} aria-pressed={intervalo === i.id} disabled={cargando} onClick={() => cambiarIntervalo(i.id)}>{i.txt}</button>)}
-        </div>
         <h2 className="ens-titulo">Intervalo entre modelos por departamento <small>({variable.unidad}) · <span className="ens-disc-ej">resaltado</span> = los modelos discrepan {variable.clave === "lluvia" ? `(≥ ${variable.umbral} mm en un día, proporcional si el período es más corto; o unos secos y otros con lluvia)` : (variable.circular ? `(≥ ${variable.umbral}° entre dos modelos)` : `(≥ ${variable.umbral} ${variable.unidad} entre el más alto y el más bajo)`)}</small></h2>
         <p className="ens-leyenda"><strong>Cómo leer esta tabla:</strong> cada celda muestra el <strong>valor más bajo y el más alto</strong> entre los modelos que tenés prendidos a la izquierda ({[...visibles].map((id) => CATALOGO.find((m) => m.id === id)?.nombre).join(", ")}), para ese departamento y ese período; si todos coinciden, un solo número. {{ sum: "Cada modelo aporta la lluvia acumulada en el período (entre sus dos horas).", min: "Cada modelo aporta su mínima del período.", max: "Cada modelo aporta su máximo del período.", mean: "Cada modelo aporta el promedio del período.", dir: "Cada modelo aporta la dirección de la que sopla el viento (predominante del período); la celda muestra de qué punto a qué punto cardinal va el abanico." }[variable.agrega]} <strong>Tocá una celda o un departamento</strong> para ver abajo el desglose, modelo por modelo{intDatos !== "hora" ? " y hora por hora" : ""}. {intDatos === "dia" ? "Los días con «parcial» sólo cuentan las horas del rango elegido." : ""}</p>
         <div className="ens-matriz-caja">
@@ -614,9 +606,8 @@ export default function EnsamblePage() {
           </div>
           {desglose && periodoElegido && <Desglose estado={desglose} depto={depto} variable={variable} visibles={visibles} periodo={periodoElegido} intervalo={intDatos} />}
         </>}
-        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON, GEM, ARPEGE de Météo-France, JMA GSM, UKMO del Met Office y CMA GRAPES){datos.modelos.some((m) => m.id === "bam_20km" || m.id === "eta_8km") && "; BAM y Eta 8 km del CPTEC/INPE, Brasil (datos abiertos)"}datos.modelos.some((m) => m.id === "yr_no") && "; yr.no, Instituto Meteorológico de Noruega (MET Norway, CC BY 4.0)"}{datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
+        <p className="ens-nota">Fuentes: Open-Meteo (ECMWF IFS, GFS, ICON, GEM, ARPEGE de Météo-France, JMA GSM, UKMO del Met Office y CMA GRAPES){datos.modelos.some((m) => m.id === "bam_20km" || m.id === "eta_8km") && "; BAM y Eta 8 km del CPTEC/INPE, Brasil (datos abiertos)"}{datos.modelos.some((m) => m.id === "yr_no") && "; yr.no, Instituto Meteorológico de Noruega (MET Norway, CC BY 4.0)"}{datos.modelos.some((m) => m.id === "wrf_smn") && "; WRF-SMN del Servicio Meteorológico Nacional (datos abiertos en AWS, CC BY 2.5 Argentina)"}{datos.modelos.some((m) => m.id.startsWith("monan")) && "; MONAN del CPTEC/INPE, Brasil (datos abiertos)"}. Corridas (inicio): {Object.entries(datos.corridas || {}).map(([id, iso]) => `${CATALOGO.find((m) => m.id === id)?.nombre} ${new Date(iso).toLocaleString("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", hourCycle: "h23" }).replace(/, (\d+)$/, " $1")} UTC`).join(" · ") || "—"}. En el centroide de cada departamento. Ráfaga y viento son los máximos del día a 10 m. WRF-SMN: temperatura calibrada por el SMN (mínima de 21 a 9 h, máxima de 9 a 21 h, sólo si el rango cubre esas horas) y lluvia horaria. Reflectividad y helicidad: sólo MONAN 3 km. MONAN 10 km sale cada 3 horas: sus máximas y mínimas son aproximadas.</p>
       </>}
     </div>
-    <InformeEnsamble informe={informe} abierto={cajon} onCerrar={() => setCajon(false)} prendidos={new Set([...prendidos].filter((id) => !REFERENCIAS.has(id)))} modelos={CATALOGO.filter((m) => !m.referencia)} />
   </div>;
 }
