@@ -15,6 +15,7 @@ function microsoftFalso({ errorToken = null } = {}) {
     const u = String(url);
     pedidos.push({ metodo: opts.method || "GET", url: u, headers: opts.headers || {}, body: opts.body });
     if (u.includes("login.microsoftonline.com/TEN/oauth2/v2.0/token")) return errorToken ? json(errorToken, 401) : json({ access_token: "TOK", expires_in: 3600 });
+    if (u.endsWith("/sendMail")) return { ok: true, status: 202, json: async () => ({}) };
     if (u.endsWith("/messages") && opts.method === "POST") return json({ id: "MSG1" }, 201);
     if (u.endsWith("/attachments/createUploadSession")) return json({ uploadUrl: "https://outlook.test/upload/1" }, 201);
     if (u.startsWith("https://outlook.test/upload/")) return json({}, 200);
@@ -34,22 +35,30 @@ test("sin los datos de Microsoft avisa que falta configurar, sin llamar a la red
   await assert.rejects(correo().enviar({ asunto: "x", cuerpo: "y", destinatarios: DEST }), { status: 503, message: /MS_CLIENT_SECRET|GMAIL_APP_PASSWORD/ });
 });
 
-test("envía como la casilla institucional: destinatarios en copia oculta, adjuntos y envío", async () => {
+test("envía como la casilla institucional con un solo pedido sendMail (alcanza con Mail.Send): copia oculta y adjuntos", async () => {
   const pedidos = microsoftFalso();
   await correo().enviar({ asunto: "Pronóstico 30/09", cuerpo: "Buen día", destinatarios: DEST,
     adjuntos: [{ nombre: "p.docx", tipo: "application/x-docx", buffer: Buffer.from("PK..") }, { nombre: "p.rtf", tipo: "application/rtf", buffer: Buffer.from("{\\rtf1}") }] });
   const tokenPedido = pedidos[0];
   assert.equal(Object.fromEntries(tokenPedido.body).grant_type, "client_credentials");
   assert.equal(Object.fromEntries(tokenPedido.body).scope, "https://graph.microsoft.com/.default");
-  const borrador = pedidos.find((p) => p.url.endsWith("/users/alertatemprana%40ecologia.misiones.gob.ar/messages"));
-  const cuerpo = JSON.parse(borrador.body);
+  assert.equal(pedidos.length, 2); // token + sendMail: no arma borrador (eso pide Mail.ReadWrite)
+  const envio = pedidos.find((p) => p.url.endsWith("/users/alertatemprana%40ecologia.misiones.gob.ar/sendMail"));
+  const { message: cuerpo, saveToSentItems } = JSON.parse(envio.body);
+  assert.equal(saveToSentItems, true);
   assert.equal(cuerpo.subject, "Pronóstico 30/09");
   assert.deepEqual(cuerpo.toRecipients, [{ emailAddress: { address: "alertatemprana@ecologia.misiones.gob.ar" } }]);
   assert.deepEqual(cuerpo.bccRecipients.map((r) => r.emailAddress.address), ["a@gmail.com", "b@gmail.com"]);
-  assert.equal(borrador.headers.Authorization, "Bearer TOK");
-  const adjuntos = pedidos.filter((p) => p.url.endsWith("/attachments")).map((p) => JSON.parse(p.body));
-  assert.deepEqual(adjuntos.map((a) => a.name), ["p.docx", "p.rtf"]);
-  assert.equal(Buffer.from(adjuntos[1].contentBytes, "base64").toString(), "{\\rtf1}");
+  assert.equal(envio.headers.Authorization, "Bearer TOK");
+  assert.deepEqual(cuerpo.attachments.map((a) => a.name), ["p.docx", "p.rtf"]);
+  assert.equal(Buffer.from(cuerpo.attachments[1].contentBytes, "base64").toString(), "{\\rtf1}");
+});
+
+test("con adjuntos pesados arma el borrador, adjunta y envía (pide Mail.ReadWrite)", async () => {
+  const pedidos = microsoftFalso();
+  await correo().enviar({ asunto: "x", cuerpo: "y", destinatarios: DEST, adjuntos: [{ nombre: "a.rtf", tipo: "application/rtf", buffer: Buffer.alloc(2.6 * 1024 * 1024, 1) }] });
+  assert.ok(!pedidos.some((p) => p.url.endsWith("/sendMail")));
+  assert.ok(pedidos.some((p) => p.url.endsWith("/messages")));
   assert.ok(pedidos.at(-1).url.endsWith("/messages/MSG1/send"));
 });
 
@@ -74,7 +83,7 @@ test("reusa el token mientras no venza", async () => {
 test("traduce los errores de Microsoft a mensajes accionables", async () => {
   microsoftFalso({ errorToken: { error: "invalid_client", error_description: "AADSTS7000215: Invalid client secret provided." } });
   await assert.rejects(correo().enviar({ asunto: "x", cuerpo: "y", destinatarios: DEST }), { status: 502, message: /secreto de cliente/ });
-  assert.match(correo().mensajeDeMicrosoft(403, { error: { code: "ErrorAccessDenied" } }), /permiso para enviar/);
+  assert.match(correo().mensajeDeMicrosoft(403, { error: { code: "ErrorAccessDenied" } }), /permiso para esta operación/);
 });
 
 test("la lista de destinatarios se valida y normaliza", () => {

@@ -18,12 +18,13 @@
  *   MAIL_FROM         casilla desde la que sale (alertatemprana@ecologia.misiones.gob.ar)
  * Con eso se pide un token (dura ~1 h, se cachea) y se envía como esa casilla.
  *
- * Flujo de envío: borrador → adjuntos → enviar. Los adjuntos chicos van en un
- * pedido; los de más de 3 MB (un RTF con imágenes puede pesar bastante) por
- * "upload session" en partes, que es como Graph admite archivos grandes.
+ * Flujo de envío: si todo pesa poco (lo normal: un .docx y un .rtf), un solo pedido `sendMail`, que alcanza con el permiso
+ * `Mail.Send`. Si los adjuntos pasan de ~3 MB (un RTF con imágenes) hay que armar un borrador en la casilla, adjuntar (por
+ * "upload session" en partes, que es como Graph admite archivos grandes) y enviarlo: eso pide además `Mail.ReadWrite`.
  */
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const LIMITE_ADJUNTO_DIRECTO = 3 * 1024 * 1024;
+const LIMITE_ENVIO_DIRECTO = 2.5 * 1024 * 1024; // suma de adjuntos para `sendMail` (el pedido entero, en base64, tiene que quedar bajo ~4 MB)
 const PARTE = 320 * 1024 * 10; // 3.2 MB: Graph pide partes múltiplo de 320 KiB
 const TIMEOUT_MS = 60_000;
 
@@ -92,7 +93,7 @@ function mensajeDeMicrosoft(status, json) {
   const detalle = json?.error?.message || json?.error_description || "";
   if (/AADSTS7000215|invalid_client/i.test(`${codigo} ${detalle}`)) return "Microsoft rechazó el secreto de cliente (MS_CLIENT_SECRET): puede estar mal copiado o vencido.";
   if (/AADSTS700016|AADSTS90002|unauthorized_client/i.test(`${codigo} ${detalle}`)) return "Microsoft no reconoce la aplicación: revisá MS_TENANT_ID y MS_CLIENT_ID.";
-  if (status === 403 || /AccessDenied|ErrorAccessDenied/i.test(codigo)) return "La aplicación no tiene permiso para enviar desde esta casilla. Lo tiene que habilitar el administrador de Microsoft 365.";
+  if (status === 403 || /AccessDenied|ErrorAccessDenied/i.test(codigo)) return "La aplicación no tiene permiso para esta operación en la casilla. Para enviar alcanza con «Mail.Send» (de aplicación, con consentimiento del administrador); armar un borrador para adjuntos de más de 3 MB pide además «Mail.ReadWrite». Si ya se lo dieron, puede tardar unos minutos en aplicarse.";
   if (status === 404 || /ErrorInvalidUser|MailboxNotEnabled/i.test(codigo)) return "Microsoft no encuentra la casilla de MAIL_FROM.";
   return `Microsoft respondió ${status}${detalle ? `: ${detalle}` : ""}`;
 }
@@ -157,6 +158,17 @@ async function enviar({ asunto, cuerpo, destinatarios, adjuntos = [] }) {
   if (!configurado) throw error(503, "El envío por correo todavía no está configurado en el servidor: falta GMAIL_USER y GMAIL_APP_PASSWORD (Gmail) o los datos de Microsoft 365 (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET y MAIL_FROM).");
   if (via === "gmail") return enviarGmail({ asunto, cuerpo, destinatarios, adjuntos });
   const buzon = `/users/${encodeURIComponent(remitente)}`;
+  const mensaje = {
+    subject: asunto,
+    body: { contentType: "Text", content: cuerpo },
+    toRecipients: [{ emailAddress: { address: remitente } }],
+    bccRecipients: destinatarios.map((d) => ({ emailAddress: { address: d.email, ...(d.nombre ? { name: d.nombre } : {}) } })),
+  };
+  // Lo normal (adjuntos chicos): un solo pedido, que sólo necesita el permiso Mail.Send.
+  if (adjuntos.reduce((n, a) => n + a.buffer.length, 0) <= LIMITE_ENVIO_DIRECTO) {
+    await graph("POST", `${buzon}/sendMail`, { message: { ...mensaje, attachments: adjuntos.map((a) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: a.nombre, contentType: a.tipo, contentBytes: a.buffer.toString("base64") })) }, saveToSentItems: true });
+    return;
+  }
   const borrador = await graph("POST", `${buzon}/messages`, {
     subject: asunto,
     body: { contentType: "Text", content: cuerpo },
