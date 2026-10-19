@@ -3,6 +3,7 @@ const requireAuth = require("../middleware/requireAuth");
 const informes = require("../lib/informesPronosticoStore");
 const { generarInformePdf, errorDeInforme } = require("../lib/informePronosticoPdf");
 const { generarInformeDocx } = require("../lib/informePronosticoDocx");
+const { generarInformeRtf } = require("../lib/informePronosticoRtf");
 const { obtenerActual } = require("../lib/store");
 const correo = require("../lib/correo");
 const correoStore = require("../lib/correoStore");
@@ -84,7 +85,7 @@ router.post("/pronostico/informes/:id/publicado", requireAuth, json, async (req,
 });
 
 /**
- * Envía este informe por correo (Word para el formato nuevo, PDF para el viejo). body: { asunto, cuerpo, ids } (ids de la lista de destinatarios). El adjunto se arma acá, con el
+ * Envía este informe por correo (Word y RTF para el formato nuevo, PDF para el viejo). body: { asunto, cuerpo, ids } (ids de la lista de destinatarios). El adjunto se arma acá, con el
  * borrador guardado, así lo que sale es siempre lo que se ve en la tarjeta.
  */
 router.post("/pronostico/informes/:id/enviar", requireAuth, json, async (req, res) => {
@@ -98,9 +99,10 @@ router.post("/pronostico/informes/:id/enviar", requireAuth, json, async (req, re
       const lista = await correoStore.destinatarios();
       const destinatarios = lista.filter((d) => ids.includes(d.id));
       if (!destinatarios.length) return res.status(400).json({ error: "Los destinatarios elegidos ya no están en la lista. Volvé a abrir el asistente." });
-      // Los medios reescriben el texto: los informes con el formato nuevo salen en Word (editable), no en PDF. Los viejos no tienen .docx y siguen en PDF.
+      // Los medios reescriben el texto: los informes con el formato nuevo salen en Word y RTF (editables), no en PDF. Los viejos no tienen .docx y siguen en PDF.
       const adjuntos = informe.borrador?.version === 2
-        ? [{ nombre: `PREVISION DEL TIEMPO ${informe.fecha}.docx`, tipo: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: await generarInformeDocx(informe.borrador) }]
+        ? [{ nombre: `PREVISION DEL TIEMPO ${informe.fecha}.docx`, tipo: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: await generarInformeDocx(informe.borrador) },
+          { nombre: `PREVISION DEL TIEMPO ${informe.fecha}.rtf`, tipo: "application/rtf", buffer: await generarInformeRtf(informe.borrador) }]
         : [{ nombre: `PREVISION DEL TIEMPO ${informe.fecha}.pdf`, tipo: "application/pdf", buffer: await generarInformePdf(informe.borrador) }];
       const registro = { usuarioId: req.usuario.usuarioId, asunto, cuerpo, destinatarios, adjuntos: adjuntos.map(({ nombre, buffer }) => ({ nombre, bytes: buffer.length })) };
       try { await correo.enviar({ asunto, cuerpo, destinatarios, adjuntos }); }

@@ -81,17 +81,17 @@ function PasoCiudades({ b, i, set }) {
 function PasoRevision({ b, problemas, esNuevo, alGuardar, guardando }) {
   const [estado, setEstado] = useState({ trabajando: "", error: "" });
   async function pdf(accion) {
-    setEstado({ trabajando: accion === "ver" ? "Armando el PDF…" : accion === "docx" ? "Armando el .docx…" : "Preparando la descarga…", error: "" });
+    setEstado({ trabajando: accion === "ver" ? "Armando el PDF…" : accion === "docx" ? "Armando el .docx…" : accion === "rtf" ? "Armando el .rtf…" : "Preparando la descarga…", error: "" });
     try {
-      const blob = await (accion === "docx" ? api.generarInformeDocxPronostico(b) : api.generarInformePdf(b)), url = URL.createObjectURL(blob);
+      const blob = await (accion === "docx" ? api.generarInformeDocxPronostico(b) : accion === "rtf" ? api.generarInformeRtfPronostico(b) : api.generarInformePdf(b)), url = URL.createObjectURL(blob);
       if (accion === "ver") window.open(url, "_blank", "noopener");
-      else { const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${b.fecha} ${nombreDeBoton(b.boton)}.${accion === "docx" ? "docx" : "pdf"}` }); document.body.append(a); a.click(); a.remove(); }
+      else { const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${b.fecha} ${nombreDeBoton(b.boton)}.${accion === "docx" ? "docx" : accion === "rtf" ? "rtf" : "pdf"}` }); document.body.append(a); a.click(); a.remove(); }
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       setEstado({ trabajando: "", error: "" });
     } catch (e) { setEstado({ trabajando: "", error: e.message }); }
   }
   return <>
-    <p className="paso__ayuda">Revisá los datos contra lo que escribiste: el PDF sale cifrado y con marca de agua; el Word (.docx) es editable, sin marca, para los medios. La publicación en los mapas se define más adelante.</p>
+    <p className="paso__ayuda">Revisá los datos contra lo que escribiste: el PDF sale cifrado y con marca de agua; el Word (.docx) y el RTF son editables, sin marca, para los medios. La publicación en los mapas se define más adelante.</p>
     {problemas.length ? <div className="paso-aviso" role="status"><strong>Falta revisar ({problemas.length}):</strong><ul className="ens-problemas">{problemas.slice(0, 8).map((x) => <li key={x}>{x}</li>)}</ul>{problemas.length > 8 && <small>…y {problemas.length - 8} más.</small>}</div>
       : <p className="paso-aviso ens-ok" role="status">Informe completo.</p>}
     <div className="ens-hoja" aria-label="Resumen del informe">
@@ -108,6 +108,7 @@ function PasoRevision({ b, problemas, esNuevo, alGuardar, guardando }) {
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("ver")}>{estado.trabajando || "Ver el PDF"}</button>
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("bajar")}>Descargar PDF</button>
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("docx")} title="Word editable, para que los medios armen sus notas">Descargar Word (.docx)</button>
+      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("rtf")} title="RTF editable, junto con el Word es lo que reciben los medios">Descargar RTF</button>
     </div>
   </>;
 }

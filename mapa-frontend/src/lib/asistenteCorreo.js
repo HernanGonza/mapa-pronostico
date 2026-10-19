@@ -85,11 +85,11 @@ function pasoRevision(lista, estado) {
 export function enviarPronosticoPorCorreo({ fecha, estado, destinatarios, enviar, word = false }) {
   const pasos = [pasoDestinatarios(destinatarios), pasoMensaje, pasoRevision(destinatarios, estado)];
   const inicial = {
-    adjunto: `PREVISION DEL TIEMPO ${fecha}.${word ? "docx" : "pdf"}`,
+    adjunto: word ? `PREVISION DEL TIEMPO ${fecha}.docx y .rtf` : `PREVISION DEL TIEMPO ${fecha}.pdf`,
     ids: destinatarios.map((d) => d.id),
     asunto: `Pronóstico del tiempo — ${fechaDMA(fecha)}`,
     // El mensaje recordado puede traer la fecha de otro día: se reemplaza por la de este informe.
-    cuerpo: (leerGuardado(CLAVE_MENSAJE) || cuerpoPorDefecto(fecha, word ? "Word" : "PDF")).replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, fechaDMA(fecha)).replace(/en formato (PDF|Word)\./, `en formato ${word ? "Word" : "PDF"}.`),
+    cuerpo: (leerGuardado(CLAVE_MENSAJE) || cuerpoPorDefecto(fecha, word ? "Word y RTF" : "PDF")).replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, fechaDMA(fecha)).replace(/en formato (PDF|Word y RTF|Word)\./, `en formato ${word ? "Word y RTF" : "PDF"}.`),
   };
   return asistente({
     pasos, estado: inicial, textoEnviar: "Enviar", ancho: 760,

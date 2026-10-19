@@ -87,3 +87,27 @@ test("el informe con plantilla también sale en .docx, con los textos editables 
   assert.equal((xml.match(/<w:tbl>/g) || []).length, 9);
   await assert.rejects(() => generarInformeDocx({ ...informeV2(), dias: [] }), /tres días/);
 });
+
+test("el informe con plantilla también sale en .rtf, con acentos escapados y las mismas tablas", async () => {
+  const { generarInformeRtf } = require("../src/lib/informePronosticoRtf");
+  const rtf = (await generarInformeRtf(informeV2())).toString("ascii");
+  assert.match(rtf, /^\{\\rtf1/);
+  assert.ok(!/[^\x00-\x7f]/.test(rtf), "sólo ASCII");
+  assert.match(rtf, /PREVISI\\u211\?N DEL TIEMPO|PREVISI\\u-?\d+\?N DEL TIEMPO/);
+  assert.equal((rtf.match(/\\row/g) || []).length, 10 + 11 + 11); // por día: zonas (cabecera + temps), datos (4, o 5 con presión) y ciudades (cabecera + 2)
+  assert.equal((rtf.match(/\{/g) || []).length - (rtf.match(/\\\{/g) || []).length, (rtf.match(/\}/g) || []).length - (rtf.match(/\\\}/g) || []).length);
+  await assert.rejects(() => generarInformeRtf({ ...informeV2(), dias: [] }), /tres días/);
+});
+
+test("el .docx y el .rtf llevan la marca de agua en el encabezado", async () => {
+  const JSZip = require("jszip");
+  const { generarInformeDocx } = require("../src/lib/informePronosticoDocx");
+  const { generarInformeRtf } = require("../src/lib/informePronosticoRtf");
+  const zip = await JSZip.loadAsync(await generarInformeDocx(informeV2()));
+  assert.match(await zip.file("word/header1.xml").async("string"), /string="MINISTERIO DE ECOLOGÍA · ALERTA TEMPRANA"/);
+  assert.match(await zip.file("word/document.xml").async("string"), /<w:headerReference w:type="default" r:id="rId2"\/>/);
+  assert.match(await zip.file("word/_rels/document.xml.rels").async("string"), /header1\.xml/);
+  assert.match(await zip.file("[Content_Types].xml").async("string"), /header1\.xml/);
+  const rtf = (await generarInformeRtf(informeV2())).toString("ascii");
+  assert.match(rtf, /\\header[\s\S]*gtextUNICODE[\s\S]*ALERTA TEMPRANA/);
+});

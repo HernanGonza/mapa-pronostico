@@ -19,6 +19,7 @@ import { notificar, confirmar } from "../lib/ui";
 import {
   generarInformePdf,
   generarInformeDocxPronostico,
+  generarInformeRtfPronostico,
   enviarInformePorCorreo,
   marcarInformePublicado,
   getCorreoEstado,
@@ -161,6 +162,14 @@ export default function AdminPage() {
     } catch (e) { fallo(e); }
   }
 
+  async function bajarRtf(i) {
+    setError(null);
+    try {
+      const url = URL.createObjectURL(await generarInformeRtfPronostico(i.borrador));
+      const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}.rtf` }); document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { fallo(e); }
+  }
   async function bajarDocx(i) {
     setError(null);
     try {
@@ -290,7 +299,7 @@ export default function AdminPage() {
               <ul className="avisos-lista">
                 {lista.map((i) => <TarjetaInformePronostico key={i.id} informe={i} actual={publicado} enElMapa={i.id === vistaId} guardado={inf.guardado[i.id]} ocupado={ocupado} acciones={{
                   editar: () => editar(i), verEnMapa: () => { setVista("mapa"); setVistaId(i.id); }, publicar: () => publicarInforme(i),
-                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), bajarDocx: () => bajarDocx(i), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
+                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), bajarDocx: () => bajarDocx(i), bajarRtf: () => bajarRtf(i), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
                   enviar: () => enviarPorCorreo(i), destinatarios: editarDestinatarios, duplicar: () => duplicar(i), borrar: () => borrarInforme(i),
                 }} />)}
               </ul>

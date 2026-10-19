@@ -14,6 +14,7 @@ const coordinates = require("../config/coordinates");
 const requireAuth = require("../middleware/requireAuth");
 const { generarInformePdf } = require("../lib/informePronosticoPdf");
 const { generarInformeDocx } = require("../lib/informePronosticoDocx");
+const { generarInformeRtf } = require("../lib/informePronosticoRtf");
 
 const router = express.Router();
 const ORIGENES = ["panel", "ensamble"];
@@ -376,6 +377,17 @@ router.post("/pronostico/informe-docx", requireAuth, express.json({ limit: "1mb"
     if (e.status) return res.status(e.status).json({ error: e.message });
     console.error("[informe-docx]", e);
     res.status(500).json({ error: `No se pudo armar el .docx: ${e.message}` });
+  }
+});
+
+/** POST /api/pronostico/informe-rtf — el mismo informe en RTF (los medios reciben el .docx y el .rtf). */
+router.post("/pronostico/informe-rtf", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
+  try {
+    res.set({ "Content-Type": "application/rtf", "Cache-Control": "no-store" }).send(await generarInformeRtf(req.body?.informe));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    console.error("[informe-rtf]", e);
+    res.status(500).json({ error: `No se pudo armar el .rtf: ${e.message}` });
   }
 });
 

@@ -647,6 +647,13 @@ export async function generarInformeDocxPronostico(informe) {
   return r.blob();
 }
 
+/** El mismo informe en RTF. */
+export async function generarInformeRtfPronostico(informe) {
+  const r = await fetch(`${API_URL}/api/pronostico/informe-rtf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el .rtf.");
+  return r.blob();
+}
+
 // Informes de pronóstico del día (tarjetas de «Previsión del tiempo»): borrador, PDF, lo publicado, correos y placa de cada uno.
 const jsonInf = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...CON_SESION });
 export async function getInformesPronostico() { return (await handleJson(await fetch(`${API_URL}/api/pronostico/informes`, { cache: "no-store", ...CON_SESION }))).informes; }

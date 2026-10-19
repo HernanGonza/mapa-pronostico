@@ -50,7 +50,7 @@ export default function TarjetaInformePronostico({ informe, actual, enElMapa, gu
     <div className="avisos-lista__acciones" onClick={(ev) => ev.stopPropagation()}>
       <button type="button" className="btn btn--primary" onClick={acciones.editar}>Editar</button>
       <button type="button" className="btn" disabled={!e.publicable || ocupado} title={bloqueo || undefined} onClick={acciones.publicar}>{e.enMapas ? "Republicar en los mapas" : "Publicar en los mapas"}</button>
-      <MenuAcciones etiqueta="PDF" items={[{ texto: "Ver el PDF", alHacer: acciones.verPdf }, { texto: "Descargar el PDF", alHacer: acciones.bajarPdf }, ...(e.v2 ? [{ texto: "Descargar Word (.docx)", alHacer: acciones.bajarDocx }] : [])]} />
+      <MenuAcciones etiqueta="PDF" items={[{ texto: "Ver el PDF", alHacer: acciones.verPdf }, { texto: "Descargar el PDF", alHacer: acciones.bajarPdf }, ...(e.v2 ? [{ texto: "Descargar Word (.docx)", alHacer: acciones.bajarDocx }, { texto: "Descargar RTF", alHacer: acciones.bajarRtf }] : [])]} />
       <MenuAcciones etiqueta="Placa para redes" items={[
         { texto: e.placa ? "Crear una placa nueva" : "Crear placa", deshabilitado: !e.publicable, alHacer: acciones.crearPlaca },
         ...(e.placa ? [{ texto: "Ver la placa", alHacer: acciones.verPlaca }] : []),
