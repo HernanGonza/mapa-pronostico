@@ -153,7 +153,7 @@ export default function AlertasMeteorologicasPage() {
     publicar: async (opciones) => {
       const pub = await api.publicarAlertasMeteorologicas(z, ic, opciones);
       setPublicado(pub); setNueva(false); setBaseSmn(null); setSeleccionada(pub.id); setZonas(zonasDe(catalogo, pub)); setIconos(iconosDe(pub)); await cargarVigentes();
-      setMensaje(pub.enFilaDe ? 'Quedó en fila: aparece sola cuando termine la anterior.' : 'Publicado. El mapa público ya muestra este mapa.');
+      setMensaje(pub.enFilaDe ? 'Quedó en fila: aparece sola cuando termine la anterior.' : pub.publicarDesde ? `Quedó programada: aparece sola en el mapa público el ${fechaHora(pub.publicarDesde)} (12 horas antes de entrar en vigencia).` : 'Publicado. El mapa público ya muestra este mapa.');
       return pub;
     }, ...resto });
   const revisarYPublicar = () => abrirPublicacion({ zonas, iconos, cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, nueva, base: baseSmn,
@@ -278,7 +278,7 @@ export default function AlertasMeteorologicasPage() {
       {v.id === seleccionada && <span className="alerta-tarjeta__viendo">En el mapa de acá</span>}
     </div>
     <div className="alerta-tarjeta__resumen">{resumenHorarios(v).map(r => <span key={r.nivel}><i style={{ background: colorNivel(r.nivel) }} />{r.texto}</span>)}</div>
-    <small>{esperando ? <>Aparece cuando termine «{periodoDe(v.enFilaDe)}»</> : <>Publicada el {fechaHora(v.publicadoEn)}</>}{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
+    <small>{esperando ? v.publicarDesde && Date.parse(v.publicarDesde) > Date.now() ? <>Programada: aparece sola en el mapa el {fechaHora(v.publicarDesde)}</> : <>Aparece cuando termine «{periodoDe(v.enFilaDe)}»</> : <>Publicada el {fechaHora(v.publicadoEn)}</>}{actualizadaEn(v) && <> · actualizada el {fechaHora(actualizadaEn(v))}</>} · se saca sola el {fechaHora(v.vigenteHasta)}</small>
     <div className="avisos-lista__acciones">{accionesPlacas(v)}</div>
     {placasDe(v)}
   </li>;
@@ -366,7 +366,7 @@ export default function AlertasMeteorologicasPage() {
           <ul>{vigentes.map(v => tarjeta(v, false))}</ul>
         </div>}
         {enFila.length > 0 && <div className="avisos-lista">
-          <h2>En fila</h2>
+          <h2>En fila y programadas</h2>
           <ul>{enFila.map(v => tarjeta(v, true))}</ul>
         </div>}
         {vigentes?.length === 0 && <p className="admin-panel__hint">No hay alertas por departamento vigentes en el mapa público.</p>}

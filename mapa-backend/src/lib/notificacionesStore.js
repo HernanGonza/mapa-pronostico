@@ -82,7 +82,7 @@ async function listar(usuarioId, { limite = 30 } = {}) {
       WHERE n.creada_en > now() - make_interval(days => $2)
       ORDER BY n.creada_en DESC, n.id DESC LIMIT $3`, [usuarioId, DIAS_VISIBLES, limite]);
   const ahora = Date.now();
-  const notificaciones = rows.map((r) => ({ id: Number(r.id), tipo: r.tipo, titulo: r.titulo, detalle: r.detalle, url: r.url,
+  const notificaciones = rows.map((r) => ({ id: Number(r.id), tipo: r.tipo, titulo: r.titulo, detalle: r.detalle, url: r.tipo === "alerta-smn" && r.url === "/panel/alertas-automaticas" ? "/panel/alertas-meteorologicas?smn=1" : r.url,
     creadaEn: r.creada_en.toISOString(), venceEn: r.vence_en ? r.vence_en.toISOString() : null, leida: r.leida,
     vencida: !!r.vence_en && r.vence_en.getTime() <= ahora, resuelta: !!r.resuelta_en, resueltaPor: r.resuelta_por || null }));
   const sinLeer = notificaciones.filter((n) => !n.leida && !n.vencida && !n.resuelta);

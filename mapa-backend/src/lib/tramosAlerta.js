@@ -69,4 +69,26 @@ function normalizarTramos(tramos) {
   return out;
 }
 
-module.exports = { zonasEn, iconosEn, errorDeTramos, normalizarTramos, MAX_TRAMOS };
+const ANTICIPO_PUBLICACION_MS = 12 * 3600 * 1000;
+
+/**
+ * Cuándo tiene que aparecer en el mapa público una alerta nueva: 12 h antes de que entre en vigencia. Si
+ * empieza en menos de 12 h (o ya empezó, o algún departamento arranca ya), null = se publica en el momento.
+ * El inicio sale de los tramos: un departamento que arranca en Verde empieza donde termina ese primer tramo.
+ */
+function publicarDesde(zonas = [], tramos = {}, ahora = Date.now(), inicioConocido = null) {
+  let inicio = Infinity;
+  for (const z of zonas) {
+    if (!z.categoria || z.categoria === 'Verde' || z.categoria === 'Gris') continue;
+    const primero = (tramos && tramos[String(z.id)] || [])[0];
+    inicio = Math.min(inicio, primero && primero.categoria === 'Verde' ? Date.parse(primero.hasta) : 0);
+  }
+  // Si se sabe cuándo empieza la alerta (la del SMN lo trae), vale eso.
+  const conocido = Date.parse(inicioConocido);
+  if (!Number.isNaN(conocido)) inicio = Number.isFinite(inicio) ? conocido : Infinity;
+  if (!Number.isFinite(inicio)) return null;
+  const desde = inicio - ANTICIPO_PUBLICACION_MS;
+  return desde > ahora ? new Date(desde) : null;
+}
+
+module.exports = { publicarDesde, zonasEn, iconosEn, errorDeTramos, normalizarTramos, MAX_TRAMOS };

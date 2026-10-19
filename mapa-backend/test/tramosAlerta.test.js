@@ -45,3 +45,17 @@ test('un ícono de dos colores deja el que sigue vigente', () => {
   assert.deepEqual(iconosEn([icono], z('Verde')), [icono]);
   assert.deepEqual(iconosEn([{ id: 'x', categoria: 'Rojo' }], z('Amarillo')), [{ id: 'x', categoria: 'Rojo' }]);
 });
+
+test("publicarDesde: una alerta que empieza en más de 12 h queda programada 12 h antes; si no, se publica ya", () => {
+  const { publicarDesde } = require("../src/lib/tramosAlerta");
+  const ahora = Date.parse("2026-10-19T12:00:00Z"), h = (n) => new Date(ahora + n * 3600e3).toISOString();
+  const zonas = [{ id: "1", categoria: "Naranja" }, { id: "2", categoria: "Verde" }];
+  const t = (n) => ({ 1: [{ categoria: "Verde", hasta: h(n) }, { categoria: "Naranja", hasta: h(n + 6) }] });
+  assert.equal(publicarDesde(zonas, t(48), ahora).toISOString(), h(36));
+  assert.equal(publicarDesde(zonas, t(10), ahora), null);
+  assert.equal(publicarDesde(zonas, {}, ahora), null); // sin tramos: ya está vigente
+  assert.equal(publicarDesde([{ id: "1", categoria: "Naranja" }, { id: "3", categoria: "Rojo" }], t(48), ahora), null); // otro departamento arranca ya
+  assert.equal(publicarDesde(zonas, {}, ahora, h(48)).toISOString(), h(36)); // sin tramos, pero el SMN dice cuándo empieza
+  assert.equal(publicarDesde(zonas, {}, ahora, h(-2)), null);
+  assert.equal(publicarDesde([{ id: "2", categoria: "Verde" }], {}, ahora), null);
+});

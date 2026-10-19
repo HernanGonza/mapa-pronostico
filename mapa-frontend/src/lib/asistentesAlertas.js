@@ -125,6 +125,9 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
     html: (s) => `${anterior(s) ? `<p>Aparece cuando termine «${esc(anterior(s).periodo || "Alerta publicada")}» (${esc(fechaHora(anterior(s).vigenteHasta))}) o cuando la despubliques.</p>` : ""}
       <label class="paso-etiqueta">Para cuándo es (se lee en el mapa público)
         <input class="paso-input" id="paso-periodo" maxlength="${MAX_PERIODO_PUBLICACION}" value="${esc(s.periodo)}" placeholder="Ej.: Jueves 01/10 · tarde y noche" data-foco autocomplete="off"></label>
+      ${anterior(s) ? "" : `<label class="paso-etiqueta" style="margin-top:12px">Entra en vigencia desde (dejalo vacío si ya está vigente)
+        <input type="datetime-local" class="paso-input" id="paso-desde" value="${esc(s.desde)}"></label>
+        <p class="admin-panel__hint">Si empieza dentro de más de 12 horas, queda en cola y aparece sola en el mapa público 12 horas antes.</p>`}
       <label class="paso-etiqueta" style="margin-top:12px">Se muestra hasta
         <input type="datetime-local" class="paso-input" id="paso-vigencia" value="${esc(s.vigencia)}" min="${esc(valorLocal(new Date()))}"></label>
       ${anterior(s) ? "" : `<div class="paso-vigencia__rapidas" role="group" aria-label="Atajos">
@@ -135,12 +138,19 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
       popup.querySelectorAll("[data-fin]").forEach((b) => b.addEventListener("click", () => { campo.value = valorLocal(finDelDia(Number(b.dataset.fin))); }));
       popup.querySelectorAll("[data-horas]").forEach((b) => b.addEventListener("click", () => { campo.value = valorLocal(new Date(Date.now() + Number(b.dataset.horas) * HORA)); }));
     },
-    leer: (popup) => ({ periodo: popup.querySelector("#paso-periodo").value.trim(), vigencia: popup.querySelector("#paso-vigencia").value }),
+    leer: (popup) => ({ periodo: popup.querySelector("#paso-periodo").value.trim(), vigencia: popup.querySelector("#paso-vigencia").value,
+      ...(popup.querySelector("#paso-desde") ? { desde: popup.querySelector("#paso-desde").value } : {}) }),
     validar: (s) => {
       if (!s.periodo) return "Escribí para cuándo es la alerta.";
       const t = new Date(s.vigencia).getTime(), v = anterior(s);
       if (!s.vigencia || Number.isNaN(t)) return "Elegí hasta cuándo se muestra.";
       if (t <= Date.now()) return "Tiene que ser una fecha y hora futura.";
+      if (s.desde && !v) {
+        const d = new Date(s.desde).getTime();
+        if (Number.isNaN(d)) return "Elegí desde cuándo entra en vigencia.";
+        if (d >= t) return "Tiene que entrar en vigencia antes de que termine.";
+        if (d > Date.now() + DIAS_EN_FILA * 24 * HORA) return `No puede empezar dentro de más de ${DIAS_EN_FILA} días.`;
+      }
       if (v && t <= Date.parse(v.vigenteHasta)) return `Tiene que terminar después que la anterior (${fechaHora(v.vigenteHasta)}); si no, nunca aparece.`;
       if (v && t > Date.now() + DIAS_EN_FILA * 24 * HORA) return `No puede superar los ${DIAS_EN_FILA} días.`;
       if (!v && !base && t > Date.now() + 72 * HORA) return "No puede superar las 72 horas.";
@@ -167,13 +177,15 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
       ].filter(Boolean) : [];
       return `<p>Se reemplaza${pisadas.length === 1 ? "" : "n"}:</p><ul class="paso-lista">${pisadas.map((v) => `<li><strong>#${v.id} «${esc(v.periodo || "Alerta publicada")}»</strong> — se ve hasta el ${esc(fechaHora(v.vigenteHasta))}</li>`).join("")}</ul>
         ${cambiosSmn.length ? `<p>El SMN la actualizó:</p><ul class="paso-lista">${cambiosSmn.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
-        <p>Se publica ahora: «${esc(s.periodo)}», hasta el ${esc(fechaHora(new Date(s.vigencia)))}.</p>`;
+        <p>${programadaPara(s) ? `Queda programada: aparece en el mapa público el ${esc(fechaHora(programadaPara(s)))} (12 horas antes de entrar en vigencia)` : "Se publica ahora"}: «${esc(s.periodo)}», hasta el ${esc(fechaHora(new Date(s.vigencia)))}.</p>`;
     },
   };
   const enFilaInicial = nueva && ultima && !base;
+  // Cuándo aparecería sola: 12 horas antes de entrar en vigencia, si falta más que eso.
+  const programadaPara = (s) => { const d = s.desde && s.aparece === "ahora" ? new Date(s.desde).getTime() - 12 * HORA : NaN; return d > Date.now() ? new Date(d) : null; };
   return asistente({
     // Corrigiendo la publicada, por defecto reemplaza a las vigentes; una alerta nueva va en fila detrás de la última.
-    estado: { periodo: periodoSugerido, aparece: enFilaInicial ? String(ultima.id) : "ahora",
+    estado: { periodo: periodoSugerido, desde: base && Date.parse(base.inicio) > Date.now() ? valorLocal(new Date(base.inicio)) : "", aparece: enFilaInicial ? String(ultima.id) : "ahora",
       vigencia: enFilaInicial ? vigenciaEnFila(ultima) : base ? valorLocal(new Date(base.base.vigenteHasta)) : valorLocal(finDelDia()),
       // Corrigiendo una alerta (`corrige`: su id), por defecto reemplaza sólo a ésa.
       reemplazar: nueva && !(base && corrige != null) ? [] : corrige != null ? vigentes.filter((v) => v.id === corrige).map((v) => v.id) : vigentes.map((v) => v.id) },
@@ -191,7 +203,7 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
     ],
     enviar: async (s) => {
       const v = anterior(s);
-      const pub = await publicar({ periodo: s.periodo, vigenteHasta: new Date(s.vigencia).toISOString(), reemplazar: v ? [] : s.reemplazar, enFilaDe: v ? v.id : null, tramos: vigencias.paraEnviar(s), ...(base ? { smn: { emision: base.emision } } : {}) });
+      const pub = await publicar({ periodo: s.periodo, vigenteHasta: new Date(s.vigencia).toISOString(), reemplazar: v ? [] : s.reemplazar, enFilaDe: v ? v.id : null, ...(s.desde && !v && new Date(s.desde).getTime() > Date.now() ? { inicio: new Date(s.desde).toISOString() } : {}), tramos: vigencias.paraEnviar(s), ...(base ? { smn: { emision: base.emision } } : {}) });
       return { tipo: "ok", titulo: v ? "¡Quedó en fila!" : "¡Publicado!", datos: pub,
         html: v ? `<p>«${esc(pub.periodo)}» aparece en el mapa público cuando termine «${esc(v.periodo || "Alerta publicada")}», y se saca sola el ${esc(fechaHora(pub.vigenteHasta))}.</p>`
           : `<p>El mapa público muestra «${esc(pub.periodo)}» hasta el ${esc(fechaHora(pub.vigenteHasta))}. Después se saca sola.</p>` };

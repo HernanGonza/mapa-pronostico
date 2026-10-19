@@ -4,7 +4,7 @@ const store = require("./store");
 const auth = require("./auth");
 const departamentosStore = require("./departamentosStore");
 const { errorDeVigencia } = require("./avisosCortoPlazoStore");
-const { zonasEn, iconosEn, errorDeTramos, normalizarTramos } = require("./tramosAlerta");
+const { zonasEn, iconosEn, errorDeTramos, normalizarTramos, publicarDesde } = require("./tramosAlerta");
 
 /**
  * Publicación del mapa manual de alertas meteorológicas (el que alimenta
@@ -75,6 +75,8 @@ async function init() {
        -- textos arrancan sus placas (ver alertasSmnBase.js).
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS origen_smn jsonb;
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS placas_base jsonb;
+       -- Programada: no aparece en el mapa público hasta esta hora (12 h antes de que entre en vigencia). NULL = aparece al publicarse.
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS publicar_desde timestamptz;
        -- Historial de lo que se le hizo a cada alerta después de publicarla (para estadísticas e
        -- histórico): cambios de vigencia (antes/después, y las de la fila que se corrieron), fijar /
        -- desfijar, despublicar y las placas generadas, editadas o eliminadas. Una fila por evento.
@@ -119,13 +121,15 @@ function errorDePublicacion({ vigenteHasta, periodo, reemplazar = [], enFilaDe =
  * de una reemplazada pasan a esperar a ésta. `enFilaDe`: id de una publicación todavía
  * vigente (o en fila); ésta aparece recién cuando aquélla deja de estar vigente.
  */
-async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null, tramos = {}, origenSmn = null, placasBase = null } = {}) {
+async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null, tramos = {}, origenSmn = null, placasBase = null, inicio = null } = {}) {
   await init();
   const p = store.getPool();
   if (p) {
     const client = await p.connect();
     try {
       await client.query("BEGIN");
+      // Si empieza en más de 12 h, queda en cola y aparece sola 12 h antes de entrar en vigencia.
+      const programada = enFilaDe == null ? publicarDesde(zonas, tramos, Date.now(), inicio || origenSmn?.inicio) : null;
       if (enFilaDe != null) {
         const { rowCount } = await client.query(`SELECT 1 FROM alertas_meteo_publicaciones WHERE id = $1 AND vigente_hasta > now()`, [enFilaDe]);
         if (!rowCount) throw Object.assign(new Error("La alerta detrás de la que iba en fila ya no está vigente. Volvé a publicar."), { status: 409 });
@@ -134,8 +138,8 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
         ? await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = ANY($1::bigint[]) AND vigente_hasta > now() RETURNING id`, [reemplazar])
         : { rows: [] };
       const { rows } = await client.query(
-        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos, origen_smn, placas_base) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb) RETURNING id, publicado_en, vigente_hasta`,
-        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos), origenSmn ? JSON.stringify(origenSmn) : null, placasBase ? JSON.stringify(placasBase) : null]
+        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos, origen_smn, placas_base, publicar_desde) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8) RETURNING id, publicado_en, vigente_hasta`,
+        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos), origenSmn ? JSON.stringify(origenSmn) : null, placasBase ? JSON.stringify(placasBase) : null, programada]
       );
       const { id, publicado_en } = rows[0];
       if (reemplazar.length) await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $1 WHERE en_fila_de = ANY($2::bigint[])`, [id, reemplazar]);
@@ -151,10 +155,10 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
           [id, i.id, i.categoria, i.categoria2 || null]
         );
       }
-      await registrarEvento(client, { publicacionId: id, evento: "publicada", usuarioId, detalle: { vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, reemplaza: reemplazadas.map((r) => Number(r.id)) } });
+      await registrarEvento(client, { publicacionId: id, evento: "publicada", usuarioId, detalle: { inicio: inicio || origenSmn?.inicio || null, publicarDesde: programada ? programada.toISOString() : null, vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, reemplaza: reemplazadas.map((r) => Number(r.id)) } });
       for (const r of reemplazadas) await registrarEvento(client, { publicacionId: r.id, evento: "reemplazada", usuarioId, detalle: { por: Number(id) } });
       await client.query("COMMIT");
-      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, tramos, zonas, iconos, origenSmn, placasBase };
+      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, publicarDesde: programada ? programada.toISOString() : null, tramos, zonas, iconos, origenSmn, placasBase };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -187,7 +191,7 @@ async function actual() {
 }
 
 /** Zonas e íconos de una publicación. */
-async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, origen_smn, placas_base }) {
+async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, origen_smn, placas_base, publicar_desde }) {
     const [{ rows: zonas }, { rows: iconos }] = await Promise.all([
       p.query(
         `SELECT departamento_id AS id, categoria FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`,
@@ -201,7 +205,7 @@ async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyenda
     // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
     const iconosBase = iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i));
     return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null, leyendas: leyendas || {}, tramos: tramos || {},
-      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, origenSmn: origen_smn || null, placasBase: placas_base || null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
+      enFilaDe: en_fila_de ? Number(en_fila_de) : null, publicarDesde: publicar_desde ? publicar_desde.toISOString() : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, origenSmn: origen_smn || null, placasBase: placas_base || null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
       iconos: iconosEn(iconosBase, zonasEn(zonas, tramos)), iconosBase };
 }
 
@@ -214,10 +218,11 @@ async function pendientes() {
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde, origen_smn, placas_base FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
+      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde, origen_smn, placas_base, publicar_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
     );
     const ids = new Set(rows.map((r) => String(r.id)));
-    const esperando = (r) => r.en_fila_de != null && ids.has(String(r.en_fila_de));
+    const ahora = Date.now();
+    const esperando = (r) => (r.en_fila_de != null && ids.has(String(r.en_fila_de))) || (r.publicar_desde && r.publicar_desde.getTime() > ahora);
     const [vigentes, enFila] = await Promise.all([rows.filter((r) => !esperando(r)), rows.filter(esperando)].map((rs) => Promise.all(rs.map((r) => conDetalle(p, r)))));
     // Desde cuándo se ve cada una (para /tv, que la deja fija un rato al aparecer): al publicarse; si
     // estaba en fila, cuando terminó la que esperaba (venció, se le acortó la vigencia o se despublicó).
@@ -225,7 +230,8 @@ async function pendientes() {
     const previas = vigentes.filter((v) => v.enFilaDe != null).map((v) => v.enFilaDe);
     const finDe = new Map(previas.length ? (await p.query(`SELECT id, vigente_hasta FROM alertas_meteo_publicaciones WHERE id = ANY($1::bigint[])`, [previas])).rows.map((r) => [Number(r.id), r.vigente_hasta]) : []);
     for (const v of vigentes) {
-      const fin = guardado.get(v.id) || (v.enFilaDe != null ? finDe.get(v.enFilaDe) : null);
+      const programada = rows.find((r) => Number(r.id) === v.id)?.publicar_desde;
+      const fin = guardado.get(v.id) || (v.enFilaDe != null ? finDe.get(v.enFilaDe) : null) || programada;
       v.visibleDesde = fin && fin.getTime() > Date.parse(v.publicadoEn) ? fin.toISOString() : v.publicadoEn;
     }
     return { vigentes, enFila };

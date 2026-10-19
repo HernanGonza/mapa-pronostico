@@ -349,7 +349,7 @@ export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/ap
 export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
 export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
 /** Publica el mapa manual para `periodo`, visible hasta `vigenteHasta` (ISO); `reemplazar`: ids de vigentes que saca. */
-export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[],enFilaDe=null,tramos=null,smn=null}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar,enFilaDe,...(tramos?{tramos}:{}),...(smn?{smn}:{})}),...CON_SESION}));}
+export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[],enFilaDe=null,tramos=null,smn=null,inicio=null}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar,enFilaDe,...(tramos?{tramos}:{}),...(smn?{smn}:{}),...(inicio?{inicio}:{})}),...CON_SESION}));}
 /** Panel: { vigentes, enFila } — las que se ven y las que esperan a que termine otra. */
 export async function getAlertasMeteorologicasPendientes(){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/pendientes`,{cache:"no-store",...CON_SESION}));}
 /** Publicaciones manuales vigentes (público, lo usa el iframe). [] = ninguna. */
