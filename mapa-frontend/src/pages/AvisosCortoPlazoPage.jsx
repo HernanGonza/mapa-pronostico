@@ -7,6 +7,7 @@ import PublicarEnRedes from "../components/PublicarEnRedes";
 import PolygonDrawMap from "../components/PolygonDrawMap";
 import EmbedShare from "../components/EmbedShare";
 import PublicationStatus from "../components/PublicationStatus";
+import TarjetasSmn from "../components/TarjetasSmn";
 import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
 import { crearAvisoPorPasos, publicarAvisoPorPasos, textoDePartes, TITULO } from "../lib/asistenteAviso";
@@ -160,11 +161,13 @@ export default function AvisosCortoPlazoPage() {
         </PublicationStatus>
         {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
         <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={() => crearPlaca()}>Nuevo aviso a corto plazo</button>
-        <p className="admin-panel__hint">
-          {avisosAcp.length > 0
-            ? `${avisosAcp.length} aviso(s) del SMN vigente(s) — tocá «Nuevo aviso a corto plazo» para elegir cuál.`
-            : "Sin avisos del SMN vigentes por ahora: dibujá la zona afectada en el mapa y tocá «Nuevo aviso a corto plazo»."}
-        </p>
+        {/* Lo que mandó el SMN, a la vista: se elige sobre cuál se hace el aviso. */}
+        <TarjetasSmn
+          titulo={(n) => (n === 1 ? "Hay 1 aviso del SMN vigente" : `Hay ${n} avisos del SMN vigentes`)}
+          vacio="Sin avisos del SMN vigentes por ahora: dibujá la zona afectada en el mapa y tocá «Nuevo aviso a corto plazo»."
+          items={avisosAcp.map((a) => ({ id: a.id, color: a.color || VIOLETA_ACP, titulo: `${String(a.titulo || "Aviso a muy corto plazo").slice(0, 70)} · ${a.zona}`,
+            detalle: `Hasta el ${hora(a.fin)} · emitido ${hora(a.emitidoEn)}`, textoBoton: "Hacer aviso" }))}
+          onElegir={(id) => crearPlaca(id)} />
 
         {generadaSinPublicar && (
           <div className="avisos-lista avisos-lista--pendiente">

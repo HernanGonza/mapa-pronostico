@@ -19,7 +19,7 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
   const sol = useAstro(getSolDeMunicipio, municipio?.id, fecha);
   const luna = useAstro(getLunaDeMunicipio, municipio?.id, fecha);
   if (!municipio) return null;
-  const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [] } =
+  const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [], alerta } =
     municipio;
 
   return (
@@ -43,11 +43,11 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
           {distanciaKm} km)
         </p>
       )}
-      {esOficial && (
-        <p className="municipio-popover__ref municipio-popover__ref--oficial">
-          Estación oficial de Alerta Temprana
-        </p>
-      )}
+
+      {/* ¿Tiene alerta meteorológica ahora? (`alerta` es null si no; si el dato no vino, no se dice nada.) */}
+      {alerta !== undefined && (alerta
+        ? <p className="municipio-popover__alerta municipio-popover__alerta--con" style={{ "--nivel": alerta.color }}><i aria-hidden="true" /><span><b>{alerta.nombre}</b>{alerta.hasta ? ` · hasta el ${new Date(alerta.hasta).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })} h` : ""}</span></p>
+        : <p className="municipio-popover__alerta"><i aria-hidden="true" /><span>Sin alertas vigentes</span></p>)}
 
       {pronostico ? (
         <div className="municipio-popover__prono">

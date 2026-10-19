@@ -1,4 +1,4 @@
-import { asistente } from "./pasos";
+import { asistente, opciones, leerOpciones } from "./pasos";
 import { valorLocal } from "./asistenteAvisoEspecial";
 import { esc } from "./ui";
 import { enFemenino } from "./nivelAlerta.js";
@@ -12,7 +12,7 @@ import * as api from "../api";
  * nivel de cada departamento según la hora (ver mapa-backend/src/lib/tramosAlerta.js).
  */
 const ORDEN = ["Rojo", "Naranja", "Amarillo"];
-const MAX_TRAMOS = 2;
+const MAX_TRAMOS = 4; // el servidor admite hasta 4 (el SMN puede subir y bajar el nivel varias veces)
 const fechaHora = (d) => new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const aLocal = (iso) => valorLocal(new Date(iso));
 const nivelesPresentes = (zonas) => ORDEN.filter((n) => zonas.some((z) => z.categoria === n));
@@ -22,7 +22,8 @@ function porNivelInicial(zonas, tramos, vigenciaLocal) {
   const out = {};
   for (const n of nivelesPresentes(zonas)) {
     const dep = zonas.find((z) => z.categoria === n && tramos?.[String(z.id)]?.length);
-    const t = dep ? tramos[String(dep.id)] : [];
+    // Un tramo en verde al principio es «todavía no empezó» (alerta que arranca más tarde): no es parte del nivel.
+    const t = dep ? tramos[String(dep.id)].filter((x, k) => !(k === 0 && x.categoria === "Verde")) : [];
     out[n] = { hasta: t[0] ? aLocal(t[0].hasta) : vigenciaLocal, despues: t[1]?.categoria || "Verde", hasta2: t[1] ? aLocal(t[1].hasta) : "" };
   }
   return out;
@@ -110,7 +111,7 @@ export function pasosVigencias({ catalogo, zonas, tope, inicial = null, soloSiVa
       }));
       // Si cambió algo de acá, se vuelven a armar los departamentos; si no, se respetan los ajustes individuales.
       const cambio = JSON.stringify(porNivel) !== JSON.stringify(s.porNivel);
-      return { porNivel, tramos: cambio ? null : s.tramos };
+      return { porNivel, tramos: cambio ? null : s.tramos, ...(cambio ? { sinDistintos: false } : {}) };
     },
     validar: (s) => {
       preparar(s);
@@ -128,16 +129,29 @@ export function pasosVigencias({ catalogo, zonas, tope, inicial = null, soloSiVa
   };
 
   const pasoPorDepartamento = {
-    omitir: (s) => pasoPorNivel.omitir(s) || !personalizado(s),
+    omitir: (s) => pasoPorNivel.omitir(s) || s.sinDistintos || !personalizado(s),
     pregunta: "¿Algún departamento distinto?",
-    ayuda: "Así quedó cada departamento. Si alguno termina antes o después que el resto, cambiale la hora acá. Dejá vacío el segundo tramo si se sale.",
-    html: (s) => { preparar(s); const t = tramosDe(s); return `<div class="vig-deptos">${ordenPorZona(zonas(s)).filter((z) => t[String(z.id)]).map((z) => {
+    ayuda: "En el paso anterior cargaste los horarios de cada nivel. Acá decidís si algún departamento tiene un horario propio (por ejemplo, que le toque el nivel naranja más tarde que a los demás).",
+    html: (s) => {
+      preparar(s); const t = tramosDe(s);
+      const eleccion = opciones({ nombre: "distintos", tipo: "radio", items: [
+        { valor: "ninguno", titulo: "No, ninguno es distinto", detalle: "Todos los departamentos siguen los horarios de su nivel (el paso anterior). No hace falta tocar nada más.", marcada: !!s.sinDistintos },
+        { valor: "si", titulo: "Sí, algunos tienen horarios propios", detalle: "Abajo ves cada departamento con sus tramos: cambiá los que hagan falta.", marcada: !s.sinDistintos },
+      ] });
+      return `${eleccion}<div class="vig-deptos" data-lista ${s.sinDistintos ? "hidden" : ""}>
+        <p class="paso__ayuda">Cada departamento tiene hasta ${MAX_TRAMOS} tramos, uno detrás del otro: el nivel que rige y hasta qué hora. «—» deja el tramo sin usar; «Verde» es un tramo sin alerta (por ejemplo, antes de que empiece).</p>${ordenPorZona(zonas(s)).filter((z) => t[String(z.id)]).map((z) => {
       const l = t[String(z.id)];
       return `<div class="paso-fila" data-dep="${esc(z.id)}"><strong class="vig-depto"><i class="vig-punto" style="background:${color(z.categoria)}"></i>${esc(nombreDe(z.id))}</strong>${Array.from({ length: MAX_TRAMOS }, (_, k) => `
-        <select class="paso-select" data-cat="${k}" aria-label="Nivel del tramo ${k + 1}">${k ? '<option value="">—</option>' : ""}${opcionesNivel(l[k]?.categoria || "", false)}</select>
+        <select class="paso-select" data-cat="${k}" aria-label="Nivel del tramo ${k + 1}">${k ? '<option value="">—</option>' : ""}${opcionesNivel(l[k]?.categoria || "", true)}</select>
         <input type="datetime-local" class="paso-input" data-hasta="${k}" value="${esc(l[k]?.hasta || "")}" aria-label="Hasta, tramo ${k + 1}">`).join("")}</div>`;
-    }).join("")}</div>`; },
+    }).join("")}</div>`;
+    },
+    alMostrar: (popup) => popup.querySelectorAll('input[name="distintos"]').forEach((r) => r.addEventListener("change", () => {
+      popup.querySelector("[data-lista]").hidden = leerOpciones(popup, "distintos")[0] === "ninguno";
+    })),
     leer: (popup, s) => {
+      // «No, ninguno es distinto»: se descartan los ajustes y vale lo de cada nivel.
+      if (leerOpciones(popup, "distintos")[0] === "ninguno") return { tramos: null, sinDistintos: true };
       const tramos = { ...tramosDe(s) };
       popup.querySelectorAll("[data-dep]").forEach((fila) => {
         const lista = [];
@@ -147,9 +161,10 @@ export function pasosVigencias({ catalogo, zonas, tope, inicial = null, soloSiVa
         }
         tramos[fila.dataset.dep] = lista;
       });
-      return { tramos };
+      return { tramos, sinDistintos: false };
     },
     validar: (s) => {
+      if (s.sinDistintos) return null;
       for (const [id, lista] of Object.entries(tramosDe(s))) {
         if (!lista.length) return `${nombreDe(id)} no tiene ningún tramo.`;
         if (lista.some((t) => !t.categoria || !t.hasta)) return `Completá nivel y hora en los tramos de ${nombreDe(id)}.`;

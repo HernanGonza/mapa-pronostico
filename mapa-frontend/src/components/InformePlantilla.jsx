@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronLeft } from "lucide";
 import Icono from "./Icono";
 import CampoFecha from "./CampoFecha";
-import { Linea, Texto, Condicion } from "./InformePronostico";
+import { Etiqueta, Linea, Texto, Condicion } from "./InformePronostico";
 import * as api from "../api";
 import { confirmar } from "../lib/ui";
 import { borradorNuevo, BOTONES, ZONAS_ORDEN, ROTULO_TEMP, CORTO_TEMP, botonDe, nombreDeBoton, fechaDia, fechaCorta, nombreDia, problemasV2, textoRango, diaSemana } from "../lib/informePlantillas";
@@ -46,6 +46,43 @@ function PasoDatos({ b, set }) {
   </>;
 }
 
+/** Las alertas meteorológicas de una fecha (ver /pronostico/alertas-del-dia) y el departamento de cada ciudad; se refresca cada minuto. */
+function useAlertasDelDia(fecha) {
+  const [est, setEst] = useState({ cargando: true, alertas: [], ciudades: {}, error: "" });
+  useEffect(() => {
+    let vivo = true;
+    const leer = () => api.getAlertasDelDia(fecha).then((d) => vivo && setEst({ cargando: false, alertas: d.alertas, ciudades: d.ciudades || {}, error: "" })).catch((e) => vivo && setEst({ cargando: false, alertas: [], ciudades: {}, error: e.message }));
+    setEst((s) => ({ ...s, cargando: true })); leer();
+    const t = setInterval(leer, 60000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [fecha]);
+  return est;
+}
+
+/**
+ * El campo «Alertas» de un día: ofrece las alertas meteorológicas que rigen en ESA fecha (la del día de trabajo o, en el informe de la
+ * noche, la de mañana) con su color y nombre, para tildarlas; así el informe y «Alertas meteorológicas» siempre dicen lo mismo.
+ * El texto sigue siendo editable. Cada alerta tildada es una línea del texto.
+ */
+function CampoAlertas({ fecha, valor, alCambiar }) {
+  const est = useAlertasDelDia(fecha);
+  const lineas = String(valor || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const puesta = (a) => lineas.includes(a.texto);
+  const alternar = (a) => alCambiar((puesta(a) ? lineas.filter((l) => l !== a.texto) : [...lineas, a.texto]).join("\n"));
+  const faltan = est.alertas.filter((a) => !puesta(a));
+  return <div className="alertas-dia">
+    <strong className="alertas-dia__titulo">Alertas del {fechaDia(fecha)}</strong>
+    {est.cargando && !est.alertas.length ? <small>Buscando las alertas de esa fecha…</small>
+      : est.error ? <small role="alert">No se pudieron leer las alertas ({est.error}). Podés escribirlas a mano.</small>
+      : !est.alertas.length ? <small>No hay alertas meteorológicas para esa fecha. Si hay una que no aparece, escribila abajo.</small>
+      : <ul>{est.alertas.map((a) => <li key={a.id}><label className="alertas-dia__op" style={{ "--nivel": a.color }}>
+          <input type="checkbox" checked={puesta(a)} onChange={() => alternar(a)} />
+          <span><strong>{a.nombre}</strong>{a.origen === "smn" && <em> · del SMN, todavía sin publicar</em>}<small>{a.detalle}</small></span></label></li>)}</ul>}
+    {faltan.length > 0 && !est.error && <small className="alertas-dia__falta" role="status">⚠ {faltan.length === 1 ? "Hay una alerta de esa fecha que no está en el informe." : `Hay ${faltan.length} alertas de esa fecha que no están en el informe.`}</small>}
+    <Texto texto="Alertas (texto del informe)" valor={valor} alCambiar={alCambiar} filas={2} placeholder="------ (si no hay alertas, dejalo vacío)" />
+  </div>;
+}
+
 function PasoDia({ b, i, set }) {
   const d = b.dias[i], base = `dias.${i}`;
   return <>
@@ -59,20 +96,48 @@ function PasoDia({ b, i, set }) {
       {d.presion && <Rango texto="Presión atmosférica" r={d.presionRango} base={`${base}.presionRango`} set={set} unidad="hPa" />}
       <Linea texto="Precipitaciones" valor={d.precipitaciones} alCambiar={(v) => set(`${base}.precipitaciones`, v)} placeholder="Sin probabilidades" />
       <Linea texto="Vientos" valor={d.vientos} alCambiar={(v) => set(`${base}.vientos`, v)} placeholder="3 a 15 km/h, del sector sur" />
-      <Linea texto="Alertas" valor={d.alertas} alCambiar={(v) => set(`${base}.alertas`, v)} placeholder="------ (si no hay alertas, dejalo vacío)" />
+      <CampoAlertas fecha={d.fecha} valor={d.alertas} alCambiar={(v) => set(`${base}.alertas`, v)} />
     </section>
   </>;
 }
 
+// Lo que sale en la columna «alerta» de cada ciudad: el color de la alerta que le toca (o «s/a»).
+const NIVEL_CORTO = { Amarillo: "Amarilla", Naranja: "Naranja", Rojo: "Roja" };
+const ORDEN_NIVEL = { Amarillo: 1, Naranja: 2, Rojo: 3 };
+const OPCIONES_ALERTA = ["s/a", "Amarilla", "Naranja", "Roja"];
+
 function PasoCiudades({ b, i, set }) {
   const d = b.dias[i], base = `dias.${i}`;
+  const est = useAlertasDelDia(d.fecha);
+  // Según las alertas de esa fecha, qué le toca a cada ciudad (por el departamento en el que está): la de mayor nivel.
+  const sugerida = (ciudad) => {
+    const dep = est.ciudades[ciudad];
+    const a = est.alertas.filter((x) => dep && x.departamentos.includes(dep)).sort((p, q) => ORDEN_NIVEL[q.nivel] - ORDEN_NIVEL[p.nivel])[0];
+    return a ? NIVEL_CORTO[a.nivel] : "s/a";
+  };
+  const hayDatos = !est.cargando && !est.error;
+  const distintas = hayDatos ? d.ciudades.filter((c) => (String(c.alerta || "").trim() || "s/a") !== sugerida(c.ciudad)) : [];
   return <>
     <p className="paso__ayuda">Las 13 ciudades de {fechaDia(d.fecha)}: {d.temps.map((t) => ROTULO_TEMP[t].toLowerCase()).join(" y ")}, estado del tiempo y alerta. En la alerta, «s/a» es sin alerta.</p>
+    <div className="alertas-dia">
+      {est.error ? <small role="alert">No se pudieron leer las alertas ({est.error}): elegí la alerta de cada ciudad a mano.</small>
+        : est.cargando ? <small>Buscando las alertas de esa fecha…</small>
+        : <small>{est.alertas.length ? <>Alertas de esa fecha: {est.alertas.map((a) => a.nombre.toLowerCase()).join(" · ")}.</> : "No hay alertas meteorológicas para esa fecha."}</small>}
+      {distintas.length > 0 && <div className="alertas-dia__acciones">
+        <small className="alertas-dia__falta" role="status">⚠ {distintas.length === 1 ? "Una ciudad no coincide" : `${distintas.length} ciudades no coinciden`} con las alertas de esa fecha.</small>
+        <button type="button" className="btn" onClick={() => set(`${base}.ciudades`, d.ciudades.map((c) => ({ ...c, alerta: sugerida(c.ciudad) })))}>Completar según las alertas</button>
+      </div>}
+    </div>
     <div className="pron-localidades">
       {d.ciudades.map((c, k) => <section key={c.ciudad} className="ens-tarjeta-informe"><h3>{c.ciudad}</h3>
         <div className="ens-par pron-temps">{d.temps.map((t) => <Linea key={t} texto={`${CORTO_TEMP[t]} (°C)`} valor={c[t]} alCambiar={(v) => set(`${base}.ciudades.${k}.${t}`, v)} inputMode="numeric" aria-label={`${CORTO_TEMP[t]} ${c.ciudad}`} />)}</div>
         <Condicion valor={c.condicion} alCambiar={(v) => set(`${base}.ciudades.${k}.condicion`, v)} texto={`Estado del tiempo en ${c.ciudad}`} />
-        <Linea texto="Alerta" valor={c.alerta} alCambiar={(v) => set(`${base}.ciudades.${k}.alerta`, v)} />
+        <Etiqueta texto="Alerta">
+          <select className="paso-select" value={String(c.alerta || "").trim() || "s/a"} onChange={(e) => set(`${base}.ciudades.${k}.alerta`, e.target.value)}>
+            {[...OPCIONES_ALERTA, ...(OPCIONES_ALERTA.includes(String(c.alerta || "").trim() || "s/a") ? [] : [c.alerta])].map((o) => <option key={o} value={o}>{o === "s/a" ? "s/a (sin alerta)" : o}</option>)}
+          </select>
+        </Etiqueta>
+        {hayDatos && (String(c.alerta || "").trim() || "s/a") !== sugerida(c.ciudad) && <small className="alertas-dia__falta">⚠ Según las alertas de esa fecha, a {c.ciudad} le toca: {sugerida(c.ciudad)}.</small>}
       </section>)}
     </div>
   </>;

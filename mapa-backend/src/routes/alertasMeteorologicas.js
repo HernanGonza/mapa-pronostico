@@ -20,9 +20,12 @@ router.get('/alertas-meteorologicas/actual',async(req,res)=>{
 // vigentes que ésta reemplaza. `enFilaDe`: id de una vigente (o en fila); ésta
 // aparece recién cuando aquélla vence o se despublica.
 router.post('/alertas-meteorologicas/publicar',requireAuth,express.json(),async(req,res)=>{
-  const {zonas,iconos:iconosElegidos=[],vigenteHasta,periodo,reemplazar=[],enFilaDe=null,tramos=null}=req.body||{};
+  const {zonas,iconos:iconosElegidos=[],vigenteHasta,periodo,reemplazar=[],enFilaDe=null,tramos=null,smn=null}=req.body||{};
   const error=errorDeZonas(zonas)||errorDeIconos(iconosElegidos)||s.errorDePublicacion({vigenteHasta,periodo,reemplazar,enFilaDe})||(tramos?errorDeTramos(tramos,new Set(require('../lib/departamentos').loadDepartamentos().map(d=>String(d.id))),vigenteHasta):null);if(error)return res.status(400).json({error});
-  try{res.json(await s.publicar(normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId,{vigenteHasta,periodo,reemplazar,enFilaDe,tramos:tramos?normalizarTramos(tramos):{}}));}catch(e){if(e.status===409)return res.status(409).json({error:e.message});console.error(e);res.status(500).json({error:'No se pudo publicar.'});}
+  try{
+    // Armada con una alerta del SMN como base: se busca en lo que el servidor tiene del SMN (no se confía en el navegador).
+    const origen=smn&&typeof smn.emision==='string'?await require('../lib/alertasSmnRecibidas').origenYPlacas(smn.emision):null;
+    res.json(await s.publicar(normalizarZonas(zonas),normalizarIconos(iconosElegidos),req.usuario.usuarioId,{vigenteHasta,periodo,reemplazar,enFilaDe,tramos:tramos?normalizarTramos(tramos):{},origenSmn:origen?.origenSmn||null,placasBase:origen?.placasBase||null}));}catch(e){if(e.status===409)return res.status(409).json({error:e.message});console.error(e);res.status(500).json({error:'No se pudo publicar.'});}
 });
 // Público: las publicaciones vigentes (lo que muestra el embebido). [] = ninguna.
 router.get('/alertas-meteorologicas/vigentes',async(req,res)=>{

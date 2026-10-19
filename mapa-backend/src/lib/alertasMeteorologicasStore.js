@@ -71,6 +71,10 @@ async function init() {
        -- (ahí se pierde el enlace con ésa). NULL = se calcula: al publicarse, o al vencer la que esperaba.
        -- La usa /tv para dejarla fija los primeros minutos.
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS visible_desde timestamptz;
+       -- Si se armó con una alerta del SMN como base: de qué emisión salió (para reconocerla cuando el SMN la corrige) y con qué
+       -- textos arrancan sus placas (ver alertasSmnBase.js).
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS origen_smn jsonb;
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS placas_base jsonb;
        -- Historial de lo que se le hizo a cada alerta después de publicarla (para estadísticas e
        -- histórico): cambios de vigencia (antes/después, y las de la fila que se corrieron), fijar /
        -- desfijar, despublicar y las placas generadas, editadas o eliminadas. Una fila por evento.
@@ -115,7 +119,7 @@ function errorDePublicacion({ vigenteHasta, periodo, reemplazar = [], enFilaDe =
  * de una reemplazada pasan a esperar a ésta. `enFilaDe`: id de una publicación todavía
  * vigente (o en fila); ésta aparece recién cuando aquélla deja de estar vigente.
  */
-async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null, tramos = {} } = {}) {
+async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo, reemplazar = [], enFilaDe = null, tramos = {}, origenSmn = null, placasBase = null } = {}) {
   await init();
   const p = store.getPool();
   if (p) {
@@ -130,8 +134,8 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
         ? await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = ANY($1::bigint[]) AND vigente_hasta > now() RETURNING id`, [reemplazar])
         : { rows: [] };
       const { rows } = await client.query(
-        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id, publicado_en, vigente_hasta`,
-        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos)]
+        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos, origen_smn, placas_base) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb) RETURNING id, publicado_en, vigente_hasta`,
+        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos), origenSmn ? JSON.stringify(origenSmn) : null, placasBase ? JSON.stringify(placasBase) : null]
       );
       const { id, publicado_en } = rows[0];
       if (reemplazar.length) await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $1 WHERE en_fila_de = ANY($2::bigint[])`, [id, reemplazar]);
@@ -150,7 +154,7 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
       await registrarEvento(client, { publicacionId: id, evento: "publicada", usuarioId, detalle: { vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, reemplaza: reemplazadas.map((r) => Number(r.id)) } });
       for (const r of reemplazadas) await registrarEvento(client, { publicacionId: r.id, evento: "reemplazada", usuarioId, detalle: { por: Number(id) } });
       await client.query("COMMIT");
-      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, tramos, zonas, iconos };
+      return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: rows[0].vigente_hasta.toISOString(), periodo: periodo.trim(), enFilaDe, tramos, zonas, iconos, origenSmn, placasBase };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -172,7 +176,7 @@ async function actual() {
   const p = store.getPool();
   if (p) {
     const { rows: pubs } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos FROM alertas_meteo_publicaciones ORDER BY id DESC LIMIT 1`
+      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, origen_smn, placas_base FROM alertas_meteo_publicaciones ORDER BY id DESC LIMIT 1`
     );
     if (!pubs.length) return null;
     return conDetalle(p, pubs[0]);
@@ -183,7 +187,7 @@ async function actual() {
 }
 
 /** Zonas e íconos de una publicación. */
-async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en }) {
+async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, origen_smn, placas_base }) {
     const [{ rows: zonas }, { rows: iconos }] = await Promise.all([
       p.query(
         `SELECT departamento_id AS id, categoria FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`,
@@ -197,7 +201,7 @@ async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyenda
     // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
     const iconosBase = iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i));
     return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null, leyendas: leyendas || {}, tramos: tramos || {},
-      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
+      enFilaDe: en_fila_de ? Number(en_fila_de) : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, origenSmn: origen_smn || null, placasBase: placas_base || null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
       iconos: iconosEn(iconosBase, zonasEn(zonas, tramos)), iconosBase };
 }
 
@@ -210,7 +214,7 @@ async function pendientes() {
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
+      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde, origen_smn, placas_base FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
     );
     const ids = new Set(rows.map((r) => String(r.id)));
     const esperando = (r) => r.en_fila_de != null && ids.has(String(r.en_fila_de));

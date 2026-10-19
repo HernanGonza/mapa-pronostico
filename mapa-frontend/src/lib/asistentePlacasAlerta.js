@@ -21,6 +21,11 @@ import { enFemenino } from "./nivelAlerta.js";
 // `pub` puede ser una alerta automática del SMN (`pub.smn`, la arma SmnAlertas): los mismos asistentes, pero
 // hablando con las rutas de esas alertas (`pub._api`) y arrancando con lo que trae el SMN.
 const A = (pub) => pub?._api || api;
+// Una alerta hecha con una del SMN como base guarda los textos con los que arrancan sus placas (`pub.placasBase`, ver alertasSmnBase.js).
+async function ultimosDe(pub) {
+  const base = await A(pub).getUltimosPlacasAlerta();
+  return pub?.placasBase ? { ...base, ultimos: { ...base.ultimos, ...pub.placasBase } } : base;
+}
 const NIVELES = ["Amarillo", "Naranja", "Rojo"];
 const ORDEN = { Verde: 0, Gris: 0, Amarillo: 1, Naranja: 2, Rojo: 3 };
 const NOMBRE_ICONO = { objetos: "Silla y viento", arroyos: "Auto y arroyo", resguardo: "Casa segura", informado: "Celular", emergencias: "Teléfono 911", reloj: "Reloj", ubicacion: "Ubicación", tormenta: "Tormenta", alerta: "Alerta (!)" };
@@ -220,10 +225,10 @@ function pasoVigenciaMapa(pub) {
 }
 
 export async function cambiarVigenciaPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await A(pub).getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
+  const base = await ultimosDe(pub).catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.vigencia || {};
   const ahora = new Date(), desde = `${String(ahora.getHours()).padStart(2, "0")}:00`;
-  const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: pub.smn ? z.fecha : hoy(), desde: z.desde, hasta: z.hasta, desde2: z.desde2 || "", hasta2: z.hasta2 || "" })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
+  const zonas = u.zonas?.length ? u.zonas.map((z) => ({ nombre: z.nombre, fecha: pub.smn || pub.placasBase ? z.fecha : hoy(), desde: z.desde, hasta: z.hasta, desde2: z.desde2 || "", hasta2: z.hasta2 || "" })) : [{ nombre: "Toda la provincia", fecha: hoy(), desde, hasta: "24:00" }];
   const nivel = nivelDe(pub);
   // Si la alerta tiene horarios por nivel, los renglones salen de ahí (uno por tramo); si no, lo último que se usó.
   const deTramos = pub.smn ? null : zonasDeTramos(pub, catalogo, base.limites?.zonas || 8);
@@ -327,7 +332,7 @@ function pasoFenomeno(extra = "") {
 }
 
 export async function recomendacionesPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await A(pub).getUltimosPlacasAlerta();
+  const base = await ultimosDe(pub);
   const items = base.ultimos?.recomendaciones?.items?.length ? base.ultimos.recomendaciones.items : base.recomendaciones;
   const g = generador(pub, "recomendaciones", (s) => ({ fenomeno: s.fenomeno, items: s.items }), editada);
   const pasos = [pasoNivel(catalogo), pasoFenomeno(), pasoRecomendaciones(base.iconos, base.limites || {}), pasoVistaPrevia({ clave: g.clave, generar: g.vistaPrevia })];
@@ -341,7 +346,7 @@ export async function recomendacionesPorPasos({ pub, catalogo, placa: editada = 
 // ---------------------------------------------------------------------------------------------
 
 export async function avisoDeAlertaPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await A(pub).getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
+  const base = await ultimosDe(pub).catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.aviso || {};
   const g = generador(pub, "aviso", (s) => ({ fenomeno: s.fenomeno, vigencia: s.vigencia, zona: s.zona, descripcion: s.descripcion, nota: s.nota }), editada);
   const pasos = [
@@ -369,7 +374,7 @@ export async function avisoDeAlertaPorPasos({ pub, catalogo, placa: editada = nu
 const ANTERIORES = ["Verde", ...NIVELES];
 
 export async function actualizacionNivelPorPasos({ pub, catalogo, placa: editada = null, alTerminar }) {
-  const base = await A(pub).getUltimosPlacasAlerta().catch(() => ({ ultimos: {}, limites: {} }));
+  const base = await ultimosDe(pub).catch(() => ({ ultimos: {}, limites: {} }));
   const u = base.ultimos?.nivel || {}, otra = base.ultimos?.vigencia || {};
   // Por defecto pasa del nivel de ahora al de arriba.
   // En una alerta del SMN, la alerta ya está en el nivel nuevo: viene de `u.nivelAnterior`.

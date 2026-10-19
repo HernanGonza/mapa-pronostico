@@ -86,9 +86,12 @@ const DIAS_EN_FILA = 7;
  *     y va en fila detrás de la última.
  *   corrige: id de la alerta que se está corrigiendo: por defecto reemplaza sólo a ésa.
  *   periodoSugerido: el período de la última placa.
+ *   base: una alerta del SMN usada como base ({ base: { vigenteHasta, tramos, periodo }, … }): arranca con sus horarios (vigencia y
+ *     cuándo cambia de nivel cada departamento), que el asistente deja revisar. Aparece ya (los tramos hacen que cada departamento
+ *     pase a su nivel a la hora que dice el SMN) y, si corrige a una publicada, la reemplaza.
  *   publicar({ periodo, vigenteHasta, reemplazar, enFilaDe }) → la publicación.
  */
-export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPublicar, iconosCambiaron, republicar, vigentes = [], enFila = [], nueva = false, corrige = null, periodoSugerido = "", publicar }) {
+export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPublicar, iconosCambiaron, republicar, vigentes = [], enFila = [], nueva = false, corrige = null, periodoSugerido = "", base = null, publicar }) {
   const todas = [...vigentes, ...enFila];
   const anterior = (s) => todas.find((v) => String(v.id) === s.aparece);
   // Para la que va en fila: fin del día siguiente al que termina la anterior.
@@ -140,20 +143,21 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
       if (t <= Date.now()) return "Tiene que ser una fecha y hora futura.";
       if (v && t <= Date.parse(v.vigenteHasta)) return `Tiene que terminar después que la anterior (${fechaHora(v.vigenteHasta)}); si no, nunca aparece.`;
       if (v && t > Date.now() + DIAS_EN_FILA * 24 * HORA) return `No puede superar los ${DIAS_EN_FILA} días.`;
-      if (!v && t > Date.now() + 72 * HORA) return "No puede superar las 72 horas.";
+      if (!v && !base && t > Date.now() + 72 * HORA) return "No puede superar las 72 horas.";
       return null;
     },
   };
   // Vigencias por nivel (si el mapa tiene 2 o más niveles): hasta cuándo vale cada uno y a qué pasa después.
-  const vigencias = pasosVigencias({ catalogo, zonas: () => zonas, soloSiVarios: true,
+  const vigencias = pasosVigencias({ catalogo, zonas: () => zonas, soloSiVarios: !base,
+    inicial: base?.base.tramos && Object.keys(base.base.tramos).length ? { tramos: base.base.tramos } : null,
     tope: (s) => ({ ms: Date.parse(s.vigencia), texto: fechaHora(new Date(s.vigencia)), local: s.vigencia }) });
-  const enFilaInicial = nueva && ultima;
+  const enFilaInicial = nueva && ultima && !base;
   return asistente({
     // Corrigiendo la publicada, por defecto reemplaza a las vigentes; una alerta nueva va en fila detrás de la última.
     estado: { periodo: periodoSugerido, aparece: enFilaInicial ? String(ultima.id) : "ahora",
-      vigencia: enFilaInicial ? vigenciaEnFila(ultima) : valorLocal(finDelDia()),
+      vigencia: enFilaInicial ? vigenciaEnFila(ultima) : base ? valorLocal(new Date(base.base.vigenteHasta)) : valorLocal(finDelDia()),
       // Corrigiendo una alerta (`corrige`: su id), por defecto reemplaza sólo a ésa.
-      reemplazar: nueva ? [] : corrige != null ? vigentes.filter((v) => v.id === corrige).map((v) => v.id) : vigentes.map((v) => v.id) },
+      reemplazar: nueva && !(base && corrige != null) ? [] : corrige != null ? vigentes.filter((v) => v.id === corrige).map((v) => v.id) : vigentes.map((v) => v.id) },
     textoEnviar: "Publicar en el mapa público",
     pasos: [
       republicar
@@ -167,7 +171,7 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
     ],
     enviar: async (s) => {
       const v = anterior(s);
-      const pub = await publicar({ periodo: s.periodo, vigenteHasta: new Date(s.vigencia).toISOString(), reemplazar: v ? [] : s.reemplazar, enFilaDe: v ? v.id : null, tramos: vigencias.paraEnviar(s) });
+      const pub = await publicar({ periodo: s.periodo, vigenteHasta: new Date(s.vigencia).toISOString(), reemplazar: v ? [] : s.reemplazar, enFilaDe: v ? v.id : null, tramos: vigencias.paraEnviar(s), ...(base ? { smn: { emision: base.emision } } : {}) });
       return { tipo: "ok", titulo: v ? "¡Quedó en fila!" : "¡Publicado!", datos: pub,
         html: v ? `<p>«${esc(pub.periodo)}» aparece en el mapa público cuando termine «${esc(v.periodo || "Alerta publicada")}», y se saca sola el ${esc(fechaHora(pub.vigenteHasta))}.</p>`
           : `<p>El mapa público muestra «${esc(pub.periodo)}» hasta el ${esc(fechaHora(pub.vigenteHasta))}. Después se saca sola.</p>` };

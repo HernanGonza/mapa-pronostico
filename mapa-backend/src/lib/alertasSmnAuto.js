@@ -264,11 +264,11 @@ async function revisar(alertas, { logger = console, repo = publicadasStore, noti
       const n = f
         ? { clave: `smn:act:${f.id}:${d.categoria}:${Date.parse(d.inicio)}:${Date.parse(d.fin)}`, titulo: `El SMN actualizó una alerta publicada: ${titulo(d)}`, detalle: `${donde(d)} · ${resumenCambios(f, d, tipos)}` }
         : { clave: `smn:nueva:${fenomenoDe(d)}:${d.categoria}:${Date.parse(d.inicio)}:${Date.parse(d.fin)}`, titulo: `Alerta nueva del SMN: ${titulo(d)}`, detalle: `${donde(d)} · hasta el ${cuando(d.fin)}` };
-      try { if (await notificar.crearSiNoExiste({ tipo: "alerta-smn", ...n, url: "/panel/alertas-automaticas", venceEn: d.fin })) avisados.push(n.clave); }
+      try { if (await notificar.crearSiNoExiste({ tipo: "alerta-smn", ...n, url: "/panel/alertas-meteorologicas?smn=1", venceEn: d.fin })) avisados.push(n.clave); }
       catch (e) { logger.error(`[alertas SMN] notificación: ${e.message}`); }
     }
   } catch (e) { logger.error(`[alertas SMN] revisión: ${e.message}`); }
   return avisados;
 }
 
-module.exports = { baseDe, mapaDe, rangosPorDia, recomendacionesDe, revisar, estado, publicarOActualizar, emparejar, diferencias, parecido, publicable, textoVigencia, rangoDelDia, datosAviso, datosNivel, listaCorta, generarPlaca };
+module.exports = { redondeado, recortar, sinTildes, sentencia, ICONO_DE_EVENTO, departamentosDe, baseDe, mapaDe, rangosPorDia, recomendacionesDe, revisar, estado, publicarOActualizar, emparejar, diferencias, parecido, publicable, textoVigencia, rangoDelDia, datosAviso, datosNivel, listaCorta, generarPlaca };

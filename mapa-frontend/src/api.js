@@ -349,7 +349,7 @@ export const getAlertasMeteorologicasCatalogo = () => getEstatico(`${API_URL}/ap
 export const getAlertasMeteorologicasGeojson = () => getEstatico(`${API_URL}/api/alertas-meteorologicas/geojson`);
 export async function getAlertasMeteorologicasActual(){const r=await fetch(`${API_URL}/api/alertas-meteorologicas/actual`,{cache:"no-store"});return r.status===404?null:handleJson(r);}
 /** Publica el mapa manual para `periodo`, visible hasta `vigenteHasta` (ISO); `reemplazar`: ids de vigentes que saca. */
-export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[],enFilaDe=null,tramos=null}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar,enFilaDe,...(tramos?{tramos}:{})}),...CON_SESION}));}
+export async function publicarAlertasMeteorologicas(zonas,iconos,{periodo,vigenteHasta,reemplazar=[],enFilaDe=null,tramos=null,smn=null}){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/publicar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({zonas,iconos,periodo,vigenteHasta,reemplazar,enFilaDe,...(tramos?{tramos}:{}),...(smn?{smn}:{})}),...CON_SESION}));}
 /** Panel: { vigentes, enFila } — las que se ven y las que esperan a que termine otra. */
 export async function getAlertasMeteorologicasPendientes(){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/pendientes`,{cache:"no-store",...CON_SESION}));}
 /** Publicaciones manuales vigentes (público, lo usa el iframe). [] = ninguna. */
@@ -470,6 +470,8 @@ export const apiPlacasSmn = (alertaId) => ({
 export async function eliminarPlacaSmn(id) {
   return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/placas/${id}`, { method: "DELETE", ...CON_SESION }));
 }
+/** La última emisión del SMN como base de una alerta (con sus horarios) y si ya está en la pila o corrige a una publicada. */
+export async function getAlertasSmnRecibidas(){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/recibidas`,{cache:'no-store',...CON_SESION}));}
 export async function getSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn`,{cache:'no-store'})); }
 export async function actualizarSmnAlertas() { return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/actualizar`, { method: 'POST', cache: 'no-store' })); }
 
@@ -646,6 +648,9 @@ export async function generarInformeDocxPronostico(informe) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el .docx.");
   return r.blob();
 }
+
+/** Las alertas meteorológicas que rigen en una fecha (publicadas, o la última del SMN si falta publicarla): para el campo «Alertas» de los informes. */
+export async function getAlertasDelDia(fecha) { return handleJson(await fetch(`${API_URL}/api/pronostico/alertas-del-dia?fecha=${encodeURIComponent(fecha)}`, { cache: "no-store", ...CON_SESION })); }
 
 /** El mismo informe en RTF. */
 export async function generarInformeRtfPronostico(informe) {

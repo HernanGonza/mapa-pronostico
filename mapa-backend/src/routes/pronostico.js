@@ -320,9 +320,35 @@ router.get("/geo/:archivo", (req, res) => {
   );
 });
 
+/** A cada municipio le suma la alerta meteorológica que rige ahora en su departamento (`alerta`, o null). Si no se puede leer, no se agrega. */
+async function conAlertasVigentes(municipios) {
+  try { return require("../lib/alertasMunicipios").conAlertas(municipios, await require("../lib/alertasMeteorologicasStore").vigentes()); }
+  catch (e) { console.error("[pronostico/mapa] alertas:", e.message); return municipios; }
+}
+
+/**
+ * GET /api/pronostico/alertas-del-dia?fecha=AAAA-MM-DD
+ * Las alertas meteorológicas que rigen ese día (publicadas, o la última del SMN si todavía no se publicó): el campo «Alertas» de los
+ * informes del pronóstico las ofrece para elegir, así las dos pantallas siempre dicen lo mismo.
+ */
+router.get("/pronostico/alertas-del-dia", requireAuth, async (req, res) => {
+  const fecha = String(req.query.fecha || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: "Falta la fecha (AAAA-MM-DD)." });
+  try {
+    const { vigentes, enFila } = await require("../lib/alertasMeteorologicasStore").pendientes();
+    let smn = null;
+    try {
+      const r = (await require("../lib/alertasSmnRecibidas").recibidas({ pendientes: async () => ({ vigentes, enFila }) })).alertas[0];
+      if (r && !r.yaPublicada && !r.actualizaA) smn = r;
+    } catch (e) { /* sin lo del SMN se ofrecen sólo las publicadas */ }
+    const departamentos = require("../lib/departamentos").loadDepartamentos();
+    res.set("Cache-Control", "no-store").json({ fecha, alertas: require("../lib/alertasDelDia").delDia(fecha, [...vigentes, ...enFila], smn, departamentos), ciudades: require("../lib/alertasMunicipios").ciudadesDepartamento() });
+  } catch (e) { console.error("[alertas-del-dia]", e); res.status(500).json({ error: "No se pudieron leer las alertas." }); }
+});
+
 /**
  * GET /api/pronostico/mapa
- * Endpoint principal del mapa interactivo: los 79 municipios, cada uno
+  * Endpoint principal del mapa interactivo: los 79 municipios, cada uno
  * con lat/lng real y, si hay un pronóstico publicado, el dato de la
  * estación (de las 13 que reporta Alerta Temprana) más cercana —
  * marcando `esOficial` cuando el municipio ES una de esas 13.
@@ -330,7 +356,7 @@ router.get("/geo/:archivo", (req, res) => {
 router.get("/pronostico/mapa", async (req, res) => {
   try {
     const actual = await obtenerActual();
-    const municipios = armarMunicipiosConPronostico(actual ? actual.filas : null, actual?.extendido);
+    const municipios = await conAlertasVigentes(armarMunicipiosConPronostico(actual ? actual.filas : null, actual?.extendido));
     res.json({ publicadoEn: actual ? actual.publicadoEn : null, fechaPronostico: actual?.fechaPronostico || null, municipios });
   } catch (err) {
     console.error(err);
@@ -344,11 +370,11 @@ router.get("/pronostico/mapa", async (req, res) => {
  * todavía NO se publicó (lo que el operador está editando en el panel).
  * No toca el store.
  */
-router.post("/pronostico/mapa-preview", requireAuth, express.json(), (req, res) => {
+router.post("/pronostico/mapa-preview", requireAuth, express.json(), async (req, res) => {
   const { filas, extendido } = req.body || {};
   const errorFilas = errorDeFilas(filas);
   if (errorFilas) return res.status(400).json({ error: errorFilas });
-  const municipios = armarMunicipiosConPronostico(filas, extendido);
+  const municipios = await conAlertasVigentes(armarMunicipiosConPronostico(filas, extendido));
   res.json({ municipios });
 });
 

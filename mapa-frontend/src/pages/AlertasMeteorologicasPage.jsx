@@ -2,7 +2,8 @@ import PlacaPreview from "../components/PlacaPreview";
 import { useNotificacion } from "../lib/useNotificacion";
 import PublicationStatus from "../components/PublicationStatus";
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import TarjetasSmn from '../components/TarjetasSmn';
 import BrandHeader from '../components/BrandHeader';
 import EmbedShare from '../components/EmbedShare';
 import RiesgoMap from '../components/RiesgoMap';
@@ -24,6 +25,17 @@ const zonasDe = (catalogo, pub) => catalogo.departamentos.map(d => { const z = (
 const iconosDe = (p) => p?.iconosBase || p?.iconos || [];
 const comoImagenes = (p) => ({ feed: p.feedUrl, historias: p.historiasUrl, feedNombre: p.feedNombre, historiasNombre: p.historiasNombre });
 
+/** Una línea por nivel y horario de lo que mandó el SMN: «Naranja · jue 08/10 03:00 → 09:00». */
+const hhmm = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const diaCorto = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', day: '2-digit', month: '2-digit' });
+const COLOR_NIVEL = { Amarillo: '#FFCC35', Naranja: '#F67F15', Rojo: '#D62E42' };
+function resumenSmn(c) {
+  const vistos = new Map();
+  for (const l of c.lineas) vistos.set(`${l.categoria}|${l.inicio}|${l.fin}`, l);
+  return [...vistos.values()].sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio) || Date.parse(a.fin) - Date.parse(b.fin))
+    .map(l => ({ color: COLOR_NIVEL[l.categoria], texto: `${l.categoria} · ${diaCorto(l.inicio)} ${hhmm(l.inicio)} → ${diaCorto(l.fin) === diaCorto(l.inicio) ? '' : `${diaCorto(l.fin)} `}${hhmm(l.fin)}` }));
+}
+
 export default function AlertasMeteorologicasPage() {
   const [catalogo, setCatalogo] = useState(null), [geo, setGeo] = useState(null), [zonas, setZonas] = useState([]), [publicado, setPublicado] = useState(null);
   const [error, setError] = useState(''), [mensaje, setMensaje] = useState('');
@@ -41,6 +53,16 @@ export default function AlertasMeteorologicasPage() {
   const [seleccionada, setSeleccionada] = useState(null), [fijando, setFijando] = useState(false);
   useEffect(() => { cargarVigentes(); const t = setInterval(cargarVigentes, 60000); return () => clearInterval(t); }, []);
   const [iconos, setIconos] = useState([]), [imagenes, setImagenes] = useState(null), [vista, setVista] = useState('mapa');
+
+  // Lo que mandó el SMN (la última emisión, con los departamentos de todas sus zonas juntos y sus horarios): se refresca solo.
+  // «Usar como base» arma el borrador con eso; el resto del flujo es el de siempre.
+  const [smn, setSmn] = useState(null), [baseSmn, setBaseSmn] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    const leer = () => api.getAlertasSmnRecibidas().then(d => { if (vivo) setSmn(d); }).catch(() => {});
+    leer(); const t = setInterval(leer, 60000);
+    return () => { vivo = false; clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -71,12 +93,29 @@ export default function AlertasMeteorologicasPage() {
     setIconos([]); setPublicado(null); setSeleccionada(null); setImagenes(null);
   }, [pendientes, catalogo, publicado, nueva, cambios]);
 
+  // Una alerta del SMN como base: niveles, fenómenos, período, vigencia y horarios de cada departamento ya cargados.
+  async function usarComoBase(emision, { sinPreguntar = false } = {}) {
+    const c = smn?.alertas.find(a => a.emision === emision);
+    if (!c || !catalogo) return;
+    if (!sinPreguntar && cambios && !(await confirmar({ titulo: '¿Usar la alerta del SMN?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Usar la del SMN' }))) return;
+    setZonas(c.base.zonas); setIconos(c.base.iconos);
+    setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null); setBaseSmn(c);
+  }
+  // Llegó desde la notificación del SMN (?smn=1): se arma la base apenas están la alerta y el catálogo.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (!params.get('smn') || !catalogo || !smn) return;
+    setParams({}, { replace: true });
+    if (smn.alertas[0] && !smn.alertas[0].yaPublicada) usarComoBase(smn.alertas[0].emision, { sinPreguntar: !cambios });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, catalogo, smn]);
+
   // «Nueva alerta»: borrador en blanco (aparece arriba de la pila) y directo a armar el mapa.
   async function nuevaAlerta() {
     if (cambios && !(await confirmar({ titulo: '¿Empezar una alerta nueva?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Empezar de cero' }))) return;
     const blanco = catalogo.departamentos.map(d => ({ id: String(d.id), categoria: 'Verde' }));
     setZonas(blanco); setIconos([]);
-    setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null);
+    setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null); setBaseSmn(null);
     editarMapaAlertas({ catalogo, zonas: blanco, iconos: [], aplicar: (z, i) => { setZonas(z); setIconos(i); } });
   }
   // «Editar mapa» de una tarjeta: arma un borrador con el mapa de esa alerta (al publicarlo, la reemplaza).
@@ -100,7 +139,7 @@ export default function AlertasMeteorologicasPage() {
   // Descartar el borrador: vuelve a la alerta que se estaba corrigiendo (o a la primera de la pila).
   function descartar() {
     const volver = nueva ? (vigentes || [])[0] || enFila[0] || null : publicado;
-    setNueva(false); setImagenes(null); setVista('mapa');
+    setNueva(false); setImagenes(null); setVista('mapa'); setBaseSmn(null);
     setZonas(volver ? zonasDe(catalogo, volver) : catalogo.departamentos.map(d => ({ id: String(d.id), categoria: 'Verde' })));
     setIconos(iconosDe(volver)); setPublicado(volver); setSeleccionada(volver?.id ?? null);
   }
@@ -111,11 +150,12 @@ export default function AlertasMeteorologicasPage() {
     catalogo, zonas: z, vigentes: vigentes || [], enFila,
     publicar: async (opciones) => {
       const pub = await api.publicarAlertasMeteorologicas(z, ic, opciones);
-      setPublicado(pub); setNueva(false); setSeleccionada(pub.id); setZonas(zonasDe(catalogo, pub)); setIconos(iconosDe(pub)); await cargarVigentes();
+      setPublicado(pub); setNueva(false); setBaseSmn(null); setSeleccionada(pub.id); setZonas(zonasDe(catalogo, pub)); setIconos(iconosDe(pub)); await cargarVigentes();
       setMensaje(pub.enFilaDe ? 'Quedó en fila: aparece sola cuando termine la anterior.' : 'Publicado. El mapa público ya muestra este mapa.');
       return pub;
     }, ...resto });
-  const revisarYPublicar = () => abrirPublicacion({ zonas, iconos, cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, nueva, corrige: nueva ? null : publicado?.id ?? null, periodoSugerido: publicado?.periodo || periodo });
+  const revisarYPublicar = () => abrirPublicacion({ zonas, iconos, cambios: detalle, sinPublicar: !publicado, iconosCambiaron, republicar, nueva, base: baseSmn,
+    corrige: baseSmn ? baseSmn.actualizaA?.id ?? null : nueva ? null : publicado?.id ?? null, periodoSugerido: baseSmn?.base.periodo || publicado?.periodo || periodo });
   // «Republicar» de una tarjeta: vuelve a publicar el mapa de esa alerta (reemplazándola), con otro período y vigencia.
   async function republicarDe(v) {
     if (!(await verEnMapa(v))) return;
@@ -150,7 +190,7 @@ export default function AlertasMeteorologicasPage() {
   async function verEnMapa(v) {
     if (v.id === seleccionada) return true;
     if (cambios && !(await confirmar({ titulo: '¿Ver otra alerta?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Ver la otra' }))) return false;
-    setZonas(zonasDe(catalogo, v)); setIconos(iconosDe(v)); setPublicado(v); setNueva(false);
+    setZonas(zonasDe(catalogo, v)); setIconos(iconosDe(v)); setPublicado(v); setNueva(false); setBaseSmn(null);
     setSeleccionada(v.id); setImagenes(null); setVista('mapa');
     return true;
   }
@@ -293,11 +333,23 @@ export default function AlertasMeteorologicasPage() {
       {error && <div className="risk-message risk-message--error" role="alert">{error}</div>}
       {!catalogo ? <p>Cargando departamentos…</p> : <>
         <PublicationStatus changed={cambios} published={publicado}>{sinNadaPublicado && (hayAlgunaVigente ? 'Elegí una tarjeta para verla en el mapa de acá.' : 'No hay ninguna alerta publicada: el mapa público está todo en verde.')}</PublicationStatus>
+        <TarjetasSmn
+          titulo={(n) => (n === 1 ? 'Hay 1 alerta del SMN' : `Hay ${n} alertas del SMN`)}
+          vacio="El SMN no tiene alertas vigentes para Misiones por ahora."
+          items={(smn?.alertas || []).map(c => ({ id: c.emision, color: c.color,
+            titulo: `Alerta ${c.niveles.map(n => enFemenino(n).toLowerCase()).join(' y ')} · ${(c.fenomenosLeidos?.length ? c.fenomenosLeidos : c.fenomenos).join(', ').toLowerCase()}`,
+            detalle: `${c.departamentos.length} departamento${c.departamentos.length === 1 ? '' : 's'} · ${c.base.periodo} · emitida ${fechaHora(c.emitidoEn)}`,
+            lineas: resumenSmn(c), aviso: c.avisos?.join(' ') || null,
+            etiqueta: c.yaPublicada ? `Ya está en la pila (#${c.yaPublicada}).` : c.actualizaA ? `El SMN actualizó la #${c.actualizaA.id}${c.actualizaA.cambios.length ? `: ${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')}` : ''}.` : null,
+            textoBoton: c.yaPublicada ? 'Usar de nuevo' : c.actualizaA ? `Actualizar la #${c.actualizaA.id}` : 'Usar como base' }))}
+          onElegir={(emision) => usarComoBase(emision)} />
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={nuevaAlerta}>Nueva alerta</button>
         </div>
         {(nueva || cambios) && <div className="avisos-lista avisos-lista--pendiente">
           <h2>{nueva ? 'Alerta nueva · sin publicar' : `Corrección de «${publicado?.periodo || 'la alerta'}» · sin publicar`}</h2>
+          {baseSmn && <p className="avisos-lista__texto"><strong>Base: alerta del SMN</strong> emitida el {fechaHora(baseSmn.emitidoEn)}. {baseSmn.actualizaA ? `Al publicarla reemplaza a la #${baseSmn.actualizaA.id}. ` : ''}Niveles, fenómenos y horarios ya vienen cargados: revisalos en «Publicar en la página» (cada departamento cambia de nivel y se baja solo a la hora que dice el SMN).</p>}
+          {baseSmn?.avisos?.map(a => <p key={a} className="alerta-borrador__aviso">{a}</p>)}
           <p className="avisos-lista__texto">{nueva && !cambios ? 'Armá el mapa con «Editar mapa».' : 'El mapa de la derecha muestra este borrador.'}{!nueva && ' Al publicarlo reemplaza a la alerta que estás corrigiendo.'}</p>
           <div className="avisos-lista__acciones">
             <button type="button" className="btn btn--primary" disabled={todoVerde || (nueva && !cambios)} onClick={revisarYPublicar}>Publicar en la página</button>

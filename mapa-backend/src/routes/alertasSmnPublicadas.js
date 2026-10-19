@@ -23,6 +23,12 @@ router.post("/alertas-meteorologicas/smn/publicar", requireAuth, express.json(),
   } catch (e) { error(res, e, "No se pudo publicar la alerta."); }
 });
 
+// La última emisión del SMN como base de una alerta del módulo «Alertas meteorológicas» (ver alertasSmnRecibidas.js).
+router.get("/alertas-meteorologicas/smn/recibidas", requireAuth, async (req, res) => {
+  try { res.set("Cache-Control", "no-store").json(await require("../lib/alertasSmnRecibidas").recibidas()); }
+  catch (e) { error(res, e, "No se pudieron leer las alertas del SMN."); }
+});
+
 router.post("/alertas-meteorologicas/smn/publicadas/:id/despublicar", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Id inválido." });
