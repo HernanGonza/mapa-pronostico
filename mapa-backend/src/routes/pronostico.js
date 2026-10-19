@@ -345,7 +345,7 @@ router.get("/pronostico/alertas-del-dia", requireAuth, async (req, res) => {
     let smn = null;
     try {
       const r = (await require("../lib/alertasSmnRecibidas").recibidas({ pendientes: async () => ({ vigentes, enFila }) })).alertas[0];
-      if (r && !r.yaPublicada && !r.actualizaA) smn = r;
+      if (r && !r.reemplazada && !r.yaPublicada && !r.actualizaA) smn = r;
     } catch (e) { /* sin lo del SMN se ofrecen sólo las publicadas */ }
     const departamentos = require("../lib/departamentos").loadDepartamentos();
     res.set("Cache-Control", "no-store").json({ fecha, alertas: require("../lib/alertasDelDia").delDia(fecha, [...vigentes, ...enFila], smn, departamentos), ciudades: require("../lib/alertasMunicipios").ciudadesDepartamento() });

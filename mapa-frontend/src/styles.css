@@ -1983,3 +1983,8 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
   .municipio-popover__dia .weather-icon { width: 20px; height: 20px; }
   .municipio-popover__dia-temp { font-size: 10px; }
 }
+
+.smn-tarjeta--publicada { background: color-mix(in srgb, #22C382 8%, var(--surface)); border-color: color-mix(in srgb, #22C382 45%, var(--border)); }
+.smn-tarjeta__insignia { align-self: flex-start; padding: 5px 14px; border-radius: 999px; background: #1a8f5c; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: .02em; }
+.smn-tarjeta--reemplazada { opacity: .6; filter: grayscale(.7); background: var(--surface-2, var(--surface)); }
+.smn-tarjeta--reemplazada .smn-tarjeta__insignia { background: #6b7280; }

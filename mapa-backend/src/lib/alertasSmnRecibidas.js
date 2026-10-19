@@ -33,11 +33,29 @@ async function candidataActual(ahora = Date.now()) {
 async function recibidas({ pendientes = require("./alertasMeteorologicasStore").pendientes, ahora = Date.now() } = {}) {
   const base = require("./alertasSmnBase");
   const { cand, recordada, consultadoEn } = await candidataActual(ahora);
-  if (!cand) return { alertas: [], consultadoEn };
   const { vigentes, enFila } = await pendientes();
+  if (!cand) return { alertas: await reemplazadas([], pendientes), consultadoEn };
   const { yaPublicada, actualizaA } = base.clasificar(cand, [...vigentes, ...enFila]);
   const { _entera, ...publico } = cand;
-  return { consultadoEn, alertas: [{ ...publico, yaPublicada, actualizaA, yaNoLaLista: recordada }] };
+  return { consultadoEn, alertas: [{ ...publico, yaPublicada, actualizaA, yaNoLaLista: recordada }, ...(await reemplazadas([cand.emision, ...[...vigentes, ...enFila].map((p) => p.origenSmn?.emision)], pendientes))] };
+}
+
+/** Emisiones del SMN ya reemplazadas por otra publicación, para mostrarlas apagadas (`reemplazada`). `excluir`: emisiones que ya se ven. */
+async function reemplazadas(excluir, pendientes) {
+  if (pendientes !== require("./alertasMeteorologicasStore").pendientes) return []; // en pruebas con una pila de mentira
+  const { categorias } = require("./alertasMeteorologicas");
+  const ORDEN = { Amarillo: 1, Naranja: 2, Rojo: 3 };
+  const vistos = new Set(excluir.filter(Boolean));
+  const salida = [];
+  for (const r of await require("./alertasMeteorologicasStore").reemplazadasDelSmn()) {
+    const o = r.origenSmn;
+    if (vistos.has(o.emision)) continue;
+    vistos.add(o.emision);
+    const nivel = [...(o.niveles || [])].sort((a, b) => ORDEN[b] - ORDEN[a])[0];
+    salida.push({ emision: o.emision, emitidoEn: o.emision, color: categorias.find((c) => c.nombre === nivel)?.color || null, niveles: o.niveles || [], fenomenos: o.fenomenos || [], fenomenosLeidos: o.fenomenos || [],
+      departamentos: o.departamentos || [], inicio: o.inicio, fin: o.fin, lineas: [], avisos: [], base: { periodo: r.periodo }, yaPublicada: null, actualizaA: null, yaNoLaLista: false, reemplazada: { id: r.id, por: r.por } });
+  }
+  return salida;
 }
 
 /** Para guardar con una publicación hecha desde la base `emision`: de dónde salió y los textos con los que arrancan sus placas. */

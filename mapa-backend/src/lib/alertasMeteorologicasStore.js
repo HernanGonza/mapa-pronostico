@@ -262,6 +262,22 @@ async function registrarEvento(db, { publicacionId, evento, detalle = {}, usuari
     [publicacionId, evento, JSON.stringify(detalle), usuarioId]);
 }
 
+/**
+ * Las alertas armadas con una emisión del SMN que otra publicación reemplazó (porque el SMN la corrigió) y cuya vigencia según el SMN
+ * todavía no terminó: [{ id, periodo, origenSmn, por }]. Sólo para mostrarlas apagadas en el panel.
+ */
+async function reemplazadasDelSmn() {
+  await init();
+  const p = store.getPool();
+  if (!p) return [];
+  const { rows } = await p.query(
+    `SELECT DISTINCT ON (a.id) a.id, a.periodo, a.origen_smn, (e.detalle->>'por')::bigint AS por
+       FROM alertas_meteo_publicaciones a JOIN alertas_meteo_eventos e ON e.publicacion_id = a.id AND e.evento = 'reemplazada'
+      WHERE a.origen_smn IS NOT NULL AND (a.origen_smn->>'fin')::timestamptz > now()
+      ORDER BY a.id DESC, e.id DESC LIMIT 10`);
+  return rows.map((r) => ({ id: Number(r.id), periodo: r.periodo, origenSmn: r.origen_smn, por: r.por ? Number(r.por) : null }));
+}
+
 /** Historial de una alerta, del más viejo al más nuevo (para el histórico). */
 async function eventos(publicacionId) {
   await init();
@@ -543,4 +559,4 @@ async function cambiarMapa(id, zonas, iconos, usuarioId = null) {
   }
 }
 
-module.exports = { init, publicar, cambiarMapa, actual, pendientes, vigentes, despublicar, eliminar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };
+module.exports = { init, reemplazadasDelSmn, publicar, cambiarMapa, actual, pendientes, vigentes, despublicar, eliminar, cambiarVigencia, cambiarLeyenda, cambiarLeyendas, cambiarTramos, fijar, registrarEvento, eventos, errorDePublicacion, errorDeCambioVigencia, MAX_PERIODO_PUBLICACION, MAX_DIAS_EN_FILA };

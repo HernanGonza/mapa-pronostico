@@ -95,7 +95,7 @@ export default function AlertasMeteorologicasPage() {
 
   // Una alerta del SMN como base: niveles, fenómenos, período, vigencia y horarios de cada departamento ya cargados.
   async function usarComoBase(emision, { sinPreguntar = false } = {}) {
-    const c = smn?.alertas.find(a => a.emision === emision);
+    const c = smn?.alertas.find(a => a.emision === emision && !a.reemplazada);
     if (!c || !catalogo) return;
     if (c.actualizaA && !sinPreguntar && !(await confirmar({ titulo: 'El SMN actualizó una alerta ya publicada', confirmar: 'Preparar la actualización',
       texto: `La #${c.actualizaA.id} «${c.actualizaA.periodo || 'Alerta publicada'}» ${enFila.some(x => x.id === c.actualizaA.id && x.publicarDesde && Date.parse(x.publicarDesde) > Date.now()) ? 'está programada para aparecer en el mapa público' : 'se ve ahora en el mapa público'}. Esta versión${c.actualizaA.cambios.length ? ` (${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')})` : ''} la va a reemplazar cuando la publiques. Hasta entonces el mapa público no cambia.` }))) return;
@@ -103,14 +103,24 @@ export default function AlertasMeteorologicasPage() {
     setZonas(c.base.zonas); setIconos(c.base.iconos);
     setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null); setBaseSmn(c);
   }
+  // Ya publicada: se va a su tarjeta de la pila (no se arma otra).
+  async function irAPublicada(id) {
+    const v = [...(vigentes || []), ...enFila].find(x => x.id === id);
+    if (!v) return;
+    if (!(await verEnMapa(v))) return;
+    setTimeout(() => document.getElementById(`alerta-pub-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+  }
   // Llegó desde la notificación del SMN (?smn=1): se arma la base apenas están la alerta y el catálogo.
+
   const [params, setParams] = useSearchParams();
   useEffect(() => {
-    if (!params.get('smn') || !catalogo || !smn) return;
+    if (!params.get('smn') || !catalogo || !smn || !pendientes) return;
     setParams({}, { replace: true });
-    if (smn.alertas[0] && !smn.alertas[0].yaPublicada) usarComoBase(smn.alertas[0].emision, { sinPreguntar: !cambios && !smn.alertas[0].actualizaA });
+    const actual = smn.alertas.find(a => !a.reemplazada);
+    if (actual?.yaPublicada) irAPublicada(actual.yaPublicada);
+    else if (actual) usarComoBase(actual.emision, { sinPreguntar: !cambios && !actual.actualizaA });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, catalogo, smn]);
+  }, [params, catalogo, smn, pendientes]);
 
   // «Nueva alerta»: borrador en blanco (aparece arriba de la pila) y directo a armar el mapa.
   async function nuevaAlerta() {
@@ -271,7 +281,7 @@ export default function AlertasMeteorologicasPage() {
     return { nivel: n, texto: t?.length ? t.map(x => `${x.categoria} hasta ${horaTramo(x.hasta)}`).join(' → ') : `${n} hasta ${horaTramo(v.vigenteHasta)}` };
   }).filter(Boolean);
   // Tarjeta de una alerta de la pila (vigente o en fila).
-  const tarjeta = (v, esperando) => <li key={v.id} {...propsTarjeta(v)}>
+  const tarjeta = (v, esperando) => <li key={v.id} id={`alerta-pub-${v.id}`} {...propsTarjeta(v)}>
     <div className="alerta-tarjeta__cab">
       {etiquetaNivel(v)}<strong>{v.periodo}{v.fijada && ' 📌'}</strong><small className="alerta-numero">#{v.id}</small>
       <span className="alerta-tarjeta__estado">{esperando ? 'En fila' : 'Se ve ahora'}</span>
@@ -342,9 +352,10 @@ export default function AlertasMeteorologicasPage() {
             titulo: `Alerta ${c.niveles.map(n => enFemenino(n).toLowerCase()).join(' y ')} · ${(c.fenomenosLeidos?.length ? c.fenomenosLeidos : c.fenomenos).join(', ').toLowerCase()}`,
             detalle: `${c.departamentos.length} departamento${c.departamentos.length === 1 ? '' : 's'} · ${c.base.periodo} · emitida ${fechaHora(c.emitidoEn)}`,
             lineas: resumenSmn(c), aviso: c.avisos?.join(' ') || null,
-            etiqueta: [c.yaNoLaLista ? 'El SMN ya no la lista en su última emisión, pero sigue vigente.' : null, c.yaPublicada ? `Ya está en la pila (#${c.yaPublicada}).` : c.actualizaA ? `El SMN actualizó la #${c.actualizaA.id}${c.actualizaA.cambios.length ? `: ${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')}` : ''}.` : null].filter(Boolean).join(' ') || null,
-            textoBoton: c.yaPublicada ? 'Usar de nuevo' : c.actualizaA ? `Actualizar la #${c.actualizaA.id}` : 'Usar como base' }))}
-          onElegir={(emision) => usarComoBase(emision)} />
+            apagada: !!c.reemplazada, insignia: c.reemplazada ? `Reemplazada${c.reemplazada.por ? ` por la #${c.reemplazada.por}` : ''}` : c.yaPublicada ? `Ya publicada · #${c.yaPublicada}` : null,
+            etiqueta: c.reemplazada ? `Era la #${c.reemplazada.id}: el SMN la corrigió y ya no vale.` : [c.yaNoLaLista ? 'El SMN ya no la lista en su última emisión, pero sigue vigente.' : null, c.yaPublicada ? 'Está en la pila de abajo: se edita, se le sacan placas o se despublica desde su tarjeta.' : c.actualizaA ? `El SMN actualizó la #${c.actualizaA.id}${c.actualizaA.cambios.length ? `: ${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')}` : ''}.` : null].filter(Boolean).join(' ') || null,
+            textoBoton: c.yaPublicada ? 'Ver la publicada' : c.actualizaA ? `Actualizar la #${c.actualizaA.id}` : 'Usar como base' }))}
+          onElegir={(emision) => { const c = smn?.alertas.find(a => a.emision === emision); if (c?.yaPublicada) irAPublicada(c.yaPublicada); else usarComoBase(emision); }} />
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={nuevaAlerta}>Nueva alerta</button>
         </div>
