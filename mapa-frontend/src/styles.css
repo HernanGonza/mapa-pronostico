@@ -1939,3 +1939,47 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .alertas-dia__acciones { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 
 .municipio-popover__proximas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+
+/* Tarjeta del municipio en espacios chicos (el mapa embebido en una página con poco alto): se achica según el alto
+   disponible para que se vea entera; si aun así no entra, desplaza dentro. */
+.map-info { max-height: calc(100% - 155px); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-height: 640px) {
+  .map-info { top: 58px; left: 10px; max-height: calc(100% - 66px); padding: 10px 12px; width: auto; max-width: calc(100% - 20px); border-radius: 12px; }
+  .municipio-popover { width: 236px; }
+  .municipio-popover__nombre { margin-bottom: 4px; font-size: 15px; }
+  .municipio-popover__ref { margin-bottom: 6px; font-size: 11px; }
+  .municipio-popover__alerta { margin-bottom: 6px; padding: 4px 8px; font-size: 12px; gap: 6px; }
+  .municipio-popover__alerta i { width: 10px; height: 10px; }
+  .municipio-popover__prono { gap: 4px; }
+  .municipio-popover__tmin { font-size: 15px; }
+  .municipio-popover__tmax { font-size: 20px; }
+  .municipio-popover__conds-cab { font-size: 10px; padding-bottom: 0; }
+  .municipio-popover__conds-cab, .municipio-popover__cond-fila { grid-template-columns: 36px 36px 1fr; gap: 4px; }
+  .municipio-popover .weather-icon { width: 28px; height: 28px; }
+  .municipio-popover__cond { font-size: 12px; margin-top: 0; }
+  .municipio-popover__sol { gap: 10px; margin-top: 4px; }
+  .municipio-popover__sol-item { font-size: 10px; gap: 3px; }
+  .municipio-popover__sol-item b { font-size: 12px; }
+  .municipio-popover__sol-item .weather-icon { width: 22px; height: 22px; }
+  .municipio-popover__extendido { margin-top: 6px; padding-top: 6px; }
+  .municipio-popover__extendido-titulo { margin-bottom: 3px; font-size: 10px; }
+  .municipio-popover__extendido-dias { gap: 4px; }
+  .municipio-popover__dia { padding: 3px 2px; gap: 0; font-size: 10px; }
+  .municipio-popover__dia .weather-icon { width: 24px; height: 24px; }
+  .municipio-popover__proximas { margin-top: 5px; gap: 3px; }
+  .municipio-popover__proximas .municipio-popover__alerta { margin: 0; font-size: 11px; padding: 3px 8px; }
+}
+@media (max-height: 500px) {
+  .map-info { padding: 8px 10px; }
+  .municipio-popover { width: 236px; }
+  .municipio-popover__nombre { font-size: 14px; margin-bottom: 2px; }
+  .municipio-popover .weather-icon { width: 22px; height: 22px; }
+  .municipio-popover__cond-fila, .municipio-popover__conds-cab { grid-template-columns: 36px 36px 1fr; }
+  .municipio-popover__conds-cab { font-size: 9px; letter-spacing: 0; }
+  .municipio-popover__cond-fila .weather-icon { justify-self: center; }
+  .municipio-popover__sol { gap: 6px; justify-content: space-between; }
+  .municipio-popover__sol-item span { white-space: nowrap; }
+  .municipio-popover__sol-item .weather-icon { width: 18px; height: 18px; }
+  .municipio-popover__dia .weather-icon { width: 20px; height: 20px; }
+  .municipio-popover__dia-temp { font-size: 10px; }
+}
