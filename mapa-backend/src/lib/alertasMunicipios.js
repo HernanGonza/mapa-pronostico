@@ -25,6 +25,37 @@ function conAlertas(municipios, vigentes) {
   });
 }
 
+const { delDia } = require("./alertasDelDia");
+const fechaAR = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+const etiquetaDia = (fecha) => {
+  const s = new Date(`${fecha}T12:00:00-03:00`).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit" });
+  return (s.charAt(0).toUpperCase() + s.slice(1)).replace(/-/g, "/");
+};
+
+/**
+ * A cada municipio le suma `alertasProximas`: los próximos días (mañana en adelante, hasta `dias`) en que su departamento tiene
+ * alerta, con lo ya publicado, incluso lo que todavía no se ve en el mapa (programadas o en fila). `pubs`: vigentes + en fila.
+ * [{ fecha, etiqueta, nivel, color, nombre, cuando }]; la más severa de cada día.
+ */
+function conAlertasProximas(municipios, pubs, departamentos, dias = 7, ahora = Date.now()) {
+  const dep = departamentoDe(), nombres = new Map(departamentos.map((d) => [String(d.id), d.nombre]));
+  const porDia = [];
+  for (let i = 1; i < dias; i++) {
+    const fecha = fechaAR(ahora + i * 864e5);
+    const alertas = delDia(fecha, pubs, null, departamentos);
+    if (alertas.length) porDia.push({ fecha, alertas });
+  }
+  return municipios.map((m) => {
+    const nombre = nombres.get(dep.get(m.id));
+    const proximas = [];
+    for (const { fecha, alertas } of porDia) {
+      const a = alertas.find((x) => x.departamentos.includes(nombre));
+      if (a) proximas.push({ fecha, etiqueta: etiquetaDia(fecha), nivel: a.nivel, color: a.color, nombre: a.nombre, cuando: a.texto.slice(a.nombre.length + 2, -3) });
+    }
+    return { ...m, alertasProximas: proximas };
+  });
+}
+
 // Las 13 ciudades de los informes del pronóstico (mapa-frontend/src/lib/informePlantillas.js) → cómo se llama el municipio.
 const CIUDADES = ["POSADAS", "LEANDRO ALEM", "APÓSTOLES", "SAN JAVIER", "OBERÁ", "JARDÍN AMÉRICA", "SAN VICENTE", "ARISTÓBULO DEL VALLE", "MONTECARLO", "PUERTO IGUAZÚ", "BERNARDO DE IRIGOYEN", "ELDORADO", "SAN PEDRO"];
 const MUNICIPIO_DE = { "LEANDRO ALEM": "LEANDRO N. ALEM" };
@@ -41,4 +72,4 @@ function ciudadesDepartamento() {
   return out;
 }
 
-module.exports = { conAlertas, departamentoDe, ciudadesDepartamento, CIUDADES };
+module.exports = { conAlertasProximas, conAlertas, departamentoDe, ciudadesDepartamento, CIUDADES };

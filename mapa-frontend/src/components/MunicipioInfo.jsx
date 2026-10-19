@@ -19,7 +19,7 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
   const sol = useAstro(getSolDeMunicipio, municipio?.id, fecha);
   const luna = useAstro(getLunaDeMunicipio, municipio?.id, fecha);
   if (!municipio) return null;
-  const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [], alerta } =
+  const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [], alerta, alertasProximas = [] } =
     municipio;
 
   return (
@@ -124,6 +124,17 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Alertas ya publicadas para los próximos días (aunque todavía no se vean en el mapa). */}
+      {alertasProximas.length > 0 && (
+        <ul className="municipio-popover__proximas">
+          {alertasProximas.map((a) => (
+            <li key={a.fecha} className="municipio-popover__alerta municipio-popover__alerta--con" style={{ "--nivel": a.color }}>
+              <i aria-hidden="true" /><span><b>{a.etiqueta}</b> · {a.nombre}{a.cuando ? ` · ${a.cuando}${a.cuando.startsWith("durante") ? "" : " h"}` : ""}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

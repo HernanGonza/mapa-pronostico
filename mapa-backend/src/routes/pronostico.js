@@ -322,7 +322,13 @@ router.get("/geo/:archivo", (req, res) => {
 
 /** A cada municipio le suma la alerta meteorológica que rige ahora en su departamento (`alerta`, o null). Si no se puede leer, no se agrega. */
 async function conAlertasVigentes(municipios) {
-  try { return require("../lib/alertasMunicipios").conAlertas(municipios, await require("../lib/alertasMeteorologicasStore").vigentes()); }
+  try {
+    const store = require("../lib/alertasMeteorologicasStore"), lib = require("../lib/alertasMunicipios");
+    const { vigentes, enFila } = await store.pendientes();
+    const fijada = [...vigentes, ...enFila].find((x) => x.fijada);
+    const conAhora = lib.conAlertas(municipios, fijada ? [fijada] : vigentes);
+    return lib.conAlertasProximas(conAhora, [...vigentes, ...enFila], require("../lib/departamentos").loadDepartamentos());
+  }
   catch (e) { console.error("[pronostico/mapa] alertas:", e.message); return municipios; }
 }
 

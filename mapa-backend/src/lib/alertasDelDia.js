@@ -32,6 +32,7 @@ function lineaDe(pub, depId, inicio) {
 
 /** Cuándo empieza a verse una publicación (las que esperan en fila, al terminar la anterior). */
 function inicioDe(pub, todas) {
+  if (pub.vigenteDesde) return Date.parse(pub.vigenteDesde);
   if (pub.visibleDesde) return Date.parse(pub.visibleDesde);
   const previa = pub.enFilaDe != null ? todas.find((x) => x.id === pub.enFilaDe) : null;
   return Math.max(Date.parse(pub.publicadoEn), previa ? Date.parse(previa.vigenteHasta) : 0);

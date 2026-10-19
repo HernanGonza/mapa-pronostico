@@ -1937,3 +1937,5 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .smn-tarjeta__etiqueta { color: var(--text); font-weight: 600; }
 .smn-tarjeta .btn { flex: none; }
 .alertas-dia__acciones { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+.municipio-popover__proximas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }

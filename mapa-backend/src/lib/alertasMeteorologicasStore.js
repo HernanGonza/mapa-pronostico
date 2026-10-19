@@ -77,6 +77,8 @@ async function init() {
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS placas_base jsonb;
        -- Programada: no aparece en el mapa público hasta esta hora (12 h antes de que entre en vigencia). NULL = aparece al publicarse.
        ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS publicar_desde timestamptz;
+       -- Cuándo entra en vigencia (si se sabe: lo dice el SMN o el «desde» del asistente). NULL = desde que se publicó.
+       ALTER TABLE alertas_meteo_publicaciones ADD COLUMN IF NOT EXISTS vigente_desde timestamptz;
        -- Historial de lo que se le hizo a cada alerta después de publicarla (para estadísticas e
        -- histórico): cambios de vigencia (antes/después, y las de la fila que se corrieron), fijar /
        -- desfijar, despublicar y las placas generadas, editadas o eliminadas. Una fila por evento.
@@ -138,8 +140,8 @@ async function publicar(zonas, iconos, usuarioId = null, { vigenteHasta, periodo
         ? await client.query(`UPDATE alertas_meteo_publicaciones SET vigente_hasta = now() WHERE id = ANY($1::bigint[]) AND vigente_hasta > now() RETURNING id`, [reemplazar])
         : { rows: [] };
       const { rows } = await client.query(
-        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos, origen_smn, placas_base, publicar_desde) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8) RETURNING id, publicado_en, vigente_hasta`,
-        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos), origenSmn ? JSON.stringify(origenSmn) : null, placasBase ? JSON.stringify(placasBase) : null, programada]
+        `INSERT INTO alertas_meteo_publicaciones (usuario_id, vigente_hasta, periodo, en_fila_de, tramos, origen_smn, placas_base, publicar_desde, vigente_desde) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9) RETURNING id, publicado_en, vigente_hasta`,
+        [usuarioId, vigenteHasta, periodo.trim(), enFilaDe, JSON.stringify(tramos), origenSmn ? JSON.stringify(origenSmn) : null, placasBase ? JSON.stringify(placasBase) : null, programada, inicio || origenSmn?.inicio || null]
       );
       const { id, publicado_en } = rows[0];
       if (reemplazar.length) await client.query(`UPDATE alertas_meteo_publicaciones SET en_fila_de = $1 WHERE en_fila_de = ANY($2::bigint[])`, [id, reemplazar]);
@@ -191,7 +193,7 @@ async function actual() {
 }
 
 /** Zonas e íconos de una publicación. */
-async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, origen_smn, placas_base, publicar_desde }) {
+async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, origen_smn, placas_base, publicar_desde, vigente_desde }) {
     const [{ rows: zonas }, { rows: iconos }] = await Promise.all([
       p.query(
         `SELECT departamento_id AS id, categoria FROM alertas_meteo_publicacion_departamentos WHERE publicacion_id = $1`,
@@ -205,7 +207,7 @@ async function conDetalle(p, { id, publicado_en, vigente_hasta, periodo, leyenda
     // categoria2 sólo viaja si hay segundo color (así lo publicado antes de esta función queda igual).
     const iconosBase = iconos.map(({ categoria2, ...i }) => (categoria2 ? { ...i, categoria2 } : i));
     return { id: Number(id), publicadoEn: publicado_en.toISOString(), vigenteHasta: vigente_hasta ? vigente_hasta.toISOString() : null, periodo: periodo || null, leyendas: leyendas || {}, tramos: tramos || {},
-      enFilaDe: en_fila_de ? Number(en_fila_de) : null, publicarDesde: publicar_desde ? publicar_desde.toISOString() : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, origenSmn: origen_smn || null, placasBase: placas_base || null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
+      enFilaDe: en_fila_de ? Number(en_fila_de) : null, publicarDesde: publicar_desde ? publicar_desde.toISOString() : null, vigenteDesde: vigente_desde ? vigente_desde.toISOString() : null, fijada: !!fijada, actualizadaEn: actualizada_en ? actualizada_en.toISOString() : null, origenSmn: origen_smn || null, placasBase: placas_base || null, zonas: zonasEn(zonas, tramos), zonasBase: zonas,
       iconos: iconosEn(iconosBase, zonasEn(zonas, tramos)), iconosBase };
 }
 
@@ -218,7 +220,7 @@ async function pendientes() {
   const p = store.getPool();
   if (p) {
     const { rows } = await p.query(
-      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde, origen_smn, placas_base, publicar_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
+      `SELECT id, publicado_en, vigente_hasta, periodo, leyendas, tramos, en_fila_de, fijada, actualizada_en, visible_desde, origen_smn, placas_base, publicar_desde, vigente_desde FROM alertas_meteo_publicaciones WHERE vigente_hasta > now() ORDER BY publicado_en`
     );
     const ids = new Set(rows.map((r) => String(r.id)));
     const ahora = Date.now();
