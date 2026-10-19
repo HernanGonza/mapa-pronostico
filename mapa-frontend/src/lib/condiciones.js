@@ -100,7 +100,7 @@ export const esCondicionConocida = (condicion) => partesCondicion(condicion).len
 export const condicionCanonica = (condicion) => { const p = partesCondicion(condicion); return p.length ? unirCondiciones(p) : null; };
 
 /** La más severa de las condiciones (la que manda para el color). */
-const masSevera = (texto) => partesCondicion(texto).reduce((a, b) => (!a || CATALOGO.indexOf(b) > CATALOGO.indexOf(a) ? b : a), null);
+export const masSevera = (texto) => partesCondicion(texto).reduce((a, b) => (!a || CATALOGO.indexOf(b) > CATALOGO.indexOf(a) ? b : a), null);
 
 /** Color de la placa / del mapa de administración: el de la condición más severa; `SIN_DATO` si no se reconoce ninguna. */
 export function colorPorCondicion(condicion) {

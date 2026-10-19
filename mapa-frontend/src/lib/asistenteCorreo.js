@@ -22,9 +22,9 @@ function guardar(clave, valor) {
   try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento: no pasa nada */ }
 }
 
-const cuerpoPorDefecto = (fecha) => `Buen día.
+const cuerpoPorDefecto = (fecha, formato = "PDF") => `Buen día.
 
-Les compartimos el pronóstico del tiempo para la provincia de Misiones del ${fechaDMA(fecha)}, en formato PDF.
+Les compartimos el pronóstico del tiempo para la provincia de Misiones del ${fechaDMA(fecha)}, en formato ${formato}.
 
 Saludos cordiales,
 Dirección General de Alerta Temprana
@@ -70,7 +70,7 @@ function pasoRevision(lista, estado) {
           <div><dt>Para</dt><dd>${elegidos.length} destinatario${elegidos.length === 1 ? "" : "s"}, en copia oculta
             <details><summary>Ver lista</summary><p class="paso-resumen__texto">${elegidos.map((d) => esc(nombreDe(d))).join("<br>")}</p></details></dd></div>
           <div><dt>Asunto</dt><dd>${esc(s.asunto)}</dd></div>
-          <div><dt>Adjunto</dt><dd>${esc(s.adjunto)} <small>(el PDF se arma con este informe)</small></dd></div>
+          <div><dt>Adjunto</dt><dd>${esc(s.adjunto)} <small>(se arma con este informe)</small></dd></div>
           <div><dt>Mensaje</dt><dd class="paso-resumen__texto">${esc(s.cuerpo)}</dd></div>
         </dl>`;
     },
@@ -82,14 +82,14 @@ function pasoRevision(lista, estado) {
  * fecha: "AAAA-MM-DD" del informe; estado: { configurado, remitente }; destinatarios: la lista fija [{ id, nombre, email }].
  * enviar({ asunto, cuerpo, ids }) → { enviados, remitente }. El PDF lo arma el servidor con el informe de la tarjeta.
  */
-export function enviarPronosticoPorCorreo({ fecha, estado, destinatarios, enviar }) {
+export function enviarPronosticoPorCorreo({ fecha, estado, destinatarios, enviar, word = false }) {
   const pasos = [pasoDestinatarios(destinatarios), pasoMensaje, pasoRevision(destinatarios, estado)];
   const inicial = {
-    adjunto: `PREVISION DEL TIEMPO ${fecha}.pdf`,
+    adjunto: `PREVISION DEL TIEMPO ${fecha}.${word ? "docx" : "pdf"}`,
     ids: destinatarios.map((d) => d.id),
     asunto: `Pronóstico del tiempo — ${fechaDMA(fecha)}`,
     // El mensaje recordado puede traer la fecha de otro día: se reemplaza por la de este informe.
-    cuerpo: (leerGuardado(CLAVE_MENSAJE) || cuerpoPorDefecto(fecha)).replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, fechaDMA(fecha)),
+    cuerpo: (leerGuardado(CLAVE_MENSAJE) || cuerpoPorDefecto(fecha, word ? "Word" : "PDF")).replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, fechaDMA(fecha)).replace(/en formato (PDF|Word)\./, `en formato ${word ? "Word" : "PDF"}.`),
   };
   return asistente({
     pasos, estado: inicial, textoEnviar: "Enviar", ancho: 760,

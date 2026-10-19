@@ -2,7 +2,6 @@ const express = require("express");
 const requireAuth = require("../middleware/requireAuth");
 const { pronosticoEnsamble, progresoEnsamble, estadoDescargas, buscarActualizaciones } = require("../lib/ensamble");
 const { propuestaInforme } = require("../lib/informeEnsamble");
-const { generarDocx } = require("../lib/informePronostico");
 
 const router = express.Router();
 // El superadmin y quienes tengan el módulo «ensamble» (ver pantalla Usuarios).
@@ -41,18 +40,6 @@ router.post("/ensamble/informe/propuesta", requireAuth, soloConModulo, express.j
   catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
     console.error("[ensamble informe]", e); res.status(502).json({ error: `No se pudieron calcular los valores: ${e.cause?.code || e.message}.` });
-  }
-});
-
-// ...y el .docx del informe, completando la plantilla con lo que se escribió en el asistente.
-router.post("/ensamble/informe/docx", requireAuth, soloConModulo, express.json({ limit: "1mb" }), async (req, res) => {
-  try {
-    const docx = await generarDocx(req.body);
-    res.set({ "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Content-Disposition": `attachment; filename="PREVISION DEL TIEMPO ${req.body.emision.fecha}.docx"`, "Cache-Control": "no-store" });
-    res.send(docx);
-  } catch (e) {
-    if (e.status === 400) return res.status(400).json({ error: e.message });
-    console.error("[ensamble informe docx]", e); res.status(500).json({ error: "No se pudo armar el informe." });
   }
 });
 

@@ -49,9 +49,26 @@ const temp = (v) => { const s = String(v ?? "").trim(); return /^-?\d+([.,]\d+)?
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const texto = (v, max = 1200) => typeof v === "string" && v.length <= max;
 
+const TEMPS_V2 = ["tmax", "tmin", "tnoct"];
+/** Formato con plantilla (`version: 2`, ver mapa-frontend/src/lib/informePlantillas.js): 3 días, cada uno con sus `temps`. */
+function errorDeInformeV2(b) {
+  if (!RE_FECHA.test(String(b.fecha || ""))) return "Falta la fecha del informe.";
+  if (!b.vigencia || !/^\d{2}:\d{2}$/.test(String(b.vigencia.hasta || "")) || !RE_FECHA.test(String(b.vigencia.fecha || ""))) return "Falta la vigencia del informe.";
+  if (!Array.isArray(b.dias) || b.dias.length !== 3) return "El informe tiene que tener tres días.";
+  for (const d of b.dias) {
+    if (!d || !RE_FECHA.test(String(d.fecha || ""))) return "Falta la fecha de un día.";
+    if (!Array.isArray(d.temps) || !d.temps.length || d.temps.some((t) => !TEMPS_V2.includes(t))) return "Las temperaturas de un día no son válidas.";
+    if (!d.zonas || ZONAS.some((z) => !d.zonas[z] || d.temps.some((t) => typeof d.zonas[z][t] !== "object" || !d.zonas[z][t]))) return "Faltan las tres zonas de un día.";
+    if (!Array.isArray(d.ciudades) || d.ciudades.length > 40) return "Las ciudades de un día no son válidas.";
+  }
+  if (JSON.stringify(b).length > 200000 || b.dias.some((d) => [d.resumen, d.precipitaciones, d.vientos, d.alertas].some((t) => t != null && !texto(String(t), 2000)))) return "Hay un texto demasiado largo.";
+  return null;
+}
+
 /** Valida la forma del borrador (los textos pueden venir vacíos: el PDF se puede bajar incompleto, como el borrador). */
 function errorDeInforme(b) {
   if (!b || typeof b !== "object") return "Falta el informe.";
+  if (b.version === 2) return errorDeInformeV2(b);
   if (!RE_FECHA.test(String(b.fecha || ""))) return "Falta la fecha del informe.";
   if (!b.zonas || ZONAS.some((z) => typeof b.zonas[z] !== "object" || !b.zonas[z])) return "Faltan las tres zonas.";
   if (!Array.isArray(b.localidades) || b.localidades.length > 40) return "Las localidades no son válidas.";
@@ -81,7 +98,8 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   if (error) throw Object.assign(new Error(error), { status: 400 });
 
   // Los íconos se piden antes de dibujar (el dibujo es síncrono): una vez por texto de condición distinto.
-  const textos = new Set([...ZONAS.map((z) => b.zonas[z].condicion), ...b.localidades.map((l) => l.condicion), ...ZONAS.flatMap((z) => b.extendido[z].map((d) => d.condicion))]);
+  const v2 = b.version === 2;
+  const textos = v2 ? new Set(b.dias.flatMap((d) => d.ciudades.map((c) => c.condicion))) : new Set([...ZONAS.map((z) => b.zonas[z].condicion), ...b.localidades.map((l) => l.condicion), ...ZONAS.flatMap((z) => b.extendido[z].map((d) => d.condicion))]);
   const iconos = new Map(await Promise.all([...textos].map(async (t) => [t, await condiciones(t)])));
 
   const chunks = [];
@@ -142,16 +160,16 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
    * Tabla con título, encabezado de columnas y una fila por registro. Cada celda es un texto o un objeto
    * { t, color, bold } (texto con estilo) o { cond } (íconos + condición). `cols`: [{ t, w, centro }].
    */
-  const tabla = (titulo, cols, filas) => {
+  const tabla = (titulo, cols, filas, opc = {}) => {
     const xs = []; let acc = M; for (const c of cols) { xs.push(acc); acc += c.w; }
-    const alturaFila = (fila) => Math.max(28, ...fila.map((cel, i) => {
+    const alturaFila = (fila) => Math.max(opc.minAlto || 28, ...fila.map((cel, i) => {
       const c = typeof cel === "object" && cel ? cel : { t: cel };
       const ancho = cols[i].w - 8;
       if (c.cond !== undefined) { const n = Math.min((iconos.get(c.cond) || []).length, maxIconosEn(cols[i].w)); doc.font("Oak").fontSize(8.5); return doc.heightOfString(c.cond || "—", { width: ancho - n * 25 }) + 10; }
       doc.font(c.bold ? "Oak-Bold" : "Oak").fontSize(9); return doc.heightOfString(String(c.t ?? "") || "—", { width: ancho }) + 10;
     }));
-    espacio(30 + 16 + 28); // el título, el encabezado y al menos una fila juntos
-    barra(titulo);
+    espacio((titulo ? 30 : 0) + 16 + 28); // el título, el encabezado y al menos una fila juntos
+    if (titulo) barra(titulo);
     const encabezado = () => {
       if (cols.every((c) => !c.t)) return; // tabla de rótulo y valor: sin fila de encabezado
       const y = doc.y;
@@ -176,7 +194,7 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
       doc.moveTo(M, y + alto).lineTo(M + ANCHO, y + alto).lineWidth(0.5).strokeColor(LINEA).stroke();
       doc.y = y + alto;
     }
-    doc.y += 12;
+    doc.y += opc.hueco ?? 12;
   };
   const titulo_ = (t) => t.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
   const ALERTA_VACIA = "—";
@@ -192,11 +210,48 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
   doc.font("Oak-Bold").fontSize(8.5).fillColor(VERDE_OSCURO).text(DIRECCION, centro.x, M + 33, centro);
   doc.font("Oak").fontSize(7.5).fillColor(GRIS).text(SUBSECRETARIA, centro.x, M + 44, centro);
   doc.text(MINISTERIO, centro.x, M + 54, centro);
-  doc.font("Oak").fontSize(9).fillColor(GRIS).text(`Datos: ${cap(fechaLarga(b.fecha))}${b.emision ? ` · emisión ${b.emision} h` : ""}`, centro.x, M + 70, centro);
+  if (v2) doc.font("Oak-Bold").fontSize(10).fillColor(ROJO).text(`VIGENCIA: hasta las ${b.vigencia.hasta === "23:59" ? "23:59" : `${b.vigencia.hasta.slice(0, 2)} horas`} del ${fechaCorta(b.vigencia.fecha)}`, centro.x, M + 69, centro);
+  else doc.font("Oak").fontSize(9).fillColor(GRIS).text(`Datos: ${cap(fechaLarga(b.fecha))}${b.emision ? ` · emisión ${b.emision} h` : ""}`, centro.x, M + 70, centro);
   doc.moveTo(M, M + 86).lineTo(M + ANCHO, M + 86).lineWidth(1.5).strokeColor(VERDE).stroke();
   doc.y = M + 98;
 
+  /** Rango «20° C a 22° C» / «40% - 80%» / «1014 hPa a 1017 hPa» (un solo valor si no hay «hasta» o es igual). */
+  const rangoV2 = (r, u) => {
+    const d = String(r?.desde ?? "").trim(), h = String(r?.hasta ?? "").trim();
+    if (!d) return "—";
+    const f = (x) => (u === "%" ? `${x}%` : u === "°C" ? `${x}° C` : `${x} ${u}`);
+    return !h || Number(h.replace(",", ".")) === Number(d.replace(",", ".")) ? f(d) : u === "%" ? `${d}% - ${h}%` : `${f(d)} a ${f(h)}`;
+  };
+  const ROTULO_V2 = { tmax: "TEMPERATURAS MÁXIMAS", tmin: "TEMPERATURAS MÍNIMAS", tnoct: "TEMPERATURAS NOCTURNAS" };
+  const CABECERA_V2 = { tmax: "TEMP. MÁXIMA", tmin: "TEMP. MÍNIMA", tnoct: "TEMP. NOCTURNA" };
+  const colorV2 = (t) => (t === "tmax" ? ROJO : AZUL);
+  function contenidoV2() {
+    const rot = (t) => ({ t, bold: true, color: VERDE_OSCURO });
+    const POR_ZONA_V2 = ["Sur", "Centro", "Norte"];
+    b.dias.forEach((d, i) => {
+      if (i > 0) doc.addPage();
+      doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(13).text(cap(fechaLarga(d.fecha)), M + 2, doc.y, { width: ANCHO });
+      doc.y += 4;
+      if (String(d.resumen ?? "").trim()) { doc.fillColor("#1b2a22").font("Oak").fontSize(9.5).text(String(d.resumen).trim(), M + 2, doc.y, { width: ANCHO - 6, align: "justify" }); doc.y += 8; }
+      tabla(`Condiciones promedio para la provincia ${d.hoy ? "en lo que resta del día" : "para el día"} (${fechaCorta(d.fecha)})`,
+        [{ t: "", w: 150 }, ...POR_ZONA_V2.map((z) => ({ t: `ZONA ${z.toUpperCase()}`, w: (ANCHO - 150) / 3, centro: true }))],
+        d.temps.map((t) => [rot(ROTULO_V2[t]), ...POR_ZONA_V2.map((z) => ({ t: rangoV2(d.zonas[z][t], "°C"), bold: true, color: colorV2(t) }))]), { minAlto: 22, hueco: 0 });
+      tabla(null, [{ t: "", w: 150 }, { t: "", w: ANCHO - 150 }], [
+        [rot("HUMEDAD"), rangoV2(d.humedad, "%")],
+        [rot("PRECIPITACIONES"), d.precipitaciones],
+        ...(d.presion ? [[rot("PRESIÓN ATMOSFÉRICA"), rangoV2(d.presionRango, "hPa")]] : []),
+        [rot("VIENTOS"), d.vientos],
+        [rot("ALERTAS"), String(d.alertas ?? "").trim() || "------"],
+      ], { minAlto: 22 });
+      const anchoT = 72, anchoA = 62, anchoC = 124;
+      tabla(`Previsión por principales ciudades de la provincia de Misiones (${fechaCorta(d.fecha)})`, [
+        { t: "CIUDAD", w: anchoC }, ...d.temps.map((t) => ({ t: CABECERA_V2[t], w: anchoT, centro: true })), { t: "ESTADO DEL TIEMPO", w: ANCHO - anchoC - anchoT * d.temps.length - anchoA }, { t: "ALERTA", w: anchoA },
+      ], d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, color: colorV2(t) })), { cond: c.condicion }, String(c.alerta ?? "").trim() || "s/a"]), { minAlto: 26 });
+    });
+  }
+
   // El orden es el del informe de la DGAT: primero el texto de cada día y después las tablas.
+  if (v2) contenidoV2(); else {
   // --- texto de los días ------------------------------------------------------------------------------------------
   for (const inf of b.informes) {
     espacio(70);
@@ -250,6 +305,8 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
     tabla(`Zona ${z}`, [
       { t: "FECHA", w: 90 }, { t: "TEMP. MÍN", w: 52 }, { t: "TEMP. MÁX", w: 52 }, { t: "ESTADO DEL TIEMPO", w: 190 }, { t: "ALERTA", w: ANCHO - 384 },
     ], b.extendido[z].map((d) => [rotulo(fechaCorta(d.fecha)), { t: temp(d.tmin), bold: true, color: AZUL }, { t: temp(d.tmax), bold: true, color: ROJO }, { cond: d.condicion }, d.aviso ? sinAviso(d.aviso) : ALERTA_VACIA]));
+  }
+
   }
 
   espacio(40);

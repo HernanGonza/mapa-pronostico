@@ -12,7 +12,16 @@ const { loadDepartamentos, loadCentroides } = require("./departamentos");
 const { progreso: progresoWrf } = require("./wrfSmn");
 const { monanConEspera, progreso: progresoMonan } = require("./monan");
 const { loadMunicipios } = require("./municipios");
-const { CIUDADES } = require("./informePronostico");
+// Las ciudades del informe, en el orden de la tabla. `municipio`: cómo figura en municipios.json (para ubicarlas).
+const CIUDADES = [
+  { nombre: "POSADAS", municipio: "POSADAS" }, { nombre: "L. N. ALEM", municipio: "LEANDRO N. ALEM" },
+  { nombre: "APÓSTOLES", municipio: "APOSTOLES" }, { nombre: "SAN JAVIER", municipio: "SAN JAVIER" },
+  { nombre: "MONTECARLO", municipio: "MONTECARLO" }, { nombre: "JARDÍN AMÉRICA", municipio: "JARDÍN AMERICA" },
+  { nombre: "SAN VICENTE", municipio: "SAN VICENTE" }, { nombre: "A. DEL VALLE", municipio: "ARISTOBULO DEL VALLE" },
+  { nombre: "OBERÁ", municipio: "OBERA" }, { nombre: "PUERTO IGUAZÚ", municipio: "PUERTO IGUAZU" },
+  { nombre: "BDO. DE IRIGOYEN", municipio: "BERNARDO DE IRIGOYEN" }, { nombre: "ELDORADO", municipio: "ELDORADO" },
+  { nombre: "SAN PEDRO", municipio: "SAN PEDRO" },
+];
 
 const N_DEPARTAMENTOS = 17;
 /**
@@ -77,6 +86,8 @@ const VARIABLES = [
   { grupo: "Humedad y nubes", horaria: "relative_humidity_2m", agrega: "max", clave: "hmax", nombre: "Humedad máxima", unidad: "%", decimales: 0, umbral: 15 },
   { grupo: "Humedad y nubes", horaria: "cloud_cover", agrega: "mean", clave: "nubosidad", nombre: "Nubosidad (promedio)", unidad: "%", decimales: 0, umbral: 30 },
   { grupo: "Humedad y nubes", horaria: "dew_point_2m", agrega: "mean", clave: "rocio", nombre: "Punto de rocío (promedio)", unidad: "°C", decimales: 1, umbral: 4 },
+  { grupo: "Presión", horaria: "pressure_msl", agrega: "min", clave: "presmin", nombre: "Presión mínima (a nivel del mar)", unidad: "hPa", decimales: 0, umbral: 4 },
+  { grupo: "Presión", horaria: "pressure_msl", agrega: "max", clave: "presmax", nombre: "Presión máxima (a nivel del mar)", unidad: "hPa", decimales: 0, umbral: 4 },
   { grupo: "Tormentas", horaria: "cape", agrega: "max", clave: "cape", nombre: "CAPE máxima", unidad: "J/kg", decimales: 0, umbral: 500 },
   { grupo: "Tormentas", horaria: null, agrega: "max", clave: "refl", nombre: "Reflectividad de radar máxima", unidad: "dBZ", decimales: 0, umbral: 15 }, // sólo MONAN 3 km
   { grupo: "Tormentas", horaria: null, agrega: "max", clave: "uh", nombre: "Helicidad de ascenso máxima", unidad: "m²/s²", decimales: 0, umbral: 50 }, // sólo MONAN 3 km

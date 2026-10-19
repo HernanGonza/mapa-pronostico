@@ -42,3 +42,48 @@ test("las condiciones son una lista fija: se pueden juntar varias y las escritur
   assert.equal(colorPorCondicion("Despejado + Tormentas"), colorPorCondicion("Tormentas"));
   assert.match(resolveIconPath("", "Nublado + Chaparrones"), /74\.png$/);
 });
+
+// --- informes con plantilla (formato 2: 3 días, 5 botones / 3 plantillas) ---
+const rango = (desde, hasta = "") => ({ desde, hasta });
+const diaV2 = (fecha, temps, presion) => ({
+  fecha, temps, presion, hoy: false, resumen: "Un sistema de alta presión mantiene el buen tiempo.",
+  zonas: Object.fromEntries(["Sur", "Centro", "Norte"].map((z) => [z, Object.fromEntries(temps.map((t) => [t, rango("12", "15")]))])),
+  humedad: rango("40", "80"), presionRango: rango("1014", "1017"), precipitaciones: "Sin probabilidades", vientos: "3 a 15 km/h, del sector sur", alertas: "",
+  ciudades: ["POSADAS", "OBERÁ"].map((ciudad) => ({ ciudad, ...Object.fromEntries(temps.map((t) => [t, "14"])), condicion: "Algo nublado", alerta: "s/a" })),
+});
+const informeV2 = (temps1 = ["tmax", "tnoct"]) => ({
+  version: 2, boton: "ls1", plantilla: "A", fecha: "2026-10-19", emision: "12:00", vigencia: { hasta: "18:00", fecha: "2026-10-19" },
+  dias: [{ ...diaV2("2026-10-19", temps1, false), hoy: true }, diaV2("2026-10-20", ["tmin", "tmax"], true), diaV2("2026-10-21", ["tmin", "tmax"], true)],
+});
+
+test("el informe con plantilla sale en PDF, con una página por día y las temperaturas que le tocan a cada plantilla", async () => {
+  for (const temps of [["tmax", "tnoct"], ["tnoct"]]) {
+    const pdf = await generarInformePdf(informeV2(temps), { claveDuenio: "clave-de-prueba" });
+    assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
+    assert.match(pdf.toString("latin1"), /\/Encrypt/);
+    assert.match(pdf.toString("latin1"), /\/Count 3/);
+  }
+});
+
+test("el informe con plantilla mal formado se rechaza con un mensaje", () => {
+  assert.equal(errorDeInforme(informeV2()), null);
+  assert.match(errorDeInforme({ ...informeV2(), dias: [] }), /tres días/);
+  assert.match(errorDeInforme({ ...informeV2(), vigencia: null }), /vigencia/i);
+  const raro = informeV2(); raro.dias[0].temps = ["calor"];
+  assert.match(errorDeInforme(raro), /temperaturas/i);
+  const sinZona = informeV2(); delete sinZona.dias[1].zonas.Sur;
+  assert.match(errorDeInforme(sinZona), /zonas/i);
+});
+
+test("el informe con plantilla también sale en .docx, con los textos editables y sin cifrado", async () => {
+  const JSZip = require("jszip");
+  const { generarInformeDocx } = require("../src/lib/informePronosticoDocx");
+  const zip = await JSZip.loadAsync(await generarInformeDocx(informeV2()));
+  const xml = await zip.file("word/document.xml").async("string");
+  assert.match(xml, /Un sistema de alta presión mantiene el buen tiempo\./);
+  assert.match(xml, /Lunes 19 de octubre de 2026/);
+  assert.match(xml, /TEMPERATURAS NOCTURNAS/);
+  assert.match(xml, /12° C a 15° C/);
+  assert.equal((xml.match(/<w:tbl>/g) || []).length, 9);
+  await assert.rejects(() => generarInformeDocx({ ...informeV2(), dias: [] }), /tres días/);
+});

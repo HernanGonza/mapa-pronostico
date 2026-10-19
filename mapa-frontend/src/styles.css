@@ -1891,3 +1891,16 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .pron-detalle { display: block; color: var(--text-muted); line-height: 1.45; }
 .pron-guardado--error { color: #b3262f; font-weight: 600; }
 .pron-dia-titulo { margin: 14px 0 6px; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+
+/* Pantalla inicial del cajón de informes: los 5 tipos de informe, agrupados. */
+.pron-elegir { display: grid; gap: 8px; margin-top: 14px; }
+.pron-elegir h3 { margin: 0; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.pron-elegir__boton { display: grid; gap: 2px; text-align: left; font: inherit; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text); cursor: pointer; }
+.pron-elegir__boton strong { font-size: 1rem; color: var(--heading); }
+.pron-elegir__boton span { font-size: 0.82rem; color: var(--text-muted); }
+.pron-elegir__boton:hover, .pron-elegir__boton:focus-visible { border-color: var(--verde-600); background: var(--surface-2); }
+/* Resumen del formato nuevo en la tarjeta de la pila. */
+.pron-v2 { display: grid; gap: 4px; margin: 8px 0; font-size: 0.82rem; }
+.pron-v2__dia { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.pron-v2__dia strong { min-width: 60px; }
+.pron-v2__dia span { color: var(--text-muted); }

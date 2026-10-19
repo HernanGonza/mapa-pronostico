@@ -5,10 +5,12 @@ import PlacaPreview from "../components/PlacaPreview";
 import BaseMap from "../components/BaseMap";
 import { colorUniforme, infoPronostico } from "../components/PronosticoMapContent";
 import EmbedShare from "../components/EmbedShare";
-import { cargarPronostico, crearPlacaPronostico, publicarPronosticoPorPasos } from "../lib/asistentesPronostico";
+import { crearPlacaPronostico, publicarPronosticoPorPasos } from "../lib/asistentesPronostico";
 import PronosticoPublicado, { usePublicado, origenDe } from "../components/PronosticoPublicado";
 import BrandHeader from "../components/BrandHeader";
-import InformePronostico, { aMapa, borradorConAlgo, borradorVacio, conCampo, desdeDatos, problemasParaMapa } from "../components/InformePronostico";
+import InformePronostico, { aMapa, borradorConAlgo, borradorVacio, conCampo, problemasParaMapa } from "../components/InformePronostico";
+import InformePlantilla from "../components/InformePlantilla";
+import { borradorNuevo, nombreDeBoton } from "../lib/informePlantillas";
 import TarjetaInformePronostico, { estadoDeInforme } from "../components/TarjetaInformePronostico";
 import { useInformesPronostico } from "../lib/useInformesPronostico";
 import { calcularCambios } from "../lib/cambiosPronostico";
@@ -16,7 +18,7 @@ import { enviarPronosticoPorCorreo, editarDestinatariosPorPasos } from "../lib/a
 import { notificar, confirmar } from "../lib/ui";
 import {
   generarInformePdf,
-  parseDocx,
+  generarInformeDocxPronostico,
   enviarInformePorCorreo,
   marcarInformePublicado,
   getCorreoEstado,
@@ -67,6 +69,7 @@ export default function AdminPage() {
   // Un informe nuevo no es una tarjeta hasta que se guarda (último paso del cajón): mientras tanto es sólo un borrador que no se pierde al cerrar.
   const [nuevo, setNuevo] = useState(() => { try { return JSON.parse(localStorage.getItem(CLAVE_NUEVO))?.borrador || null; } catch { return null; } });
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [eligiendo, setEligiendo] = useState(false); // la pantalla inicial del cajón: los 5 tipos de informe
   useEffect(() => { try { if (nuevo) localStorage.setItem(CLAVE_NUEVO, JSON.stringify({ borrador: nuevo })); else localStorage.removeItem(CLAVE_NUEVO); } catch { /* sin almacenamiento */ } }, [nuevo]);
   const [cajon, setCajon] = useState(false);
   const [paso, setPaso] = useState(0);
@@ -115,15 +118,23 @@ export default function AdminPage() {
   // --- Acciones de las tarjetas ---
   /** Abre el cajón con un informe nuevo SIN guardar (si ya había uno a medias, sigue con ese). */
   function nuevoInforme(borrador) {
-    if (borrador || !nuevo) setNuevo(borrador || borradorVacio());
+    if (borrador) { setNuevo(borrador); setEligiendo(false); }
+    else if (nuevo && borradorConAlgo(nuevo)) setEligiendo(false); // sigue con el que estaba a medias
+    else { setNuevo(null); setEligiendo(true); }
     setPaso(0); setAbiertoId("nuevo"); setCajon(true);
+  }
+  /** Eligió uno de los 5 tipos en la pantalla inicial del cajón. */
+  function elegirTipo(botonId) { setNuevo(borradorNuevo(botonId)); setEligiendo(false); setPaso(0); }
+  async function cambiarTipo() {
+    if (nuevo && borradorConAlgo(nuevo) && !(await confirmar({ titulo: "¿Cambiar el tipo de informe?", texto: "Se descarta lo que escribiste en este informe sin guardar.", confirmar: "Descartar y elegir", peligro: true }))) return;
+    setNuevo(null); setEligiendo(true); setPaso(0);
   }
   async function guardarNuevo() {
     if (!nuevo || guardandoNuevo) return;
     setGuardandoNuevo(true);
     try {
       const n = await inf.crear(nuevo);
-      setNuevo(null); setAbiertoId(n.id); setVistaId(n.id);
+      setNuevo(null); setAbiertoId(null); setVistaId(n.id); setCajon(false);
       aviso(`Informe #${n.id} guardado: ya es una tarjeta de la pila.`);
     } catch (e) { fallo(e); } finally { setGuardandoNuevo(false); }
   }
@@ -139,10 +150,6 @@ export default function AdminPage() {
     if (!(await confirmar({ titulo: `¿Borrar el informe #${i.id}?`, texto: i.meta?.publicadoEn ? "Ya se publicó en los mapas: borrarlo no cambia lo que se ve ahora, sólo saca la tarjeta." : "Se pierde lo escrito.", confirmar: "Borrar", peligro: true }))) return;
     try { await inf.borrar(i.id); if (abiertoId === i.id) { setCajon(false); setAbiertoId(null); } if (vistaId === i.id) setVistaId(null); } catch (e) { fallo(e); }
   }
-  const cargarDocx = () => cargarPronostico({
-    filas: null, fecha: new Date().toISOString().slice(0, 10), parse: (archivo) => parseDocx(archivo),
-    aplicar: async ({ filas: f, fecha, extendido: e }) => { const n = await inf.crear(desdeDatos({ filas: f, fecha, extendido: e })); setVistaId(n.id); },
-  });
 
   async function verPdf(i, bajar = false) {
     setError(null);
@@ -150,6 +157,15 @@ export default function AdminPage() {
       const blob = await generarInformePdf(i.borrador), url = URL.createObjectURL(blob);
       if (bajar) { const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha}.pdf` }); document.body.append(a); a.click(); a.remove(); }
       else window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { fallo(e); }
+  }
+
+  async function bajarDocx(i) {
+    setError(null);
+    try {
+      const url = URL.createObjectURL(await generarInformeDocxPronostico(i.borrador));
+      const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}.docx` }); document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) { fallo(e); }
   }
@@ -204,7 +220,7 @@ export default function AdminPage() {
       const [estado, destinatarios] = await Promise.all([getCorreoEstado(), getCorreoDestinatarios()]);
       if (!destinatarios.length) { notificar("error", "La lista de destinatarios está vacía: cargala en «Destinatarios del correo»."); return; }
       await enviarPronosticoPorCorreo({
-        fecha: i.borrador.fecha, estado, destinatarios,
+        fecha: i.borrador.fecha, estado, destinatarios, word: i.borrador.version === 2,
         enviar: async (datos) => { const r = await enviarInformePorCorreo(i.id, datos); if (r.informe) inf.mezclar(r.informe); return r; },
       });
     } catch (e) { notificar("error", e.message); } finally { setOcupado(false); }
@@ -261,21 +277,20 @@ export default function AdminPage() {
         {mensajeOk && <div className="alert alert--ok" role="status">{mensajeOk}</div>}
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={() => nuevoInforme()}>{nuevo && borradorConAlgo(nuevo) ? "Seguir con el informe sin guardar" : "Nuevo informe"}</button>
-          <button className="btn btn--block" onClick={cargarDocx}>Subir un .docx (formato anterior)</button>
           <button className="btn btn--ghost btn--block" onClick={editarDestinatarios}>Destinatarios del correo</button>
           <button className="btn btn--ghost btn--block" disabled={!filas || cargando} onClick={onCapturarDesdeElMapa}>Capturar el mapa de acá</button>
         </div>
 
         {correo && !correo.configurado && <div className="alert alert--error" role="status">El envío por correo todavía no está configurado en el servidor: faltan <code>GMAIL_USER</code> y <code>GMAIL_APP_PASSWORD</code> (la contraseña de aplicación de la cuenta de Gmail). Hasta entonces el botón «Enviar por correo» no puede mandar.</div>}
         {correo?.configurado && <p className="admin-panel__hint">Los correos salen desde {correo.remitente} ({correo.via === "gmail" ? "Gmail" : "Microsoft 365"}).</p>}
-        {!informes ? <p className="admin-panel__hint">Cargando los informes…</p> : !informes.length ? <p className="admin-panel__hint">Todavía no hay informes de los últimos días. Armá uno con «Nuevo informe» o subí el .docx del formato anterior.</p> : (
+        {!informes ? <p className="admin-panel__hint">Cargando los informes…</p> : !informes.length ? <p className="admin-panel__hint">Todavía no hay informes de los últimos días. Armá uno con «Nuevo informe».</p> : (
           <div className="pron-pila">
             {dias.map(([fecha, lista]) => <section key={fecha} aria-label={`Informes del ${fecha}`}>
               <h2 className="pron-dia-titulo">{new Date(`${fecha}T12:00:00Z`).toLocaleDateString("es-AR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" })} · {lista.length} informe{lista.length === 1 ? "" : "s"}</h2>
               <ul className="avisos-lista">
                 {lista.map((i) => <TarjetaInformePronostico key={i.id} informe={i} actual={publicado} enElMapa={i.id === vistaId} guardado={inf.guardado[i.id]} ocupado={ocupado} acciones={{
                   editar: () => editar(i), verEnMapa: () => { setVista("mapa"); setVistaId(i.id); }, publicar: () => publicarInforme(i),
-                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
+                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), bajarDocx: () => bajarDocx(i), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
                   enviar: () => enviarPorCorreo(i), destinatarios: editarDestinatarios, duplicar: () => duplicar(i), borrar: () => borrarInforme(i),
                 }} />)}
               </ul>
@@ -286,10 +301,15 @@ export default function AdminPage() {
         <EmbedShare path="/embed" title="Previsión del tiempo de Misiones" />
       </div>
 
-      <InformePronostico informe={informeAbierto} abierto={cajon && !!informeAbierto} onCerrar={() => setCajon(false)} paso={paso} setPaso={setPaso}
+      {(eligiendo && abiertoId === "nuevo") || informeAbierto?.borrador?.version === 2
+        ? <InformePlantilla informe={informeAbierto} elegir={eligiendo && abiertoId === "nuevo"} alElegir={elegirTipo} alCambiarTipo={cambiarTipo} abierto={cajon} onCerrar={() => setCajon(false)} paso={paso} setPaso={setPaso}
+            setCampo={(camino, valor) => (abiertoId === "nuevo" ? setNuevo((b) => conCampo(b, camino, valor)) : abiertoId != null && inf.setCampo(abiertoId, camino, valor))}
+            reemplazar={(b) => (abiertoId === "nuevo" ? setNuevo(b) : abiertoId != null && inf.reemplazar(abiertoId, b))}
+            guardado={inf.guardado[abiertoId]} alGuardar={guardarNuevo} guardando={guardandoNuevo} />
+        : <InformePronostico informe={informeAbierto} abierto={cajon && !!informeAbierto} onCerrar={() => setCajon(false)} paso={paso} setPaso={setPaso}
         setCampo={(camino, valor) => (abiertoId === "nuevo" ? setNuevo((b) => conCampo(b, camino, valor)) : abiertoId != null && inf.setCampo(abiertoId, camino, valor))}
         reemplazar={(b) => (abiertoId === "nuevo" ? setNuevo(b) : abiertoId != null && inf.reemplazar(abiertoId, b))}
-        guardado={inf.guardado[abiertoId]} publicado={publicado} alPublicar={() => informeAbierto && publicarInforme(informeAbierto)} alGuardar={guardarNuevo} guardando={guardandoNuevo} />
+        guardado={inf.guardado[abiertoId]} publicado={publicado} alPublicar={() => informeAbierto && publicarInforme(informeAbierto)} alGuardar={guardarNuevo} guardando={guardandoNuevo} />}
 
       <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico"
         sinRedes={PRONOSTICO_EN_REDES ? null : "Todavía no aprobada para redes: se puede descargar para revisarla, pero no publicar."}>
@@ -307,7 +327,7 @@ export default function AdminPage() {
           />
         ) : (
           <div className="admin-map-area__vacio">
-            Armá un informe o subí un .docx para ver el mapa.
+            Armá un informe para ver el mapa.
           </div>
         )}
       </PlacaPreview>

@@ -6,6 +6,7 @@ import SelectorCondiciones from "./SelectorCondiciones";
 import * as api from "../api";
 import { confirmar } from "../lib/ui";
 import { hayCondicion } from "../lib/condiciones";
+import { conCampoV2, conAlgoV2, aMapaV2, problemasMapaV2 } from "../lib/informePlantillas";
 import "../pages/ensamble.css"; // el cajón lateral (.ens-cajon) y los pasos son los mismos del informe del ensamble
 
 /**
@@ -57,6 +58,7 @@ export function borradorVacio() {
 
 /** Lo que se carga en el mapa público: las 13 localidades y el pronóstico de 3 días por zona (la misma forma que traía el .docx). */
 export function aMapa(b) {
+  if (b.version === 2) return aMapaV2(b);
   const filas = b.localidades.map((l) => ({ LOCALIDAD: l.localidad, TMIN: l.tmin, TMAX: l.tmax, CONDICION: l.condicion, ZONA: l.zona }));
   const extendido = {
     zonas: ["Sur", "Centro", "Norte"].map((zona) => ({ zona, dias: [
@@ -123,21 +125,22 @@ export const poner = (obj, camino, valor) => {
 };
 /** Aplica un cambio de campo al borrador (la fecha arrastra los días que dependen de ella). */
 export function conCampo(borrador, camino, valor) {
+  if (borrador.version === 2) return conCampoV2(borrador, camino, valor);
   const b = poner(borrador, camino, valor);
   return camino === "fecha" ? conFechas(b) : b;
 }
 /** ¿El borrador tiene algo escrito? (si no, es uno vacío). */
-export const borradorConAlgo = (b) => JSON.stringify({ ...b, fecha: null, extendido: null, informes: b.informes.map((i) => ({ ...i, fecha: null })) }) !== JSON.stringify({ ...borradorVacio(), fecha: null, extendido: null, informes: borradorVacio().informes.map((i) => ({ ...i, fecha: null })) });
+export const borradorConAlgo = (b) => b.version === 2 ? conAlgoV2(b) : JSON.stringify({ ...b, fecha: null, extendido: null, informes: b.informes.map((i) => ({ ...i, fecha: null })) }) !== JSON.stringify({ ...borradorVacio(), fecha: null, extendido: null, informes: borradorVacio().informes.map((i) => ({ ...i, fecha: null })) });
 
 // --- piezas de los pasos ---------------------------------------------------------------------------------------
-const Etiqueta = ({ texto, children }) => <label className="paso-etiqueta"><span>{texto}</span>{children}</label>;
-const Linea = ({ texto, valor, alCambiar, ...resto }) => <Etiqueta texto={texto}><input className="paso-input" value={valor} onChange={(e) => alCambiar(e.target.value)} {...resto} /></Etiqueta>;
-const Texto = ({ texto, valor, alCambiar, filas = 4, ...resto }) => <Etiqueta texto={texto}><textarea className="paso-texto" rows={filas} value={valor} onChange={(e) => alCambiar(e.target.value)} {...resto} /></Etiqueta>;
+export const Etiqueta = ({ texto, children }) => <label className="paso-etiqueta"><span>{texto}</span>{children}</label>;
+export const Linea = ({ texto, valor, alCambiar, ...resto }) => <Etiqueta texto={texto}><input className="paso-input" value={valor} onChange={(e) => alCambiar(e.target.value)} {...resto} /></Etiqueta>;
+export const Texto = ({ texto, valor, alCambiar, filas = 4, ...resto }) => <Etiqueta texto={texto}><textarea className="paso-texto" rows={filas} value={valor} onChange={(e) => alCambiar(e.target.value)} {...resto} /></Etiqueta>;
 const Temps = ({ min, max, alMin, alMax, etiqueta }) => <div className="ens-par pron-temps">
   <Linea texto="Mínima (°C)" valor={min} alCambiar={alMin} inputMode="numeric" aria-label={`Mínima ${etiqueta}`} />
   <Linea texto="Máxima (°C)" valor={max} alCambiar={alMax} inputMode="numeric" aria-label={`Máxima ${etiqueta}`} />
 </div>;
-const Condicion = ({ texto = "Condición", ...resto }) => <div className="paso-etiqueta"><span>{texto}</span><SelectorCondiciones etiqueta={texto} {...resto} /></div>;
+export const Condicion = ({ texto = "Condición", ...resto }) => <div className="paso-etiqueta"><span>{texto}</span><SelectorCondiciones etiqueta={texto} {...resto} /></div>;
 
 function PasoFecha({ b, set, publicado, alCargarPublicado }) {
   return <>
@@ -232,6 +235,7 @@ const PasoInformes = ({ b, set }) => <>
 
 /** Lo que falta para poder cargarlo en el mapa público. */
 export function problemasParaMapa(b) {
+  if (b.version === 2) return problemasMapaV2(b);
   const p = [];
   const revisar = (nombre, tmin, tmax, condicion) => {
     if (!entero(tmin) || !entero(tmax)) p.push(`${nombre}: falta la mínima o la máxima (sólo el número, de −15 a 55)`);

@@ -41,17 +41,6 @@ export function getLunaDeMunicipio(municipioId, fecha) {
   return getEstatico(`${API_URL}/api/luna/${encodeURIComponent(municipioId)}${fecha ? `?fecha=${String(fecha).slice(0, 10)}` : ""}`);
 }
 
-export async function parseDocx(file) {
-  const form = new FormData();
-  form.append("pronostico", file);
-  const res = await fetch(`${API_URL}/api/pronostico/parse`, {
-    method: "POST",
-    body: form,
-    ...CON_SESION,
-  });
-  return handleJson(res);
-}
-
 // --- Envío del pronóstico por correo (Microsoft 365) ---
 /** { configurado, remitente }: si el servidor tiene cargados los datos de Microsoft 365. */
 export async function getCorreoEstado() {
@@ -639,26 +628,22 @@ export async function getEnsambleProgreso() {
   return handleJson(await fetch(`${API_URL}/api/ensamble/progreso`, { cache: "no-store", ...CON_SESION }));
 }
 
-// Informe de pronóstico del cajón del ensamble: valores propuestos por los modelos y el .docx sobre la plantilla oficial.
+// Informe de pronóstico del cajón del ensamble: valores propuestos por los modelos.
 export async function proponerInforme({ emision, diaTablas, modelos, diasExtendido }) {
   return handleJson(await fetch(`${API_URL}/api/ensamble/informe/propuesta`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emision, diaTablas, modelos, diasExtendido }), cache: "no-store", ...CON_SESION }));
-}
-/** El .docx del informe, completado sobre la plantilla oficial (Blob). */
-export async function generarInformeDocx(borrador) {
-  const r = await fetch(`${API_URL}/api/ensamble/informe/docx`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(borrador), ...CON_SESION });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el informe.");
-  return r.blob();
-}
-export async function descargarInformeDocx(borrador) {
-  const url = URL.createObjectURL(await generarInformeDocx(borrador)), a = document.createElement("a");
-  a.href = url; a.download = `PREVISION DEL TIEMPO ${borrador.emision.fecha}.docx`; document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // Previsión del tiempo: el informe armado en el panel, como PDF (cifrado y con marca de agua) y los datos del sol y la luna.
 export async function generarInformePdf(informe) {
   const r = await fetch(`${API_URL}/api/pronostico/informe-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el PDF.");
+  return r.blob();
+}
+
+/** El mismo informe en Word (.docx editable, para los medios). */
+export async function generarInformeDocxPronostico(informe) {
+  const r = await fetch(`${API_URL}/api/pronostico/informe-docx`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el .docx.");
   return r.blob();
 }
 

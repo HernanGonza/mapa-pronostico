@@ -1,13 +1,8 @@
 const express = require("express");
-const multer = require("multer");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
-const { extractDocxTables, extractDocxParagraphs } = require("../lib/docxTables");
-const { buildForecastRows, ZONAS_PRONOSTICO } = require("../lib/parseForecast");
-const { buildExtendedForecast, hayExtendido } = require("../lib/parseForecastExtendido");
-const { esInformeNuevo, parseInformeNuevo } = require("../lib/parseInformeNuevo");
 const { generateForecastMap, generateForecastMapHistorias } = require("../lib/generateMap");
 const { nowInArgentina } = require("../lib/dateUtils");
 const { publicar, obtenerActual, obtenerHistorial } = require("../lib/store");
@@ -18,8 +13,8 @@ const { loadMunicipios, armarMunicipiosConPronostico } = require("../lib/municip
 const coordinates = require("../config/coordinates");
 const requireAuth = require("../middleware/requireAuth");
 const { generarInformePdf } = require("../lib/informePronosticoPdf");
+const { generarInformeDocx } = require("../lib/informePronosticoDocx");
 
-const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 const ORIGENES = ["panel", "ensamble"];
 
@@ -44,52 +39,12 @@ function errorDeFilas(filas) {
       return `Fila ${i + 1}: CONDICION inválida`;
     }
     // Opcional: los pronósticos publicados antes de que existiera no la traen.
-    if (f.ZONA != null && f.ZONA !== "" && !ZONAS_PRONOSTICO.includes(f.ZONA)) {
+    if (f.ZONA != null && f.ZONA !== "" && !["Norte", "Centro", "Sur"].includes(f.ZONA)) {
       return `Fila ${i + 1}: ZONA inválida (Norte, Centro o Sur)`;
     }
   }
   return null;
 }
-
-/**
- * POST /api/pronostico/parse
- * form-data: pronostico = archivo .docx
- * Solo parsea y devuelve el JSON — NO publica. El operador lo revisa/edita
- * en el front antes de mandarlo a /publicar. Acepta el .docx de siempre y el informe nuevo de la DGAT
- * (en ese caso la respuesta trae además `formato: "informe-dgat"` y `fechaSugerida`).
- */
-router.post("/pronostico/parse", requireAuth, upload.single("pronostico"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        error: 'Falta el archivo .docx (campo de formulario "pronostico")',
-      });
-    }
-    const tables = await extractDocxTables(req.file.buffer);
-    // Dos formatos: el .docx de siempre (3 tablas de localidades norte/centro/sur) y el informe nuevo de la DGAT
-    // («PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES», con la tabla de las 13 ciudades). Se distingue solo.
-    if (esInformeNuevo(tables)) {
-      const r = parseInformeNuevo(tables, await extractDocxParagraphs(req.file.buffer));
-      return res.json({ filas: r.filas, extendido: hayExtendido(r.extendido) ? r.extendido : null, formato: "informe-dgat", fechaSugerida: r.fechaSugerida });
-    }
-    if (tables.length < 3) {
-      return res.status(422).json({
-        error: `Se esperaban al menos 3 tablas (norte/centro/sur), se encontraron ${tables.length}`,
-      });
-    }
-    const filas = buildForecastRows(tables);
-    // "PRONÓSTICO EXTENDIDO" (sábado/domingo por zona) e "INFORMES DE
-    // PRONÓSTICO" (texto narrativo por día) vienen como texto libre, no
-    // como tabla — si el .docx no los trae, buildExtendedForecast
-    // devuelve zonas sin días extra y el front no muestra nada extra.
-    const parrafos = await extractDocxParagraphs(req.file.buffer);
-    const extendido = buildExtendedForecast(tables, parrafos);
-    res.json({ filas, extendido: hayExtendido(extendido) ? extendido : null });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 /**
  * POST /api/pronostico/publicar
@@ -409,6 +364,18 @@ router.post("/pronostico/informe-pdf", requireAuth, express.json({ limit: "1mb" 
     if (e.status) return res.status(e.status).json({ error: e.message });
     console.error("[informe-pdf]", e);
     res.status(500).json({ error: `No se pudo armar el PDF: ${e.message}` });
+  }
+});
+
+/** POST /api/pronostico/informe-docx — lo mismo que el PDF, en Word (editable, para que los medios armen sus notas). */
+router.post("/pronostico/informe-docx", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
+  try {
+    const docx = await generarInformeDocx(req.body?.informe);
+    res.set({ "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Cache-Control": "no-store" }).send(docx);
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    console.error("[informe-docx]", e);
+    res.status(500).json({ error: `No se pudo armar el .docx: ${e.message}` });
   }
 });
 
