@@ -97,6 +97,8 @@ export default function AlertasMeteorologicasPage() {
   async function usarComoBase(emision, { sinPreguntar = false } = {}) {
     const c = smn?.alertas.find(a => a.emision === emision);
     if (!c || !catalogo) return;
+    if (c.actualizaA && !sinPreguntar && !(await confirmar({ titulo: 'El SMN actualizó una alerta ya publicada', confirmar: 'Preparar la actualización',
+      texto: `La #${c.actualizaA.id} «${c.actualizaA.periodo || 'Alerta publicada'}» se ve ahora en el mapa público. Esta versión${c.actualizaA.cambios.length ? ` (${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')})` : ''} la va a reemplazar cuando la publiques. Hasta entonces el mapa público no cambia.` }))) return;
     if (!sinPreguntar && cambios && !(await confirmar({ titulo: '¿Usar la alerta del SMN?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Usar la del SMN' }))) return;
     setZonas(c.base.zonas); setIconos(c.base.iconos);
     setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null); setBaseSmn(c);
@@ -106,7 +108,7 @@ export default function AlertasMeteorologicasPage() {
   useEffect(() => {
     if (!params.get('smn') || !catalogo || !smn) return;
     setParams({}, { replace: true });
-    if (smn.alertas[0] && !smn.alertas[0].yaPublicada) usarComoBase(smn.alertas[0].emision, { sinPreguntar: !cambios });
+    if (smn.alertas[0] && !smn.alertas[0].yaPublicada) usarComoBase(smn.alertas[0].emision, { sinPreguntar: !cambios && !smn.alertas[0].actualizaA });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, catalogo, smn]);
 

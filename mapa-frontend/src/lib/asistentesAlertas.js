@@ -151,6 +151,25 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
   const vigencias = pasosVigencias({ catalogo, zonas: () => zonas, soloSiVarios: !base,
     inicial: base?.base.tramos && Object.keys(base.base.tramos).length ? { tramos: base.base.tramos } : null,
     tope: (s) => ({ ms: Date.parse(s.vigencia), texto: fechaHora(new Date(s.vigencia)), local: s.vigencia }) });
+  // Último paso: si va a pisar una alerta que está publicada, se dice cuál y qué cambia, y hay que confirmarlo.
+  const pasoConfirmarReemplazo = {
+    omitir: (s) => s.aparece !== "ahora" || !vigentes.some((v) => s.reemplazar.includes(v.id)),
+    pregunta: "Confirmá: vas a reemplazar una alerta publicada",
+    ayuda: "Al publicar, lo que se ve ahora en el mapa público se saca y pasa a verse esta alerta. Si no querés pisarla, volvé atrás y desmarcala.",
+    html: (s) => {
+      const pisadas = vigentes.filter((v) => s.reemplazar.includes(v.id));
+      const act = base?.actualizaA && pisadas.some((v) => v.id === base.actualizaA.id) ? base.actualizaA : null;
+      const fin = (iso) => fechaHora(iso);
+      const cambiosSmn = act ? [
+        act.cambios.includes("vigencia") && act.antes ? `Vigencia del SMN: hasta el ${fin(act.antes.fin)} → hasta el ${fin(base.fin)}` : null,
+        act.cambios.includes("nivel") && act.antes ? `Nivel: ${act.antes.niveles.join(" y ")} → ${base.niveles.join(" y ")}` : null,
+        act.cambios.includes("zonas") ? "Cambian los departamentos alcanzados" : null,
+      ].filter(Boolean) : [];
+      return `<p>Se reemplaza${pisadas.length === 1 ? "" : "n"}:</p><ul class="paso-lista">${pisadas.map((v) => `<li><strong>#${v.id} «${esc(v.periodo || "Alerta publicada")}»</strong> — se ve hasta el ${esc(fechaHora(v.vigenteHasta))}</li>`).join("")}</ul>
+        ${cambiosSmn.length ? `<p>El SMN la actualizó:</p><ul class="paso-lista">${cambiosSmn.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+        <p>Se publica ahora: «${esc(s.periodo)}», hasta el ${esc(fechaHora(new Date(s.vigencia)))}.</p>`;
+    },
+  };
   const enFilaInicial = nueva && ultima && !base;
   return asistente({
     // Corrigiendo la publicada, por defecto reemplaza a las vigentes; una alerta nueva va en fila detrás de la última.
@@ -168,6 +187,7 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
       pasoReemplazar,
       pasoCuando,
       ...vigencias.pasos,
+      pasoConfirmarReemplazo,
     ],
     enviar: async (s) => {
       const v = anterior(s);
