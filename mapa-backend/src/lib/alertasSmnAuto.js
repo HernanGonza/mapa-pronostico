@@ -1,20 +1,10 @@
-const publicadasStore = require("./alertasSmnPublicadasStore");
 const notificacionesStore = require("./notificacionesStore");
 
 /**
- * Alertas del SMN (SAT): la publicación es siempre a mano (botón «Publicar en el mapa público»), pero
- * lo repetitivo se resuelve solo:
- *
- *  - Cada emisión del SMN es un informe completo (msgType «Update») que reemplaza al anterior, así que
- *    una actualización llega como una alerta «nueva». Se la empareja con la ya publicada: mismo
- *    fenómeno, períodos que se pisan y al menos un departamento en común (si además coincide el
- *    inicio, es la misma sin dudas). `estado` le dice al panel cuál es cuál y qué cambió.
- *  - Al apretar «Publicar» sobre una alerta que actualiza a una publicada, se pisan sus datos en la
- *    misma fila (nivel, horarios, zonas, texto), sin duplicarla (`publicarOActualizar`).
- *  - Al publicar o actualizar se genera la placa con el texto del SMN: «aviso de alerta» y, si cambió el
- *    nivel (y la vigencia entra en un solo día), «actualización de nivel».
- *  - Cuando llega una alerta nueva o el SMN actualiza una publicada, sólo se avisa en la campanita
- *    (`revisar`): no se publica ni se saca nada sin que una persona lo haga.
+ * Lo que el módulo principal de alertas toma de las emisiones del SMN (SAT):
+ *  - helpers de texto y de horarios que usa alertasSmnBase.js para armar la base de una alerta;
+ *  - `revisar`: avisa en la campanita cuando llega una alerta nueva o el SMN corrige una ya publicada
+ *    en «Alertas meteorológicas». No publica ni saca nada: publicar es siempre a mano.
  */
 const AR = "America/Argentina/Buenos_Aires";
 const NIVELES = ["Amarillo", "Naranja", "Rojo"];
@@ -27,40 +17,6 @@ function publicable(info) {
   if (!NIVELES.includes(info.categoria)) return null;
   const zonas = (info.zonas || []).filter((z) => z.geometry && z.departamentos?.length);
   return zonas.length ? { ...info, zonas } : null;
-}
-
-/** Puntaje de que la publicada `fila` y la info nueva sean la misma alerta (0 = no lo son). */
-function parecido(fila, info) {
-  if (fenomenoDe(fila) !== fenomenoDe(info)) return 0;
-  const [i1, f1, i2, f2] = [fila.inicio, fila.fin, info.inicio, info.fin].map(Date.parse);
-  if (!(i1 < f2 && i2 < f1)) return 0;
-  const nuevos = new Set(departamentosDe(info));
-  const comunes = departamentosDe(fila).filter((d) => nuevos.has(d)).length;
-  if (!comunes) return 0;
-  return (i1 === i2 ? 1000 : 0) + (f1 === f2 ? 100 : 0) + comunes;
-}
-
-/** Empareja (uno a uno, de mayor a menor parecido) las publicadas con las infos nuevas: [[fila, info]…]. */
-function emparejar(filas, infos) {
-  const pares = [];
-  filas.forEach((f, i) => infos.forEach((n, j) => { const p = parecido(f, n); if (p) pares.push({ i, j, p }); }));
-  pares.sort((a, b) => b.p - a.p);
-  const usadasF = new Set(), usadasN = new Set(), res = [];
-  for (const { i, j } of pares) {
-    if (usadasF.has(i) || usadasN.has(j)) continue;
-    usadasF.add(i); usadasN.add(j); res.push([filas[i], infos[j]]);
-  }
-  return res;
-}
-
-/** Qué cambió entre lo publicado y la info nueva: lista de 'nivel' | 'vigencia' | 'zonas' | 'texto'. */
-function diferencias(fila, info) {
-  const cambios = [];
-  if (fila.categoria !== info.categoria) cambios.push("nivel");
-  if (Date.parse(fila.inicio) !== Date.parse(info.inicio) || Date.parse(fila.fin) !== Date.parse(info.fin)) cambios.push("vigencia");
-  if ([...departamentosDe(fila)].sort().join("|") !== [...departamentosDe(info)].sort().join("|")) cambios.push("zonas");
-  if (sinTildes(fila.descripcion) !== sinTildes(info.descripcion) || sinTildes(fila.instrucciones) !== sinTildes(info.instrucciones)) cambios.push("texto");
-  return cambios;
 }
 
 // ——— textos de las placas ———
@@ -105,34 +61,6 @@ const recortar = (s, max) => {
   return punto > max * 0.5 ? corte.slice(0, punto + 1) : `${corte.replace(/\s+\S*$/, "")}…`;
 };
 
-/** Datos de la placa «aviso de alerta» (ver generatePlacasAlerta) armados con el texto del SMN. */
-function datosAviso(d, maxDescripcion = 700) {
-  return { fenomeno: recortar(d.evento || d.titulo, 40), vigencia: textoVigencia(d.inicio, d.fin), zona: listaCorta(departamentosDe(d)),
-    descripcion: recortar(d.descripcion || d.titulo, maxDescripcion), nota: "" };
-}
-function datosNivel(d, nivelAnterior, maxDescripcion = 700) {
-  const r = rangoDelDia(d.inicio, d.fin);
-  return r ? { fenomeno: recortar(d.evento || d.titulo, 40), nivelAnterior, zona: listaCorta(departamentosDe(d)), vigencia: r, descripcion: recortar(d.descripcion || d.titulo, maxDescripcion) } : null;
-}
-
-/** Genera y guarda una placa; si el texto no entra se acorta la descripción. Un fallo se registra y no frena nada. */
-async function generarPlaca(alerta, tipo, motivo, nivelAnterior, { logger = console, generar, guardar } = {}) {
-  const { generarPlacaAlertaAmbos } = generar ? { generarPlacaAlertaAmbos: generar } : require("./generatePlacasAlerta");
-  const crear = guardar || publicadasStore.crearPlaca;
-  const datosDe = (max) => (tipo === "nivel" ? datosNivel(alerta, nivelAnterior, max) : datosAviso(alerta, max));
-  try {
-    for (const max of [700, 450, 300, 200]) {
-      const datos = datosDe(max);
-      if (!datos) return null;
-      let pngs;
-      try { pngs = await generarPlacaAlertaAmbos({ tipo, nivel: alerta.categoria, datos }); }
-      catch (e) { if (e.status === 400 && /demasiado largo/.test(e.message) && max > 200) continue; throw e; }
-      return await crear({ alertaId: alerta.id, tipo, motivo, nivel: alerta.categoria, datos, ...pngs });
-    }
-  } catch (e) { logger.error(`[alertas SMN] placa «${tipo}» de la alerta ${alerta.id}: ${e.message}`); }
-  return null;
-}
-
 // ——— con qué arrancan los asistentes de placas (lo mismo que en el panel manual, pero con lo del SMN) ———
 
 /** Un renglón por día de la vigencia (hasta 4): { fecha, desde, hasta } en hora argentina; 24:00 = medianoche. */
@@ -159,20 +87,6 @@ function recomendacionesDe(instrucciones) {
 const ICONO_DE_EVENTO = [[/tormenta/i, "tormentas"], [/viento/i, "vientos-fuertes"], [/granizo/i, "granizo"], [/lluvia|precipit/i, "lluvias-intensas"], [/inunda/i, "inundacion"]];
 const sentencia = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/**
- * Lo que necesita el panel para «Placa del mapa»: los 17 departamentos (el de la alerta con su nivel, el resto en
- * verde), el ícono del fenómeno y la leyenda con la vigencia. `departamentos`: el catálogo ({ id, nombre }).
- */
-function mapaDe(alerta, departamentos) {
-  const mios = new Set(departamentosDe(alerta).map(sinTildes));
-  const icono = ICONO_DE_EVENTO.find(([re]) => re.test(alerta.evento || alerta.titulo))?.[1];
-  return {
-    zonas: departamentos.map((d) => ({ id: String(d.id), categoria: mios.has(sinTildes(d.nombre)) ? alerta.categoria : "Verde" })),
-    iconos: icono ? [{ id: icono, categoria: alerta.categoria }] : [],
-    periodo: recortar(sentencia(textoVigencia(alerta.inicio, alerta.fin)), 200),
-  };
-}
-
 /** Lo mismo que `/placas/ultimos` del panel manual, pero armado con la alerta del SMN: textos, niveles y horarios ya cargados. */
 function baseDe(alerta, { RECOMENDACIONES_PREDETERMINADAS, ICONOS, LIMITES }) {
   const fenomeno = recortar(alerta.evento || alerta.titulo, 40), zona = listaCorta(departamentosDe(alerta)), descripcion = recortar(alerta.descripcion || alerta.titulo, LIMITES.descripcion);
@@ -192,83 +106,32 @@ function baseDe(alerta, { RECOMENDACIONES_PREDETERMINADAS, ICONOS, LIMITES }) {
 }
 
 const cuando = (iso) => fmt(iso, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-const titulo = (d) => `${d.titulo || d.evento} · ${d.categoria}`;
-const donde = (d) => listaCorta(departamentosDe(d), 90);
-
-function resumenCambios(antes, despues, tipos) {
-  const partes = [];
-  if (tipos.includes("nivel")) partes.push(`el nivel pasa de ${antes.categoria} a ${despues.categoria}`);
-  if (tipos.includes("vigencia")) partes.push(`vigencia hasta el ${cuando(despues.fin)}`);
-  if (tipos.includes("zonas")) partes.push("cambian las zonas");
-  if (tipos.includes("texto")) partes.push("cambia el texto");
-  return partes.join(" · ");
-}
-
-const publicadas = () => publicadasStore.candidatas().then((l) => l.filter((f) => f.vigente));
 
 /**
- * Para el panel: cada publicada vigente con su correspondiente en el último informe del SMN
- * (`smnIdActual`, el id con el que la ve el panel) y, si algo cambió, `actualizacion: { tipos }`.
+ * Avisa en la campanita de la última emisión del SMN si todavía no está en «Alertas meteorológicas» (alerta nueva) o si corrige
+ * una ya publicada (se reconoce por sus horarios: ver alertasSmnBase.clasificar). La `clave` evita repetir el aviso en cada consulta.
  * `alertas`: las SAT vigentes (unirZonas(vigentes(ultimaEmision(…)))).
  */
-function estado(filas, alertas) {
-  const nuevas = alertas.flatMap((a) => a.infos.map((info, i) => ({ info, smnId: `${a.id}:${i}`, pub: publicable(info) })).filter((x) => x.pub));
-  const pares = emparejar(filas, nuevas.map((x) => ({ ...x.pub, _x: x })));
-  return new Map(pares.map(([f, n]) => [f.id, { smnIdActual: n._x.smnId, tipos: diferencias(f, n._x.pub) }]));
-}
-
-/**
- * Publica la alerta `smnId` (botón del panel). Si actualiza a una ya publicada, pisa esa misma (y
- * saca la placa de la actualización); si no, es una publicación nueva (y sale su placa de aviso).
- * Una falla al generar la placa no frena la publicación.
- */
-async function publicarOActualizar(smnId, alertas, usuarioId = null, colores = {}, { repo = publicadasStore, placas = generarPlaca, logger = console } = {}) {
-  const corte = String(smnId).lastIndexOf(":");
-  const a = alertas.find((x) => x.id === String(smnId).slice(0, corte));
-  const info = a?.infos[Number(String(smnId).slice(corte + 1))];
-  const pub = info && publicable(info);
-  if (pub) {
-    const vigentes = (await repo.candidatas()).filter((f) => f.vigente);
-    const par = emparejar(vigentes, [{ ...pub, _x: 1 }])[0];
-    if (par) {
-      const f = par[0], tipos = diferencias(f, pub);
-      const datos = repo.copiaDe(a, pub, colores);
-      const cambio = tipos.length ? { en: new Date().toISOString(), tipos, usuarioId, antes: { categoria: f.categoria, inicio: f.inicio, fin: f.fin, departamentos: departamentosDe(f) }, despues: { categoria: pub.categoria, inicio: pub.inicio, fin: pub.fin, departamentos: departamentosDe(pub) } } : null;
-      const fila = await repo.actualizarDatos(f.id, { smnId, vigenteHasta: pub.fin, datos, cambio });
-      if (tipos.length) {
-        const alerta = { ...fila, ...datos, id: f.id };
-        (tipos.includes("nivel") && NIVELES.includes(f.categoria) && await placas(alerta, "nivel", "nivel", f.categoria, { logger })) || await placas(alerta, "aviso", "actualizacion", null, { logger });
-      }
-      return fila;
-    }
-  }
-  const fila = await repo.publicar(smnId, alertas, usuarioId, colores);
-  if (!(await repo.placasDe([fila.id]))[fila.id]?.length) await placas(fila, "aviso", "nueva", null, { logger });
-  return fila;
-}
-
-/**
- * Avisa en la campanita de las alertas del último informe que todavía no se publicaron, y de las
- * publicadas que el SMN actualizó. No publica ni cambia nada. La `clave` evita repetir el aviso en cada consulta.
- */
-async function revisar(alertas, { logger = console, repo = publicadasStore, notificar = notificacionesStore } = {}) {
+async function revisar(alertas, { logger = console, notificar = notificacionesStore, ahora = Date.now(),
+  pendientes = () => require("./alertasMeteorologicasStore").pendientes(), departamentos = () => require("./departamentos").loadDepartamentos() } = {}) {
   const avisados = [];
   try {
-    const filas = (await repo.candidatas()).filter((f) => f.vigente);
-    const nuevas = alertas.flatMap((a) => a.infos.map((info, i) => ({ info, smnId: `${a.id}:${i}`, pub: publicable(info) })).filter((x) => x.pub));
-    const pares = emparejar(filas, nuevas.map((x) => ({ ...x.pub, _x: x })));
-    const conPar = new Map(pares.map(([f, n]) => [n._x, f]));
-    for (const x of nuevas) {
-      const f = conPar.get(x), d = x.pub, tipos = f ? diferencias(f, d) : [];
-      if (f && !tipos.length) continue;
-      const n = f
-        ? { clave: `smn:act:${f.id}:${d.categoria}:${Date.parse(d.inicio)}:${Date.parse(d.fin)}`, titulo: `El SMN actualizó una alerta publicada: ${titulo(d)}`, detalle: `${donde(d)} · ${resumenCambios(f, d, tipos)}` }
-        : { clave: `smn:nueva:${fenomenoDe(d)}:${d.categoria}:${Date.parse(d.inicio)}:${Date.parse(d.fin)}`, titulo: `Alerta nueva del SMN: ${titulo(d)}`, detalle: `${donde(d)} · hasta el ${cuando(d.fin)}` };
-      try { if (await notificar.crearSiNoExiste({ tipo: "alerta-smn", ...n, url: "/panel/alertas-meteorologicas?smn=1", venceEn: d.fin })) avisados.push(n.clave); }
-      catch (e) { logger.error(`[alertas SMN] notificación: ${e.message}`); }
-    }
+    const base = require("./alertasSmnBase");
+    const cand = base.candidata(alertas, departamentos(), { ahora });
+    if (!cand) return avisados;
+    const { vigentes, enFila } = await pendientes();
+    const { yaPublicada, actualizaA } = base.clasificar(cand, [...vigentes, ...enFila]);
+    if (yaPublicada || (actualizaA && !actualizaA.cambios.length)) return avisados;
+    const nombre = `${cand.fenomenos.join(" y ")} · ${cand.categoria}`, donde = listaCorta(cand.departamentos, 90);
+    const clave = `${cand.niveles.join("")}:${Date.parse(cand.inicio)}:${Date.parse(cand.fin)}`;
+    const cambios = { vigencia: `vigencia hasta el ${cuando(cand.fin)}`, nivel: actualizaA?.antes ? `el nivel pasa de ${actualizaA.antes.niveles.join(" y ")} a ${cand.niveles.join(" y ")}` : "cambia el nivel", zonas: "cambian los departamentos" };
+    const n = actualizaA
+      ? { clave: `smn:act:${actualizaA.id}:${clave}`, titulo: `El SMN actualizó una alerta publicada: ${nombre}`, detalle: `${donde} · ${actualizaA.cambios.map((c) => cambios[c]).filter(Boolean).join(" · ")}` }
+      : { clave: `smn:nueva:${cand.fenomenos.join("+")}:${clave}`, titulo: `Alerta nueva del SMN: ${nombre}`, detalle: `${donde} · hasta el ${cuando(cand.fin)}` };
+    try { if (await notificar.crearSiNoExiste({ tipo: "alerta-smn", ...n, url: "/panel/alertas-meteorologicas?smn=1", venceEn: cand.fin })) avisados.push(n.clave); }
+    catch (e) { logger.error(`[alertas SMN] notificación: ${e.message}`); }
   } catch (e) { logger.error(`[alertas SMN] revisión: ${e.message}`); }
   return avisados;
 }
 
-module.exports = { redondeado, recortar, sinTildes, sentencia, ICONO_DE_EVENTO, departamentosDe, baseDe, mapaDe, rangosPorDia, recomendacionesDe, revisar, estado, publicarOActualizar, emparejar, diferencias, parecido, publicable, textoVigencia, rangoDelDia, datosAviso, datosNivel, listaCorta, generarPlaca };
+module.exports = { redondeado, recortar, sinTildes, sentencia, ICONO_DE_EVENTO, departamentosDe, baseDe, rangosPorDia, recomendacionesDe, revisar, publicable, textoVigencia, rangoDelDia, listaCorta };

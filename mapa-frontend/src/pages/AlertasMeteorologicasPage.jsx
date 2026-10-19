@@ -98,7 +98,7 @@ export default function AlertasMeteorologicasPage() {
     const c = smn?.alertas.find(a => a.emision === emision);
     if (!c || !catalogo) return;
     if (c.actualizaA && !sinPreguntar && !(await confirmar({ titulo: 'El SMN actualizó una alerta ya publicada', confirmar: 'Preparar la actualización',
-      texto: `La #${c.actualizaA.id} «${c.actualizaA.periodo || 'Alerta publicada'}» se ve ahora en el mapa público. Esta versión${c.actualizaA.cambios.length ? ` (${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')})` : ''} la va a reemplazar cuando la publiques. Hasta entonces el mapa público no cambia.` }))) return;
+      texto: `La #${c.actualizaA.id} «${c.actualizaA.periodo || 'Alerta publicada'}» ${enFila.some(x => x.id === c.actualizaA.id && x.publicarDesde && Date.parse(x.publicarDesde) > Date.now()) ? 'está programada para aparecer en el mapa público' : 'se ve ahora en el mapa público'}. Esta versión${c.actualizaA.cambios.length ? ` (${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')})` : ''} la va a reemplazar cuando la publiques. Hasta entonces el mapa público no cambia.` }))) return;
     if (!sinPreguntar && cambios && !(await confirmar({ titulo: '¿Usar la alerta del SMN?', texto: 'Se descartan los cambios del borrador que no publicaste.', confirmar: 'Usar la del SMN' }))) return;
     setZonas(c.base.zonas); setIconos(c.base.iconos);
     setPublicado(null); setNueva(true); setImagenes(null); setVista('mapa'); setSeleccionada(null); setBaseSmn(c);

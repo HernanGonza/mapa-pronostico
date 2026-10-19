@@ -1,4 +1,4 @@
-import { Radar, Bell, Waves, Droplets, FileText, Layers, Table } from "lucide";
+import { Radar, Waves, Droplets, FileText, Layers, Table } from "lucide";
 
 /**
  * Módulos del panel que se habilitan usuario por usuario (pantalla «Usuarios»). El superadmin los ve
@@ -8,7 +8,6 @@ import { Radar, Bell, Waves, Droplets, FileText, Layers, Table } from "lucide";
  */
 export const MODULOS = [
   { id: "focos-de-calor", to: "/panel/alertas-incendios", icono: Radar, titulo: "Focos de calor", descripcion: "Anomalías térmicas detectadas por satélite (NASA FIRMS).", enDesarrollo: false },
-  { id: "alertas-automaticas", to: "/panel/alertas-automaticas", icono: Bell, titulo: "Alertas automáticas (SMN)", descripcion: "Avisos del SMN por período y zona, en revisión." },
   { id: "inundaciones", to: "/panel/inundaciones", icono: Waves, titulo: "Inundaciones", descripcion: "Altura de los arroyos internos de Misiones (Red Hidrológica Nacional) y puntos donde una crecida corta rutas." },
   { id: "cuencas", to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
   { id: "tabla-precipitaciones", to: "/panel/precipitaciones", icono: Table, titulo: "Monitoreo de lluvias", descripcion: "Planilla de lluvia por día y estación (reemplaza al Excel), con totales, media y anomalía; de ahí salen la tabla y el mapa de la página y los informes (placa, PDF y Excel).", enDesarrollo: false },

@@ -33,11 +33,12 @@ function intervalosManuales({ vigentes = [], enFila = [] } = {}) {
   const porId = new Map(todas.map((m) => [m.id, m]));
   const inicioDe = (m, vistos = new Set()) => {
     const previa = m.enFilaDe != null && porId.get(m.enFilaDe);
+    if (m.vigenteDesde) return m.vigenteDesde; // la que se sabe cuándo empieza (programada o del SMN)
     if (!previa || vistos.has(m.id)) return m.publicadoEn;
     vistos.add(m.id);
     return previa.vigenteHasta || inicioDe(previa, vistos);
   };
-  return todas.map((m) => ({ categoria: (m.zonas || []).map((z) => z.categoria).reduce(mayor, null), inicio: inicioDe(m), fin: m.vigenteHasta }))
+  return todas.map((m) => ({ categoria: (m.zonasBase || m.zonas || []).map((z) => z.categoria).reduce(mayor, null), inicio: inicioDe(m), fin: m.vigenteHasta }))
     .filter((x) => NIVEL[x.categoria] && x.inicio && x.fin);
 }
 

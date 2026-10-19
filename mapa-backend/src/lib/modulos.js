@@ -8,7 +8,6 @@
  */
 const MODULOS = [
   "focos-de-calor",
-  "alertas-automaticas",
   "inundaciones",
   "cuencas",
   "tabla-precipitaciones",
@@ -16,7 +15,7 @@ const MODULOS = [
 ];
 
 /** Módulos que ya no existen: si un usuario todavía los tiene asignados se ignoran en vez de dar error. */
-const RETIRADOS = ["generador-pronosticos", "informes-diarios"];
+const RETIRADOS = ["generador-pronosticos", "informes-diarios", "alertas-automaticas"];
 
 /** Lista saneada para guardar: sólo ids conocidos, sin repetir. `null` si no es una lista de ids válidos. */
 function normalizar(modulos) {

@@ -93,6 +93,8 @@ const DIAS_EN_FILA = 7;
  */
 export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPublicar, iconosCambiaron, republicar, vigentes = [], enFila = [], nueva = false, corrige = null, periodoSugerido = "", base = null, publicar }) {
   const todas = [...vigentes, ...enFila];
+  // Lo que esta alerta puede reemplazar: lo que se ve ahora y lo programado que todavía no se ve (ej.: el SMN corrige la del miércoles).
+  const reemplazables = [...vigentes, ...enFila.filter((v) => v.publicarDesde && Date.parse(v.publicarDesde) > Date.now())];
   const anterior = (s) => todas.find((v) => String(v.id) === s.aparece);
   // Para la que va en fila: fin del día siguiente al que termina la anterior.
   const vigenciaEnFila = (v) => { const d = new Date(v.vigenteHasta); d.setDate(d.getDate() + 1); d.setHours(23, 59, 0, 0); return valorLocal(d); };
@@ -113,10 +115,10 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
     },
   };
   const pasoReemplazar = {
-    omitir: (s) => !vigentes.length || s.aparece !== "ahora",
+    omitir: (s) => !reemplazables.length || s.aparece !== "ahora",
     pregunta: "¿Saca alguna de las vigentes?",
     ayuda: "Marcá las que esta alerta reemplaza (por ejemplo, si corregís la de hoy). Las que no marques siguen mostrándose.",
-    html: (s) => opciones({ nombre: "reemplazar", items: vigentes.map((v) => ({ valor: String(v.id), titulo: v.periodo || "Alerta publicada", detalle: `Vigente hasta el ${fechaHora(v.vigenteHasta)}`, marcada: s.reemplazar.includes(v.id) })) }),
+    html: (s) => opciones({ nombre: "reemplazar", items: reemplazables.map((v) => ({ valor: String(v.id), titulo: v.periodo || "Alerta publicada", detalle: `${enFila.includes(v) ? "Programada, vigente" : "Vigente"} hasta el ${fechaHora(v.vigenteHasta)}`, marcada: s.reemplazar.includes(v.id) })) }),
     leer: (popup) => ({ reemplazar: leerOpciones(popup, "reemplazar").map(Number) }),
   };
   const pasoCuando = {
@@ -163,11 +165,11 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
     tope: (s) => ({ ms: Date.parse(s.vigencia), texto: fechaHora(new Date(s.vigencia)), local: s.vigencia }) });
   // Último paso: si va a pisar una alerta que está publicada, se dice cuál y qué cambia, y hay que confirmarlo.
   const pasoConfirmarReemplazo = {
-    omitir: (s) => s.aparece !== "ahora" || !vigentes.some((v) => s.reemplazar.includes(v.id)),
+    omitir: (s) => s.aparece !== "ahora" || !reemplazables.some((v) => s.reemplazar.includes(v.id)),
     pregunta: "Confirmá: vas a reemplazar una alerta publicada",
     ayuda: "Al publicar, lo que se ve ahora en el mapa público se saca y pasa a verse esta alerta. Si no querés pisarla, volvé atrás y desmarcala.",
     html: (s) => {
-      const pisadas = vigentes.filter((v) => s.reemplazar.includes(v.id));
+      const pisadas = reemplazables.filter((v) => s.reemplazar.includes(v.id));
       const act = base?.actualizaA && pisadas.some((v) => v.id === base.actualizaA.id) ? base.actualizaA : null;
       const fin = (iso) => fechaHora(iso);
       const cambiosSmn = act ? [
@@ -188,7 +190,7 @@ export function publicarAlertasPorPasos({ catalogo, zonas = [], cambios, sinPubl
     estado: { periodo: periodoSugerido, desde: base && Date.parse(base.inicio) > Date.now() ? valorLocal(new Date(base.inicio)) : "", aparece: enFilaInicial ? String(ultima.id) : "ahora",
       vigencia: enFilaInicial ? vigenciaEnFila(ultima) : base ? valorLocal(new Date(base.base.vigenteHasta)) : valorLocal(finDelDia()),
       // Corrigiendo una alerta (`corrige`: su id), por defecto reemplaza sólo a ésa.
-      reemplazar: nueva && !(base && corrige != null) ? [] : corrige != null ? vigentes.filter((v) => v.id === corrige).map((v) => v.id) : vigentes.map((v) => v.id) },
+      reemplazar: nueva && !(base && corrige != null) ? [] : corrige != null ? reemplazables.filter((v) => v.id === corrige).map((v) => v.id) : vigentes.map((v) => v.id) },
     textoEnviar: "Publicar en el mapa público",
     pasos: [
       republicar

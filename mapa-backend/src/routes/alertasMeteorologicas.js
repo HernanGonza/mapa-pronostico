@@ -213,6 +213,9 @@ router.use((err,req,res,next)=>{
   if(err.type==='entity.parse.failed')return res.status(400).json({error:'El contenido enviado no es válido.'});
   next(err);
 });
-// Lo usan también las placas de las alertas automáticas del SMN (routes/alertasSmnPublicadas.js).
-router.placaMapa={errorDePlacaMapa,normalizarPlacaMapa,generarPlacaMapa};
+// La última emisión del SMN como base de una alerta (ver alertasSmnRecibidas.js).
+router.get('/alertas-meteorologicas/smn/recibidas',requireAuth,async(req,res)=>{
+  try{res.set('Cache-Control','no-store').json(await require('../lib/alertasSmnRecibidas').recibidas());}
+  catch(e){console.error(e);res.status(500).json({error:'No se pudieron leer las alertas del SMN.'});}
+});
 module.exports=router;

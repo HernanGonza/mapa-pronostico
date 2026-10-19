@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getAvisosCortoPlazoVigentes, getAlertasMeteorologicasVigentes, getAlertasSmnPublicadas, getRotacionTv, urlArchivoTv } from "../api";
+import { getAvisosCortoPlazoVigentes, getAlertasMeteorologicasVigentes, getRotacionTv, urlArchivoTv } from "../api";
 import { PANTALLAS_SISTEMA, armarRotacion, duracionDe } from "../lib/tvPantallas";
 import { enDemo, conDemo, alCambiarDemo } from "../lib/demo";
 import { estadoUrgente, tipoDe, configDe, CONFIG_PREDETERMINADA } from "../lib/tvUrgentes";
 import SelloDemo from "../components/SelloDemo";
 import "../tv.css";
-import { enFemenino } from "../lib/nivelAlerta.js";
 
 /**
  * Pantalla para transmitir (OBS → "Fuente de navegador" a 1920×1080, en /tv).
@@ -62,10 +61,9 @@ const esAlerta = (m) => (m.zonas || []).some((z) => z.categoria && !["Verde", "G
 
 /** Lo urgente vigente, en el orden en que se muestra: primero los ACP, después las alertas. */
 async function leerUrgentes() {
-  const [acp, manuales, smn] = await Promise.all([
+  const [acp, manuales] = await Promise.all([
     getAvisosCortoPlazoVigentes().catch(() => []),
     getAlertasMeteorologicasVigentes().catch(() => []),
-    getAlertasSmnPublicadas().catch(() => []),
   ]);
   return [
     // `desde`: cuándo empezó a verse (de ahí se cuenta cuánto queda fijo).
@@ -73,9 +71,6 @@ async function leerUrgentes() {
       titulo: a.titulo || "Aviso a muy corto plazo", texto: a.texto, pie: `Vigente hasta las ${hora(a.vigenteHasta)}`, color: a.color || "#8b3fc4" })), // el de la alerta en cuya vigencia cae
     ...(manuales.some((m) => m.fijada) ? manuales.filter((m) => m.fijada) : manuales).filter(esAlerta).map((m) => ({ clave: `manual-${m.id}`, tipo: "alerta", desde: m.visibleDesde || m.publicadoEn, src: `/embed/alertas-meteorologicas?id=manual-${m.id}`, etiqueta: "Alerta meteorológica",
       titulo: m.periodo, texto: "Mirá el nivel de alerta de tu departamento en el mapa.", pie: `Vigente hasta el ${diaHora(m.vigenteHasta)}`, color: "#f67f15" })),
-    // Con una alerta manual fijada a mano en el panel, se ve sólo ésa (como en el embebido).
-    ...(manuales.some((m) => m.fijada) ? [] : smn).map((a) => ({ clave: `smn-${a.id}`, tipo: "alerta", desde: [a.publicadoEn, a.inicio].filter((t) => t && Date.parse(t) <= Date.now()).sort().at(-1) || a.publicadoEn, src: `/embed/alertas-meteorologicas?id=smn-${a.id}`, etiqueta: `Alerta ${enFemenino(a.categoria)} · SMN`,
-      titulo: a.titulo, texto: a.descripcion, pie: `Hasta el ${diaHora(a.fin)}`, color: a.color || "#f67f15" })),
   ];
 }
 

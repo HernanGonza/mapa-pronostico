@@ -157,6 +157,18 @@ function cambios(origen, cand) {
 }
 
 /** Lo que se guarda de la base en la publicación para reconocer después a la misma alerta. */
+/**
+ * Dónde está la emisión `cand` respecto de la pila de alertas del módulo (vigentes + en fila): `yaPublicada` (id de la que salió de esa
+ * misma emisión) o `actualizaA` (la que corrige, reconocida por sus horarios, con qué cambió). Las dos null = es nueva.
+ */
+function clasificar(cand, pila) {
+  const conOrigen = pila.filter((p) => p.origenSmn);
+  const igual = conOrigen.find((p) => p.origenSmn.emision === cand.emision);
+  const lineage = !igual && conOrigen.filter((p) => esLaMisma(p.origenSmn, cand)).sort((a, b) => b.id - a.id)[0];
+  return { yaPublicada: igual ? igual.id : null,
+    actualizaA: lineage ? { id: lineage.id, periodo: lineage.periodo, cambios: cambios(lineage.origenSmn, cand), antes: { inicio: lineage.origenSmn.inicio, fin: lineage.origenSmn.fin, niveles: lineage.origenSmn.niveles } } : null };
+}
+
 const origenDe = (cand) => ({ emision: cand.emision, fenomenos: cand.fenomenos, niveles: cand.niveles, departamentos: cand.departamentos, inicio: cand.inicio, fin: cand.fin });
 
-module.exports = { iconosDeTexto, candidata, esLaMisma, cambios, origenDe, lineaDeTiempo };
+module.exports = { iconosDeTexto, candidata, esLaMisma, cambios, clasificar, origenDe, lineaDeTiempo };

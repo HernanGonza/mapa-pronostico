@@ -73,7 +73,6 @@ app.use("/api", require("./routes/placasPrecipitaciones"));
 app.use("/api", redesRouter);
 app.use("/api", placasRouter);
 app.use("/api", historicoRouter);
-app.use("/api", require("./routes/alertasSmnPublicadas"));
 app.use("/api", require("./routes/smn"));
 app.use("/api", require("./routes/cuencas"));
 app.use("/api", require("./routes/correo"));

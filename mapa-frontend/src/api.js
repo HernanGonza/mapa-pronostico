@@ -1,5 +1,5 @@
 import { API_URL } from "./config";
-import { enDemo, leerDemo, acpDePrueba, alertaDePrueba, smnDePrueba } from "./lib/demo";
+import { enDemo, leerDemo, acpDePrueba, alertaDePrueba } from "./lib/demo";
 
 // El back setea el cookie de sesión como httpOnly — hace falta pedirle al
 // fetch que lo mande (y lo reciba) aunque front y back vivan en orígenes
@@ -441,34 +441,6 @@ export async function generarPlacaPrecipitaciones({ subtitulo, periodo, fondo, f
 export async function getAvisosCortoPlazoVigentes() {
   const reales = (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;
   return enDemo() && leerDemo().acp ? [...reales, ...acpDePrueba()] : reales; // modo demostración
-}
-/** Alertas del SMN publicadas en el embebido y todavía vigentes (público). [] = ninguna. */
-export async function getAlertasSmnPublicadas() {
-  const reales = (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas`, { cache: "no-store" }))).alertas;
-  return enDemo() && leerDemo().smn ? [...reales, ...smnDePrueba()] : reales; // modo demostración
-}
-export async function getAlertasSmnPublicadasPanel() {
-  return (await handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/panel`, { cache: "no-store", ...CON_SESION }))).alertas;
-}
-export async function publicarAlertaSmn(smnId) {
-  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicar`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ smnId }), ...CON_SESION,
-  }));
-}
-export async function despublicarAlertaSmn(id) {
-  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${id}/despublicar`, { method: "POST", ...CON_SESION }));
-}
-/**
- * Las rutas de placas de una alerta del SMN publicada, con la misma forma que las de las alertas manuales
- * (`generarPlacaAlerta`, `getUltimosPlacasAlerta`): así sirven los mismos asistentes (ver `pub._api` en asistentePlacasAlerta).
- */
-export const apiPlacasSmn = (alertaId) => ({
-  generarPlacaAlerta: async (_id, payload) => handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${alertaId}/placas`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), ...CON_SESION })),
-  getUltimosPlacasAlerta: async () => handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/publicadas/${alertaId}/placas/base`, { cache: "no-store", ...CON_SESION })),
-});
-export async function eliminarPlacaSmn(id) {
-  return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/placas/${id}`, { method: "DELETE", ...CON_SESION }));
 }
 /** La última emisión del SMN como base de una alerta (con sus horarios) y si ya está en la pila o corrige a una publicada. */
 export async function getAlertasSmnRecibidas(){return handleJson(await fetch(`${API_URL}/api/alertas-meteorologicas/smn/recibidas`,{cache:'no-store',...CON_SESION}));}

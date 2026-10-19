@@ -12,13 +12,10 @@ async function recibidas({ pendientes = require("./alertasMeteorologicasStore").
   const cand = base.candidata(actual.fuentes.SAT?.alertas || [], departamentos(), { ahora });
   if (!cand) return { alertas: [], consultadoEn: actual.fuentes.SAT?.consultadoEn || null };
   const { vigentes, enFila } = await pendientes();
-  const pila = [...vigentes, ...enFila].filter((p) => p.origenSmn);
-  const igual = pila.find((p) => p.origenSmn.emision === cand.emision);
-  const lineage = !igual && pila.filter((p) => base.esLaMisma(p.origenSmn, cand)).sort((a, b) => b.id - a.id)[0];
+  const { yaPublicada, actualizaA } = base.clasificar(cand, [...vigentes, ...enFila]);
   const { _entera, ...publico } = cand;
   return { consultadoEn: actual.fuentes.SAT?.consultadoEn || null, alertas: [{ ...publico,
-    yaPublicada: igual ? igual.id : null,
-    actualizaA: lineage ? { id: lineage.id, periodo: lineage.periodo, cambios: base.cambios(lineage.origenSmn, cand), antes: { inicio: lineage.origenSmn.inicio, fin: lineage.origenSmn.fin, niveles: lineage.origenSmn.niveles } } : null }] };
+    yaPublicada, actualizaA }] };
 }
 
 /** Para guardar con una publicación hecha desde la base `emision`: de dónde salió y los textos con los que arrancan sus placas. */

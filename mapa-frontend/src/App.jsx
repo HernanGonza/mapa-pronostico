@@ -18,7 +18,6 @@ const EmbedAlertasPage = lazy(() => import("./pages/EmbedAlertasPage"));
 const EmbedRiesgoPage = lazy(() => import("./pages/EmbedRiesgoPage"));
 const AlertasMeteorologicasPage = lazy(() => import("./pages/AlertasMeteorologicasPage"));
 const EmbedAlertasMeteorologicasPage = lazy(() => import("./pages/EmbedAlertasMeteorologicasPage"));
-const AlertasAutomaticasPage = lazy(() => import("./pages/AlertasAutomaticasPage"));
 const AvisosCortoPlazoPage = lazy(() => import("./pages/AvisosCortoPlazoPage"));
 const AvisoEspecialPage = lazy(() => import("./pages/AvisoEspecialPage"));
 const EmbedAvisosCortoPlazoPage = lazy(() => import("./pages/EmbedAvisosCortoPlazoPage"));
@@ -94,7 +93,6 @@ export default function App() {
             }
           />
           <Route path="/panel/alertas-meteorologicas" element={<RutaProtegida><AlertasMeteorologicasPage /></RutaProtegida>} />
-          <Route path="/panel/alertas-automaticas" element={<RutaProtegida modulo="alertas-automaticas"><AlertasAutomaticasPage /></RutaProtegida>} />
           <Route path="/panel/avisos-corto-plazo" element={<RutaProtegida><AvisosCortoPlazoPage /></RutaProtegida>} />
           <Route path="/panel/aviso-especial" element={<RutaProtegida><AvisoEspecialPage /></RutaProtegida>} />
           <Route path="/panel/inundaciones" element={<RutaProtegida modulo="inundaciones"><InundacionesPage /></RutaProtegida>} />
