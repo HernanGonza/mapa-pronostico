@@ -16,6 +16,8 @@ import { useInformesPronostico } from "../lib/useInformesPronostico";
 import { calcularCambios } from "../lib/cambiosPronostico";
 import { enviarPronosticoPorCorreo, editarDestinatariosPorPasos } from "../lib/asistenteCorreo";
 import { notificar, confirmar } from "../lib/ui";
+import { useAuth } from "../context/AuthContext";
+import { puedeUsar } from "../lib/modulos";
 import {
   generarInformePdf,
   generarInformeDocxPronostico,
@@ -64,6 +66,7 @@ export default function AdminPage() {
   const [imagenes, setImagenes] = useState(null);
   const [vista, setVista] = useState("mapa");
   // Los informes del día: varios por día, cada uno es una tarjeta (guardada en el servidor). El cajón edita el que se abre.
+  const { usuario } = useAuth();
   const inf = useInformesPronostico();
   const { informes } = inf;
   const [abiertoId, setAbiertoId] = useState(null); // id de un informe guardado, o "nuevo" (el que se está armando y todavía no se guardó)
@@ -321,6 +324,7 @@ export default function AdminPage() {
         guardado={inf.guardado[abiertoId]} publicado={publicado} alPublicar={() => informeAbierto && publicarInforme(informeAbierto)} alGuardar={guardarNuevo} guardando={guardandoNuevo} />}
 
       <PlacaPreview imagenes={imagenes} vista={vista} onVista={setVista} titulo="pronóstico"
+        visor={puedeUsar(usuario, "ensamble") ? { id: "ensamble", label: "Ensamble", src: "/panel/ensamble?visor=1" } : null}
         sinRedes={PRONOSTICO_EN_REDES ? null : "Todavía no aprobada para redes: se puede descargar para revisarla, pero no publicar."}>
         {municipiosPreview && municipiosGeojson ? (
           <BaseMap

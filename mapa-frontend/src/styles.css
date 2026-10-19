@@ -768,6 +768,8 @@ html:has(.embed-risk--pronostico), body:has(.embed-risk--pronostico) { overflow:
 .placa-content { flex: 1; min-height: 0; position: relative; }
 .placa-map, .placa-preview { position: absolute; inset: 0; }
 .placa-preview { overflow: auto; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; background: var(--surface); color: var(--text); }
+.placa-visor { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
+.placa-visor[hidden] { display: none; }
 .placa-preview .admin-map-area__vacio { background: var(--surface); color: var(--text-muted); }
 .placa-preview figure { margin: 0; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .placa-preview img { width: 100%; flex: 1; min-height: 0; object-fit: contain; }

@@ -501,8 +501,10 @@ export default function EnsamblePage() {
           {datos && prendidos.has(m.id) && !consultados.has(m.id) && <span className="ens-sin-consultar">{pendientes.includes(m.id) ? "Descargando… se suma solo" : "Sin consultar: tocá «Consultar»"}</span>}
         </button>;
 
-  return <div className={`admin-layout ens-layout${lateralCerrado ? " ens-layout--sin-lateral" : ""}`}>
-    <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>
+  // «?visor=1»: la pantalla se mira dentro de «Previsión del tiempo» (en un iframe), sin su encabezado.
+  const visor = new URLSearchParams(window.location.search).has("visor");
+  return <div className={`admin-layout ens-layout${lateralCerrado ? " ens-layout--sin-lateral" : ""}${visor ? " ens-layout--visor" : ""}`}>
+    {!visor && <BrandHeader subtitulo="Ensamble multimodelo"><VolverConfiguracion /></BrandHeader>}
     <aside className={`admin-panel ens-lateral${lateralCerrado ? " ens-lateral--cerrada" : ""}`} id="contenido-principal" tabIndex={-1}>
       <button type="button" className="ens-lateral-toggle" aria-expanded={!lateralCerrado} aria-controls="ens-lateral-contenido" onClick={alternarLateral}
         title={lateralCerrado ? "Mostrar la barra de modelos" : "Ocultar la barra de modelos para agrandar la tabla"}>

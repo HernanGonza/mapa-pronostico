@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import PublicarEnRedes from './PublicarEnRedes';
 
 // sinRedes: texto que reemplaza al botón «Publicar en redes» (placas que todavía no se pueden publicar).
-export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, onVista, titulo, children, labelRecomendaciones = 'Recomendaciones', epigrafe, sinRedes = null }) {
+export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, onVista, titulo, children, labelRecomendaciones = 'Recomendaciones', epigrafe, sinRedes = null, visor = null }) {
   const [url, setUrl] = useState(null);
+  // `visor` ({ id, label, src }): otra pantalla del panel, mirada en esta misma zona (un iframe). Se carga la primera vez que se pide y queda armada, así no se pierde lo que se estaba mirando al volver.
+  const [visorPedido, setVisorPedido] = useState(false);
+  useEffect(() => { if (visor && vista === visor.id) setVisorPedido(true); }, [visor, vista]);
   useEffect(() => {
     if (!placa) { setUrl(null); return; }
     const nuevaUrl = URL.createObjectURL(placa.blob);
@@ -14,6 +17,7 @@ export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, 
   const vistas = [['mapa', 'Mapa manual']];
   if (imagenes !== undefined) vistas.push(['placa', 'Placa para redes']);
   if (recomendaciones !== undefined) vistas.push(['recomendaciones', labelRecomendaciones]);
+  if (visor) vistas.push([visor.id, visor.label]);
 
   return <div className="admin-map-area placa-workspace">
     <div className="placa-toolbar" role="group" aria-label="Vista del reporte">
@@ -21,7 +25,8 @@ export default function PlacaPreview({ placa, imagenes, recomendaciones, vista, 
     </div>
     <div className="placa-content">
       <div className="placa-map" style={{ visibility: vista === 'mapa' ? 'visible' : 'hidden' }} aria-hidden={vista !== 'mapa'} inert={vista !== 'mapa' ? '' : undefined}>{children}</div>
-      {vista !== 'mapa' && <div className="placa-preview">
+      {visor && visorPedido && <iframe className="placa-visor" title={visor.label} src={visor.src} hidden={vista !== visor.id} />}
+      {vista !== 'mapa' && (!visor || vista !== visor.id) && <div className="placa-preview">
         {conjunto ? <>
         {/* Igual que en las tarjetas: marcado y deshabilitado si esta placa ya salió en redes. */}
         {sinRedes ? <p className="admin-panel__hint" role="note">{sinRedes}</p>
