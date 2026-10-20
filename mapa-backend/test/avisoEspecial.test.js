@@ -55,15 +55,15 @@ test("imagen inválida o un texto imposible de acomodar dan error 400", { timeou
   await assert.rejects(generarAvisoEspecialAmbos({ texto: renglones, emitidoEn: EMITIDO, imagen: captura(800, 600) }), { status: 400, message: /demasiado largo/ });
 });
 
-test("título de dos líneas y nivel: se validan y la placa sale con cualquiera de los niveles", { timeout: 60000 }, async () => {
-  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso especial", subtitulo: "Por tormentas", nivel: "Naranja" }), null);
-  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso", subtitulo: "", nivel: null }), null);
+test("título de dos líneas y colores: se validan y la placa sale con cualquier combinación", { timeout: 60000 }, async () => {
+  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso especial", subtitulo: "Por tormentas", colorTitulo: "Naranja", colorTexto: "Verde", colorEmision: "Blanco" }), null);
+  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso", subtitulo: "" }), null);
   assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, titulo: " " }), /título/);
   assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, subtitulo: "x".repeat(41) }), /segunda línea/);
-  assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, nivel: "Violeta" }), /Nivel/);
-  for (const nivel of [null, "Amarillo", "Rojo"]) {
-    const { feedPng } = await generarAvisoEspecialAmbos({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso especial", subtitulo: nivel ? "Por tormentas" : "", nivel, imagen: captura(1280, 720) });
-    assert.deepEqual(await medidas(feedPng), [2250, 2813], String(nivel));
+  assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, colorTexto: "Violeta" }), /Color/);
+  for (const [colorTitulo, colorTexto, colorEmision] of [[null, null, null], ["Amarillo", "Blanco", "Verde"], ["Rojo", "Naranja", "Amarillo"]]) {
+    const { feedPng } = await generarAvisoEspecialAmbos({ texto: NORMAL, emitidoEn: EMITIDO, titulo: "Aviso especial", subtitulo: "Por tormentas", colorTitulo, colorTexto, colorEmision, imagen: captura(1280, 720) });
+    assert.deepEqual(await medidas(feedPng), [2250, 2813], String([colorTitulo, colorTexto, colorEmision]));
   }
 });
 

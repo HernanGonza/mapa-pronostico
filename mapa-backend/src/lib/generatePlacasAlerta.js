@@ -201,13 +201,13 @@ function medirFilas(ctx, filas, f, anchoTexto) {
  * Título de dos líneas (la 1.ª blanca, la 2.ª del color; sin 2.ª línea, una sola) con la raya
  * blanca debajo. Devuelve dónde empieza y cuánto mide la zona libre hasta el pie del fondo.
  */
-function dibujarTitulo(ctx, W, L, titulo, color) {
+function dibujarTitulo(ctx, W, L, titulo, color, color1 = '#fff') {
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.shadowColor = SOMBRA; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4;
   const anchoTitulo = W - 2 * 280;
   let y = L.tituloY + L.linea1;
   const m1 = fuenteTitulo(ctx, titulo[0], L.linea1, anchoTitulo);
-  ctx.fillStyle = '#fff'; ctx.fillText(titulo[0], W / 2, y);
+  ctx.fillStyle = color1; ctx.fillText(titulo[0], W / 2, y);
   let ancho = m1.width;
   if (titulo[1]) {
     y += Math.round(L.linea2 * 0.38) + L.linea2;
@@ -267,7 +267,7 @@ async function dibujarFilas(ctx, W, plan, zonaY, zonaH, color) {
     let ty = y + Math.max(0, (m.alto - (m.tit.length * f * 1.12 + m.lin.length * f) * INTERLINEA) / 2);
     ctx.font = `bold ${Math.round(f * 1.12)}px ${OAK_SANS}`; ctx.fillStyle = m.colorTitulo || color;
     for (const l of m.tit) { ctx.fillText(l, xt, ty + (f * 1.12 * INTERLINEA) / 2); ty += f * 1.12 * INTERLINEA; }
-    ctx.font = `${f}px ${OAK_SANS}`; ctx.fillStyle = '#fff';
+    ctx.font = `${f}px ${OAK_SANS}`; ctx.fillStyle = m.colorTexto || '#fff';
     for (const l of m.lin) { ctx.fillText(l, xt, ty + (f * INTERLINEA) / 2); ty += f * INTERLINEA; }
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     y += m.alto + aire;

@@ -422,14 +422,16 @@ export async function despublicarAvisoCortoPlazo(id) {
 }
 /** Aviso especial (texto libre + captura opcional + fondo). `opciones`: { vistaPrevia: true } o { confirmarToken }
  * — al confirmar no se reenvía la imagen: el backend guarda la vista previa ya generada. */
-export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = "", subtitulo = "", nivel = "", fondo = "rayos" }, { vistaPrevia = false, confirmarToken = null } = {}) {
+export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = "", subtitulo = "", colorTitulo = "Blanco", colorTexto = "Blanco", colorEmision = "Blanco", fondo = "rayos" }, { vistaPrevia = false, confirmarToken = null } = {}) {
   const form = new FormData();
   form.append("texto", texto);
   form.append("fondo", fondo || "rayos");
   form.append("emitidoEn", emitidoEn);
   form.append("titulo", titulo);
   form.append("subtitulo", subtitulo);
-  form.append("nivel", nivel || "");
+  form.append("colorTitulo", colorTitulo || "Blanco");
+  form.append("colorTexto", colorTexto || "Blanco");
+  form.append("colorEmision", colorEmision || "Blanco");
   if (confirmarToken) form.append("confirmarToken", confirmarToken);
   else { if (imagen) form.append("imagen", imagen); if (vistaPrevia) form.append("vistaPrevia", "true"); }
   return handleJson(await fetch(`${API_URL}/api/avisos-especiales/generar`, { method: "POST", body: form, ...CON_SESION }));

@@ -24,7 +24,7 @@ export default function AvisoEspecialPage() {
 
   // Al crear otro, arranca con el texto del anterior (suelen ser avisos de seguimiento), pero
   // con la hora de ahora y sin imagen: la captura casi siempre es nueva (el fondo sí se repite).
-  const crear = () => crearAvisoEspecialPorPasos({ inicial: ultimo ? { texto: ultimo.texto, titulo: ultimo.titulo, subtitulo: ultimo.subtitulo, nivel: ultimo.nivel, fondo: ultimo.fondo } : {}, vistaPrevia, guardar });
+  const crear = () => crearAvisoEspecialPorPasos({ inicial: ultimo ? { texto: ultimo.texto, titulo: ultimo.titulo, subtitulo: ultimo.subtitulo, colorTitulo: ultimo.colorTitulo, colorTexto: ultimo.colorTexto, colorEmision: ultimo.colorEmision, fondo: ultimo.fondo } : {}, vistaPrevia, guardar });
   const epigrafe = ultimo ? `${[ultimo.titulo, ultimo.subtitulo].filter(Boolean).join(" ")}\n\n${ultimo.texto}` : "";
 
   const placa = ultimo?.placa;
@@ -58,7 +58,7 @@ export default function AvisoEspecialPage() {
                   </figure>
                 ))}
               </div>
-            </> : <div className="admin-map-area__vacio" role="status">Tocá «Crear aviso especial»: elegís el título y el nivel, escribís el texto, la hora de emisión, elegís el fondo y, si querés, subís una captura. Acá vas a ver y descargar las placas.</div>}
+            </> : <div className="admin-map-area__vacio" role="status">Tocá «Crear aviso especial»: elegís el título, el texto y la hora de emisión, el color de cada uno, el fondo y, si querés, subís una captura. Acá vas a ver y descargar las placas.</div>}
           </div>
         </div>
       </div>

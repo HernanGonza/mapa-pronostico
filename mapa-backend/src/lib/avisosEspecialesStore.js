@@ -30,7 +30,7 @@ async function init() {
          historias_path text NOT NULL
        )`
     )
-    // Título de dos líneas y nivel (color de la 2.ª línea), como las placas de las alertas.
+    // Título de dos líneas; la columna `nivel` guarda el color del título (los otros dos colores no se guardan).
     .then(() => p.query(`ALTER TABLE avisos_especiales ADD COLUMN IF NOT EXISTS titulo text`))
     .then(() => p.query(`ALTER TABLE avisos_especiales ADD COLUMN IF NOT EXISTS subtitulo text`))
     .then(() => p.query(`ALTER TABLE avisos_especiales ADD COLUMN IF NOT EXISTS nivel text`))

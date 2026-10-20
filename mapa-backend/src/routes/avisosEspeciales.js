@@ -14,21 +14,22 @@ const upload = multer({
 });
 
 // Genera feed + historias del aviso especial (texto libre + captura de radar/satélite).
-// multipart/form-data: texto, emitidoEn ("AAAA-MM-DDTHH:mm", hora de Misiones), titulo, subtitulo y nivel (opcionales), imagen
+// multipart/form-data: texto, emitidoEn ("AAAA-MM-DDTHH:mm", hora de Misiones), titulo, subtitulo, colorTitulo, colorTexto y colorEmision (opcionales: Amarillo, Naranja, Rojo, Verde o Blanco), imagen
 // (JPG/PNG, opcional), fondo (opcional: "rayos" o el id de una foto del pronóstico) y vistaPrevia=true — o, para guardar la vista previa ya revisada,
 // confirmarToken + texto + emitidoEn (sin imagen: no se vuelve a generar).
 router.post("/avisos-especiales/generar", requireAuth, upload.single("imagen"), async (req, res) => {
   const { texto, emitidoEn, confirmarToken } = req.body || {};
-  // Título de dos líneas y nivel (opcionales; sin título va "AVISO ESPECIAL").
-  const titulo = req.body?.titulo || TITULO, subtitulo = req.body?.subtitulo || "", nivel = req.body?.nivel || null;
+  // Título de dos líneas y los tres colores, cada uno por su lado (opcionales; sin título va "AVISO ESPECIAL"; sin color, blanco).
+  const titulo = req.body?.titulo || TITULO, subtitulo = req.body?.subtitulo || "";
+  const colorTitulo = req.body?.colorTitulo || null, colorTexto = req.body?.colorTexto || null, colorEmision = req.body?.colorEmision || null;
   // Fondo: "rayos" (o vacío) o el número de una foto de las placas del pronóstico. La captura es opcional.
   const fondo = req.body?.fondo || null;
-  const error = errorDeAvisoEspecial({ texto, emitidoEn, titulo, subtitulo, nivel, fondo });
+  const error = errorDeAvisoEspecial({ texto, emitidoEn, titulo, subtitulo, colorTitulo, colorTexto, colorEmision, fondo });
   if (error) return res.status(400).json({ error });
   try {
     await pendientes.resolver(req, res, {
-      generar: () => generarAvisoEspecialAmbos({ texto, emitidoEn, titulo, subtitulo, nivel, fondo, imagen: req.file?.buffer || null }),
-      guardar: (pngs) => avisos.crear({ texto, emitidoEn, titulo, subtitulo, nivel, usuarioId: req.usuario.usuarioId, ...pngs }),
+      generar: () => generarAvisoEspecialAmbos({ texto, emitidoEn, titulo, subtitulo, colorTitulo, colorTexto, colorEmision, fondo, imagen: req.file?.buffer || null }),
+      guardar: (pngs) => avisos.crear({ texto, emitidoEn, titulo, subtitulo, nivel: colorTitulo, usuarioId: req.usuario.usuarioId, ...pngs }),
     });
   } catch (e) {
     if (!e.status) console.error(e);
