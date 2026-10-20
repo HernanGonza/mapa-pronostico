@@ -1,5 +1,7 @@
 const JSZip = require("jszip");
 const { errorDeInforme } = require("./informePronosticoPdf");
+const { fijoDeZona, masGrave, condicionDeZona, resultadoDeCiudades } = require("./informeResumen");
+const { faseDelDia } = require("./luna");
 
 /**
  * El informe de «Previsión del tiempo» (formato con plantilla, `version: 2`) como .docx, para que los medios copien y
@@ -39,7 +41,7 @@ function tabla(anchos, filas) {
   const celda = (c, i) => {
     const o = typeof c === "object" && c ? c : { t: c };
     return `<w:tc><w:tcPr><w:tcW w:w="${anchos[i]}" w:type="dxa"/>${o.fondo ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fondo}"/>` : ""}<w:vAlign w:val="center"/></w:tcPr>` +
-      p(String(o.t ?? "").trim() || "—", { bold: o.bold, color: o.color, size: 18, despues: 20, antes: 20, centro: o.centro }) + "</w:tc>";
+      p(String(o.t ?? "").trim() || (o.vacia ? "" : "—"), { bold: o.bold, color: o.color, size: o.size || 18, despues: 20, antes: 20, centro: o.centro }) + "</w:tc>";
   };
   return `<w:tbl><w:tblPr><w:tblW w:w="${anchos.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map(borde).join("")}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr>` +
     `<w:tblGrid>${anchos.map((w) => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>` +
@@ -58,25 +60,34 @@ function cuerpo(b) {
     x.push(p(fechaLarga(d.fecha), { bold: true, size: 28, color: VERDE, antes: i ? 300 : 0 }));
     if (String(d.resumen ?? "").trim()) x.push(p(String(d.resumen).trim(), { justificado: true, despues: 140 }));
     x.push(p(`Condiciones promedio para la provincia ${d.hoy ? "en lo que resta del día" : "para el día"} (${fechaCorta(d.fecha)})`, { bold: true, size: 20, color: "3E6C51", despues: 60 }));
-    const aZ = Math.floor((W - 2800) / 3);
+    const aZ = Math.floor((W - 2800) / 3), rot = (t) => ({ t, bold: true, color: VERDE });
     x.push(tabla([2800, aZ, aZ, aZ], [
-      [{ t: "", fondo: "EAF2EE" }, ...ZONAS.map((z) => ({ t: `ZONA ${z.toUpperCase()}`, bold: true, centro: true, fondo: "EAF2EE", color: VERDE }))],
-      ...d.temps.map((t) => [{ t: ROTULO[t], bold: true, color: VERDE }, ...ZONAS.map((z) => ({ t: rango(d.zonas[z][t], "°C"), bold: true, centro: true, color: color(t) }))]),
+      [{ t: "", vacia: true, fondo: "EAF2EE" }, ...ZONAS.map((z) => ({ t: `ZONA ${z.toUpperCase()}`, bold: true, centro: true, fondo: "EAF2EE", color: VERDE }))],
+      ...d.temps.map((t) => [rot(ROTULO[t]), ...ZONAS.map((z) => ({ t: temp(fijoDeZona(d.zonas[z][t], t)), bold: true, centro: true, color: color(t) }))]),
+      [rot("CONDICIÓN"), ...ZONAS.map((z) => ({ t: condicionDeZona(d, z), centro: true }))],
     ]));
-    const rot = (t) => ({ t, bold: true, color: VERDE });
+    // Líneas generales de toda la provincia: centradas y con letra más grande.
+    const general = (t, v) => [{ ...rot(t), size: 20 }, { t: v, size: 20, centro: true }];
     x.push(tabla([2800, W - 2800], [
-      [rot("HUMEDAD"), rango(d.humedad, "%")],
-      [rot("PRECIPITACIONES"), d.precipitaciones],
-      ...(d.presion ? [[rot("PRESIÓN ATMOSFÉRICA"), rango(d.presionRango, "hPa")]] : []),
-      [rot("VIENTOS"), d.vientos],
-      [rot("ALERTAS"), String(d.alertas ?? "").trim() || "------"],
+      general("HUMEDAD", rango(d.humedad, "%")),
+      general("PRECIPITACIONES", d.precipitaciones),
+      ...(d.presion ? [general("PRESIÓN ATMOSFÉRICA", rango(d.presionRango, "hPa"))] : []),
+      general("VIENTOS", d.vientos),
+      general("ALERTAS", String(d.alertas ?? "").trim() || "------"),
+      general("FASE LUNAR", faseDelDia(d.fecha).nombre),
     ]));
     x.push(p(`Previsión por principales ciudades de la provincia de Misiones (${fechaCorta(d.fecha)})`, { bold: true, size: 20, color: "3E6C51", despues: 60 }));
     const aT = 1500, aA = 1000, aC = 2500, aE = W - aC - aT * d.temps.length - aA;
     const enc = (t) => ({ t, bold: true, fondo: "EAF2EE", color: VERDE });
     x.push(tabla([aC, ...d.temps.map(() => aT), aE, aA], [
       [enc("CIUDAD"), ...d.temps.map((t) => ({ ...enc(CABECERA[t]), centro: true })), enc("ESTADO DEL TIEMPO"), enc("ALERTA")],
-      ...d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, centro: true, color: color(t) })), c.condicion, String(c.alerta ?? "").trim() || "s/a"]),
+      ...d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, centro: true, color: color(t) })), masGrave(c.condicion), String(c.alerta ?? "").trim() || "s/a"]),
+    ]));
+    // Los rangos, en su propia tabla (con su propio encabezado): ocupan todo el ancho a la derecha del rótulo.
+    const aR = Math.floor((W - aC) / d.temps.length);
+    x.push(tabla([aC, ...d.temps.map(() => aR)], [
+      [{ ...enc(""), vacia: true }, ...d.temps.map((t) => ({ ...enc(CABECERA[t]), centro: true }))],
+      [rot("RANGO DE TEMPERATURAS"), ...d.temps.map((t) => ({ t: rango(resultadoDeCiudades(d, t), "°C"), bold: true, centro: true, color: color(t) }))],
     ]));
   });
   x.push(p("Fuente: Dirección General de Alerta Temprana — Ministerio de Ecología y RNR de Misiones.", { size: 16, color: "5D6F64", antes: 120 }));

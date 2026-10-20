@@ -1,4 +1,6 @@
 const { errorDeInforme } = require("./informePronosticoPdf");
+const { fijoDeZona, masGrave, condicionDeZona, resultadoDeCiudades } = require("./informeResumen");
+const { faseDelDia } = require("./luna");
 const { formato: { ZONAS, ROTULO, CABECERA, fechaLarga, fechaCorta, temp, rango } } = require("./informePronosticoDocx");
 
 /**
@@ -31,7 +33,7 @@ function tabla(anchos, filas) {
     return `${borde}${o.fondo ? "\\clcbpat6" : ""}\\cellx${anchos.slice(0, i + 1).reduce((a, b) => a + b, 0)}`;
   }).join("")}\n${f.map((c) => {
     const o = typeof c === "object" && c ? c : { t: c };
-    return `\\pard\\intbl${o.centro ? "\\qc" : "\\ql"}${o.color ? `\\cf${o.color}` : ""}${o.bold ? "\\b" : ""}\\fs18 ${esc(String(o.t ?? "").trim() || "—")}\\b0\\cf0\\cell\n`;
+    return `\\pard\\intbl${o.centro ? "\\qc" : "\\ql"}${o.color ? `\\cf${o.color}` : ""}${o.bold ? "\\b" : ""}\\fs${o.size || 18} ${esc(String(o.t ?? "").trim() || (o.vacia ? "" : "—"))}\\b0\\cf0\\cell\n`;
   }).join("")}\\row\n`).join("") + p("", { despues: 120, size: 8 });
 }
 
@@ -49,21 +51,31 @@ function cuerpo(b) {
     x.push(p(`Condiciones promedio para la provincia ${d.hoy ? "en lo que resta del día" : "para el día"} (${fechaCorta(d.fecha)})`, { bold: true, color: C.verde2, despues: 60 }));
     const aZ = Math.floor((W - 2800) / 3);
     x.push(tabla([2800, aZ, aZ, aZ], [
-      [{ t: "", fondo: 1 }, ...ZONAS.map((z) => ({ t: `ZONA ${z.toUpperCase()}`, bold: true, centro: true, fondo: 1, color: C.verde }))],
-      ...d.temps.map((t) => [rot(ROTULO[t]), ...ZONAS.map((z) => ({ t: rango(d.zonas[z][t], "°C"), bold: true, centro: true, color: color(t) }))]),
+      [{ t: "", vacia: true, fondo: 1 }, ...ZONAS.map((z) => ({ t: `ZONA ${z.toUpperCase()}`, bold: true, centro: true, fondo: 1, color: C.verde }))],
+      ...d.temps.map((t) => [rot(ROTULO[t]), ...ZONAS.map((z) => ({ t: temp(fijoDeZona(d.zonas[z][t], t)), bold: true, centro: true, color: color(t) }))]),
+      [rot("CONDICIÓN"), ...ZONAS.map((z) => ({ t: condicionDeZona(d, z), centro: true }))],
     ]));
+    // Líneas generales de toda la provincia: centradas y con letra más grande.
+    const general = (t, v) => [{ ...rot(t), size: 20 }, { t: v, size: 20, centro: true }];
     x.push(tabla([2800, W - 2800], [
-      [rot("HUMEDAD"), rango(d.humedad, "%")],
-      [rot("PRECIPITACIONES"), d.precipitaciones],
-      ...(d.presion ? [[rot("PRESIÓN ATMOSFÉRICA"), rango(d.presionRango, "hPa")]] : []),
-      [rot("VIENTOS"), d.vientos],
-      [rot("ALERTAS"), String(d.alertas ?? "").trim() || "------"],
+      general("HUMEDAD", rango(d.humedad, "%")),
+      general("PRECIPITACIONES", d.precipitaciones),
+      ...(d.presion ? [general("PRESIÓN ATMOSFÉRICA", rango(d.presionRango, "hPa"))] : []),
+      general("VIENTOS", d.vientos),
+      general("ALERTAS", String(d.alertas ?? "").trim() || "------"),
+      general("FASE LUNAR", faseDelDia(d.fecha).nombre),
     ]));
     x.push(p(`Previsión por principales ciudades de la provincia de Misiones (${fechaCorta(d.fecha)})`, { bold: true, color: C.verde2, despues: 60 }));
     const aT = 1500, aA = 1000, aC = 2500, aE = W - aC - aT * d.temps.length - aA, enc = (t) => ({ t, bold: true, fondo: 1, color: C.verde });
     x.push(tabla([aC, ...d.temps.map(() => aT), aE, aA], [
       [enc("CIUDAD"), ...d.temps.map((t) => ({ ...enc(CABECERA[t]), centro: true })), enc("ESTADO DEL TIEMPO"), enc("ALERTA")],
-      ...d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, centro: true, color: color(t) })), c.condicion, String(c.alerta ?? "").trim() || "s/a"]),
+      ...d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, centro: true, color: color(t) })), masGrave(c.condicion), String(c.alerta ?? "").trim() || "s/a"]),
+    ]));
+    // Los rangos, en su propia tabla (con su propio encabezado): ocupan todo el ancho a la derecha del rótulo.
+    const aR = Math.floor((W - aC) / d.temps.length);
+    x.push(tabla([aC, ...d.temps.map(() => aR)], [
+      [{ ...enc(""), vacia: true }, ...d.temps.map((t) => ({ ...enc(CABECERA[t]), centro: true }))],
+      [rot("RANGO DE TEMPERATURAS"), ...d.temps.map((t) => ({ t: rango(resultadoDeCiudades(d, t), "°C"), bold: true, centro: true, color: color(t) }))],
     ]));
   });
   x.push(p("Fuente: Dirección General de Alerta Temprana — Ministerio de Ecología y RNR de Misiones.", { size: 16, color: C.gris, antes: 120 }));

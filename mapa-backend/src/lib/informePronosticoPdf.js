@@ -3,7 +3,9 @@ const path = require("path");
 const crypto = require("crypto");
 const PDFDocument = require("pdfkit");
 const { partesCondicion, CATALOGO } = require("./condiciones");
+const { fijoDeZona, masGrave, condicionDeZona, resultadoDeCiudades } = require("./informeResumen");
 const { DIR_ICONOS } = require("./iconResolver");
+const { faseDelDia } = require("./luna");
 
 /**
  * Informe «PREVISIÓN DEL TIEMPO PARA LA PROVINCIA DE MISIONES» en PDF, armado desde lo que se carga en el panel
@@ -99,7 +101,7 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
 
   // Los íconos se piden antes de dibujar (el dibujo es síncrono): una vez por texto de condición distinto.
   const v2 = b.version === 2;
-  const textos = v2 ? new Set(b.dias.flatMap((d) => d.ciudades.map((c) => c.condicion))) : new Set([...ZONAS.map((z) => b.zonas[z].condicion), ...b.localidades.map((l) => l.condicion), ...ZONAS.flatMap((z) => b.extendido[z].map((d) => d.condicion))]);
+  const textos = v2 ? new Set(b.dias.flatMap((d) => d.ciudades.map((c) => masGrave(c.condicion)))) : new Set([...ZONAS.map((z) => b.zonas[z].condicion), ...b.localidades.map((l) => l.condicion), ...ZONAS.flatMap((z) => b.extendido[z].map((d) => d.condicion))]);
   const iconos = new Map(await Promise.all([...textos].map(async (t) => [t, await condiciones(t)])));
 
   const chunks = [];
@@ -146,27 +148,34 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
     doc.y = y + 26;
   };
   /** Íconos de día (hasta `maxIconos`) y el texto de una condición, en una celda de `ancho`. */
-  const celdaCondicion = (x, y, ancho, textoCond, alto, maxIconos = 4) => {
+  const celdaCondicion = (x, y, ancho, textoCond, alto, maxIconos = 4, centro = false) => {
     const lista = (iconos.get(textoCond) || []).slice(0, maxIconos);
     let cx = x;
-    for (const c of lista) { doc.image(c.dia, cx, y + (alto - 24) / 2, { width: 24, height: 24 }); cx += 25; }
+    if (centro) { // íconos y texto juntos, centrados en la celda
+      doc.font("Oak").fontSize(8.5);
+      const tw = Math.min(ancho - lista.length * 21 - 3, doc.widthOfString(textoCond || "—"));
+      cx = x + Math.max(0, (ancho - (lista.length * 21 + 3 + tw)) / 2);
+    }
+    for (const c of lista) { doc.image(c.dia, cx, y + (alto - 20) / 2, { width: 20, height: 20 }); cx += 21; }
     const ancho_t = x + ancho - cx - 3;
     doc.fillColor("#1b2a22").font("Oak").fontSize(8.5);
     const h = doc.heightOfString(textoCond || "—", { width: ancho_t });
     doc.text(textoCond || "—", cx + 3, y + Math.max(2, (alto - h) / 2), { width: ancho_t });
   };
-  const maxIconosEn = (ancho) => Math.max(1, Math.floor((ancho - 70) / 25));
+  const maxIconosEn = (ancho) => Math.max(1, Math.floor((ancho - 70) / 21));
   /**
    * Tabla con título, encabezado de columnas y una fila por registro. Cada celda es un texto o un objeto
    * { t, color, bold } (texto con estilo) o { cond } (íconos + condición). `cols`: [{ t, w, centro }].
    */
   const tabla = (titulo, cols, filas, opc = {}) => {
     const xs = []; let acc = M; for (const c of cols) { xs.push(acc); acc += c.w; }
+    // Una celda puede traer su propio ancho `w` (para juntar columnas en una fila): si no, usa el de su columna.
+    const huecos = (fila) => { let x = M; return fila.map((cel, i) => { const w = (typeof cel === "object" && cel && cel.w) || cols[i].w; const h = { x, w }; x += w; return h; }); };
     const alturaFila = (fila) => Math.max(opc.minAlto || 28, ...fila.map((cel, i) => {
       const c = typeof cel === "object" && cel ? cel : { t: cel };
-      const ancho = cols[i].w - 8;
-      if (c.cond !== undefined) { const n = Math.min((iconos.get(c.cond) || []).length, maxIconosEn(cols[i].w)); doc.font("Oak").fontSize(8.5); return doc.heightOfString(c.cond || "—", { width: ancho - n * 25 }) + 10; }
-      doc.font(c.bold ? "Oak-Bold" : "Oak").fontSize(9); return doc.heightOfString(String(c.t ?? "") || "—", { width: ancho }) + 10;
+      const { w } = huecos(fila)[i], ancho = w - 8;
+      if (c.cond !== undefined) { const n = Math.min((iconos.get(c.cond) || []).length, maxIconosEn(w)); doc.font("Oak").fontSize(8.5); return doc.heightOfString(c.cond || "—", { width: ancho - n * 21 }) + 7; }
+      doc.font(c.bold ? "Oak-Bold" : "Oak").fontSize(c.size || 9); return doc.heightOfString(String(c.t ?? "") || "—", { width: ancho }) + 7;
     }));
     espacio((titulo ? 30 : 0) + 16 + 28); // el título, el encabezado y al menos una fila juntos
     if (titulo) barra(titulo);
@@ -179,21 +188,25 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
       doc.y = y + 16;
     };
     encabezado();
-    for (const fila of filas) {
+    filas.forEach((fila, k) => {
       const alto = alturaFila(fila);
-      if (doc.y + alto > limite()) { doc.addPage(); encabezado(); }
+      // `reserva`: lo que va pegado debajo de la tabla (otra tabla): así la última fila no deja a esa otra sola en la página siguiente.
+      const junto = k === filas.length - 1 ? alto + (opc.reserva || 0) : alto;
+      if (doc.y + junto > limite()) { doc.addPage(); encabezado(); }
       const y = doc.y;
+      const sitio = huecos(fila);
       fila.forEach((cel, i) => {
         const c = typeof cel === "object" && cel ? cel : { t: cel };
-        if (c.cond !== undefined) { celdaCondicion(xs[i] + 4, y, cols[i].w - 8, c.cond, alto, maxIconosEn(cols[i].w)); return; }
+        const { x, w } = sitio[i], centro = c.centro ?? cols[i].centro;
+        if (c.cond !== undefined) { celdaCondicion(x + 4, y, w - 8, c.cond, alto, maxIconosEn(w), centro); return; }
         const t = String(c.t ?? "").trim() || "—";
-        doc.fillColor(c.color || "#1b2a22").font(c.bold ? "Oak-Bold" : "Oak").fontSize(9);
-        const h = doc.heightOfString(t, { width: cols[i].w - 8, align: cols[i].centro ? "center" : "left" });
-        doc.text(t, xs[i] + 4, y + (alto - h) / 2, { width: cols[i].w - 8, align: cols[i].centro ? "center" : "left" });
+        doc.fillColor(c.color || "#1b2a22").font(c.bold ? "Oak-Bold" : "Oak").fontSize(c.size || 9);
+        const h = doc.heightOfString(t, { width: w - 8, align: centro ? "center" : "left" });
+        doc.text(t, x + 4, y + (alto - h) / 2, { width: w - 8, align: centro ? "center" : "left" });
       });
       doc.moveTo(M, y + alto).lineTo(M + ANCHO, y + alto).lineWidth(0.5).strokeColor(LINEA).stroke();
       doc.y = y + alto;
-    }
+    });
     doc.y += opc.hueco ?? 12;
   };
   const titulo_ = (t) => t.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
@@ -235,18 +248,26 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
       if (String(d.resumen ?? "").trim()) { doc.fillColor("#1b2a22").font("Oak").fontSize(9.5).text(String(d.resumen).trim(), M + 2, doc.y, { width: ANCHO - 6, align: "justify" }); doc.y += 8; }
       tabla(`Condiciones promedio para la provincia ${d.hoy ? "en lo que resta del día" : "para el día"} (${fechaCorta(d.fecha)})`,
         [{ t: "", w: 150 }, ...POR_ZONA_V2.map((z) => ({ t: `ZONA ${z.toUpperCase()}`, w: (ANCHO - 150) / 3, centro: true }))],
-        d.temps.map((t) => [rot(ROTULO_V2[t]), ...POR_ZONA_V2.map((z) => ({ t: rangoV2(d.zonas[z][t], "°C"), bold: true, color: colorV2(t) }))]), { minAlto: 22, hueco: 0 });
+        [...d.temps.map((t) => [rot(ROTULO_V2[t]), ...POR_ZONA_V2.map((z) => ({ t: rangoV2({ desde: fijoDeZona(d.zonas[z][t], t) }, "°C"), bold: true, color: colorV2(t) }))]),
+          [rot("CONDICIÓN"), ...POR_ZONA_V2.map((z) => ({ t: condicionDeZona(d, z), centro: true }))]], { minAlto: 20, hueco: 0 });
+      // Líneas generales de toda la provincia: ocupan el ancho de las tres zonas, centradas y con letra más grande.
+      const general = (t, v) => [{ ...rot(t), size: 10 }, { t: v, size: 10, centro: true }];
       tabla(null, [{ t: "", w: 150 }, { t: "", w: ANCHO - 150 }], [
-        [rot("HUMEDAD"), rangoV2(d.humedad, "%")],
-        [rot("PRECIPITACIONES"), d.precipitaciones],
-        ...(d.presion ? [[rot("PRESIÓN ATMOSFÉRICA"), rangoV2(d.presionRango, "hPa")]] : []),
-        [rot("VIENTOS"), d.vientos],
-        [rot("ALERTAS"), String(d.alertas ?? "").trim() || "------"],
-      ], { minAlto: 22 });
-      const anchoT = 72, anchoA = 62, anchoC = 124;
+        general("HUMEDAD", rangoV2(d.humedad, "%")),
+        general("PRECIPITACIONES", d.precipitaciones),
+        ...(d.presion ? [general("PRESIÓN ATMOSFÉRICA", rangoV2(d.presionRango, "hPa"))] : []),
+        general("VIENTOS", d.vientos),
+        general("ALERTAS", String(d.alertas ?? "").trim() || "------"),
+        general("FASE LUNAR", faseDelDia(d.fecha).nombre),
+      ], { minAlto: 20, hueco: 6 });
+      const anchoT = 78, anchoA = 54, anchoC = 120; // anchoT: que «TEMP. NOCTURNA» entre en una línea
       tabla(`Previsión por principales ciudades de la provincia de Misiones (${fechaCorta(d.fecha)})`, [
         { t: "CIUDAD", w: anchoC }, ...d.temps.map((t) => ({ t: CABECERA_V2[t], w: anchoT, centro: true })), { t: "ESTADO DEL TIEMPO", w: ANCHO - anchoC - anchoT * d.temps.length - anchoA }, { t: "ALERTA", w: anchoA },
-      ], d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, color: colorV2(t) })), { cond: c.condicion }, String(c.alerta ?? "").trim() || "s/a"]), { minAlto: 26 });
+      ], d.ciudades.map((c) => [rot(String(c.ciudad).toUpperCase()), ...d.temps.map((t) => ({ t: temp(c[t]), bold: true, color: colorV2(t) })), { cond: masGrave(c.condicion) }, String(c.alerta ?? "").trim() || "s/a"]), { minAlto: 20, hueco: 0, reserva: 46 });
+      // Los rangos, en su propia tabla (no comparte encabezados con la de ciudades): ocupan todo el ancho a la derecha del rótulo.
+      tabla(null, [{ t: "", w: anchoC }, ...d.temps.map((t) => ({ t: CABECERA_V2[t], w: (ANCHO - anchoC) / d.temps.length, centro: true }))], [
+        [rot("RANGO DE TEMPERATURAS"), ...d.temps.map((t) => ({ t: rangoV2(resultadoDeCiudades(d, t), "°C"), bold: true, color: colorV2(t) }))],
+      ], { minAlto: 30 });
     });
   }
 
@@ -332,3 +353,4 @@ async function generarInformePdf(b, { claveDuenio = process.env.PDF_OWNER_PASSWO
 }
 
 module.exports = { generarInformePdf, errorDeInforme, ZONAS };
+

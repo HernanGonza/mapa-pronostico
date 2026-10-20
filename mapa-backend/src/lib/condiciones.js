@@ -102,6 +102,11 @@ const condicionCanonica = (condicion) => { const p = partesCondicion(condicion);
 /** La más severa de las condiciones (la que manda para el color). */
 const masSevera = (texto) => partesCondicion(texto).reduce((a, b) => (!a || CATALOGO.indexOf(b) > CATALOGO.indexOf(a) ? b : a), null);
 
+/** Gravedad de un texto de condición: 0 = la primera del catálogo (Despejado) y sube con la severidad; -1 si no se reconoce ninguna. */
+const gravedad = (texto) => { const c = masSevera(texto); return c ? CATALOGO.indexOf(c) : -1; };
+/** El texto más grave de la lista (si empatan, el primero); "" si no hay ninguno. */
+const masGraveDe = (textos) => textos.reduce((a, t) => (a === undefined || gravedad(t) > gravedad(a) ? t : a), undefined) ?? "";
+
 /** Color de la placa / del mapa de administración: el de la condición más severa; `SIN_DATO` si no se reconoce ninguna. */
 function colorPorCondicion(condicion) {
   const c = masSevera(condicion);
@@ -127,4 +132,4 @@ const etiquetaCondicion = (nombre) => nombre;
 /** El catálogo agrupado por categoría para el selector: [{ id, titulo, condiciones }]. */
 const CONDICIONES_POR_CATEGORIA = CATEGORIAS.map((k) => ({ ...k, condiciones: CATALOGO.filter((c) => c.cat === k.id) }));
 
-module.exports = { GRUPOS, CATEGORIAS, CATALOGO, SIN_DATO, partesCondicion, unirCondiciones, hayCondicion, esCondicionConocida, condicionCanonica, colorPorCondicion, grupoDeCondicion, esTormenta, iconosDeCondicion, LEYENDA, CONDICIONES_CANONICAS, etiquetaCondicion, CONDICIONES_POR_CATEGORIA };
+module.exports = { masSevera, gravedad, masGraveDe, GRUPOS, CATEGORIAS, CATALOGO, SIN_DATO, partesCondicion, unirCondiciones, hayCondicion, esCondicionConocida, condicionCanonica, colorPorCondicion, grupoDeCondicion, esTormenta, iconosDeCondicion, LEYENDA, CONDICIONES_CANONICAS, etiquetaCondicion, CONDICIONES_POR_CATEGORIA };

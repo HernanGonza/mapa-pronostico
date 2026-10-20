@@ -1,4 +1,5 @@
 const { categorias, iconos } = require("./alertasMeteorologicas");
+const { ZONAS } = require("./zonasMisiones");
 
 /**
  * Las alertas meteorológicas que rigen en un día (para el campo «Alertas» de los informes del pronóstico) y las que rigen
@@ -18,6 +19,24 @@ const diaCorto = (ms) => {
   const f = (o) => new Date(ms).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", ...o });
   return `${f({ weekday: "long" })} ${f({ day: "2-digit" })}/${f({ month: "2-digit" })}`;
 };
+
+/** «a», «a y b», «a, b y c»: la «y» sólo antes del último. */
+const enLista = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+/**
+ * Dónde rige una alerta, según los departamentos pintados en el mapa: «toda la provincia», las zonas que cubre enteras («la zona
+ * Norte», «las zonas Centro y Norte») y, de las que cubre a medias, sus departamentos («el departamento Capital»).
+ */
+function dondeRige(afectados) {
+  const en = new Set(afectados);
+  if (en.size >= 17) return "toda la provincia";
+  const enteras = Object.keys(ZONAS).filter((z) => ZONAS[z].every((d) => en.has(d)));
+  const sueltos = afectados.filter((d) => !enteras.some((z) => ZONAS[z].includes(d)));
+  const partes = [];
+  if (enteras.length) partes.push(`${enteras.length > 1 ? "las zonas" : "la zona"} ${enLista(enteras)}`);
+  if (sueltos.length) partes.push(`${sueltos.length > 1 ? "los departamentos" : "el departamento"} ${enLista(sueltos)}`);
+  return enLista(partes);
+}
 
 /** Tramos de nivel de un departamento: [{ nivel, desde, hasta }] (ms) entre `inicio` y el fin de la publicación. */
 function lineaDe(pub, depId, inicio) {
@@ -61,11 +80,13 @@ function delDia(fecha, pubs, smn = null, departamentos = []) {
     }
     if (nivel === "Verde") continue;
     const fenomenos = [...new Set((pub.iconosBase || pub.iconos || []).map((i) => nombreDeFenomeno(i.id)))];
-    const nombre = `Alerta ${FEMENINO[nivel]}${fenomenos.length ? ` por ${fenomenos.join(" y ")}` : ""}`;
+    const nombre = `Alerta ${FEMENINO[nivel]}${fenomenos.length ? ` por ${enLista(fenomenos)}` : ""}`;
     const todoElDia = desde <= d0 && hasta >= d1 - 1000;
     const cuando = todoElDia ? "durante todo el día" : `${desde <= d0 ? "hasta" : hasta >= d1 - 1000 ? "desde" : "de"} ${desde <= d0 ? hhmm(hasta) : hasta >= d1 - 1000 ? hhmm(desde) : `${hhmm(desde)} a ${hhmm(hasta)}`}`.replace(/^(hasta|desde|de) /, (m) => `${m}las `);
     salida.push({ id: pub.id != null ? `pub:${pub.id}` : "smn", origen, nivel, color: colorDe(nivel), nombre, fenomenos, departamentos: afectados, desde: new Date(desde).toISOString(), hasta: new Date(hasta).toISOString(),
-      detalle: `${diaCorto(d0 + 1)}: ${cuando} h · ${afectados.length === 17 ? "toda la provincia" : afectados.join(", ")}`, texto: `${nombre} (${cuando} h)` });
+      cuando: todoElDia ? cuando : `${cuando} h`,
+      detalle: `${diaCorto(d0 + 1)}: ${todoElDia ? cuando : `${cuando} h`} · ${afectados.length === 17 ? "toda la provincia" : afectados.join(", ")}`,
+      texto: `${nombre} para ${dondeRige(afectados)}, ${todoElDia ? cuando : `${cuando} h`}` });
   }
   return salida.sort((a, b) => ORDEN[b.nivel] - ORDEN[a.nivel] || a.desde.localeCompare(b.desde));
 }

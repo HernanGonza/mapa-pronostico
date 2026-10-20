@@ -50,7 +50,7 @@ function conAlertasProximas(municipios, pubs, departamentos, dias = 7, ahora = D
     const proximas = [];
     for (const { fecha, alertas } of porDia) {
       const a = alertas.find((x) => x.departamentos.includes(nombre));
-      if (a) proximas.push({ fecha, etiqueta: etiquetaDia(fecha), nivel: a.nivel, color: a.color, nombre: a.nombre, cuando: a.texto.slice(a.nombre.length + 2, -3) });
+      if (a) proximas.push({ fecha, etiqueta: etiquetaDia(fecha), nivel: a.nivel, color: a.color, nombre: a.nombre, cuando: a.cuando.replace(/ h$/, "") });
     }
     return { ...m, alertasProximas: proximas };
   });

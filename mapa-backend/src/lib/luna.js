@@ -66,4 +66,12 @@ function lunaDeMunicipio(municipioId, fecha = fechaHoyART()) {
   return datos;
 }
 
-module.exports = { lunaDeMunicipio, faseDe, FASES };
+// Seis fases, sin términos técnicos: las gibosas cuentan como creciente o menguante; los cuartos se nombran.
+const PRINCIPAL = { nueva: "Luna nueva", creciente: "Luna creciente", "cuarto-creciente": "Cuarto creciente", "gibosa-creciente": "Luna creciente", llena: "Luna llena", "gibosa-menguante": "Luna menguante", "cuarto-menguante": "Cuarto menguante", menguante: "Luna menguante" };
+/** La fase de la luna el día `fecha` (al mediodía de Misiones), en una de las seis fases: { nombre, iluminacion }. No depende del lugar. */
+function faseDelDia(fecha) {
+  const { fraction, phase } = SunCalc.getMoonIllumination(new Date(`${String(fecha).slice(0, 10)}T12:00:00${OFFSET}`));
+  return { nombre: PRINCIPAL[faseDe(phase).id], iluminacion: Math.round(fraction * 100) };
+}
+
+module.exports = { faseDelDia, lunaDeMunicipio, faseDe, FASES };

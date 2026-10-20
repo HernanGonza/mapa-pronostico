@@ -63,6 +63,7 @@ app.use("/materiales", estatico(path.join(__dirname, "..", "data", "materiales")
 app.use("/glyphs", estatico(path.join(__dirname, "..", "data", "glyphs"), unAnio));
 
 app.use("/api", authRouter);
+if (process.env.INFORME_MUESTRA) app.use("/api", require("./routes/informeMuestra"));
 app.use("/api", pronosticoRouter);
 app.use("/api", incendiosRouter);
 app.use("/api", riesgoIncendiosRouter);

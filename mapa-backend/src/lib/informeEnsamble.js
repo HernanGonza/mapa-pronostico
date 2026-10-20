@@ -10,11 +10,7 @@
  */
 const { pronosticoEnsamble, puntosDelEnsamble, mediaCircular, MODELOS } = require("./ensamble");
 
-const ZONAS = {
-  Sur: ["Capital", "Candelaria", "Apóstoles", "Concepción", "San Javier", "Leandro N. Alem"],
-  Centro: ["San Ignacio", "Libertador General San Martín", "Oberá", "Cainguás", "25 de Mayo", "Guaraní"],
-  Norte: ["Montecarlo", "Eldorado", "Iguazú", "General Manuel Belgrano", "San Pedro", "Guaraní"],
-};
+const { ZONAS } = require("./zonasMisiones");
 const ADJETIVO_ZONA = { Sur: "sur", Centro: "central", Norte: "norte" };
 const RUMBOS = ["norte", "noreste", "este", "sureste", "sur", "suroeste", "oeste", "noroeste"];
 const ART = "America/Argentina/Buenos_Aires";
