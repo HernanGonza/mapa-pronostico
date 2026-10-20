@@ -66,3 +66,13 @@ test("título de dos líneas y nivel: se validan y la placa sale con cualquiera 
     assert.deepEqual(await medidas(feedPng), [2250, 2813], String(nivel));
   }
 });
+
+test("la captura es opcional y el fondo puede ser una foto del pronóstico", { timeout: 120000 }, async () => {
+  for (const fondo of [null, "rayos", 3, 30]) {
+    const { feedPng, historiasPng } = await generarAvisoEspecialAmbos({ texto: "Tormentas en Paraguay hacia Misiones.", emitidoEn: EMITIDO, fondo });
+    assert.deepEqual(await medidas(feedPng), [2250, 2813], `feed, fondo ${fondo}`);
+    assert.deepEqual(await medidas(historiasPng), [2250, 4000], `historias, fondo ${fondo}`);
+  }
+  assert.match(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, fondo: 99 }), /fondo/);
+  assert.equal(errorDeAvisoEspecial({ texto: NORMAL, emitidoEn: EMITIDO, fondo: "12" }), null);
+});

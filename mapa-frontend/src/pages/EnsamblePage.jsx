@@ -388,24 +388,38 @@ function Cercania({ datos, variable, visibles }) {
   </section>;
 }
 
+// Lo que se está mirando (modelos prendidos, variable, departamento, rango, intervalo, período elegido y los datos de la última consulta) se
+// guarda en esta pestaña: si la pantalla se vuelve a armar (se mira dentro de «Previsión del tiempo», o se recarga), vuelve tal cual estaba y
+// no consulta de nuevo. Los datos sólo se reusan si tienen menos de 30 minutos; pasado eso se consulta otra vez, con los mismos filtros.
+const CLAVE_ESTADO = "ensamble-estado-v1";
+function leerEstado() {
+  try {
+    const e = JSON.parse(sessionStorage.getItem(CLAVE_ESTADO));
+    if (!e) return null;
+    if (!e.datos?.generado || Date.now() - Date.parse(e.datos.generado) > 30 * 60000) return { ...e, datos: null, ultimo: null, dia: null };
+    return e;
+  } catch { return null; }
+}
+
 export default function EnsamblePage() {
-  const [datos, setDatos] = useState(null), [error, setError] = useState(""), [cargando, setCargando] = useState(false);
-  const [clave, setClave] = useState("tmax"), [deptoId, setDeptoId] = useState("4");
+  const [ini] = useState(leerEstado);
+  const [datos, setDatos] = useState(ini?.datos ?? null), [error, setError] = useState(""), [cargando, setCargando] = useState(false);
+  const [clave, setClave] = useState(ini?.clave ?? "tmax"), [deptoId, setDeptoId] = useState(ini?.deptoId ?? "4");
   // La barra de modelos se puede plegar para darle todo el ancho a la tabla y al gráfico (se recuerda entre visitas).
   const [lateralCerrado, setLateralCerrado] = useState(() => { try { return localStorage.getItem("ensamble-lateral") === "cerrado"; } catch { return false; } });
   const alternarLateral = () => setLateralCerrado((c) => { const n = !c; try { localStorage.setItem("ensamble-lateral", n ? "cerrado" : "abierto"); } catch { /* sin almacenamiento */ } return n; });
-  const [prendidos, setPrendidos] = useState(() => new Set(CATALOGO.filter((m) => !m.deshabilitado).map((m) => m.id))); // los que se consultan al tocar «Consultar»
-  const [dia, setDia] = useState(null);
+  const [prendidos, setPrendidos] = useState(() => new Set(ini?.prendidos?.length ? ini.prendidos : CATALOGO.filter((m) => !m.deshabilitado).map((m) => m.id))); // los que se consultan al tocar «Consultar»
+  const [dia, setDia] = useState(ini?.dia ?? null);
   const [descargas, setDescargas] = useState(null); // lo que bajó el servidor de cada modelo: { ahora, modelos: [...] }
   const [buscando, setBuscando] = useState(false);
-  const [intervalo, setIntervalo] = useState("dia"); // cómo se parte el rango en columnas
+  const [intervalo, setIntervalo] = useState(ini?.intervalo ?? "dia"); // cómo se parte el rango en columnas
   const [desglose, setDesglose] = useState(null); // hora por hora del período elegido: { cargando, error, datos }
   // Rango a consultar (hora de Misiones). Al abrir se consulta solo el rango de siempre; «Consultar de nuevo» lo repite con lo que se haya cambiado.
-  const [fDesde, setFDesde] = useState(hoyART()), [hDesde, setHDesde] = useState("00:00");
-  const [fHasta, setFHasta] = useState(sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState("23:00");
+  const [fDesde, setFDesde] = useState(ini?.fDesde ?? hoyART()), [hDesde, setHDesde] = useState(ini?.hDesde ?? "00:00");
+  const [fHasta, setFHasta] = useState(ini?.fHasta ?? sumarDias(hoyART(), 9)), [hHasta, setHHasta] = useState(ini?.hHasta ?? "23:00");
   const [avance, setAvance] = useState(null); // descarga (WRF-SMN, MONAN) en el servidor
-  const [espera, setEspera] = useState(0); // > 0 mientras algún modelo sigue bajando (la consulta ya mostró los demás)
-  const ultimo = useRef(null); // el pedido de la última consulta, para repetirlo cuando el WRF termina
+  const [espera, setEspera] = useState(ini?.datos?.pendientes?.length ? 1 : 0); // > 0 mientras algún modelo sigue bajando (la consulta ya mostró los demás)
+  const ultimo = useRef(ini?.ultimo ?? null); // el pedido de la última consulta, para repetirlo cuando el WRF termina
   const atajo = (dias) => { setFDesde(hoyART()); setHDesde("00:00"); setFHasta(sumarDias(hoyART(), dias)); setHHasta("23:00"); };
 
   // Cambiar el intervalo (hora, 3 h, día…) rehace al instante la tabla, el gráfico y el detalle con el mismo rango: los datos ya están en el servidor.
@@ -427,7 +441,10 @@ export default function EnsamblePage() {
   }
   const consultarRef = useRef(consultar); consultarRef.current = consultar;
   // Al abrir la pantalla ya se consulta (hoy y 9 días, todos los modelos): los datos están guardados en el servidor, no hay por qué esperar un clic.
-  useEffect(() => { consultarRef.current(); }, []);
+  useEffect(() => { if (!ini?.datos) consultarRef.current(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    try { sessionStorage.setItem(CLAVE_ESTADO, JSON.stringify({ clave, deptoId, prendidos: [...prendidos], intervalo, fDesde, hDesde, fHasta, hHasta, dia, datos, ultimo: ultimo.current })); } catch { /* sin almacenamiento o demasiado grande: sólo se pierde la restauración */ }
+  }, [clave, deptoId, prendidos, intervalo, fDesde, hDesde, fHasta, hHasta, dia, datos]);
 
   // El servidor baja cada modelo solo, apenas sale una corrida nueva. Acá sólo se lee, cada minuto, qué tiene y cuándo espera lo próximo.
   const cargarDescargas = () => api.getEnsambleEstado().then(setDescargas).catch(() => {});

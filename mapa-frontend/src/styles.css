@@ -1879,11 +1879,31 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .pron-localidades { display: grid; gap: 12px; }
 .pron-dia { display: grid; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
 .pron-dia:first-of-type { border-top: 0; padding-top: 0; }
+/* Vista agrupada: las ciudades con los 3 días lado a lado */
+.pron-ciudad-linea { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pron-ciudad-celda { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.pron-ciudad-celda > strong { font-size: 12px; color: var(--text-muted); }
+.pron-ciudad-celda .pron-temps { grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0; }
+.paso-cabecera__fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pron-vista { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; font-size: 13px; color: var(--text-muted); }
+.pron-vista { gap: 6px; }
+.pron-vista > span { margin-right: 4px; font-weight: 600; }
+.pron-vista .btn { padding: 6px 14px; font-size: 13px; }
 
-/* El cajón del informe del día es más ancho (la mitad de la pantalla, siempre): hay mucho para cargar. */
-.ens-cajon.ens-cajon--ancho { --ancho-cajon: 50vw; }
-.ens-cajon.ens-cajon--ancho .pron-localidades { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-.ens-cajon.ens-cajon--ancho .ens-cajon-cuerpo { padding: 18px 24px 28px; }
+/* El cajón del informe del día es ancho (casi 3/4 de la pantalla, hasta 1100 px): hay mucho para cargar. Lo de adentro se acomoda al ancho del
+   propio cajón (container queries), no al de la ventana, así se ve bien en cualquier pantalla. */
+.ens-cajon.ens-cajon--ancho { --ancho-cajon: clamp(560px, 72vw, 1100px); }
+.ens-cajon.ens-cajon--ancho .ens-cajon-cuerpo { padding: 18px clamp(14px, 2.5vw, 32px) 28px; container-type: inline-size; container-name: cajon; }
+.ens-cajon.ens-cajon--ancho .pron-localidades { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.ens-cajon.ens-cajon--ancho .ens-grilla-informe { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+@container cajon (min-width: 880px) {
+  .ens-cajon--ancho .pron-ciudad-linea { gap: 18px; }
+}
+@container cajon (max-width: 640px) {
+  .ens-cajon--ancho .pron-ciudad-linea { grid-template-columns: 1fr; }
+  .ens-cajon--ancho .pron-ciudad-celda { padding-bottom: 6px; border-bottom: 1px dashed var(--border); }
+}
+@media (max-width: 760px) { .ens-cajon.ens-cajon--ancho { --ancho-cajon: 100vw; } }
 
 /* Informes del día (tarjetas de «Previsión del tiempo») */
 .pron-tarjeta .pron-fecha { color: var(--text-muted); font-size: 13px; }
@@ -1988,3 +2008,22 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 .smn-tarjeta__insignia { align-self: flex-start; padding: 5px 14px; border-radius: 999px; background: #1a8f5c; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: .02em; }
 .smn-tarjeta--reemplazada { opacity: .6; filter: grayscale(.7); background: var(--surface-2, var(--surface)); }
 .smn-tarjeta--reemplazada .smn-tarjeta__insignia { background: #6b7280; }
+
+/* Celular: el cajón del informe ocupa toda la pantalla; el encabezado y los botones se acomodan en filas, y los campos van a 16 px para que el
+   teléfono no haga zoom al tocarlos. */
+@media (max-width: 600px) {
+  .ens-cajon--ancho .ens-cajon-cab { flex-direction: column; gap: 8px; padding: 10px 14px; }
+  .ens-cajon--ancho .ens-cajon-acciones { flex-wrap: wrap; gap: 6px 14px; }
+  .ens-cajon--ancho .ens-cajon-cuerpo { padding: 14px 14px 24px; gap: 12px; }
+  .ens-cajon--ancho .ens-cajon-pie { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+  .ens-cajon--ancho .ens-cajon-pie .btn { flex: 1; justify-content: center; }
+  .ens-cajon--ancho .ens-par { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ens-cajon--ancho .paso-input, .ens-cajon--ancho .paso-texto, .ens-cajon--ancho .paso-select { font-size: 16px; }
+  .ens-cajon--ancho .ens-tarjeta-informe { padding: 10px 12px 12px; }
+  .pron-vista { width: 100%; }
+  .pron-vista .btn { flex: 1; padding: 9px 10px; }
+  .pron-vista > span { display: none; }
+  .paso-cabecera__fila { gap: 8px; }
+  .ens-cajon--ancho .ens-hoja { max-height: 320px; }
+  .ens-cajon--ancho .alertas-dia__acciones { flex-direction: column; align-items: stretch; }
+}

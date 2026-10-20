@@ -23,8 +23,8 @@ export default function AvisoEspecialPage() {
   }
 
   // Al crear otro, arranca con el texto del anterior (suelen ser avisos de seguimiento), pero
-  // con la hora de ahora y sin imagen: la captura casi siempre es nueva.
-  const crear = () => crearAvisoEspecialPorPasos({ inicial: ultimo ? { texto: ultimo.texto, titulo: ultimo.titulo, subtitulo: ultimo.subtitulo, nivel: ultimo.nivel } : {}, vistaPrevia, guardar });
+  // con la hora de ahora y sin imagen: la captura casi siempre es nueva (el fondo sí se repite).
+  const crear = () => crearAvisoEspecialPorPasos({ inicial: ultimo ? { texto: ultimo.texto, titulo: ultimo.titulo, subtitulo: ultimo.subtitulo, nivel: ultimo.nivel, fondo: ultimo.fondo } : {}, vistaPrevia, guardar });
   const epigrafe = ultimo ? `${[ultimo.titulo, ultimo.subtitulo].filter(Boolean).join(" ")}\n\n${ultimo.texto}` : "";
 
   const placa = ultimo?.placa;
@@ -34,7 +34,7 @@ export default function AvisoEspecialPage() {
       <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
         <div className="editor-heading">
           <h1>Aviso especial</h1>
-          <p>Para avisos cortos de texto libre (por ejemplo, tormentas formándose en Paraguay en dirección a Misiones) acompañados de una captura de radar o satélite. Genera las placas de feed e historias.</p>
+          <p>Para avisos cortos de texto libre (por ejemplo, tormentas formándose en Paraguay en dirección a Misiones) que pueden llevar una captura de radar o satélite (opcional) y el fondo que elijas. Genera las placas de feed e historias.</p>
         </div>
         <button type="button" className="btn btn--block btn--primary asistente-cta" onClick={crear}>Crear aviso especial</button>
         {ultimo && (
@@ -58,7 +58,7 @@ export default function AvisoEspecialPage() {
                   </figure>
                 ))}
               </div>
-            </> : <div className="admin-map-area__vacio" role="status">Tocá «Crear aviso especial»: elegís el título y el nivel, escribís el texto, la hora de emisión y subís la captura. Acá vas a ver y descargar las placas.</div>}
+            </> : <div className="admin-map-area__vacio" role="status">Tocá «Crear aviso especial»: elegís el título y el nivel, escribís el texto, la hora de emisión, elegís el fondo y, si querés, subís una captura. Acá vas a ver y descargar las placas.</div>}
           </div>
         </div>
       </div>

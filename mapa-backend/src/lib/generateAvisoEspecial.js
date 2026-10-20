@@ -11,9 +11,13 @@ const { createCanvas, loadImage } = require('canvas');
  *  - Debajo, las filas con ícono, sin caja (directo sobre la foto, como las otras placas): la
  *    nube con el texto y el reloj con "Aviso emitido el 04/10/2026 a las 10:30hs.".
  *  - Nivel opcional (amarillo / naranja / rojo): pinta la 2.ª línea del título; sin nivel, blanca.
- * Toda la letra es Oak Sans (ExtraBold en el título). Fondos: los de rayos limpios de
- * data/alertas/aviso-especial (los mismos de las placas de alertas).
+ * Toda la letra es Oak Sans (ExtraBold en el título). La captura es opcional: sin ella el texto
+ * ocupa toda la placa, con letra más grande. Fondos: los de rayos limpios de
+ * data/alertas/aviso-especial (los mismos de las placas de alertas, el predeterminado) o cualquiera
+ * de las 33 fotos de las placas del pronóstico (con un degradé oscuro para que se lea).
  */
+const path = require('path');
+const { FONDOS, FONDOS_DIR, TAMANOS: TAMANOS_FOTO, FOTO } = require('./generatePronosticoFoto');
 const { dibujarTitulo, planearFilas, dibujarFilas, loadFondos: fondosAlertas, LAYOUTS, COLOR } = require('./generatePlacasAlerta');
 
 const TITULO = 'AVISO ESPECIAL';
@@ -30,6 +34,9 @@ const ESCALAS_IMAGEN = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
 const FUENTE_COMODA = { feed: 70, historias: 84 };
 
 const loadFondos = fondosAlertas;
+const esFoto = (fondo) => fondo != null && fondo !== '' && fondo !== 'rayos';
+// Sin captura el texto es lo único de la placa: letra hasta 1,4 veces la de siempre.
+const FUENTE_SIN_IMAGEN = 1.4;
 
 const RE_EMITIDO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 /** "AAAA-MM-DDTHH:mm" (hora de Misiones, como sale de <input type="datetime-local">). */
@@ -38,13 +45,14 @@ function lineaEmision(emitidoEn) {
   return `Aviso emitido el ${d}/${m}/${a} a las ${hh}:${mm}hs.`;
 }
 
-function errorDeAvisoEspecial({ texto, emitidoEn, titulo = TITULO, subtitulo = '', nivel = null }) {
+function errorDeAvisoEspecial({ texto, emitidoEn, titulo = TITULO, subtitulo = '', nivel = null, fondo = null }) {
   if (typeof texto !== 'string' || !texto.trim() || texto.length > MAX_TEXTO) return `Escribí el aviso (hasta ${MAX_TEXTO} caracteres).`;
   const f = typeof emitidoEn === 'string' && RE_EMITIDO.exec(emitidoEn);
   if (!f || Number.isNaN(Date.parse(`${emitidoEn}:00-03:00`)) || +f[2] < 1 || +f[2] > 12 || +f[3] < 1 || +f[3] > 31 || +f[4] > 23 || +f[5] > 59) return 'Elegí la fecha y hora de emisión.';
   if (typeof titulo !== 'string' || !titulo.trim() || titulo.length > MAX_TITULO) return `Escribí el título (hasta ${MAX_TITULO} caracteres).`;
   if (typeof subtitulo !== 'string' || subtitulo.length > MAX_TITULO) return `La segunda línea del título admite hasta ${MAX_TITULO} caracteres.`;
   if (nivel != null && nivel !== '' && !NIVELES.includes(nivel)) return 'Nivel inválido.';
+  if (esFoto(fondo) && !FONDOS.some((f) => f.id === Number(fondo))) return 'Elegí un fondo de la lista.';
   return null;
 }
 
@@ -119,14 +127,33 @@ function prepararCaptura(img, w, h) {
  * Genera la placa en un formato. `imagen`: Buffer (PNG/JPEG) o una imagen ya cargada
  * con loadImage (para no decodificarla dos veces al generar feed + historias).
  */
-async function generateAvisoEspecial({ texto, emitidoEn, imagen, titulo = TITULO, subtitulo = '', nivel = null, tamano = 'feed' }) {
-  const error = errorDeAvisoEspecial({ texto, emitidoEn, titulo, subtitulo, nivel }) || (TAMANOS.includes(tamano) ? null : 'Tamaño inválido.');
+async function generateAvisoEspecial({ texto, emitidoEn, imagen = null, titulo = TITULO, subtitulo = '', nivel = null, fondo = null, tamano = 'feed' }) {
+  const error = errorDeAvisoEspecial({ texto, emitidoEn, titulo, subtitulo, nivel, fondo }) || (TAMANOS.includes(tamano) ? null : 'Tamaño inválido.');
   if (error) throw Object.assign(new Error(error), { status: 400 });
   const img = Buffer.isBuffer(imagen) ? await cargarCaptura(imagen) : imagen;
-  const fondo = (await loadFondos())[tamano];
-  const L = LAYOUTS[tamano], W = fondo.width;
-  const canvas = createCanvas(W, fondo.height), ctx = canvas.getContext('2d');
-  ctx.drawImage(fondo, 0, 0);
+  let L = LAYOUTS[tamano], canvas, ctx, W;
+  if (esFoto(fondo)) {
+    // Foto de las placas del pronóstico. Lo útil llega hasta la franja de logos de la foto.
+    const { w, h } = TAMANOS_FOTO[tamano];
+    W = w; canvas = createCanvas(w, h); ctx = canvas.getContext('2d');
+    const foto = await loadImage(path.join(FONDOS_DIR, `${Number(fondo)}.jpg`));
+    // Igual que la placa del pronóstico: la foto entera en feed; en historias, el centro a lo alto (los logos del pie entran enteros).
+    const k = h / foto.height, sw = w / k;
+    ctx.drawImage(foto, (foto.width - sw) / 2, 0, sw, foto.height, 0, 0, w, h);
+    const pie = Math.round((FOTO.pie / FOTO.h) * h);
+    // Degradé oscuro arriba (título) y abajo, los mismos de la placa del pronóstico.
+    let g = ctx.createLinearGradient(0, 0, 0, h * 0.34);
+    g.addColorStop(0, 'rgba(6,14,12,0.72)'); g.addColorStop(1, 'rgba(6,14,12,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h * 0.34);
+    g = ctx.createLinearGradient(0, pie - h * 0.36, 0, pie);
+    g.addColorStop(0, 'rgba(6,14,12,0)'); g.addColorStop(1, 'rgba(6,14,12,0.78)');
+    ctx.fillStyle = g; ctx.fillRect(0, pie - h * 0.36, w, h * 0.36);
+    L = { ...(tamano === 'feed' ? { ...L, tituloY: 130, linea1: 70, linea2: 112 } : L), pie };
+  } else {
+    const base = (await loadFondos())[tamano];
+    W = base.width; canvas = createCanvas(W, base.height); ctx = canvas.getContext('2d');
+    ctx.drawImage(base, 0, 0);
+  }
   const color = COLOR[nivel] || '#fff';
 
   // 1) Título (como las placas de alertas).
@@ -140,6 +167,15 @@ async function generateAvisoEspecial({ texto, emitidoEn, imagen, titulo = TITULO
     { icono: 'reloj', texto: lineaEmision(emitidoEn) },
   ];
   let elegido = null;
+  if (!img) {
+    // Sin captura: todo el espacio para el texto.
+    const plan = planearFilas(ctx, W, L, filas, zonaH, false, Math.round(L.fuenteMax * FUENTE_SIN_IMAGEN));
+    if (!plan) throw Object.assign(new Error('El texto es demasiado largo para la placa: acortalo un poco.'), { status: 400 });
+    // El bloque queda pegado al título (no centrado en toda la zona): las filas con poco aire entre sí y el resto de la placa libre.
+    const suma = plan.medidas.reduce((t, m) => t + m.alto, 0), aire = Math.round(plan.f * 1.1);
+    await dibujarFilas(ctx, W, plan, zonaY + Math.round(plan.f * 0.5), suma + aire * (plan.medidas.length - 1), color);
+    return canvas.toBuffer('image/png');
+  }
   for (const escala of ESCALAS_IMAGEN) {
     const tam = contener(img.width, img.height, IMAGEN[tamano].w * escala, IMAGEN[tamano].h * escala);
     const alto = tam.h + 2 * MARCO + AIRE;
@@ -182,10 +218,10 @@ async function cargarCaptura(buffer) {
 }
 
 /** Feed + historias de una sola vez (la captura se decodifica una vez). */
-async function generarAvisoEspecialAmbos({ texto, emitidoEn, imagen, titulo, subtitulo, nivel }) {
-  const img = await cargarCaptura(imagen);
-  const [feedPng, historiasPng] = await Promise.all(TAMANOS.map((tamano) => generateAvisoEspecial({ texto, emitidoEn, imagen: img, titulo, subtitulo, nivel, tamano })));
+async function generarAvisoEspecialAmbos({ texto, emitidoEn, imagen = null, titulo, subtitulo, nivel, fondo = null }) {
+  const img = imagen ? await cargarCaptura(imagen) : null;
+  const [feedPng, historiasPng] = await Promise.all(TAMANOS.map((tamano) => generateAvisoEspecial({ texto, emitidoEn, imagen: img, titulo, subtitulo, nivel, fondo, tamano })));
   return { feedPng, historiasPng };
 }
 
-module.exports = { generateAvisoEspecial, generarAvisoEspecialAmbos, errorDeAvisoEspecial, lineaEmision, contener, TITULO, MAX_TEXTO, MAX_TITULO, TAMANOS };
+module.exports = { loadFondos, generateAvisoEspecial, generarAvisoEspecialAmbos, errorDeAvisoEspecial, lineaEmision, contener, TITULO, MAX_TEXTO, MAX_TITULO, TAMANOS };

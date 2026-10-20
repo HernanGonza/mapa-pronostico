@@ -106,15 +106,17 @@ const NIVEL_CORTO = { Amarillo: "Amarilla", Naranja: "Naranja", Rojo: "Roja" };
 const ORDEN_NIVEL = { Amarillo: 1, Naranja: 2, Rojo: 3 };
 const OPCIONES_ALERTA = ["s/a", "Amarilla", "Naranja", "Roja"];
 
+// Según las alertas de esa fecha, qué le toca a cada ciudad (por el departamento en el que está): la de mayor nivel.
+const alertaSugerida = (est, ciudad) => {
+  const dep = est.ciudades[ciudad];
+  const a = est.alertas.filter((x) => dep && x.departamentos.includes(dep)).sort((p, q) => ORDEN_NIVEL[q.nivel] - ORDEN_NIVEL[p.nivel])[0];
+  return a ? NIVEL_CORTO[a.nivel] : "s/a";
+};
+
 function PasoCiudades({ b, i, set }) {
   const d = b.dias[i], base = `dias.${i}`;
   const est = useAlertasDelDia(d.fecha);
-  // Según las alertas de esa fecha, qué le toca a cada ciudad (por el departamento en el que está): la de mayor nivel.
-  const sugerida = (ciudad) => {
-    const dep = est.ciudades[ciudad];
-    const a = est.alertas.filter((x) => dep && x.departamentos.includes(dep)).sort((p, q) => ORDEN_NIVEL[q.nivel] - ORDEN_NIVEL[p.nivel])[0];
-    return a ? NIVEL_CORTO[a.nivel] : "s/a";
-  };
+  const sugerida = (ciudad) => alertaSugerida(est, ciudad);
   const hayDatos = !est.cargando && !est.error;
   const distintas = hayDatos ? d.ciudades.filter((c) => (String(c.alerta || "").trim() || "s/a") !== sugerida(c.ciudad)) : [];
   return <>
@@ -138,6 +140,68 @@ function PasoCiudades({ b, i, set }) {
           </select>
         </Etiqueta>
         {hayDatos && (String(c.alerta || "").trim() || "s/a") !== sugerida(c.ciudad) && <small className="alertas-dia__falta">⚠ Según las alertas de esa fecha, a {c.ciudad} le toca: {sugerida(c.ciudad)}.</small>}
+      </section>)}
+    </div>
+  </>;
+}
+
+// --- vista agrupada: lo mismo, pero ordenado por tipo de dato (los 3 textos, las 3 zonas, las ciudades con los 3 días en una línea) ---
+const diaCorto = (f) => `${nombreDia(f)} ${fechaCorta(f).slice(0, 5)}`;
+
+function PasoTextosJuntos({ b, set }) {
+  return <>
+    <p className="paso__ayuda">El texto de cada uno de los tres días, con la humedad, las precipitaciones, los vientos y las alertas. Las temperaturas se cargan en los pasos siguientes.</p>
+    {b.dias.map((d, i) => { const base = `dias.${i}`; return <section key={d.fecha} className="ens-tarjeta-informe"><h3>{fechaDia(d.fecha)}</h3>
+      <Texto texto="Texto del día" valor={d.resumen} alCambiar={(v) => set(`${base}.resumen`, v)} filas={4} placeholder="Un sistema de alta presión permite el ingreso de aire frío…" />
+      <Rango texto="Humedad" r={d.humedad} base={`${base}.humedad`} set={set} unidad="%" />
+      {d.presion && <Rango texto="Presión atmosférica" r={d.presionRango} base={`${base}.presionRango`} set={set} unidad="hPa" />}
+      <Linea texto="Precipitaciones" valor={d.precipitaciones} alCambiar={(v) => set(`${base}.precipitaciones`, v)} placeholder="Sin probabilidades" />
+      <Linea texto="Vientos" valor={d.vientos} alCambiar={(v) => set(`${base}.vientos`, v)} placeholder="3 a 15 km/h, del sector sur" />
+      <CampoAlertas fecha={d.fecha} valor={d.alertas} alCambiar={(v) => set(`${base}.alertas`, v)} />
+    </section>; })}
+  </>;
+}
+
+function PasoZonasJuntas({ b, set }) {
+  return <>
+    <p className="paso__ayuda">Las temperaturas de cada zona para los tres días. Se cargan como rango (de un mínimo a un máximo); si es un solo valor, dejá «hasta» vacío.</p>
+    {ZONAS_ORDEN.map((z) => <section key={z} className="ens-tarjeta-informe"><h3>Zona {z}</h3>
+      {b.dias.map((d, i) => <div key={d.fecha} className="pron-dia"><strong>{fechaDia(d.fecha)}</strong>
+        {d.temps.map((t) => <Rango key={t} texto={ROTULO_TEMP[t]} r={d.zonas[z][t]} base={`dias.${i}.zonas.${z}.${t}`} set={set} unidad="°C" />)}
+      </div>)}
+    </section>)}
+  </>;
+}
+
+function PasoCiudadesJuntas({ b, set }) {
+  const ests = [useAlertasDelDia(b.dias[0].fecha), useAlertasDelDia(b.dias[1].fecha), useAlertasDelDia(b.dias[2].fecha)];
+  const alerta = (c) => String(c.alerta || "").trim() || "s/a";
+  const hayDatos = (i) => !ests[i].cargando && !ests[i].error;
+  const distintas = b.dias.map((d, i) => (hayDatos(i) ? d.ciudades.filter((c) => alerta(c) !== alertaSugerida(ests[i], c.ciudad)).length : 0));
+  return <>
+    <p className="paso__ayuda">Las 13 ciudades con los tres días juntos: en una sola línea las temperaturas de los tres días y debajo el estado del tiempo y la alerta de cada uno. En la alerta, «s/a» es sin alerta.</p>
+    {b.dias.map((d, i) => distintas[i] > 0 && <div key={d.fecha} className="alertas-dia"><div className="alertas-dia__acciones">
+      <small className="alertas-dia__falta" role="status">⚠ {fechaDia(d.fecha)}: {distintas[i] === 1 ? "una ciudad no coincide" : `${distintas[i]} ciudades no coinciden`} con las alertas de esa fecha.</small>
+      <button type="button" className="btn" onClick={() => set(`dias.${i}.ciudades`, d.ciudades.map((c) => ({ ...c, alerta: alertaSugerida(ests[i], c.ciudad) })))}>Completar según las alertas</button>
+    </div></div>)}
+    <div className="pron-localidades">
+      {b.dias[0].ciudades.map((c0, k) => <section key={c0.ciudad} className="ens-tarjeta-informe"><h3>{c0.ciudad}</h3>
+        <div className="pron-ciudad-linea">
+          {b.dias.map((d, i) => <div key={d.fecha} className="pron-ciudad-celda"><strong>{diaCorto(d.fecha)}</strong>
+            <div className="ens-par pron-temps">{d.temps.map((t) => <Linea key={t} texto={CORTO_TEMP[t]} valor={d.ciudades[k][t]} alCambiar={(v) => set(`dias.${i}.ciudades.${k}.${t}`, v)} inputMode="numeric" aria-label={`${CORTO_TEMP[t]} ${c0.ciudad} ${diaCorto(d.fecha)}`} />)}</div>
+          </div>)}
+        </div>
+        <div className="pron-ciudad-linea">
+          {b.dias.map((d, i) => { const c = d.ciudades[k], sug = alertaSugerida(ests[i], c.ciudad); return <div key={d.fecha} className="pron-ciudad-celda"><strong>{diaCorto(d.fecha)}</strong>
+            <Condicion valor={c.condicion} alCambiar={(v) => set(`dias.${i}.ciudades.${k}.condicion`, v)} texto={`Estado del tiempo en ${c.ciudad} ${diaCorto(d.fecha)}`} />
+            <Etiqueta texto="Alerta">
+              <select className="paso-select" value={alerta(c)} onChange={(e) => set(`dias.${i}.ciudades.${k}.alerta`, e.target.value)}>
+                {[...OPCIONES_ALERTA, ...(OPCIONES_ALERTA.includes(alerta(c)) ? [] : [c.alerta])].map((o) => <option key={o} value={o}>{o === "s/a" ? "s/a (sin alerta)" : o}</option>)}
+              </select>
+            </Etiqueta>
+            {hayDatos(i) && alerta(c) !== sug && <small className="alertas-dia__falta">⚠ Según las alertas, le toca: {sug}.</small>}
+          </div>; })}
+        </div>
       </section>)}
     </div>
   </>;
@@ -179,10 +243,21 @@ function PasoRevision({ b, problemas, esNuevo, alGuardar, guardando }) {
 }
 
 /** Los pasos del informe según su plantilla: datos, (texto y zonas + ciudades) × 3 días, revisión. */
-export function pasosDe(b) {
+export function pasosDe(b, modo = "dias") {
+  if (modo === "juntos") {
+    return [{ id: "datos", titulo: "Datos del informe" }, { id: "j-textos", titulo: "Texto de los 3 días" }, { id: "j-zonas", titulo: "Zonas · 3 días" }, { id: "j-ciudades", titulo: "Ciudades · 3 días" }, { id: "revision", titulo: "Revisión y PDF" }];
+  }
   return [{ id: "datos", titulo: "Datos del informe" },
     ...b.dias.flatMap((d, i) => [{ id: `dia${i}`, titulo: `${fechaDia(d.fecha)} · texto y zonas`, i }, { id: `ciu${i}`, titulo: `${fechaDia(d.fecha)} · ciudades`, i }]),
     { id: "revision", titulo: "Revisión y PDF" }];
+}
+
+// La vista de carga es una preferencia de cada persona (en este navegador): «dias» (un día por vez) o «juntos» (agrupada por tipo de dato).
+const CLAVE_VISTA = "informe-pronostico-vista";
+function useVistaCarga() {
+  const [modo, setModo] = useState(() => { try { return localStorage.getItem(CLAVE_VISTA) === "juntos" ? "juntos" : "dias"; } catch { return "dias"; } });
+  const cambiar = (m) => { setModo(m); try { localStorage.setItem(CLAVE_VISTA, m); } catch { /* sin almacenamiento: vale sólo por esta sesión */ } };
+  return [modo, cambiar];
 }
 
 /** `elegir`: muestra la pantalla de los 5 botones (informe nuevo); `informe`: el que se está armando. */
@@ -191,7 +266,8 @@ export default function InformePlantilla({ informe, elegir, alElegir, abierto, o
     if (await confirmar({ titulo: "¿Guardar el informe?", texto: "Se crea la tarjeta en la pila de informes. Después lo podés seguir editando.", confirmar: "Guardar" })) guardarSinPreguntar();
   };
   const b = informe?.borrador;
-  const pasos = useMemo(() => (b ? pasosDe(b) : []), [b?.boton]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [vista, setVista] = useVistaCarga();
+  const pasos = useMemo(() => (b ? pasosDe(b, vista) : []), [b?.boton, vista]); // eslint-disable-line react-hooks/exhaustive-deps
   const cuerpo = useRef(null);
   const problemas = useMemo(() => (b ? problemasV2(b) : []), [b]);
   useEffect(() => { cuerpo.current?.scrollTo({ top: 0 }); }, [paso, informe?.id, elegir]);
@@ -209,7 +285,16 @@ export default function InformePlantilla({ informe, elegir, alElegir, abierto, o
   async function vaciar() {
     if (await confirmar({ titulo: "¿Vaciar este informe?", texto: "Se borra todo lo escrito en este informe.", confirmar: "Vaciar", peligro: true })) { reemplazar(borradorNuevo(b.boton, b.fecha)); setPaso(0); }
   }
+  // Al cambiar de vista se conserva el extremo en el que se estaba (datos o revisión); en el medio se va al primer paso de carga.
+  function cambiarVista(m) {
+    if (m === vista) return;
+    setVista(m);
+    setPaso(paso === 0 ? 0 : ultimo ? pasosDe(b, m).length - 1 : 1);
+  }
   const contenido = p.id === "datos" ? <PasoDatos b={b} set={setCampo} />
+    : p.id === "j-textos" ? <PasoTextosJuntos b={b} set={setCampo} />
+    : p.id === "j-zonas" ? <PasoZonasJuntas b={b} set={setCampo} />
+    : p.id === "j-ciudades" ? <PasoCiudadesJuntas b={b} set={setCampo} />
     : p.id.startsWith("dia") ? <PasoDia b={b} i={p.i} set={setCampo} />
     : p.id.startsWith("ciu") ? <PasoCiudades b={b} i={p.i} set={setCampo} />
     : <PasoRevision b={b} problemas={problemas} esNuevo={esNuevo} alGuardar={alGuardar} guardando={guardando} />;
@@ -222,7 +307,11 @@ export default function InformePlantilla({ informe, elegir, alElegir, abierto, o
     </header>
     <div className="ens-cajon-cuerpo" ref={cuerpo}>
       <div className="paso-cabecera"><div className="paso-barra" role="progressbar" aria-label="Progreso" aria-valuemin={0} aria-valuemax={pasos.length} aria-valuenow={paso + 1}><i style={{ "--desde": `${(paso / pasos.length) * 100}%`, "--p": `${((paso + 1) / pasos.length) * 100}%` }} /></div>
-        <span className="paso-contador">Paso {paso + 1} de {pasos.length}</span></div>
+        <div className="paso-cabecera__fila"><span className="paso-contador">Paso {paso + 1} de {pasos.length}</span>
+        <div className="pron-vista" role="group" aria-label="Vista de carga"><span>Vista:</span>
+          <button type="button" className={`btn btn--small${vista === "dias" ? " btn--primary" : ""}`} aria-pressed={vista === "dias"} onClick={() => cambiarVista("dias")} title="Un día por vez: texto y zonas, ciudades">Por día</button>
+          <button type="button" className={`btn btn--small${vista === "juntos" ? " btn--primary" : ""}`} aria-pressed={vista === "juntos"} onClick={() => cambiarVista("juntos")} title="Agrupada: los 3 textos, las 3 zonas y las ciudades con los 3 días en una línea">Agrupada</button>
+        </div></div></div>
       <div className="paso" key={p.id}><h3 className="ens-cajon-titulo">{p.titulo}</h3>{contenido}</div>
     </div>
     <footer className="ens-cajon-pie">

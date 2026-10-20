@@ -306,4 +306,4 @@ async function generarPlacaPronosticoFotoAmbos(opciones) {
   return { feedPng, historiasPng };
 }
 
-module.exports = { generarPlacaPronosticoFoto, generarPlacaPronosticoFotoAmbos, errorDePlacaFoto, etiquetaSugerida, FONDOS, ETIQUETAS, ESTILOS_TARJETA, FONDOS_DIR, MAX_FRASE };
+module.exports = { generarPlacaPronosticoFoto, generarPlacaPronosticoFotoAmbos, errorDePlacaFoto, etiquetaSugerida, FONDOS, ETIQUETAS, ESTILOS_TARJETA, FONDOS_DIR, MAX_FRASE, TAMANOS, FOTO };

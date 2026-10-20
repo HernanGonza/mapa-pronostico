@@ -122,10 +122,11 @@ export default function AdminPage() {
   // --- Acciones de las tarjetas ---
   /** Abre el cajón con un informe nuevo SIN guardar (si ya había uno a medias, sigue con ese). */
   function nuevoInforme(borrador) {
-    if (borrador) { setNuevo(borrador); setEligiendo(false); }
-    else if (nuevo && borradorConAlgo(nuevo)) setEligiendo(false); // sigue con el que estaba a medias
-    else { setNuevo(null); setEligiendo(true); }
-    setPaso(0); setAbiertoId("nuevo"); setCajon(true);
+    // Sólo se vuelve al primer paso si es otro informe; si sigue con el que estaba a medias, queda en el paso donde estaba.
+    if (borrador) { setNuevo(borrador); setEligiendo(false); setPaso(0); }
+    else if (nuevo && borradorConAlgo(nuevo)) { setEligiendo(false); if (abiertoId !== "nuevo") setPaso(0); } // sigue con el que estaba a medias
+    else { setNuevo(null); setEligiendo(true); setPaso(0); }
+    setAbiertoId("nuevo"); setCajon(true);
   }
   /** Eligió uno de los 5 tipos en la pantalla inicial del cajón. */
   function elegirTipo(botonId) { setNuevo(borradorNuevo(botonId)); setEligiendo(false); setPaso(0); }

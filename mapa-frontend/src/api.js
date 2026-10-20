@@ -213,6 +213,7 @@ export async function getUltimaPlacaPronostico() {
 export async function getFondosPronostico() {
   return handleJson(await fetch(`${API_URL}/api/pronostico/fondos`, { cache: "no-store", ...CON_SESION }));
 }
+export const urlFondoRayos = `${API_URL}/api/avisos-especiales/fondo-rayos.jpg`;
 export const urlFondoPronostico = (id) => `${API_URL}/api/pronostico/fondos/${id}.jpg`;
 export async function renderPngEnBack(filas) {
   const res = await fetch(`${API_URL}/api/pronostico/render-png`, {
@@ -419,17 +420,18 @@ export async function publicarAvisoCortoPlazo(id, vigenteHasta) {
 export async function despublicarAvisoCortoPlazo(id) {
   return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/${id}/despublicar`, { method: "POST", ...CON_SESION }));
 }
-/** Aviso especial (texto libre + captura). `opciones`: { vistaPrevia: true } o { confirmarToken }
+/** Aviso especial (texto libre + captura opcional + fondo). `opciones`: { vistaPrevia: true } o { confirmarToken }
  * — al confirmar no se reenvía la imagen: el backend guarda la vista previa ya generada. */
-export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = "", subtitulo = "", nivel = "" }, { vistaPrevia = false, confirmarToken = null } = {}) {
+export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = "", subtitulo = "", nivel = "", fondo = "rayos" }, { vistaPrevia = false, confirmarToken = null } = {}) {
   const form = new FormData();
   form.append("texto", texto);
+  form.append("fondo", fondo || "rayos");
   form.append("emitidoEn", emitidoEn);
   form.append("titulo", titulo);
   form.append("subtitulo", subtitulo);
   form.append("nivel", nivel || "");
   if (confirmarToken) form.append("confirmarToken", confirmarToken);
-  else { form.append("imagen", imagen); if (vistaPrevia) form.append("vistaPrevia", "true"); }
+  else { if (imagen) form.append("imagen", imagen); if (vistaPrevia) form.append("vistaPrevia", "true"); }
   return handleJson(await fetch(`${API_URL}/api/avisos-especiales/generar`, { method: "POST", body: form, ...CON_SESION }));
 }
 /** Placa «Monitoreo de precipitaciones». `opciones`: { vistaPrevia: true } o { confirmarToken } (al confirmar se guarda la vista previa ya generada). */
