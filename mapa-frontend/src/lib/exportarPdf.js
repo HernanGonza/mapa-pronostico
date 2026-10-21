@@ -2,8 +2,11 @@ function nombreSeguro(nombre) { return nombre.toLowerCase().normalize('NFD').rep
 
 export async function exportarElementoPdf(elemento, titulo) {
   const [{ toPng }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
-  const fondo = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff';
-  const imagen = await toPng(elemento, { backgroundColor: fondo, pixelRatio: 2, cacheBust: true });
+  const { conTemaClaro } = await import('./temaClaro');
+  const imagen = await conTemaClaro(() => {
+    const fondo = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff';
+    return toPng(elemento, { backgroundColor: fondo, pixelRatio: 2, cacheBust: true });
+  });
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const propiedades = pdf.getImageProperties(imagen);
   const ancho = 277;
@@ -46,7 +49,7 @@ export async function exportarTablaPdf({ titulo, columnas, filas, nombre }) {
  * (se pasan a imagen).
  */
 export async function exportarInformePdf({ titulo, subtitulo, resumen, mapa, graficos, tabla, avisos, fuente, nombre }) {
-  const [{ toPng }, { jsPDF }, { default: autoTable }] = await Promise.all([import('html-to-image'), import('jspdf'), import('jspdf-autotable')]);
+  const [{ toPng }, { jsPDF }, { default: autoTable }, { conTemaClaro }] = await Promise.all([import('html-to-image'), import('jspdf'), import('jspdf-autotable'), import('./temaClaro')]);
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, M = 14, ancho = W - 2 * M;
   let y = 18;
@@ -64,7 +67,7 @@ export async function exportarInformePdf({ titulo, subtitulo, resumen, mapa, gra
   }
   const imagen = async (el, maxAlto) => {
     if (!el) return;
-    const png = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true });
+    const png = await conTemaClaro(() => toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true }));
     const p = pdf.getImageProperties(png), alto = Math.min(maxAlto, (p.height * ancho) / p.width), w = (p.width * alto) / p.height;
     nuevaPagina(alto + 4);
     pdf.addImage(png, 'PNG', M + (ancho - w) / 2, y, w, alto); y += alto + 5;

@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { toPng } from "html-to-image";
+import { conTemaClaro } from "../lib/temaClaro";
 import { soportaWebGL } from "../lib/soportaWebGL";
 import { BASEMAP_STYLE, prepararEstilo } from "../lib/mapStyle";
 import { tiempoRelativo, fechaLarga } from "../lib/tiempoRelativo";
@@ -144,7 +145,7 @@ const BaseMap = forwardRef(function BaseMap({
     async capturarConOverlay() {
       await esperarMapa();
       await document.fonts.ready;
-      return toPng(rootRef.current, { pixelRatio: 2, filter: node => !node.hasAttribute?.("data-capture-ignore") && !node.classList?.contains("maplibregl-ctrl-group") });
+      return conTemaClaro(() => toPng(rootRef.current, { pixelRatio: 2, filter: node => !node.hasAttribute?.("data-capture-ignore") && !node.classList?.contains("maplibregl-ctrl-group") }));
     },
   }));
 

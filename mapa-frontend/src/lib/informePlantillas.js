@@ -163,15 +163,19 @@ const fechaLargaMapa = (f) => { const d = new Date(`${f}T12:00:00Z`); return `${
 export function aMapaV2(b) {
   const i0 = diaPrincipal(b), principal = b.dias[i0];
   const filas = principal.ciudades.map((c) => ({ LOCALIDAD: LOCALIDAD_MAPA[c.ciudad] || c.ciudad, TMIN: c.tmin, TMAX: c.tmax, CONDICION: c.condicion, ZONA: zonaDe(c.ciudad) }));
-  const zonas = ["Sur", "Centro", "Norte"].map((zona) => ({ zona, dias: b.dias.slice(i0).map((d, k) => {
-    const z = d.zonas[zona];
+  // Los días anteriores al principal (el "Hoy" de las emisiones de tarde/noche, que sólo traen máxima y nocturna) también van al extendido:
+  // la mínima es la temperatura nocturna.
+  const tmaxDe = (z) => z.tmax?.hasta || z.tmax?.desde, tminDe = (z) => (z.tmin || z.tnoct)?.desde;
+  const dias = b.dias.filter((d, k) => k >= i0 || (d.temps.includes("tmax") && ZONAS_ORDEN.every((zn) => tmaxDe(d.zonas[zn]) !== "" && tmaxDe(d.zonas[zn]) !== undefined)));
+  const zonas = ["Sur", "Centro", "Norte"].map((zona) => ({ zona, dias: dias.map((d) => {
+    const z = d.zonas[zona], k = b.dias.indexOf(d);
     return {
-      etiqueta: k === 0 ? etiquetaDia(d.fecha) : nombreDia(d.fecha), fecha: fechaLargaMapa(d.fecha), ...(k === 0 ? { principal: true } : {}),
-      tmin: z.tmin.desde, tmax: z.tmax.hasta || z.tmax.desde,
+      etiqueta: k <= i0 ? etiquetaDia(d.fecha) : nombreDia(d.fecha), fecha: fechaLargaMapa(d.fecha), ...(k === i0 ? { principal: true } : {}),
+      tmin: tminDe(z), tmax: tmaxDe(z),
       condicion: masSeveraDe(d.ciudades.filter((c) => zonaDe(c.ciudad) === zona).map((c) => c.condicion)),
     };
   }) }));
-  const informes = b.dias.slice(i0).map((d) => ({
+  const informes = dias.map((d) => ({
     dia: nombreDia(d.fecha), fecha: fechaLargaMapa(d.fecha),
     texto: [d.resumen, d.precipitaciones && `Precipitaciones: ${d.precipitaciones}.`, d.vientos && `Vientos: ${d.vientos}.`].map((t) => String(t ?? "").trim()).filter(Boolean).join(" ").slice(0, 800),
   }));
