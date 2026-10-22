@@ -619,8 +619,9 @@ export async function generarInformePdf(informe) {
 }
 
 /** El mismo informe en Word (.docx editable, para los medios). */
-export async function generarInformeDocxPronostico(informe) {
-  const r = await fetch(`${API_URL}/api/pronostico/informe-docx`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
+/** Con `viejo`, el .docx en el formato viejo de la DGAT (sale junto con el nuevo). */
+export async function generarInformeDocxPronostico(informe, viejo = false) {
+  const r = await fetch(`${API_URL}/api/pronostico/informe-docx${viejo ? "?formato=viejo" : ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el .docx.");
   return r.blob();
 }
@@ -629,8 +630,8 @@ export async function generarInformeDocxPronostico(informe) {
 export async function getAlertasDelDia(fecha) { return handleJson(await fetch(`${API_URL}/api/pronostico/alertas-del-dia?fecha=${encodeURIComponent(fecha)}`, { cache: "no-store", ...CON_SESION })); }
 
 /** El mismo informe en RTF. */
-export async function generarInformeRtfPronostico(informe) {
-  const r = await fetch(`${API_URL}/api/pronostico/informe-rtf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
+export async function generarInformeRtfPronostico(informe, viejo = false) {
+  const r = await fetch(`${API_URL}/api/pronostico/informe-rtf${viejo ? "?formato=viejo" : ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el .rtf.");
   return r.blob();
 }

@@ -169,17 +169,22 @@ export default function AdminPage() {
   async function bajarRtf(i) {
     setError(null);
     try {
-      const url = URL.createObjectURL(await generarInformeRtfPronostico(i.borrador));
-      const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}.rtf` }); document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      // El formato nuevo y el viejo salen juntos.
+      for (const viejo of [false, true]) {
+        const url = URL.createObjectURL(await generarInformeRtfPronostico(i.borrador, viejo));
+        const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}${viejo ? " (formato viejo)" : ""}.rtf` }); document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
     } catch (e) { fallo(e); }
   }
   async function bajarDocx(i) {
     setError(null);
     try {
-      const url = URL.createObjectURL(await generarInformeDocxPronostico(i.borrador));
-      const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}.docx` }); document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      for (const viejo of [false, true]) {
+        const url = URL.createObjectURL(await generarInformeDocxPronostico(i.borrador, viejo));
+        const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}${viejo ? " (formato viejo)" : ""}.docx` }); document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
     } catch (e) { fallo(e); }
   }
 

@@ -35,13 +35,13 @@ function borrador() {
 const router = express.Router();
 /** Los generadores se vuelven a leer del disco en cada pedido: los cambios se ven al recargar, sin reiniciar el servidor. */
 function generadores() {
-  for (const m of ["informeResumen", "informePronosticoPdf", "informePronosticoDocx", "informePronosticoRtf", "condiciones", "luna"]) delete require.cache[require.resolve(`../lib/${m}`)];
-  return { pdf: require("../lib/informePronosticoPdf").generarInformePdf, docx: require("../lib/informePronosticoDocx").generarInformeDocx, rtf: require("../lib/informePronosticoRtf").generarInformeRtf };
+  for (const m of ["informeResumen", "informePronosticoPdf", "informePronosticoDocx", "informePronosticoRtf", "informePronosticoViejo", "condiciones", "luna"]) delete require.cache[require.resolve(`../lib/${m}`)];
+  return { pdf: require("../lib/informePronosticoPdf").generarInformePdf, docx: require("../lib/informePronosticoDocx").generarInformeDocx, rtf: require("../lib/informePronosticoRtf").generarInformeRtf, "viejo-docx": require("../lib/informePronosticoViejo").generarInformeViejoDocx, "viejo-rtf": require("../lib/informePronosticoViejo").generarInformeViejoRtf };
 }
 const TIPOS = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", rtf: "application/rtf" };
-router.get("/dev/informe-muestra.:formato(pdf|docx|rtf)", async (req, res) => {
-  const f = req.params.formato;
-  try { res.set({ "Content-Type": TIPOS[f], "Content-Disposition": `${f === "pdf" ? "inline" : "attachment"}; filename="informe-muestra.${f}"`, "Cache-Control": "no-store" }).send(await generadores()[f](borrador())); }
+router.get("/dev/informe-muestra.:formato(pdf|docx|rtf|viejo-docx|viejo-rtf)", async (req, res) => {
+  const f = req.params.formato, ext = f.replace("viejo-", "");
+  try { res.set({ "Content-Type": TIPOS[ext], "Content-Disposition": `${f === "pdf" ? "inline" : "attachment"}; filename="informe-muestra${f.startsWith("viejo") ? " (formato viejo)" : ""}.${ext}"`, "Cache-Control": "no-store" }).send(await generadores()[f](borrador())); }
   catch (e) { console.error("[informe-muestra]", e); res.status(500).send(e.message); }
 });
 module.exports = router;

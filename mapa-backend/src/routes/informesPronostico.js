@@ -4,6 +4,7 @@ const informes = require("../lib/informesPronosticoStore");
 const { generarInformePdf, errorDeInforme } = require("../lib/informePronosticoPdf");
 const { generarInformeDocx } = require("../lib/informePronosticoDocx");
 const { generarInformeRtf } = require("../lib/informePronosticoRtf");
+const { generarInformeViejoDocx, generarInformeViejoRtf } = require("../lib/informePronosticoViejo");
 const { obtenerActual } = require("../lib/store");
 const correo = require("../lib/correo");
 const correoStore = require("../lib/correoStore");
@@ -99,10 +100,12 @@ router.post("/pronostico/informes/:id/enviar", requireAuth, json, async (req, re
       const lista = await correoStore.destinatarios();
       const destinatarios = lista.filter((d) => ids.includes(d.id));
       if (!destinatarios.length) return res.status(400).json({ error: "Los destinatarios elegidos ya no están en la lista. Volvé a abrir el asistente." });
-      // Los medios reescriben el texto: los informes con el formato nuevo salen en Word y RTF (editables), no en PDF. Los viejos no tienen .docx y siguen en PDF.
+      // Los medios reescriben el texto: los informes con el formato nuevo salen en Word y RTF (editables), no en PDF, cada uno también en el formato viejo. Los viejos no tienen .docx y siguen en PDF.
       const adjuntos = informe.borrador?.version === 2
         ? [{ nombre: `PREVISION DEL TIEMPO ${informe.fecha}.docx`, tipo: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: await generarInformeDocx(informe.borrador) },
-          { nombre: `PREVISION DEL TIEMPO ${informe.fecha}.rtf`, tipo: "application/rtf", buffer: await generarInformeRtf(informe.borrador) }]
+          { nombre: `PREVISION DEL TIEMPO ${informe.fecha}.rtf`, tipo: "application/rtf", buffer: await generarInformeRtf(informe.borrador) },
+          { nombre: `PREVISION DEL TIEMPO ${informe.fecha} (formato viejo).docx`, tipo: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: await generarInformeViejoDocx(informe.borrador) },
+          { nombre: `PREVISION DEL TIEMPO ${informe.fecha} (formato viejo).rtf`, tipo: "application/rtf", buffer: await generarInformeViejoRtf(informe.borrador) }]
         : [{ nombre: `PREVISION DEL TIEMPO ${informe.fecha}.pdf`, tipo: "application/pdf", buffer: await generarInformePdf(informe.borrador) }];
       const registro = { usuarioId: req.usuario.usuarioId, asunto, cuerpo, destinatarios, adjuntos: adjuntos.map(({ nombre, buffer }) => ({ nombre, bytes: buffer.length })) };
       try { await correo.enviar({ asunto, cuerpo, destinatarios, adjuntos }); }

@@ -15,6 +15,7 @@ const requireAuth = require("../middleware/requireAuth");
 const { generarInformePdf } = require("../lib/informePronosticoPdf");
 const { generarInformeDocx } = require("../lib/informePronosticoDocx");
 const { generarInformeRtf } = require("../lib/informePronosticoRtf");
+const { generarInformeViejoDocx, generarInformeViejoRtf } = require("../lib/informePronosticoViejo");
 
 const router = express.Router();
 const ORIGENES = ["panel", "ensamble"];
@@ -400,10 +401,10 @@ router.post("/pronostico/informe-pdf", requireAuth, express.json({ limit: "1mb" 
   }
 });
 
-/** POST /api/pronostico/informe-docx — lo mismo que el PDF, en Word (editable, para que los medios armen sus notas). */
+/** POST /api/pronostico/informe-docx — lo mismo que el PDF, en Word (editable, para que los medios armen sus notas). Con `?formato=viejo`, el .docx en el formato viejo de la DGAT. */
 router.post("/pronostico/informe-docx", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
   try {
-    const docx = await generarInformeDocx(req.body?.informe);
+    const docx = await (req.query.formato === "viejo" ? generarInformeViejoDocx : generarInformeDocx)(req.body?.informe);
     res.set({ "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Cache-Control": "no-store" }).send(docx);
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
@@ -412,10 +413,10 @@ router.post("/pronostico/informe-docx", requireAuth, express.json({ limit: "1mb"
   }
 });
 
-/** POST /api/pronostico/informe-rtf — el mismo informe en RTF (los medios reciben el .docx y el .rtf). */
+/** POST /api/pronostico/informe-rtf — el mismo informe en RTF (los medios reciben el .docx y el .rtf). Con `?formato=viejo`, el formato viejo de la DGAT. */
 router.post("/pronostico/informe-rtf", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
   try {
-    res.set({ "Content-Type": "application/rtf", "Cache-Control": "no-store" }).send(await generarInformeRtf(req.body?.informe));
+    res.set({ "Content-Type": "application/rtf", "Cache-Control": "no-store" }).send(await (req.query.formato === "viejo" ? generarInformeViejoRtf : generarInformeRtf)(req.body?.informe));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     console.error("[informe-rtf]", e);

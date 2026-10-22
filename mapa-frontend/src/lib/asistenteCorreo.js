@@ -85,7 +85,7 @@ function pasoRevision(lista, estado) {
 export function enviarPronosticoPorCorreo({ fecha, estado, destinatarios, enviar, word = false }) {
   const pasos = [pasoDestinatarios(destinatarios), pasoMensaje, pasoRevision(destinatarios, estado)];
   const inicial = {
-    adjunto: word ? `PREVISION DEL TIEMPO ${fecha}.docx y .rtf` : `PREVISION DEL TIEMPO ${fecha}.pdf`,
+    adjunto: word ? `PREVISION DEL TIEMPO ${fecha}.docx y .rtf (y los dos en formato viejo)` : `PREVISION DEL TIEMPO ${fecha}.pdf`,
     ids: destinatarios.map((d) => d.id),
     asunto: `Pronóstico del tiempo — ${fechaDMA(fecha)}`,
     // El mensaje recordado puede traer la fecha de otro día: se reemplaza por la de este informe.
