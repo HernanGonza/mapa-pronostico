@@ -11,7 +11,7 @@
 
 /* --- pantalla del panel: ocupa toda la ventana; sólo scrollea la planilla --- */
 .prec-admin.ens-layout { height: 100vh; height: 100dvh; overflow: hidden; }
-.prec-admin .prec-principal { min-height: 0; overflow: auto; display: flex; flex-direction: column; padding: 8px 18px 8px; box-sizing: border-box; gap: 6px; }
+.prec-admin .prec-principal { grid-area: map; min-width: 0; background: var(--bg); min-height: 0; overflow: auto; display: flex; flex-direction: column; padding: 8px 18px 8px; box-sizing: border-box; gap: 6px; }
 .prec-admin .ens-lateral { min-height: 0; overflow: auto; }
 @media (max-width: 860px) { .prec-admin.ens-layout { height: auto; overflow: visible; } .prec-admin .prec-principal { overflow: visible; } }
 .prec-cab { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex: none; }

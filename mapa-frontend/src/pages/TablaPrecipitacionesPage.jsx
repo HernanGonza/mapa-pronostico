@@ -112,7 +112,7 @@ export default function TablaPrecipitacionesPage() {
       </button>
       <div id="prec-lateral-contenido" className="ens-lateral-contenido" hidden={lateralCerrado}><RegistroInformesPrecipitaciones version={versionRegistro} /></div>
     </aside>
-    <section className="admin-map-area prec-principal" id="contenido-principal" tabIndex={-1}>
+    <section className="ens-area prec-principal" id="contenido-principal" tabIndex={-1}>
       <div className="prec-cab">
         <div><h1>Monitoreo de lluvias</h1>
           <p>Reemplaza al Excel: cargá la lluvia de cada día por estación (o pegá desde Excel) y los totales, la media y la anomalía se calculan solos. Lo cargado es un borrador: la tabla y el mapa de la página cambian recién cuando tocás «Publicar».</p></div>
