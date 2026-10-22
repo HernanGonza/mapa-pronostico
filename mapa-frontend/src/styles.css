@@ -1956,6 +1956,7 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 :root[data-theme="dark"] .smn-tarjeta__aviso { color: #ffcc66; }
 .smn-tarjeta__etiqueta { color: var(--text); font-weight: 600; }
 .smn-tarjeta .btn { flex: none; }
+.smn-tarjeta__botones { flex: none; display: flex; flex-direction: column; gap: 6px; }
 .alertas-dia__acciones { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 
 .municipio-popover__proximas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }

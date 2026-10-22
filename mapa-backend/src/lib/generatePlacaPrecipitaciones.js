@@ -32,7 +32,7 @@ const BANDA = "Datos recopilados por la Dirección General de Alerta Temprana";
 const MARCA_DE_AGUA = "GOBIERNO DE MISIONES  ·  ALERTA TEMPRANA  ·  ORDENAMIENTO TERRITORIAL  ·  ECOLOGÍA  ·  ";
 const NOTAS = { 1: "Estaciones del SMN", 2: "Estaciones del INTA", 3: "Estaciones automáticas", 4: "Estaciones Red Matteo" };
 const SUPER = { 1: "¹", 2: "²", 3: "³", 4: "⁴" };
-const LIMITES = { filas: 24, nombre: 40, subtitulo: 48, periodo: 20 };
+const LIMITES = { filas: 24, nombre: 40, subtitulo: 48, periodo: 32 };
 const BLANCO = "#fff", AZUL = "rgb(88,190,255)", NARANJA = "rgb(252,142,10)", GRIS = "rgb(205,212,224)";
 
 const MENOS = "−";
@@ -49,7 +49,7 @@ const conSigno = (a) => (a == null ? "—" : `${a > 0 ? "+" : a < 0 ? MENOS : ""
 
 function errorDePlacaPrecipitaciones({ subtitulo = "", periodo, filas, fondo = FONDO_POR_DEFECTO } = {}) {
   if (typeof subtitulo !== "string" || !subtitulo.trim() || subtitulo.length > LIMITES.subtitulo) return `Escribí la segunda línea del título (hasta ${LIMITES.subtitulo} caracteres).`;
-  if (typeof periodo !== "string" || !periodo.trim() || periodo.length > LIMITES.periodo) return `Escribí el período (ej.: «8 AL 13/10», hasta ${LIMITES.periodo} caracteres).`;
+  if (typeof periodo !== "string" || !periodo.trim() || periodo.length > LIMITES.periodo) return `Escribí el período (ej.: «8 AL 13/10»; con horas: «20/10 09:00hs a 21/10 09:00hs»; hasta ${LIMITES.periodo} caracteres).`;
   if (!FONDOS.some((f) => f.id === Number(fondo))) return "Elegí una foto de fondo (de lluvia o de tormenta).";
   if (!Array.isArray(filas) || !filas.length) return "Cargá al menos una estación.";
   if (filas.length > LIMITES.filas) return `La placa admite hasta ${LIMITES.filas} estaciones.`;
@@ -122,6 +122,13 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   const [w2, h2] = cen(T2, f2, AZUL, y); y += h2 + Math.floor(36 * ts);
   const uw = Math.max(w1, w2) + 70;
   ctx.fillStyle = BLANCO; ctx.fillRect(cx - uw / 2, y, uw, Math.floor(6 * ts)); y += Math.floor(6 * ts);
+  // Con horas («20/10 09:00hs a 21/10 09:00hs») el período no entra en la columna: va en una línea propia bajo el título
+  // y la columna se llama «PERÍODO».
+  const conHoras = /\d:\d/.test(periodo);
+  if (conHoras) {
+    let sp = 62 * ts; while (ancho(periodo.trim(), fuente("bold", LS, sp)) > W - 300 && sp >= 30) sp -= 2;
+    const [, hp] = cen(periodo.trim(), fuente("bold", LS, sp), BLANCO, y + Math.floor(44 * ts)); y += hp + Math.floor(44 * ts);
+  }
   const top = y + Math.floor(90 * ts);
 
   // Tabla: columnas y reparto vertical (la letra más grande con la que todo entra hasta `limite`, y después se estira).
@@ -129,7 +136,7 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   for (const c of colw) xs.push(xs[xs.length - 1] + c);
   const usadas = [...new Set(filas.map((f) => Number(f.nota)).filter(Boolean))].sort();
   const LEG = [usadas.map((u) => `${SUPER[u]} ${NOTAS[u]}`).join("     "), "Anomalía: diferencia entre lo acumulado en el mes y el valor medio."].filter(Boolean);
-  const HEAD = ["ESTACIÓN", periodo.trim().toLocaleUpperCase("es-AR"), "MES", "MEDIA", "ANOMALÍA"];
+  const HEAD = ["ESTACIÓN", conHoras ? "PERÍODO" : periodo.trim().toLocaleUpperCase("es-AR"), "MES", "MEDIA", "ANOMALÍA"];
   let u = 0, fh, fn, fb, fm, fl, fs, icon, gap, subH, headH, rh, legH, total, legGap;
   for (let i = 0; i < 40; i++) {
     u = Math.round((1.5 - 0.03 * i) * 100) / 100;
@@ -139,7 +146,7 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
     legGap = Math.floor(14 * u); legH = LEG.length * (lh(fl) + legGap);
     total = subH + gap + headH + rh * n + Math.floor(rh * 0.95) + gap + legH;
     if (Math.max(...filas.map((f) => ancho(f.nombre.trim(), fn) + ancho(String(f.nota || ""), fm) + 30)) > colw[0] - 30) continue;
-    if (Math.max(...HEAD.slice(1).map((h) => ancho(h, fh))) > colw[1] - 16) continue;
+    if (Math.max(...HEAD.slice(1).flatMap((h) => h.split("\n")).map((h) => ancho(h, fh))) > colw[1] - 16) continue;
     if (top + total <= limite) break;
   }
   for (let i = 0; i < 9; i++) { // estirado vertical
@@ -170,7 +177,12 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   ctx.fillStyle = "rgba(88,190,255,0.216)"; ctx.fillRect(mx + 6, ty + headH + 4, tw - 12, sepH - 8);
 
   ctx.font = fh; ctx.fillStyle = AZUL; ctx.textBaseline = "middle";
-  HEAD.forEach((h, i) => { if (i === 0) { ctx.textAlign = "left"; ctx.fillText(h, xs[0] + 24, ty + (headH - 5) / 2); } else { ctx.textAlign = "center"; ctx.fillText(h, xs[i] + colw[i] / 2, ty + (headH - 5) / 2); } });
+  // El período puede venir en dos líneas (con horas: «21/10 9H» / «A 22/10 9H»).
+  HEAD.forEach((h, i) => {
+    ctx.textAlign = i === 0 ? "left" : "center";
+    const x = i === 0 ? xs[0] + 24 : xs[i] + colw[i] / 2, lineas = h.split("\n"), paso = lh(fh) * 1.3, yc = ty + (headH - 5) / 2;
+    lineas.forEach((l, k) => ctx.fillText(l, x, yc + (k - (lineas.length - 1) / 2) * paso));
+  });
   filas.forEach((f, i) => {
     const yc = ytop(i) + rh / 2, nombre = f.nombre.trim();
     ctx.textAlign = "left"; ctx.fillStyle = BLANCO; ctx.font = fn; ctx.fillText(nombre, xs[0] + 24, yc);

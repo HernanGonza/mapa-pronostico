@@ -160,16 +160,9 @@ function valorLocal(d) {
 /** Redondea hacia arriba a los 5 minutos, para que la sugerencia no quede en 14:37. */
 const redondear = (ms) => Math.ceil(ms / (5 * 60 * 1000)) * 5 * 60 * 1000;
 
-/**
- * Publicar un aviso ya generado en el mapa público, con hasta cuándo rige: pasada esa hora se
- * despublica solo. Sugiere el fin del aviso del SMN si lo hay; si no, dentro de 2 horas.
- *   aviso: { id, feedUrl }   finSmn: ISO o null   vigenteHasta: ISO actual (republicar) o null
- *   publicar(id, vigenteHastaIso) → el aviso publicado
- */
-export function publicarAvisoPorPasos({ aviso, finSmn = null, vigenteHasta = null, publicar }) {
-  const ahora = Date.now();
-  const sugerida = [vigenteHasta, finSmn].map((f) => Date.parse(f)).find((t) => t > ahora) || redondear(ahora + 2 * HORA);
-  const pasos = [{
+/** El paso «¿Hasta cuándo está vigente?» (ver publicarAvisoPorPasos). */
+function pasoVigencia({ aviso, finSmn }) {
+  return {
     pregunta: "¿Hasta cuándo está vigente?",
     ayuda: `Pasada esa hora, el aviso deja de mostrarse solo en el mapa público.${finSmn ? " Se sugiere la hora de fin del aviso del SMN." : ""}`,
     html: (s) => `<div class="paso-vigencia">
@@ -192,10 +185,36 @@ export function publicarAvisoPorPasos({ aviso, finSmn = null, vigenteHasta = nul
       if (t > Date.now() + 72 * HORA) return "La vigencia no puede superar las 72 horas.";
       return null;
     },
-  }];
+  };
+}
+
+/**
+ * Publicar un aviso ya generado en el mapa público, con hasta cuándo rige: pasada esa hora se
+ * despublica solo. Sugiere el fin del aviso del SMN si lo hay; si no, dentro de 2 horas.
+ *   aviso: { id, feedUrl }   finSmn: ISO o null   vigenteHasta: ISO actual (republicar) o null
+ *   publicar(id, vigenteHastaIso) → el aviso publicado
+ */
+export function publicarAvisoPorPasos({ aviso, finSmn = null, vigenteHasta = null, publicar }) {
+  const ahora = Date.now();
+  const sugerida = [vigenteHasta, finSmn].map((f) => Date.parse(f)).find((t) => t > ahora) || redondear(ahora + 2 * HORA);
+  const pasos = [pasoVigencia({ aviso, finSmn })];
   const enviar = async (s) => {
     const publicado = await publicar(aviso.id, new Date(s.vigencia).toISOString());
     return { tipo: "ok", titulo: "¡Publicado!", datos: publicado, html: `<p>El mapa público muestra el aviso hasta el ${esc(fechaHora(publicado.vigenteHasta))}. Después se saca solo.</p>` };
   };
   return asistente({ pasos, enviar, textoEnviar: "Publicar en el mapa público", estado: { vigencia: valorLocal(new Date(sugerida)) } });
+}
+
+/**
+ * Publicar en el mapa público un área dibujada a mano, sin placa de redes: los textos del aviso y hasta cuándo rige.
+ *   publicar(partes, vigenteHastaIso) → el aviso publicado
+ */
+export function publicarAvisoDibujadoPorPasos({ publicar }) {
+  const ahora = Date.now();
+  const pasos = [...pasosDeTextos(), pasoVigencia({ aviso: {}, finSmn: null })];
+  const enviar = async (s) => {
+    const publicado = await publicar(partesDe(s), new Date(s.vigencia).toISOString());
+    return { tipo: "ok", titulo: "¡Publicado!", datos: publicado, html: `<p>El mapa público muestra el aviso hasta el ${esc(fechaHora(publicado.vigenteHasta))}. Después se saca solo.</p>` };
+  };
+  return asistente({ pasos, enviar, textoEnviar: "Publicar en el mapa público", estado: { ...partesSugeridas(null), vigencia: valorLocal(new Date(redondear(ahora + 2 * HORA))) }, ancho: 760 });
 }

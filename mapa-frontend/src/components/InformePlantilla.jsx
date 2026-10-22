@@ -210,15 +210,13 @@ function PasoCiudadesJuntas({ b, set }) {
 function PasoRevision({ b, problemas, esNuevo, alGuardar, guardando }) {
   const [estado, setEstado] = useState({ trabajando: "", error: "" });
   async function pdf(accion) {
-    setEstado({ trabajando: accion === "ver" ? "Armando el PDF…" : accion === "docx" ? "Armando el .docx…" : accion === "rtf" ? "Armando el .rtf…" : "Preparando la descarga…", error: "" });
+    const viejo = accion.endsWith("-viejo"), tipo = accion.replace("-viejo", "");
+    setEstado({ trabajando: tipo === "ver" ? "Armando el PDF…" : tipo === "docx" ? "Armando el .docx…" : tipo === "rtf" ? "Armando el .rtf…" : "Preparando la descarga…", error: "" });
     try {
-      // El Word y el RTF salen en el formato nuevo y en el viejo, juntos.
-      for (const viejo of accion === "docx" || accion === "rtf" ? [false, true] : [false]) {
-        const blob = await (accion === "docx" ? api.generarInformeDocxPronostico(b, viejo) : accion === "rtf" ? api.generarInformeRtfPronostico(b, viejo) : api.generarInformePdf(b)), url = URL.createObjectURL(blob);
-        if (accion === "ver") window.open(url, "_blank", "noopener");
-        else { const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${b.fecha} ${nombreDeBoton(b.boton)}${viejo ? " (formato viejo)" : ""}.${accion === "docx" ? "docx" : accion === "rtf" ? "rtf" : "pdf"}` }); document.body.append(a); a.click(); a.remove(); }
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-      }
+      const blob = await (tipo === "docx" ? api.generarInformeDocxPronostico(b, viejo) : tipo === "rtf" ? api.generarInformeRtfPronostico(b, viejo) : api.generarInformePdf(b)), url = URL.createObjectURL(blob);
+      if (tipo === "ver") window.open(url, "_blank", "noopener");
+      else { const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${b.fecha} ${nombreDeBoton(b.boton)}${viejo ? " (formato viejo)" : ""}.${tipo === "docx" ? "docx" : tipo === "rtf" ? "rtf" : "pdf"}` }); document.body.append(a); a.click(); a.remove(); }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
       setEstado({ trabajando: "", error: "" });
     } catch (e) { setEstado({ trabajando: "", error: e.message }); }
   }
@@ -239,8 +237,10 @@ function PasoRevision({ b, problemas, esNuevo, alGuardar, guardando }) {
       {esNuevo && <button type="button" className="btn btn--primary" disabled={guardando} onClick={alGuardar}>{guardando ? "Guardando…" : "Guardar informe"}</button>}
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("ver")}>{estado.trabajando || "Ver el PDF"}</button>
       <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("bajar")}>Descargar PDF</button>
-      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("docx")} title="Word editable, para que los medios armen sus notas (baja también el del formato viejo)">Descargar Word (.docx)</button>
-      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("rtf")} title="RTF editable, junto con el Word es lo que reciben los medios (baja también el del formato viejo)">Descargar RTF</button>
+      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("docx")} title="Word editable, para que los medios armen sus notas">Descargar Word (.docx)</button>
+      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("rtf")} title="RTF editable, junto con el Word es lo que reciben los medios">Descargar RTF</button>
+      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("docx-viejo")} title="Word en el formato viejo de la DGAT">Word formato viejo (.docx)</button>
+      <button type="button" className="btn" disabled={!!estado.trabajando} onClick={() => pdf("rtf-viejo")} title="RTF en el formato viejo de la DGAT">RTF formato viejo</button>
     </div>
   </>;
 }

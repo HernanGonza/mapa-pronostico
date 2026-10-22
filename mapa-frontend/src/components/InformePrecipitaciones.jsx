@@ -20,6 +20,8 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
   const [elegidas, setElegidas] = useState(null); // Set de ids; null = todavía no se tocó (valen las que tienen datos)
   const [q, setQ] = useState(""), [nota, setNota] = useState("");
   const [placa, setPlaca] = useState(null), [bajando, setBajando] = useState(false);
+  const [horaDesde, setHoraDesde] = useState(""), [horaHasta, setHoraHasta] = useState(""); // opcionales: «de hoy 9:00 a mañana 9:00»
+  const horasOk = !horaDesde === !horaHasta; // las dos o ninguna
 
   const rango = useMemo(() => ({ desde: desde < primerDia(mesDe(hasta).anio, mesDe(hasta).mes) ? desde : primerDia(mesDe(hasta).anio, mesDe(hasta).mes), hasta }), [desde, hasta]);
   const rangoOk = desde <= hasta && fechasEntre(desde, hasta).length <= 400;
@@ -42,12 +44,16 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
   const visibles = activas.filter((e) => !q.trim() || normal(e.nombre).includes(normal(q.trim())));
   const alternar = (id) => setElegidas((prev) => { const n = new Set(prev ?? conDatos); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const periodoTexto = desde === hasta ? ddmm(desde) : `${ddmm(desde)} al ${ddmm(hasta)}`;
+  const conHoras = !!horaDesde && !!horaHasta;
+  const periodoTexto = conHoras ? `${ddmm(desde)} ${horaDesde}hs a ${ddmm(hasta)} ${horaHasta}hs` : desde === hasta ? ddmm(desde) : `${ddmm(desde)} al ${ddmm(hasta)}`;
   const titulo = `Monitoreo de precipitaciones · ${desde === hasta ? ddmmaaaa(desde) : `${ddmmaaaa(desde)} al ${ddmmaaaa(hasta)}`}`;
+  // Con horas, la columna se llama sólo «Período» y el período completo va aparte (en la placa, bajo el título).
+  const periodoConHoras = conHoras ? `Período: ${ddmmaaaa(desde)} ${horaDesde}hs a ${ddmmaaaa(hasta)} ${horaHasta}hs` : "";
+  const colPeriodo = conHoras ? "Período (mm)" : `Período ${periodoTexto} (mm)`;
 
   const armarPlaca = () => crearPlacaPrecipitacionesPorPasos({
     inicial: {
-      desde, hasta,
+      desde, hasta, ...(conHoras ? { horaDesde, horaHasta } : {}),
       filas: filas.filter((f) => f.periodo != null).map((f) => ({ nombre: f.nombre, nota: f.red, periodo: String(f.periodo), mes: f.mes == null ? "" : String(f.mes), media: f.media == null ? "" : String(f.media), anomalia: "" })),
     },
     vistaPrevia: (v) => api.generarPlacaPrecipitaciones(v, { vistaPrevia: true }),
@@ -58,8 +64,8 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
     try { await api.descargarExcelPrecipitaciones({ desde, hasta, estaciones: seleccion.map((e) => e.id), informe: true, borrador: true }); } catch (e) { setError(e.message); } finally { setBajando(false); }
   }
   const pdf = () => exportarTablaPdf({
-    titulo: `${titulo} — Provincia de Misiones`, nombre: `informe-precipitaciones-${desde}-a-${hasta}`,
-    columnas: ["Estación", `Período ${periodoTexto} (mm)`, "Mes (mm)", "Media (mm)", "Anomalía (mm)"],
+    titulo: `${titulo} — Provincia de Misiones`, subtitulo: periodoConHoras, nombre: `informe-precipitaciones-${desde}-a-${hasta}`,
+    columnas: ["Estación", colPeriodo, "Mes (mm)", "Media (mm)", "Anomalía (mm)"],
     filas: [...filas.map((f) => [`${f.nombre}${SUPER[f.red]}${marcaDe(f)}`, coma(f.periodo), coma(f.mes), coma(f.media), signo(f.anomalia)]),
       ...[redes.map((r) => `${SUPER[r]} ${REDES_LARGO[r]}`).join("   ") + leyendas.map((l) => `   ${l.marca} se toma la media de ${l.nombre}`).join(""), nota].filter(Boolean).map((t) => [{ content: t, colSpan: 5, styles: { fontStyle: "italic", fillColor: [255, 255, 255] } }])],
   }).catch((e) => setError(`No se pudo armar el PDF: ${e.message}`));
@@ -76,7 +82,13 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
           <button type="button" className="prec-btn" onClick={() => { const a = sumarDias(hoy(), -1); setDesde(a); setHasta(a); }}>Ayer</button>
           <button type="button" className="prec-btn" onClick={() => { setHasta(hoy()); setDesde(sumarDias(hoy(), -6)); }}>Últimos 7 días</button>
         </div>
+        <div className="prec-informe__horas">
+          <label className="prec-hora"><span>Hora desde</span><input type="time" value={horaDesde} onChange={(e) => setHoraDesde(e.target.value)} /></label>
+          <label className="prec-hora"><span>Hora hasta</span><input type="time" value={horaHasta} onChange={(e) => setHoraHasta(e.target.value)} /></label>
+        </div>
         {!rangoOk && <p className="prec-ayuda" role="alert">Elegí un período válido (hasta 400 días).</p>}
+        {!horasOk && <p className="prec-ayuda" role="alert">Poné las dos horas o ninguna.</p>}
+        <p className="prec-ayuda">Las horas son opcionales y solo se escriben en los títulos y en la placa (la planilla se carga por día): por ejemplo, de hoy 9:00 a mañana 9:00.</p>
 
         <h2>Estaciones ({seleccion.length} de {activas.length})</h2>
         <div className="prec-barra">
@@ -90,9 +102,10 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
         </div>
 
         <h2>Tabla del informe</h2>
+        {periodoConHoras && <p className="prec-ayuda"><strong>{periodoConHoras}</strong></p>}
         {datos === null ? <p role="status">{error ? "" : "Cargando…"}</p> : !filas.length ? <div className="prec-vacio">Elegí al menos una estación.</div> : <>
           <div className="prec-tabla-scroll"><table>
-            <thead><tr><th>Estación</th><th>Período {periodoTexto} (mm)</th><th>Mes (mm)</th><th>Media (mm)</th><th>Anomalía (mm)</th></tr></thead>
+            <thead><tr><th>Estación</th><th>{colPeriodo}</th><th>Mes (mm)</th><th>Media (mm)</th><th>Anomalía (mm)</th></tr></thead>
             <tbody>{filas.map((f) => <tr key={f.id}><td>{f.nombre}<sup>{f.red}</sup>{marcaDe(f)}</td>
               <td>{f.periodo == null ? <small>sin datos</small> : <strong>{coma(f.periodo)}</strong>}</td><td>{coma(f.mes)}</td><td>{coma(f.media)}</td>
               <td className={f.anomalia > 0 ? "pos" : f.anomalia < 0 ? "neg" : ""}>{signo(f.anomalia)}</td></tr>)}</tbody>
@@ -103,7 +116,7 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
           <label className="prec-campo">Texto al pie (opcional, por ejemplo el período de medición)
             <input maxLength={160} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Período de medición: 09 hs del 13/10 a las 09 hs del 14/10" /></label>
           <div className="prec-informe__acciones">
-            <button type="button" className="prec-btn prec-btn--primario" onClick={armarPlaca} disabled={!filas.some((f) => f.periodo != null)}>{placa ? "Armar otra placa" : "Armar la placa para redes"}</button>
+            <button type="button" className="prec-btn prec-btn--primario" onClick={armarPlaca} disabled={!horasOk || !filas.some((f) => f.periodo != null)}>{placa ? "Armar otra placa" : "Armar la placa para redes"}</button>
             <button type="button" className="prec-btn" onClick={pdf}>Descargar PDF</button>
             <button type="button" className="prec-btn" onClick={excel} disabled={bajando}>{bajando ? "Armando…" : "Descargar Excel (con fórmulas)"}</button>
           </div>

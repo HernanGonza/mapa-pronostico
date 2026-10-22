@@ -10,7 +10,7 @@ import PublicationStatus from "../components/PublicationStatus";
 import TarjetasSmn from "../components/TarjetasSmn";
 import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
-import { crearAvisoPorPasos, publicarAvisoPorPasos, textoDePartes, TITULO } from "../lib/asistenteAviso";
+import { crearAvisoPorPasos, publicarAvisoPorPasos, publicarAvisoDibujadoPorPasos, partesSugeridas, textoDePartes, TITULO } from "../lib/asistenteAviso";
 
 // Violeta de los ACP mientras no hay alerta vigente; si hay, el backend manda su color (`acpAhora`).
 const VIOLETA_ACP = "#8b3fc4";
@@ -125,7 +125,7 @@ export default function AvisosCortoPlazoPage() {
     // `poligono` va en el estado inicial (no sólo en el paso "elegir aviso"):
     // si no hay avisos del SMN vigentes, ese paso se salta entero y el único
     // origen del polígono es lo ya dibujado a mano en el mapa de la página.
-    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos, ...(avisoId ? { avisoId } : {}) }, avisos: avisosAcp, departamentos, puntosDibujados: puntos, onSeleccionarPoligono: (poligono, aviso) => { cambiarPuntos(poligono); if (aviso?.color) setColorAcp(aviso.color); }, publicados: vigentes || [], vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
+    await crearAvisoPorPasos({ inicial: { texto, fondo, poligono: puntos, ...(avisoId ? { avisoId } : {}) }, avisos: avisosAcp, departamentos, puntosDibujados: puntos, onSeleccionarPoligono: (poligono, aviso) => { cambiarPuntos(poligono); if (aviso?.color) setColorAcp(aviso.color); }, publicados: (vigentes || []).filter((v) => v.feedUrl), vistaPrevia, guardar: guardarPlaca, publicar: (placa, finSmn) => abrirPublicar(placa, { finSmn }) });
   }
 
   // Publicar (o cambiarle la vigencia a uno ya publicado) es un asistente con el paso de vigencia.
@@ -134,6 +134,25 @@ export default function AvisosCortoPlazoPage() {
     return publicarAvisoPorPasos({
       aviso, finSmn, vigenteHasta,
       publicar: async (id, hasta) => { const r = await api.publicarAvisoCortoPlazo(id, hasta); await cargarVigentes(); return r; },
+    });
+  }
+
+  // Publicar en el mapa público un aviso del SMN tal cual, sin armar la placa de redes (eso es aparte).
+  function publicarDirecto(a) {
+    setError(""); setMensaje("");
+    const publicado = vigentes?.find((v) => v.smnId === a.id);
+    const partes = partesSugeridas(a, departamentos);
+    return publicarAvisoPorPasos({
+      aviso: { id: a.id }, finSmn: a.fin, vigenteHasta: publicado?.vigenteHasta || null,
+      publicar: async (_id, hasta) => { const r = await api.publicarAvisoSmnDirecto({ smnId: a.id, poligono: a.poligono, partes, vigenteHasta: hasta }); await cargarVigentes(); return r; },
+    });
+  }
+
+  // Lo mismo para el área dibujada a mano en el mapa: se piden los textos y la vigencia, y se publica sin placa.
+  function publicarDibujado() {
+    setError(""); setMensaje("");
+    return publicarAvisoDibujadoPorPasos({
+      publicar: async (partes, hasta) => { const r = await api.publicarAvisoSmnDirecto({ poligono: puntos, partes, vigenteHasta: hasta }); await cargarVigentes(); return r; },
     });
   }
 
@@ -165,9 +184,22 @@ export default function AvisosCortoPlazoPage() {
         <TarjetasSmn
           titulo={(n) => (n === 1 ? "Hay 1 aviso del SMN vigente" : `Hay ${n} avisos del SMN vigentes`)}
           vacio="Sin avisos del SMN vigentes por ahora: dibujá la zona afectada en el mapa y tocá «Nuevo aviso a corto plazo»."
-          items={avisosAcp.map((a) => ({ id: a.id, color: a.color || VIOLETA_ACP, titulo: `${String(a.titulo || "Aviso a muy corto plazo").slice(0, 70)} · ${a.zona}`,
-            detalle: `Hasta el ${hora(a.fin)} · emitido ${hora(a.emitidoEn)}`, textoBoton: "Hacer aviso" }))}
+          items={avisosAcp.map((a) => {
+            const publicado = vigentes?.find((v) => v.smnId === a.id);
+            return { id: a.id, color: a.color || VIOLETA_ACP, titulo: `${String(a.titulo || "Aviso a muy corto plazo").slice(0, 70)} · ${a.zona}`,
+              detalle: `Hasta el ${hora(a.fin)} · emitido ${hora(a.emitidoEn)}`, textoBoton: "Hacer placa para redes",
+              insignia: publicado ? `Publicado en el mapa público · hasta el ${hora(publicado.vigenteHasta)}` : undefined,
+              accion2: { texto: publicado ? "Cambiar vigencia" : "Publicar en mapa público", publicado: !!publicado, alHacer: () => publicarDirecto(a) } };
+          })}
           onElegir={(id) => crearPlaca(id)} />
+
+        {puntos.length >= 3 && (
+          <div className="avisos-lista avisos-lista--pendiente">
+            <h2>Área dibujada a mano</h2>
+            <p className="avisos-lista__texto">Publicala tal cual en el mapa público, sin armar la placa de redes (eso se hace con «Nuevo aviso a corto plazo»).</p>
+            <button type="button" className="btn btn--primary" onClick={publicarDibujado}>Publicar en mapa público</button>
+          </div>
+        )}
 
         {generadaSinPublicar && (
           <div className="avisos-lista avisos-lista--pendiente">
@@ -185,10 +217,10 @@ export default function AvisosCortoPlazoPage() {
                 <li key={a.id}>
                   <strong>Hasta el {hora(a.vigenteHasta)}</strong>
                   <p className="avisos-lista__texto">{a.texto}</p>
-                  <small>Publicado el {hora(a.publicadoEn)}{a.generadoPorEmail && <> · {a.generadoPorEmail}</>} · <a href={a.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={a.historiasUrl} target="_blank" rel="noreferrer">historias</a></small>
+                  <small>Publicado el {hora(a.publicadoEn)}{a.generadoPorEmail && <> · {a.generadoPorEmail}</>} · {a.feedUrl ? <><a href={a.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={a.historiasUrl} target="_blank" rel="noreferrer">historias</a></> : "sin placa de redes"}</small>
                   <div className="avisos-lista__acciones">
                     <button type="button" className="btn" onClick={() => abrirPublicar(a, { vigenteHasta: a.vigenteHasta })}>Cambiar vigencia</button>
-                    <PublicarEnRedes unaVez feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={`${a.titulo}\n\n${a.texto}`} />
+                    {a.feedUrl && <PublicarEnRedes unaVez feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={`${a.titulo}\n\n${a.texto}`} />}
                     <button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(a)}>{despublicando === a.id ? "Despublicando…" : "Despublicar"}</button>
                   </div>
                 </li>

@@ -17,9 +17,12 @@ const FONDOS = { lluvia: [6, 7, 8, 9, 10, 11], tormenta: [1, 2, 3, 4, 5] };
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
 const dm = (f) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
 
-/** «13/10» (un día), «8 AL 13/10» (mismo mes) o «28/09 AL 03/10». */
-export function periodoDe(desde, hasta) {
+/**
+ * «13/10» (un día), «8 AL 13/10» (mismo mes) o «28/09 AL 03/10». Con horas, «20/10 09:00hs a 21/10 09:00hs».
+ */
+export function periodoDe(desde, hasta, horaDesde = "", horaHasta = "") {
   if (!desde) return "";
+  if (horaDesde && horaHasta && hasta) return `${dm(desde)} ${horaDesde}hs a ${dm(hasta)} ${horaHasta}hs`;
   if (!hasta || hasta === desde) return dm(desde);
   return desde.slice(5, 7) === hasta.slice(5, 7) ? `${Number(desde.slice(8, 10))} AL ${dm(hasta)}` : `${dm(desde)} AL ${dm(hasta)}`;
 }
@@ -42,21 +45,23 @@ const leerFilas = (popup) => [...popup.querySelectorAll(".paso-estaciones tbody 
 function pasoPeriodo() {
   return {
     pregunta: "¿Qué período cubre la placa?",
-    ayuda: "Puede ser de un solo día: poné la misma fecha en las dos. El texto del encabezado de la columna se arma solo, pero lo podés corregir.",
+    ayuda: "Puede ser de un solo día: poné la misma fecha en las dos. Si la lluvia se midió entre dos horas (por ejemplo de hoy a las 9:00 a mañana a las 9:00), poné las dos horas; si no, dejalas vacías. El texto del encabezado de la columna se arma solo, pero lo podés corregir.",
     html: (s) => `<div class="paso-periodo">
         <label class="paso-etiqueta">Desde<input type="date" class="paso-input" id="p-desde" value="${esc(s.desde)}" data-foco></label>
+        <label class="paso-etiqueta">Hora desde (opcional)<input type="time" class="paso-input" id="p-hdesde" value="${esc(s.horaDesde || "")}"></label>
         <label class="paso-etiqueta">Hasta<input type="date" class="paso-input" id="p-hasta" value="${esc(s.hasta)}"></label>
-        <label class="paso-etiqueta">Cómo se ve en la columna<input class="paso-input" id="p-periodo" maxlength="20" value="${esc(s.periodo)}" placeholder="8 AL 13/10"></label>
+        <label class="paso-etiqueta">Hora hasta (opcional)<input type="time" class="paso-input" id="p-hhasta" value="${esc(s.horaHasta || "")}"></label>
+        <label class="paso-etiqueta">Cómo se ve en la columna<input class="paso-input" id="p-periodo" maxlength="32" value="${esc(s.periodo)}" placeholder="8 AL 13/10"></label>
         <label class="paso-etiqueta">Segunda línea del título<input class="paso-input" id="p-sub" maxlength="48" value="${esc(s.subtitulo)}"></label></div>`,
     alMostrar: (popup, s) => {
-      const d = popup.querySelector("#p-desde"), h = popup.querySelector("#p-hasta"), p = popup.querySelector("#p-periodo"), sub = popup.querySelector("#p-sub");
-      let manual = !!s.periodo && s.periodo !== periodoDe(s.desde, s.hasta), subManual = !!s.subtitulo && s.subtitulo !== subtituloDe(s.hasta);
+      const d = popup.querySelector("#p-desde"), h = popup.querySelector("#p-hasta"), p = popup.querySelector("#p-periodo"), sub = popup.querySelector("#p-sub"), hd = popup.querySelector("#p-hdesde"), hh = popup.querySelector("#p-hhasta");
+      let manual = !!s.periodo && s.periodo !== periodoDe(s.desde, s.hasta, s.horaDesde, s.horaHasta), subManual = !!s.subtitulo && s.subtitulo !== subtituloDe(s.hasta);
       p.addEventListener("input", () => { manual = true; }); sub.addEventListener("input", () => { subManual = true; });
-      const auto = () => { if (h.value < d.value) h.value = d.value; if (!manual) p.value = periodoDe(d.value, h.value); if (!subManual) sub.value = subtituloDe(h.value); };
-      d.addEventListener("change", auto); h.addEventListener("change", auto);
+      const auto = () => { if (h.value < d.value) h.value = d.value; if (!manual) p.value = periodoDe(d.value, h.value, hd.value, hh.value); if (!subManual) sub.value = subtituloDe(h.value); };
+      d.addEventListener("change", auto); h.addEventListener("change", auto); hd.addEventListener("change", auto); hh.addEventListener("change", auto);
     },
-    leer: (popup) => ({ desde: popup.querySelector("#p-desde").value, hasta: popup.querySelector("#p-hasta").value, periodo: popup.querySelector("#p-periodo").value.trim(), subtitulo: popup.querySelector("#p-sub").value.trim() }),
-    validar: (s) => (!s.desde || !s.hasta ? "Elegí las fechas." : !s.periodo ? "Escribí el período." : !s.subtitulo ? "Escribí la segunda línea del título." : null),
+    leer: (popup) => ({ desde: popup.querySelector("#p-desde").value, hasta: popup.querySelector("#p-hasta").value, horaDesde: popup.querySelector("#p-hdesde").value, horaHasta: popup.querySelector("#p-hhasta").value, periodo: popup.querySelector("#p-periodo").value.trim(), subtitulo: popup.querySelector("#p-sub").value.trim() }),
+    validar: (s) => (!s.desde || !s.hasta ? "Elegí las fechas." : !s.horaDesde !== !s.horaHasta ? "Poné las dos horas o ninguna." : !s.periodo ? "Escribí el período." : !s.subtitulo ? "Escribí la segunda línea del título." : null),
   };
 }
 
@@ -105,7 +110,7 @@ function pasoFondo() {
 
 /** `inicial`: { desde, hasta, filas } (lo que sale del informe); el resto se arma solo. */
 export function crearPlacaPrecipitacionesPorPasos({ inicial = {}, vistaPrevia, guardar }) {
-  const estado = { desde: "", hasta: "", periodo: "", subtitulo: "", fondo: FONDOS.lluvia[0], pestana: "lluvia", filas: [], ...inicial };
+  const estado = { desde: "", hasta: "", horaDesde: "", horaHasta: "", periodo: "", subtitulo: "", fondo: FONDOS.lluvia[0], pestana: "lluvia", filas: [], ...inicial };
   if (!estado.periodo) estado.periodo = periodoDe(estado.desde, estado.hasta);
   if (!estado.subtitulo) estado.subtitulo = subtituloDe(estado.hasta);
   const pasos = [

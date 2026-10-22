@@ -136,6 +136,11 @@
 .prec-informe__estaciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 12px; margin: 8px 0; }
 .prec-informe__estaciones label { display: flex; gap: 6px; align-items: center; font-size: 0.85rem; }
 .prec-informe__rango { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+/* Mismas medidas que .campo-fecha (rótulo de 12 px + 5 px de aire, campo de 40 px) para que queden alineados con las fechas. */
+.prec-informe__horas { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
+.prec-hora { display: block; }
+.prec-hora > span { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; line-height: normal; color: var(--text-muted); }
+.prec-hora input { box-sizing: border-box; display: block; width: 130px; min-height: 40px; font: inherit; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
 .admin-layout.admin-layout--sin-mapa.prec-pagina .admin-panel { max-width: 1100px; }
 .prec-informe__acciones { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .prec-informe__placa { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }

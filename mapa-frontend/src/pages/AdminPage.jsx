@@ -166,21 +166,20 @@ export default function AdminPage() {
     } catch (e) { fallo(e); }
   }
 
-  async function bajarRtf(i) {
+  async function bajarRtf(i, viejo = false) {
     setError(null);
     try {
-      // El formato nuevo y el viejo salen juntos.
-      for (const viejo of [false, true]) {
+      {
         const url = URL.createObjectURL(await generarInformeRtfPronostico(i.borrador, viejo));
         const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}${viejo ? " (formato viejo)" : ""}.rtf` }); document.body.append(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
     } catch (e) { fallo(e); }
   }
-  async function bajarDocx(i) {
+  async function bajarDocx(i, viejo = false) {
     setError(null);
     try {
-      for (const viejo of [false, true]) {
+      {
         const url = URL.createObjectURL(await generarInformeDocxPronostico(i.borrador, viejo));
         const a = Object.assign(document.createElement("a"), { href: url, download: `PREVISION DEL TIEMPO ${i.borrador.fecha} ${nombreDeBoton(i.borrador.boton)}${viejo ? " (formato viejo)" : ""}.docx` }); document.body.append(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -308,7 +307,7 @@ export default function AdminPage() {
               <ul className="avisos-lista">
                 {lista.map((i) => <TarjetaInformePronostico key={i.id} informe={i} actual={publicado} enElMapa={i.id === vistaId} guardado={inf.guardado[i.id]} ocupado={ocupado} acciones={{
                   editar: () => editar(i), verEnMapa: () => { setVista("mapa"); setVistaId(i.id); }, publicar: () => publicarInforme(i),
-                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), bajarDocx: () => bajarDocx(i), bajarRtf: () => bajarRtf(i), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
+                  verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), bajarDocx: () => bajarDocx(i), bajarRtf: () => bajarRtf(i), bajarDocxViejo: () => bajarDocx(i, true), bajarRtfViejo: () => bajarRtf(i, true), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
                   enviar: () => enviarPorCorreo(i), destinatarios: editarDestinatarios, duplicar: () => duplicar(i), borrar: () => borrarInforme(i),
                 }} />)}
               </ul>

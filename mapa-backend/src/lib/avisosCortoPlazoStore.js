@@ -52,6 +52,9 @@ async function init() {
     // 'alerta' (cruce con la alerta vigente) o NULL (sin alerta: violeta). Para estadísticas.
     .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS nivel_placa text`))
     .then(() => p.query(`ALTER TABLE avisos_corto_plazo ADD COLUMN IF NOT EXISTS nivel_origen text`))
+    // Los avisos publicados directo en el mapa público, sin armar la placa de redes, no tienen imágenes.
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ALTER COLUMN feed_path DROP NOT NULL`))
+    .then(() => p.query(`ALTER TABLE avisos_corto_plazo ALTER COLUMN historias_path DROP NOT NULL`))
     .then(() => console.log("[avisosCortoPlazoStore] Postgres listo (tabla avisos_corto_plazo)"))
     .catch((e) => {
       initPromise = null;
@@ -151,8 +154,8 @@ function filaAAviso(r) {
     smnId: r.smn_id ?? null,
     nivelSmn: r.nivel ?? null,
     generadoPorEmail: r.generado_por_email,
-    feedUrl: urlPublica(r.feed_path),
-    historiasUrl: urlPublica(r.historias_path),
+    feedUrl: r.feed_path ? urlPublica(r.feed_path) : null,
+    historiasUrl: r.historias_path ? urlPublica(r.historias_path) : null,
   };
 }
 
@@ -183,7 +186,32 @@ async function publicar(id, vigenteHasta) {
     [id, new Date(vigenteHasta)]
   );
   if (!rows.length) throw Object.assign(new Error("No existe ese aviso."), { status: 404 });
+  // Un solo aviso vigente por aviso del SMN: si antes se publicó sin placa (o con otra), este lo reemplaza.
+  if (rows[0].smn_id) await p.query(`UPDATE avisos_corto_plazo SET vigente_hasta = now() WHERE smn_id = $1 AND id <> $2 AND vigente_hasta > now()`, [rows[0].smn_id, id]);
   return filaAAviso(rows[0]);
+}
+
+/**
+ * Publica en el mapa público un aviso del SMN (o un área dibujada a mano) tal cual, sin armar la placa de redes. Si ese aviso ya está vigente
+ * en el mapa, sólo le cambia la vigencia.
+ */
+async function publicarDirecto({ poligono, titulo, texto, partes = null, smnId = null, nivel = null, vigenteHasta, usuarioId = null }) {
+  const error = errorDeVigencia(vigenteHasta);
+  if (error) throw Object.assign(new Error(error), { status: 400 });
+  await init();
+  const p = store.getPool();
+  if (!p) throw Object.assign(new Error("No hay base de datos disponible para publicar."), { status: 503 });
+  // `smnId` null = área dibujada a mano: siempre es un aviso nuevo.
+  const vigente = smnId && await p.query(`SELECT id FROM avisos_corto_plazo WHERE smn_id = $1 AND publicado_en IS NOT NULL AND vigente_hasta > now() ORDER BY publicado_en DESC LIMIT 1`, [smnId]);
+  if (vigente?.rowCount) return publicar(Number(vigente.rows[0].id), vigenteHasta);
+  const { rows } = await p.query(
+    `INSERT INTO avisos_corto_plazo (generado_por, titulo, texto, fondo, poligono, smn_id, nivel, partes)
+     VALUES ($1,$2,$3,'tormenta',$4::jsonb,$5,$6,$7::jsonb) RETURNING id`,
+    [usuarioId, titulo, texto, JSON.stringify(poligono), smnId, nivel, partes && JSON.stringify(partes)]
+  );
+  const acp = smnId && /^(.+):(\d+):\d+$/.exec(smnId);
+  if (acp) await notificaciones.resolver(`acp:${acp[1]}:${acp[2]}`, usuarioId).catch((e) => console.error("[notificaciones]", e.message));
+  return publicar(Number(rows[0].id), vigenteHasta);
 }
 
 /** Lo saca del mapa público ya, sin esperar a que venza. */
@@ -215,4 +243,4 @@ async function obtenerVigentes() {
   return rows.map(filaAAviso);
 }
 
-module.exports = { init, crear, obtenerHistorial, publicar, despublicar, obtenerVigentes, errorDeVigencia, MAX_VIGENCIA_HORAS, yaAtendidoDelSmn };
+module.exports = { init, crear, obtenerHistorial, publicar, publicarDirecto, despublicar, obtenerVigentes, errorDeVigencia, MAX_VIGENCIA_HORAS, yaAtendidoDelSmn };

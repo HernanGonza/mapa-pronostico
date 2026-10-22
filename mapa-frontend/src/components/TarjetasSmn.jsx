@@ -1,6 +1,7 @@
 /**
  * Lo que mandó el SMN y todavía se puede usar, a la vista y en grande, como tarjetas chicas para elegir sobre cuál se trabaja
  * (avisos a muy corto plazo y alertas meteorológicas). `items`: [{ id, color, titulo, detalle, lineas?, etiqueta?, textoBoton, insignia? }].
+ * `accion2`: { texto, alHacer, publicado }: segundo botón (ej.: «Publicar en mapa público»), aparte del principal.
  * `insignia`: cartel grande (ej.: «Ya publicada · #4»): la tarjeta queda como constancia y el botón lleva a lo publicado en vez de armar otra.
  */
 export default function TarjetasSmn({ titulo, vacio, items, onElegir, ocupado = false }) {
@@ -18,7 +19,10 @@ export default function TarjetasSmn({ titulo, vacio, items, onElegir, ocupado = 
           {it.aviso && <small className="smn-tarjeta__aviso" role="note">⚠ {it.aviso}</small>}
           {it.etiqueta && <small className="smn-tarjeta__etiqueta">{it.etiqueta}</small>}
         </div>
-        {!it.apagada && <button type="button" className={`btn ${it.insignia ? "" : "btn--primary"}`} disabled={ocupado} onClick={() => onElegir(it.id)}>{it.textoBoton || "Usar"}</button>}
+        {!it.apagada && <div className="smn-tarjeta__botones">
+          <button type="button" className={`btn ${it.insignia || it.accion2 ? "" : "btn--primary"}`} disabled={ocupado} onClick={() => onElegir(it.id)}>{it.textoBoton || "Usar"}</button>
+          {it.accion2 && <button type="button" className={`btn ${it.accion2.publicado ? "" : "btn--primary"}`} disabled={ocupado} onClick={it.accion2.alHacer}>{it.accion2.texto}</button>}
+        </div>}
       </li>)}
     </ul>
   </section>;

@@ -417,6 +417,12 @@ export async function publicarAvisoCortoPlazo(id, vigenteHasta) {
     body: JSON.stringify({ vigenteHasta }), ...CON_SESION,
   }));
 }
+/** Publica un aviso del SMN en el mapa público sin armar la placa de redes. payload: { smnId, poligono, partes, vigenteHasta }. */
+export async function publicarAvisoSmnDirecto(payload) {
+  return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/publicar-smn`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), ...CON_SESION,
+  }));
+}
 export async function despublicarAvisoCortoPlazo(id) {
   return handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/${id}/despublicar`, { method: "POST", ...CON_SESION }));
 }

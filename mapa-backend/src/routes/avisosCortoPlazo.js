@@ -72,6 +72,26 @@ router.get("/avisos-corto-plazo/historial", requireAuth, async (req, res) => {
   }
 });
 
+// Publica un aviso del SMN (o un área dibujada a mano, sin smnId) en el mapa público tal cual, sin armar la placa de redes (que es aparte).
+// body: { smnId?, poligono, texto, partes?, vigenteHasta }
+router.post("/avisos-corto-plazo/publicar-smn", requireAuth, express.json({ limit: "256kb" }), async (req, res) => {
+  const { poligono, vigenteHasta } = req.body || {};
+  const smnId = typeof req.body?.smnId === "string" && req.body.smnId.length <= 300 ? req.body.smnId : null;
+  const partesError = req.body?.partes != null ? errorDePartes(req.body.partes) : null;
+  const partes = req.body?.partes != null && !partesError ? normalizarPartes(req.body.partes) : null;
+  const texto = partes ? textoDePartes(partes) : String(req.body?.texto || "").trim();
+  const error = partesError || errorDePoligono(poligono) || (!texto || texto.length > 2000 ? "El texto del aviso no es válido." : null);
+  if (error) return res.status(400).json({ error });
+  try {
+    const nivel = smnId ? await nivelDelSmn(smnId) : null;
+    res.json(await avisos.publicarDirecto({ poligono: normalizarPoligono(poligono), titulo: TITULO, texto, partes, smnId, nivel, vigenteHasta, usuarioId: req.usuario.usuarioId }));
+  } catch (e) {
+    if (!e.status) console.error(e);
+    const status = [400, 404, 503].includes(e.status) ? e.status : 500;
+    res.status(status).json({ error: status === 500 ? "No se pudo publicar el aviso." : e.message });
+  }
+});
+
 // Publica un aviso ya generado en el mapa público (/embed/avisos-corto-plazo)
 // hasta `vigenteHasta` (ISO): pasada esa hora deja de mostrarse solo.
 router.post("/avisos-corto-plazo/:id/publicar", requireAuth, express.json(), async (req, res) => {

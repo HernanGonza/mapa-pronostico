@@ -29,13 +29,15 @@ export async function exportarImagenPdf(imagen, titulo) {
   pdf.save(`${nombreSeguro(titulo)}.pdf`);
 }
 
-export async function exportarTablaPdf({ titulo, columnas, filas, nombre }) {
+/** `subtitulo` (opcional): una línea bajo el título, por ejemplo el período con horas. */
+export async function exportarTablaPdf({ titulo, subtitulo, columnas, filas, nombre }) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   pdf.setFontSize(13);
   pdf.text(titulo, 10, 13);
+  if (subtitulo) { pdf.setFontSize(10.5); pdf.text(subtitulo, 10, 19); }
   autoTable(pdf, {
-    head: [columnas], body: filas, startY: 18,
+    head: [columnas], body: filas, startY: subtitulo ? 24 : 18,
     styles: { fontSize: 7, cellPadding: 1.6, overflow: 'linebreak' },
     headStyles: { fillColor: [38, 83, 67] },
     margin: { left: 9, right: 9 },
