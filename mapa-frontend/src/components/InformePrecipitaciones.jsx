@@ -14,7 +14,7 @@ import { REDES_LARGO, SUPER, coma, ddmm, ddmmaaaa, fechasEntre, hoy, indexar, me
 const sumarDias = (f, n) => new Date(Date.parse(`${f}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 const signo = (n) => (n == null ? "—" : `${n > 0 ? "+" : ""}${coma(n)}`);
 
-export default function InformePrecipitaciones({ abierto, alCerrar }) {
+export default function InformePrecipitaciones({ abierto, alCerrar, alCambiarRegistro }) {
   const [hasta, setHasta] = useState(() => sumarDias(hoy(), -1)), [desde, setDesde] = useState(() => sumarDias(hoy(), -1));
   const [datos, setDatos] = useState(null), [error, setError] = useState("");
   const [elegidas, setElegidas] = useState(null); // Set de ids; null = todavía no se tocó (valen las que tienen datos)
@@ -57,7 +57,7 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
       filas: filas.filter((f) => f.periodo != null).map((f) => ({ nombre: f.nombre, nota: f.red, periodo: String(f.periodo), mes: f.mes == null ? "" : String(f.mes), media: f.media == null ? "" : String(f.media), anomalia: "" })),
     },
     vistaPrevia: (v) => api.generarPlacaPrecipitaciones(v, { vistaPrevia: true }),
-    guardar: async (v, token) => { const g = await api.generarPlacaPrecipitaciones(v, { confirmarToken: token }); setPlaca({ ...g, periodo: v.periodo }); return g; },
+    guardar: async (v, token) => { const g = await api.generarPlacaPrecipitaciones(v, { confirmarToken: token }); setPlaca({ ...g, periodo: v.periodo }); alCambiarRegistro?.(); return g; },
   });
   async function excel() {
     setBajando(true); setError("");
@@ -124,7 +124,7 @@ export default function InformePrecipitaciones({ abierto, alCerrar }) {
 
         {placa && <div className="prec-informe__placa">
           <h2>Placa</h2>
-          <PublicarEnRedes unaVez className="prec-btn prec-btn--primario" feedUrl={placa.feedUrl} historiasUrl={placa.historiasUrl} epigrafe={`Monitoreo de precipitaciones · ${placa.periodo}\n\nDatos recopilados por la Dirección General de Alerta Temprana.`} />
+          <PublicarEnRedes unaVez className="prec-btn prec-btn--primario" alTerminar={alCambiarRegistro} feedUrl={placa.feedUrl} historiasUrl={placa.historiasUrl} epigrafe={`Monitoreo de precipitaciones · ${placa.periodo}\n\nDatos recopilados por la Dirección General de Alerta Temprana.`} />
           <div className="placa-preview-grid">{[["feed", "Feed"], ["historias", "Historias"]].map(([f, n]) => <figure key={f}>
             <a className="btn" href={`${placa[`${f}Url`]}?download=${encodeURIComponent(placa[`${f}Nombre`])}`}>Descargar {f}</a>
             <img src={placa[`${f}Url`]} alt={`Placa de precipitaciones, ${n}`} /><figcaption>{n}</figcaption></figure>)}</div>

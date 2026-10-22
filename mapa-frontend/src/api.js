@@ -447,6 +447,10 @@ export async function generarPlacaPrecipitaciones({ subtitulo, periodo, fondo, f
   const res = await fetch(`${API_URL}/api/placas-precipitaciones/generar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subtitulo, periodo, fondo, filas, ...(confirmarToken ? { confirmarToken } : vistaPrevia ? { vistaPrevia: true } : {}) }), ...CON_SESION });
   return handleJson(res);
 }
+/** Placas de precipitaciones ya generadas (las más nuevas primero): [{ id, generadoEn, periodo, subtitulo, generadoPorEmail, feedUrl, historiasUrl }]. */
+export async function getHistorialPlacasPrecipitaciones() {
+  return (await handleJson(await fetch(`${API_URL}/api/placas-precipitaciones/historial`, { cache: "no-store", ...CON_SESION }))).historial;
+}
 /** Avisos publicados y todavía vigentes (público, lo usa el iframe). [] = ninguno. */
 export async function getAvisosCortoPlazoVigentes() {
   const reales = (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;

@@ -7,10 +7,12 @@ import PlanillaPrecipitaciones from "../components/PlanillaPrecipitaciones";
 import EstacionesPrecipitaciones from "../components/EstacionesPrecipitaciones";
 import ImportarPrecipitaciones from "../components/ImportarPrecipitaciones";
 import InformePrecipitaciones from "../components/InformePrecipitaciones";
+import RegistroInformesPrecipitaciones from "../components/RegistroInformesPrecipitaciones";
 import Modal from "../components/Modal";
 import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
 import { AR, MESES, REDES, ddmmaaaa, hoy, indexar, leerNumero, mesAnterior, mesDe, mesSiguiente, normal, primerDia, ultimoDia } from "../lib/precipitacionesCalculo";
+import "./ensamble.css"; // la barra lateral plegable (.ens-lateral*) es la misma del pronóstico
 import "./precipitaciones.css";
 
 /**
@@ -29,6 +31,9 @@ export default function TablaPrecipitacionesPage() {
   const [guardando, setGuardando] = useState(false), [bajando, setBajando] = useState(false);
   const [params, setParams] = useSearchParams();
   const [informe, setInforme] = useState(() => params.get("informe") === "1"), [compartir, setCompartir] = useState(false);
+  const [lateralCerrado, setLateralCerrado] = useState(() => { try { return localStorage.getItem("precipitaciones-lateral") === "cerrado"; } catch { return false; } });
+  const alternarLateral = () => setLateralCerrado((c) => { const n = !c; try { localStorage.setItem("precipitaciones-lateral", n ? "cerrado" : "abierto"); } catch { /* sin almacenamiento */ } return n; });
+  const [versionRegistro, setVersionRegistro] = useState(0); // sube cuando se emite o publica un informe, para refrescar la barra
   const [estado, setEstado] = useState(null), [publicando, setPublicando] = useState(false); // última publicación y cambios sin publicar
 
   const cargarEstado = useCallback(() => api.getEstadoPublicacionPrecipitaciones().then(setEstado).catch(() => {}), []);
@@ -98,9 +103,16 @@ export default function TablaPrecipitacionesPage() {
   }
   const anios = useMemo(() => { const a = mesDe(hoy()).anio; return Array.from({ length: 8 }, (_, i) => a + 1 - i); }, []);
 
-  return <div className="admin-layout admin-layout--sin-mapa prec-admin">
+  return <div className={`admin-layout ens-layout prec-admin${lateralCerrado ? " ens-layout--sin-lateral" : ""}`}>
     <BrandHeader subtitulo="Monitoreo de lluvias"><VolverConfiguracion /></BrandHeader>
-    <section className="admin-panel" id="contenido-principal" tabIndex={-1}>
+    <aside className={`admin-panel ens-lateral${lateralCerrado ? " ens-lateral--cerrada" : ""}`} aria-label="Informes emitidos">
+      <button type="button" className="ens-lateral-toggle" aria-expanded={!lateralCerrado} aria-controls="prec-lateral-contenido" onClick={alternarLateral}
+        title={lateralCerrado ? "Mostrar los informes emitidos" : "Ocultar los informes para ver la planilla más grande"}>
+        <span aria-hidden="true">{lateralCerrado ? "»" : "«"}</span><span className="ens-lateral-rotulo">{lateralCerrado ? "Informes emitidos" : "Ocultar"}</span>
+      </button>
+      <div id="prec-lateral-contenido" className="ens-lateral-contenido" hidden={lateralCerrado}><RegistroInformesPrecipitaciones version={versionRegistro} /></div>
+    </aside>
+    <section className="admin-map-area prec-principal" id="contenido-principal" tabIndex={-1}>
       <div className="prec-cab">
         <div><h1>Monitoreo de lluvias</h1>
           <p>Reemplaza al Excel: cargá la lluvia de cada día por estación (o pegá desde Excel) y los totales, la media y la anomalía se calculan solos. Lo cargado es un borrador: la tabla y el mapa de la página cambian recién cuando tocás «Publicar».</p></div>
@@ -154,6 +166,6 @@ export default function TablaPrecipitacionesPage() {
       <EmbedShare path="/embed/precipitaciones" title="Precipitaciones · Misiones" kind="historico" height={720} heading="Tabla" hint="La planilla por mes y el resumen de un período, con búsqueda y filtros." linkLabel="Enlace a la tabla pública" openLabel="Abrir la tabla ↗" />
       <EmbedShare path="/embed/precipitaciones-mapa" title="Mapa de precipitaciones · Misiones" kind="mapa" height={640} heading="Mapa" hint="Las estaciones con ubicación; al tocar una se ven sus últimos 10 días." linkLabel="Enlace al mapa" openLabel="Abrir el mapa ↗" />
     </Modal>
-    <InformePrecipitaciones abierto={informe} alCerrar={() => abrirInforme(false)} />
+    <InformePrecipitaciones abierto={informe} alCerrar={() => abrirInforme(false)} alCambiarRegistro={() => setVersionRegistro((v) => v + 1)} />
   </div>;
 }
