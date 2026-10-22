@@ -264,7 +264,7 @@ function useVistaCarga() {
 }
 
 /** `elegir`: muestra la pantalla de los 5 botones (informe nuevo); `informe`: el que se está armando. */
-export default function InformePlantilla({ informe, elegir, alElegir, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, alGuardar: guardarSinPreguntar, guardando, alCambiarTipo, alNuevo = null }) {
+export default function InformePlantilla({ informe, elegir, alElegir, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, alGuardar: guardarSinPreguntar, guardando, alCambiarTipo, alNuevo = null, alCancelar = null }) {
   const alGuardar = async () => {
     if (await confirmar({ titulo: "¿Guardar el informe?", texto: "Se crea la tarjeta en la pila de informes. Después lo podés seguir editando.", confirmar: "Guardar" })) guardarSinPreguntar();
   };
@@ -279,7 +279,7 @@ export default function InformePlantilla({ informe, elegir, alElegir, abierto, o
 
   if (elegir || !b) {
     return <aside id="ens-cajon" className={clases} aria-label="Informe de pronóstico" {...inerte}>
-      <header className="ens-cajon-cab"><div><h2>Informe nuevo</h2><p>¿Cuál vas a armar?</p></div><div className="ens-cajon-acciones"><button type="button" className="btn-link" onClick={onCerrar}>Ocultar</button></div></header>
+      <header className="ens-cajon-cab"><div><h2>Informe nuevo</h2><p>¿Cuál vas a armar?</p></div><div className="ens-cajon-acciones">{alCancelar && <button type="button" className="btn-link" onClick={alCancelar}>Cancelar</button>}<button type="button" className="btn-link" onClick={onCerrar}>Ocultar</button></div></header>
       <div className="ens-cajon-cuerpo" ref={cuerpo}><div className="paso"><h3 className="ens-cajon-titulo">Tipo de informe</h3><Elegir alElegir={alElegir} /></div></div>
     </aside>;
   }
@@ -306,7 +306,7 @@ export default function InformePlantilla({ informe, elegir, alElegir, abierto, o
   return <aside id="ens-cajon" className={clases} aria-label="Informe de pronóstico" {...inerte}>
     <header className="ens-cajon-cab">
       <div><h2>{esNuevo ? "Informe nuevo" : `Informe #${informe.id}`} · {nombreDeBoton(b.boton)}</h2><p className={!esNuevo && guardado?.estado === "error" ? "pron-guardado--error" : undefined} role="status">{fechaDia(b.dias[0].fecha)} · {textoGuardado}</p></div>
-      <div className="ens-cajon-acciones">{esNuevo && <button type="button" className="btn-link" onClick={alCambiarTipo}>Cambiar tipo</button>}{alNuevo && !esNuevo && <button type="button" className="btn-link" onClick={alNuevo}>Informe nuevo</button>}<button type="button" className="btn-link" onClick={vaciar}>Vaciar</button><button type="button" className="btn-link" onClick={onCerrar}>Ocultar</button></div>
+      <div className="ens-cajon-acciones">{esNuevo && <button type="button" className="btn-link" onClick={alCambiarTipo}>Cambiar tipo</button>}{alNuevo && !esNuevo && <button type="button" className="btn-link" onClick={alNuevo}>Informe nuevo</button>}{alCancelar && <button type="button" className="btn-link" onClick={alCancelar}>Cancelar</button>}<button type="button" className="btn-link" onClick={vaciar}>Vaciar</button><button type="button" className="btn-link" onClick={onCerrar}>Ocultar</button></div>
     </header>
     <div className="ens-cajon-cuerpo" ref={cuerpo}>
       <div className="paso-cabecera"><div className="paso-barra" role="progressbar" aria-label="Progreso" aria-valuemin={0} aria-valuemax={pasos.length} aria-valuenow={paso + 1}><i style={{ "--desde": `${(paso / pasos.length) * 100}%`, "--p": `${((paso + 1) / pasos.length) * 100}%` }} /></div>

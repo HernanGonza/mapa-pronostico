@@ -267,3 +267,15 @@
 .ens-cercania-mejor { background: color-mix(in srgb, var(--verde-600, #237346) 10%, transparent); }
 .ens-barra { display: inline-block; width: 120px; height: 8px; background: var(--surface-3); border-radius: 4px; vertical-align: middle; margin-right: 8px; overflow: hidden; }
 .ens-barra i { display: block; height: 100%; background: var(--c); border-radius: 4px; }
+
+/* Pestaña pegada al borde derecho para volver a abrir el informe de pronóstico que quedó en marcha con el cajón oculto. */
+.pron-pestana { position: fixed; z-index: 39; right: 0; top: 50%; transform: translateY(-50%); display: inline-flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 7px; font: inherit; font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--accent, #872338); border: 0; border-radius: 10px 0 0 10px; box-shadow: -4px 0 14px rgba(0, 0, 0, 0.18); cursor: pointer; }
+.pron-pestana:hover { filter: brightness(1.1); }
+.pron-pestana:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 2px; }
+.pron-pestana-rotulo { writing-mode: vertical-rl; letter-spacing: 0.04em; }
+
+/* Ensamble en un cajón a la izquierda (sobre las tarjetas): los 2/3 que deja libres el cajón del informe, que ocupa 1/3 a la derecha. */
+.ens-cajon-izq { position: fixed; z-index: 39; top: var(--header-h, 72px); left: 0; bottom: 0; width: min(66.66vw, calc(100vw - 440px)); display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border-strong); box-shadow: 14px 0 36px rgba(0, 0, 0, 0.16); transform: translateX(-104%); visibility: hidden; transition: transform 0.28s var(--ease-out, ease), visibility 0s linear 0.28s; }
+.ens-cajon-izq--abierto { transform: none; visibility: visible; transition: transform 0.28s var(--ease-out, ease); }
+.ens-cajon-izq-visor { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--bg); }
+@media (max-width: 760px) { .ens-cajon-izq { width: 100vw; } }

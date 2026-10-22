@@ -1892,7 +1892,7 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
 
 /* El cajón del informe del día es ancho (casi 3/4 de la pantalla, hasta 1100 px): hay mucho para cargar. Lo de adentro se acomoda al ancho del
    propio cajón (container queries), no al de la ventana, así se ve bien en cualquier pantalla. */
-.ens-cajon.ens-cajon--ancho { --ancho-cajon: clamp(560px, 72vw, 1100px); }
+.ens-cajon.ens-cajon--ancho { --ancho-cajon: max(440px, 33.34vw); } /* un tercio de la pantalla, para ver el ensamble o el mapa al lado */
 .ens-cajon.ens-cajon--ancho .ens-cajon-cuerpo { padding: 18px clamp(14px, 2.5vw, 32px) 28px; container-type: inline-size; container-name: cajon; }
 .ens-cajon.ens-cajon--ancho .pron-localidades { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
 .ens-cajon.ens-cajon--ancho .ens-grilla-informe { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }

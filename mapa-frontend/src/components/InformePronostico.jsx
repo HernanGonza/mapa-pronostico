@@ -306,7 +306,7 @@ const PASOS_BASE = [
 ];
 
 /** El cajón: se abre y se oculta; lo escrito se guarda solo en el servidor (cada informe es una tarjeta). */
-export default function InformePronostico({ informe, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, publicado, alPublicar, alGuardar, guardando, modelos = null, alNuevo = null, verTodos = null }) {
+export default function InformePronostico({ informe, abierto, onCerrar, paso, setPaso, setCampo, reemplazar, guardado, publicado, alPublicar, alGuardar, guardando, modelos = null, alNuevo = null, verTodos = null, alCancelar = null }) {
   const PASOS = useMemo(() => (modelos ? [PASOS_BASE[0], PASO_MODELOS, ...PASOS_BASE.slice(1)] : PASOS_BASE), [!!modelos]); // eslint-disable-line react-hooks/exhaustive-deps
   const b = informe?.borrador;
   const cuerpo = useRef(null);
@@ -335,7 +335,7 @@ export default function InformePronostico({ informe, abierto, onCerrar, paso, se
   return <aside id="ens-cajon" className={`ens-cajon ens-cajon--ancho${abierto ? " ens-cajon--abierto" : ""}`} aria-label="Informe de pronóstico" {...(abierto ? {} : { inert: "" })}>
     <header className="ens-cajon-cab">
       <div><h2>{esNuevo ? "Informe nuevo" : `Informe #${informe.id}`} · {encabezadoDia(b.fecha)}</h2><p className={!esNuevo && guardado?.estado === "error" ? "pron-guardado--error" : undefined} role="status">{textoGuardado}</p></div>
-      <div className="ens-cajon-acciones">{alNuevo && !esNuevo && <button type="button" className="btn-link" onClick={alNuevo}>Informe nuevo</button>}{verTodos}<button type="button" className="btn-link" onClick={empezarDeNuevo}>Vaciar</button><button type="button" className="btn btn--ghost" onClick={onCerrar}>Ocultar <Icono icono={ChevronRight} size={16} /></button></div>
+      <div className="ens-cajon-acciones">{alNuevo && !esNuevo && <button type="button" className="btn-link" onClick={alNuevo}>Informe nuevo</button>}{verTodos}{alCancelar && <button type="button" className="btn-link" onClick={alCancelar}>Cancelar</button>}<button type="button" className="btn-link" onClick={empezarDeNuevo}>Vaciar</button><button type="button" className="btn btn--ghost" onClick={onCerrar}>Ocultar <Icono icono={ChevronRight} size={16} /></button></div>
     </header>
     <div className="ens-cajon-cuerpo" ref={cuerpo}>
       <div className="paso-cabecera"><div className="paso-barra" role="progressbar" aria-label="Progreso" aria-valuemin={0} aria-valuemax={PASOS.length} aria-valuenow={paso + 1}><i style={{ "--desde": `${(paso / PASOS.length) * 100}%`, "--p": `${((paso + 1) / PASOS.length) * 100}%` }} /></div>
