@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import PublicarEnRedes from "./PublicarEnRedes";
 import * as api from "../api";
+import { confirmar } from "../lib/ui";
 import { AR } from "../lib/precipitacionesCalculo";
 
 /**
@@ -43,7 +44,7 @@ export default function RegistroInformesPrecipitaciones({ version = 0 }) {
   }, []);
   useEffect(() => { cargar(); }, [cargar, version]);
   async function borrar(p) {
-    if (!window.confirm(`¿Borrar definitivamente el informe «${p.periodo}»? Se eliminan sus placas y no se puede deshacer. Lo ya publicado en redes no se toca.`)) return;
+    if (!(await confirmar({ titulo: `¿Borrar el informe «${p.periodo}»?`, texto: "Se eliminan definitivamente sus placas y no se puede deshacer. Lo ya publicado en redes no se toca.", confirmar: "Borrar", peligro: true }))) return;
     try { await api.borrarPlacaPrecipitaciones(p.id); await cargar(); } catch (e) { setError(e.message); }
   }
 
