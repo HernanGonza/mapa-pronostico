@@ -33,4 +33,14 @@ router.get("/placas-precipitaciones/historial", requireAuth, async (req, res) =>
   catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
 });
 
+// Borra el informe del todo (fila + imágenes). No se puede deshacer; no toca lo ya publicado en redes.
+router.delete("/placas-precipitaciones/:id", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Id inválido." });
+  try {
+    if (!(await placas.eliminar(id))) return res.status(404).json({ error: "Ese informe ya no existe." });
+    res.json({ ok: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: "No se pudo borrar el informe." }); }
+});
+
 module.exports = router;

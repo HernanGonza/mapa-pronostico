@@ -451,6 +451,10 @@ export async function generarPlacaPrecipitaciones({ subtitulo, periodo, fondo, f
 export async function getHistorialPlacasPrecipitaciones() {
   return (await handleJson(await fetch(`${API_URL}/api/placas-precipitaciones/historial`, { cache: "no-store", ...CON_SESION }))).historial;
 }
+/** Borra del todo una placa de precipitaciones del registro (no la saca de las redes). */
+export async function borrarPlacaPrecipitaciones(id) {
+  return handleJson(await fetch(`${API_URL}/api/placas-precipitaciones/${id}`, { method: "DELETE", ...CON_SESION }));
+}
 /** Avisos publicados y todavía vigentes (público, lo usa el iframe). [] = ninguno. */
 export async function getAvisosCortoPlazoVigentes() {
   const reales = (await handleJson(await fetch(`${API_URL}/api/avisos-corto-plazo/vigentes`, { cache: "no-store" }))).avisos;

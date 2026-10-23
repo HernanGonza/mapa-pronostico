@@ -5,6 +5,8 @@
 .prec-btn:focus-visible, .prec-pestana:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 2px; }
 .prec-btn--primario { background: var(--accent, #872338); border-color: transparent; color: var(--accent-contrast, #fff); }
 .prec-btn--primario:hover:not(:disabled) { background: var(--accent, #872338); filter: brightness(1.1); }
+.prec-btn--peligro { color: #a12b2b; border-color: currentColor; margin-left: auto; }
+.prec-btn--peligro:hover:not(:disabled) { background: #a12b2b; color: #fff; }
 .prec-ayuda { margin: 6px 0; font-size: 0.8rem; color: var(--text-muted); }
 .prec-vacio { padding: 28px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; color: var(--text-muted); }
 .prec-ok { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, #237346 14%, transparent); border: 1px solid color-mix(in srgb, #237346 40%, transparent); }

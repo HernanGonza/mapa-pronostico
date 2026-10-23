@@ -52,6 +52,17 @@ async function subirArchivo(ruta, buffer, contentType = "image/png") {
   }
 }
 
+/** Borra archivos del bucket (rutas relativas a él). */
+async function borrarArchivos(rutas) {
+  if (!habilitado()) throw new Error("Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY");
+  const res = await fetch(`${baseInterna()}/storage/v1/object/${BUCKET}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${serviceKey()}`, apikey: serviceKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: rutas }),
+  });
+  if (!res.ok) throw new Error(`Storage respondió ${res.status}: ${await res.text().catch(() => "")}`);
+}
+
 /** URL pública de un objeto (el bucket se crea como público). */
 function urlPublica(ruta) {
   return `${base()}/storage/v1/object/public/${BUCKET}/${ruta}`;
@@ -63,4 +74,4 @@ function urlParaLeer(url) {
   return publica && interna !== publica && url.startsWith(`${publica}/`) ? interna + url.slice(publica.length) : url;
 }
 
-module.exports = { subirArchivo, urlPublica, urlParaLeer, habilitado, BUCKET };
+module.exports = { subirArchivo, borrarArchivos, urlPublica, urlParaLeer, habilitado, BUCKET };

@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const store = require("./store");
 const auth = require("./auth");
-const { subirArchivo, urlPublica } = require("./storage");
+const { subirArchivo, borrarArchivos, urlPublica } = require("./storage");
 
 /**
  * Historial de las placas «Monitoreo de precipitaciones» (ver generatePlacaPrecipitaciones). Una fila por placa
@@ -64,4 +64,14 @@ async function obtenerHistorial(limite = 20) {
   return rows.map((r) => ({ id: Number(r.id), generadoEn: r.generado_en.toISOString(), subtitulo: r.subtitulo, periodo: r.periodo, fondo: r.fondo, filas: r.filas, generadoPorEmail: r.generado_por_email, feedUrl: urlPublica(r.feed_path), historiasUrl: urlPublica(r.historias_path) }));
 }
 
-module.exports = { init, crear, obtenerHistorial };
+/** Borra la placa del todo: la fila y sus dos imágenes del bucket. Devuelve false si ya no existía. */
+async function eliminar(id) {
+  if (!store.usaPostgres()) return false;
+  await init();
+  const { rows } = await store.getPool().query("DELETE FROM placas_precipitaciones WHERE id = $1 RETURNING feed_path, historias_path", [id]);
+  if (!rows.length) return false;
+  await borrarArchivos([rows[0].feed_path, rows[0].historias_path]).catch((e) => console.error("[placasPrecipitacionesStore] no se pudieron borrar las imágenes:", e.message));
+  return true;
+}
+
+module.exports = { init, crear, obtenerHistorial, eliminar };
