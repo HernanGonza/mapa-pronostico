@@ -1,16 +1,19 @@
 const store = require("./ensambleStore");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
 const { bajarYr } = require("./yrNo");
 const bam = require("./inpeBam");
 const eta = require("./inpeEta");
 const observaciones = require("./observaciones");
 const { bajarPronosticoSmn } = require("./smnPronostico");
 const { wrfCompleto, corridaVigente } = require("./wrfSmn");
+const execFileAsync = promisify(execFile);
 
 /**
  * Descarga programada de los modelos del ensamble. Cada 10 minutos se mira si algún modelo tiene una corrida nueva y, si es así,
  * se baja y se guarda (ensambleStore.js): las consultas del ensamble leen de ahí y no salen a internet.
  *
- *   - Open-Meteo (ECMWF, GFS, ICON, GEM, ARPEGE, JMA GSM, UKMO, CMA GRAPES): Open-Meteo publica en `/data/<modelo>/static/meta.json` cuándo inició la última corrida, cuándo
+ *   - Open-Meteo (ECMWF, GFS, ICON, GEM, ARPEGE, JMA GSM, UKMO, CMA GRAPES, KMA, BOM): Open-Meteo publica en `/data/<modelo>/static/meta.json` cuándo inició la última corrida, cuándo
  *     quedó disponible y cada cuánto se actualiza. De ahí salen la corrida nueva y la próxima actualización. El meta del GEM está desactualizado
  *     en Open-Meteo: para ese se usa un horario fijo (corridas de 00 y 12 UTC, disponibles unas 5,5 h después; es una estimación).
  *   - WRF-SMN: 4 corridas por día (00/06/12/18 UTC). Se mira qué corrida completa hay en el bucket de AWS; cuando aparece una nueva se baja
@@ -27,9 +30,11 @@ const { wrfCompleto, corridaVigente } = require("./wrfSmn");
 const ART = "America/Argentina/Buenos_Aires";
 const HORA = 3600e3;
 const REVISION_MS = 10 * 60e3;
-const META_OM = { ecmwf_ifs025: "ecmwf_ifs025", gfs_seamless: "ncep_gfs025", icon_seamless: "dwd_icon", gem_seamless: "cmc_gem_gdps",
+const META_OM = { ecmwf_ifs025: "ecmwf_ifs025", gfs_seamless: "ncep_gfs025", icon_seamless: "dwd_icon", gem_seamless: "cmc_gem_gdps", kma_gdps: "kma_gdps", bom_access_global: "bom_access_global",
   meteofrance_arpege_world: "meteofrance_arpege_world025", jma_gsm: "jma_gsm", ukmo_global_deterministic_10km: "ukmo_global_deterministic_10km", cma_grapes_global: "cma_grapes_global" };
 const SLOTS_GEM_UTC = [5.5, 17.5];
+const SLOTS_WEATHERNEXT_UTC = [7, 19]; // Open-Meteo procesa las corridas 00/12 UTC cuando llegan (unas 7 h después).
+const WEATHERNEXT_VARIABLES = ["temperature_2m", "precipitation", "pressure_msl", "cloud_cover", "wind_speed_10m", "wind_direction_10m"];
 const INPE_DEMORA_MS = 9 * HORA; // el INPE publica la corrida de las 00 UTC entre 7,5 y 9 h después (hora del servidor, que está en UTC)
 // Cada cuánto se vuelven a bajar las referencias (minutos de vigencia de lo que ya se guardó).
 const REFERENCIAS_VIGENCIA_MS = { "obs-estaciones": 20 * 60e3, "obs-smn": 60 * 60e3, "smn-pron": 3 * HORA };
@@ -43,6 +48,19 @@ async function pedirJson(url, timeoutMs) {
   const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!r.ok) throw Object.assign(new Error(r.status === 429 ? "Open-Meteo: límite de consultas alcanzado (HTTP 429)." : `Open-Meteo: HTTP ${r.status}.`), { status: r.status });
   return r.json();
+}
+
+/** WeatherNext vive en el subdominio de la Ensemble API, al que este entorno no siempre llega con el fetch de Node. */
+async function pedirJsonEnsemble(url, timeoutMs) {
+  try { return await pedirJson(url, timeoutMs); } catch (fetchError) {
+    if (fetchError.status) throw fetchError;
+    const { stdout } = await execFileAsync("curl", ["-sS", "--max-time", String(Math.ceil(timeoutMs / 1000)), "-w", "\n%{http_code}", url], {
+      timeout: timeoutMs + 2000, maxBuffer: 10 * 1024 * 1024,
+    });
+    const corte = stdout.lastIndexOf("\n"), status = Number(stdout.slice(corte + 1)), cuerpo = stdout.slice(0, corte);
+    if (status < 200 || status >= 300) throw Object.assign(new Error(status === 429 ? "Open-Meteo Ensemble: límite de consultas alcanzado (HTTP 429)." : `Open-Meteo Ensemble: HTTP ${status}.`), { status });
+    try { return JSON.parse(cuerpo); } catch { throw new Error(`Open-Meteo Ensemble devolvió JSON inválido (fetch: ${fetchError.message}).`); }
+  }
 }
 
 /** Corrida más reciente de un modelo de Open-Meteo: { inicio, disponible, intervalo } en ms, o null si no se puede saber (o el meta está viejo). */
@@ -72,7 +90,7 @@ function crear(ctx) {
     const e = de(m.id), t0 = Date.now(), puntos = ctx.puntos();
     const hoy = diaART(Date.now());
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${puntos.map((c) => c.lat.toFixed(3)).join(",")}&longitude=${puntos.map((c) => c.lng.toFixed(3)).join(",")}`
-      + `&hourly=${ctx.horarias.join(",")}&models=${m.id}&timezone=${encodeURIComponent(ART)}&start_date=${sumarDias(hoy, -DIAS_ATRAS)}&end_date=${sumarDias(hoy, DIAS_ADELANTE)}`;
+      + `&hourly=${ctx.horarias.join(",")}&models=${m.modeloOM || m.id}&timezone=${encodeURIComponent(ART)}&start_date=${sumarDias(hoy, -DIAS_ATRAS)}&end_date=${sumarDias(hoy, DIAS_ADELANTE)}`;
     let data = null, ultimo = null;
     for (let intento = 0; intento < 3 && !data; intento++) {
       try { data = await pedirJson(url, 60000); } catch (err) { ultimo = err; if (err.status === 429) break; await new Promise((r) => setTimeout(r, 3000)); }
@@ -82,6 +100,24 @@ function crear(ctx) {
     if (pts.length !== puntos.length || !pts[0]?.hourly?.time) throw new Error("Open-Meteo devolvió una respuesta inesperada.");
     const horas = pts[0].hourly.time;
     const datos = { horas, puntos: pts.map((p) => { const { time, ...h } = p.hourly; return { hourly: h }; }) };
+    await store.guardar(m.id, { corrida: new Date(corrida).toISOString(), datos, duracionMs: Date.now() - t0 });
+    e.error = null;
+    console.log(`[ensamble] ${m.nombre}: corrida ${new Date(corrida).toISOString().slice(0, 13)}Z guardada (${Math.round((Date.now() - t0) / 1000)} s)`);
+  }
+
+  async function bajarWeatherNext(m, corrida) {
+    const e = de(m.id), t0 = Date.now(), puntos = ctx.puntos();
+    const url = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${puntos.map((c) => c.lat.toFixed(3)).join(",")}&longitude=${puntos.map((c) => c.lng.toFixed(3)).join(",")}`
+      + `&hourly=${WEATHERNEXT_VARIABLES.join(",")}&models=google_weathernext2_ensemble_mean&timezone=${encodeURIComponent(ART)}&past_days=${DIAS_ATRAS}&forecast_days=15`;
+    let data = null, ultimo = null;
+    for (let intento = 0; intento < 3 && !data; intento++) {
+      try { data = await pedirJsonEnsemble(url, 60000); } catch (err) { ultimo = err; if (err.status === 429) break; await new Promise((r) => setTimeout(r, 3000)); }
+    }
+    if (!data) throw ultimo || new Error("Open-Meteo Ensemble no respondió.");
+    const pts = Array.isArray(data) ? data : [data];
+    if (pts.length !== puntos.length || !pts[0]?.hourly?.time) throw new Error("Open-Meteo Ensemble devolvió una respuesta inesperada.");
+    const horas = pts[0].hourly.time;
+    const datos = { horas, puntos: pts.map((p) => { const { time, ...hourly } = p.hourly; return { hourly }; }) };
     await store.guardar(m.id, { corrida: new Date(corrida).toISOString(), datos, duracionMs: Date.now() - t0 });
     e.error = null;
     console.log(`[ensamble] ${m.nombre}: corrida ${new Date(corrida).toISOString().slice(0, 13)}Z guardada (${Math.round((Date.now() - t0) / 1000)} s)`);
@@ -146,6 +182,11 @@ function crear(ctx) {
         const ultima = guardado ? Date.parse(guardado.descargadoEn) : 0;
         e.proxima = ultima ? ultima + YR_VIGENCIA_MS : null;
         hayNueva = !guardado || Date.now() - ultima > YR_VIGENCIA_MS; corrida = Date.now();
+      } else if (m.fuente === "open-meteo-ensemble-mean") {
+        const h = horarios(SLOTS_WEATHERNEXT_UTC);
+        e.proxima = h.proximo;
+        hayNueva = !guardado || Date.parse(guardado.corrida) < h.ultimo - 7 * HORA;
+        corrida = h.ultimo - 7 * HORA;
       } else {
         const meta = META_OM[m.id] ? await metaDe(META_OM[m.id]) : null;
         if (meta) { e.proxima = meta.disponible + meta.intervalo; hayNueva = !guardado || Date.parse(guardado.corrida) < meta.inicio; corrida = meta.inicio; }
@@ -154,14 +195,14 @@ function crear(ctx) {
       }
       if (!hayNueva && !forzar) { e.error = null; return; }
       e.descargando = true; e.error = null;
-      if (m.fuente === "wrf") await bajarWrf(corrida); else if (m.fuente === "yr") await bajarYrNo(m); else if (m.fuente === "obs-estaciones") await bajarReferencia(m, observaciones.bajarEstaciones); else if (m.fuente === "obs-smn") await bajarReferencia(m, observaciones.bajarSmn); else if (m.fuente === "smn-pron") await bajarReferencia(m, bajarPronosticoSmn); else if (m.fuente === "inpe-bam") await bajarInpe(m, bam, bam.bajarBam); else if (m.fuente === "inpe-eta") await bajarInpe(m, eta, eta.bajarEta); else await bajarOpenMeteo(m, corrida);
+      if (m.fuente === "wrf") await bajarWrf(corrida); else if (m.fuente === "yr") await bajarYrNo(m); else if (m.fuente === "obs-estaciones") await bajarReferencia(m, observaciones.bajarEstaciones); else if (m.fuente === "obs-smn") await bajarReferencia(m, observaciones.bajarSmn); else if (m.fuente === "smn-pron") await bajarReferencia(m, bajarPronosticoSmn); else if (m.fuente === "inpe-bam") await bajarInpe(m, bam, bam.bajarBam); else if (m.fuente === "inpe-eta") await bajarInpe(m, eta, eta.bajarEta); else if (m.fuente === "open-meteo-ensemble-mean") await bajarWeatherNext(m, corrida); else await bajarOpenMeteo(m, corrida);
     } catch (err) {
       e.error = err.cause?.code ? `${err.message} (${err.cause.code})` : err.message;
       console.error(`[ensamble] ${m.nombre}:`, e.error);
     } finally { e.descargando = false; e.revisando = false; }
   }
 
-  const bajables = () => ctx.modelos.filter((m) => !m.deshabilitado && ["open-meteo", "wrf", "yr", "inpe-bam", "inpe-eta", ...Object.keys(REFERENCIAS_VIGENCIA_MS)].includes(m.fuente));
+  const bajables = () => ctx.modelos.filter((m) => !m.deshabilitado && ["open-meteo", "open-meteo-ensemble-mean", "wrf", "yr", "inpe-bam", "inpe-eta", ...Object.keys(REFERENCIAS_VIGENCIA_MS)].includes(m.fuente));
   const tick = (forzar = false) => Promise.all(bajables().map((m) => revisar(m, forzar)));
 
   let timer = null;

@@ -2,7 +2,7 @@
  * Ensamble multimodelo: lo que dice cada modelo numérico de pronóstico para el
  * centroide de cada uno de los 17 departamentos, lado a lado, más la media y cuánto discrepan.
  *
- * Fuente: Open-Meteo (datos horarios agregados al rango pedido), un solo pedido con los 17 centroides y los 4 modelos globales del documento
+ * Fuente: Open-Meteo (datos horarios agregados al rango pedido), incluyendo la media del ensamble Google WeatherNext 2, un solo pedido con los 17 centroides y los 4 modelos globales del documento
  * «Modelos Meteorológicos Aplicados a la Provincia de Misiones» (ensamble/). El WRF-SMN (el modelo
  * regional clave para tormentas, 72 h) no está en Open-Meteo: se suma aparte, desde el bucket
  * público `smn-ar-wrf` de AWS (ver wrfSmn.js). El yr.no (MET Norway, ver yrNo.js) y el BAM y el Eta 8 km del CPTEC/INPE (inpeBam.js, inpeEta.js) también van aparte, pero se guardan con la forma de Open-Meteo. El MONAN del CPTEC/INPE (3 km regional y 10 km global) también va aparte,
@@ -42,7 +42,7 @@ function puntosDelEnsamble() {
 }
 
 // Los modelos cuya descarga se guarda como series horarias con la forma de Open-Meteo (ver ensambleDescargas.js): Open-Meteo, yr.no y los del INPE.
-const FUENTES_HORARIAS = ["open-meteo", "yr", "inpe-bam", "inpe-eta", "obs-estaciones", "obs-smn", "smn-pron"];
+const FUENTES_HORARIAS = ["open-meteo", "open-meteo-ensemble-mean", "yr", "inpe-bam", "inpe-eta", "obs-estaciones", "obs-smn", "smn-pron"];
 const ES_REFERENCIA = new Set(["obs_estaciones", "obs_smn", "smn_pronostico"]);
 // `deshabilitado`: motivo por el que no se puede consultar (siempre apagado; se ignora aunque lo pidan).
 // `fuente`: de dónde sale. `aporta`: variables que el modelo publica (el WRF-SMN no da ráfagas ni viento).
@@ -52,10 +52,12 @@ const MODELOS = [
   { id: "obs_estaciones", nombre: "Estaciones", origen: "INTA y SiNaRaMe · lo observado", rol: "Referencia: lo que midieron las estaciones automáticas", fuente: "obs-estaciones", referencia: true, observado: true },
   { id: "obs_smn", nombre: "SMN observado", origen: "SMN · estaciones de Misiones", rol: "Referencia: lo que midió el SMN", fuente: "obs-smn", referencia: true, observado: true },
   { id: "smn_pronostico", nombre: "SMN pronóstico", origen: "SMN · salida numérica a 5 días", rol: "Referencia: el pronóstico del SMN en sus estaciones", fuente: "smn-pron", referencia: true },
+  { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", fuente: "wrf", aporta: ["tmax", "tmin", "lluvia", "hmin", "hmax", "viento", "dirviento"] },
   { id: "ecmwf_ifs025", nombre: "ECMWF", origen: "Centro Europeo", rol: "Referencia a 3–10 días", fuente: "open-meteo" },
   { id: "gfs_seamless", nombre: "GFS", origen: "EE. UU. (NOAA)", rol: "Tendencias de viento y temperatura", fuente: "open-meteo" },
   { id: "icon_seamless", nombre: "ICON", origen: "Alemania (DWD)", rol: "Validador de consenso", fuente: "open-meteo" },
-  { id: "gem_seamless", nombre: "GEM", origen: "Canadá (ECCC)", rol: "Validador de consenso", fuente: "open-meteo" },
+  { id: "gem_seamless", modeloOM: "cmc_gem_gdps", nombre: "GEM Global", origen: "Canadá (ECCC) · global, 15 km", rol: "Validador de consenso global (datos cada 3 horas)", fuente: "open-meteo" },
+  { id: "google_weathernext2_ensemble_mean", nombre: "Google WeatherNext 2", origen: "Google DeepMind · ensamble global, 25 km", rol: "Media de 64 miembros; datos cada 6 horas, hasta 15 días", fuente: "open-meteo-ensemble-mean", aporta: ["tmax", "tmin", "lluvia", "viento", "dirviento", "nubosidad", "presmin", "presmax"] },
   { id: "meteofrance_arpege_world", nombre: "ARPEGE", origen: "Francia (Météo-France) · hasta 4 días", rol: "Modelo europeo independiente del ECMWF", fuente: "open-meteo" },
   { id: "jma_gsm", nombre: "JMA GSM", origen: "Japón (JMA) · hasta 11 días", rol: "Validador de consenso a mediano plazo (sin ráfagas)", fuente: "open-meteo" },
   { id: "ukmo_global_deterministic_10km", nombre: "UKMO", origen: "Reino Unido (Met Office) · 10 km, hasta 8 días", rol: "Validador de consenso", fuente: "open-meteo" },
@@ -63,9 +65,10 @@ const MODELOS = [
   { id: "bam_20km", nombre: "BAM", origen: "Brasil (CPTEC/INPE) · global 20 km, hasta 11 días", rol: "Modelo global brasileño (un dato cada 6 horas)", fuente: "inpe-bam" },
   { id: "eta_8km", nombre: "Eta 8 km", origen: "Brasil (CPTEC/INPE) · regional, hasta 11 días", rol: "Regional de Sudamérica", fuente: "inpe-eta" },
   { id: "yr_no", nombre: "yr.no", origen: "Noruega (MET Norway) · hasta 2,5 días", rol: "Validador de consenso", fuente: "yr", aporta: ["tmax", "tmin", "sensmax", "sensmin", "lluvia", "viento", "dirviento", "hmin", "hmax", "nubosidad", "rocio"] },
-  { id: "wrf_smn", nombre: "WRF-SMN", origen: "Argentina (SMN) · 4 km, hasta 72 h", rol: "Tormentas y lluvia convectiva", fuente: "wrf", aporta: ["tmax", "tmin", "lluvia", "hmin", "hmax", "viento", "dirviento"] },
   { id: "monan_10km", nombre: "MONAN 10 km", origen: "Brasil (CPTEC/INPE) · global, hasta 11 días", rol: "Mediano plazo", fuente: "monan", producto: "10km" },
   { id: "monan_3km", nombre: "MONAN 3 km", origen: "Brasil (CPTEC/INPE) · regional, hasta 72 h", rol: "Tormentas y convección", fuente: "monan", producto: "03km", deshabilitado: "Sin acceso: el CPTEC/INPE lo puso detrás de usuario y clave (13/10)." },
+  { id: "kma_gdps", modeloOM: "kma_gdps", nombre: "KMA Global", origen: "Corea del Sur (KMA) · global, 12 km", rol: "Modelo global; todavía no terminaron la migración a KIM", fuente: "open-meteo", deshabilitado: "Desactivado: todavía no terminaron la migración a KIM." },
+  { id: "bom_access_global", modeloOM: "bom_access_global", nombre: "BOM ACCESS-G", origen: "Australia (BOM) · global, 15 km", rol: "Modelo global; datos abiertos cerrados temporalmente", fuente: "open-meteo", deshabilitado: "Desactivado: cerró temporalmente sus datos abiertos." },
 ];
 
 // `agrega`: cómo se resume el día a partir de los valores horarios (dentro del rango pedido): max, min, sum,
@@ -287,7 +290,7 @@ async function pronosticoEnsamble({ desde, hasta, modelos: ids, intervalo = "dia
   const dias = periodos.map(({ fecha, desde: d, hasta: h, horas }) => ({ fecha, desde: d, hasta: h, horas }));
   const avisos = [];
 
-  // Open-Meteo (ECMWF, GFS, ICON, GEM) y WRF-SMN: se leen de lo último que descargó el servidor (ver ensambleDescargas.js), sin salir a
+  // Open-Meteo (ECMWF, GFS, ICON, GEM Global y otros) y WRF-SMN: se leen de lo último que descargó el servidor (ver ensambleDescargas.js), sin salir a
   // internet. Un modelo que todavía no se bajó (primera vez) figura como «pendiente» mientras baja; si falló, se avisa.
   const omPorModelo = {}; // id → { puntos, horas }
   const porBajar = new Set();
