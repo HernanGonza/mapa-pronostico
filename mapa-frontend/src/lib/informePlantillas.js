@@ -74,6 +74,35 @@ export function borradorNuevo(botonId, fecha = fechaSugerida(botonId)) {
   return conFechas({ version: 2, boton: botonId, plantilla: x.plantilla, fecha, emision: x.salida, dias: p.dias.map((cfg) => diaVacio(cfg, fecha)) });
 }
 
+/** Nuevo informe con los datos del último, manteniendo el tipo/fechas elegidos y emparejando las ciudades por nombre. */
+export function borradorDesdeUltimo(botonId, ultimo, fecha = fechaSugerida(botonId)) {
+  const nuevo = borradorNuevo(botonId, fecha), anterior = ultimo?.borrador;
+  if (anterior?.version !== 2 || !Array.isArray(anterior.dias)) return nuevo;
+  const dias = nuevo.dias.map((d, i) => {
+    const a = anterior.dias[i];
+    if (!a) return d;
+    const zonas = Object.fromEntries(ZONAS_ORDEN.map((z) => [z, {
+      ...d.zonas[z],
+      ...Object.fromEntries(d.temps.map((t) => [t, a.zonas?.[z]?.[t] ? { ...d.zonas[z][t], ...a.zonas[z][t] } : d.zonas[z][t]])),
+    }]));
+    const ciudadesAnteriores = new Map((a.ciudades || []).map((c) => [c.ciudad, c]));
+    const ciudades = d.ciudades.map((c) => {
+      const previa = ciudadesAnteriores.get(c.ciudad);
+      if (!previa) return c;
+      return { ...c, ...Object.fromEntries(d.temps.filter((t) => previa[t] != null).map((t) => [t, previa[t]])), condicion: previa.condicion ?? c.condicion, alerta: previa.alerta ?? c.alerta };
+    });
+    return {
+      ...d, resumen: a.resumen ?? d.resumen, zonas, ciudades,
+      humedad: a.humedad ? { ...d.humedad, ...a.humedad } : d.humedad,
+      presionRango: d.presion && a.presionRango ? { ...d.presionRango, ...a.presionRango } : d.presionRango,
+      precipitaciones: a.precipitaciones ?? d.precipitaciones,
+      vientos: a.vientos ?? d.vientos,
+      alertas: a.alertas ?? d.alertas,
+    };
+  });
+  return { ...nuevo, dias };
+}
+
 /** Copia de `obj` con `valor` en `camino` ("dias.0.zonas.Sur.tmax.desde"). */
 const poner = (obj, camino, valor) => {
   const [k, ...resto] = camino.split(".");

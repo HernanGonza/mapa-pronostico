@@ -10,7 +10,7 @@ import PronosticoPublicado, { usePublicado, origenDe } from "../components/Prono
 import BrandHeader from "../components/BrandHeader";
 import InformePronostico, { aMapa, borradorConAlgo, borradorVacio, conCampo, problemasParaMapa } from "../components/InformePronostico";
 import InformePlantilla from "../components/InformePlantilla";
-import { borradorNuevo, nombreDeBoton } from "../lib/informePlantillas";
+import { borradorDesdeUltimo, nombreDeBoton } from "../lib/informePlantillas";
 import TarjetaInformePronostico, { estadoDeInforme } from "../components/TarjetaInformePronostico";
 import { useInformesPronostico } from "../lib/useInformesPronostico";
 import { calcularCambios } from "../lib/cambiosPronostico";
@@ -141,7 +141,11 @@ export default function AdminPage() {
     setAbiertoId("nuevo"); setCajon(true);
   }
   /** Eligió uno de los 5 tipos en la pantalla inicial del cajón. */
-  function elegirTipo(botonId) { setNuevo(borradorNuevo(botonId)); setEligiendo(false); setPaso(0); }
+  function elegirTipo(botonId) {
+    const ultimo = [...(informes || [])].filter((i) => i.borrador?.version === 2)
+      .sort((a, b) => Date.parse(b.creadoEn || 0) - Date.parse(a.creadoEn || 0) || b.id - a.id)[0];
+    setNuevo(borradorDesdeUltimo(botonId, ultimo)); setEligiendo(false); setPaso(0);
+  }
   async function cambiarTipo() {
     if (nuevo && borradorConAlgo(nuevo) && !(await confirmar({ titulo: "¿Cambiar el tipo de informe?", texto: "Se descarta lo que escribiste en este informe sin guardar.", confirmar: "Descartar y elegir", peligro: true }))) return;
     setNuevo(null); setEligiendo(true); setPaso(0);
