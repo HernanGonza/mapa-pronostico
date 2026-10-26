@@ -288,11 +288,16 @@ export default function AdminPage() {
   }
 
   const relativo = tiempoRelativo(publicado?.publicadoEn);
-  // La pila, agrupada por día (lo más reciente arriba).
-  const dias = useMemo(() => {
-    const porDia = new Map();
-    for (const i of informes || []) porDia.set(i.fecha, [...(porDia.get(i.fecha) || []), i]);
-    return [...porDia.entries()];
+  // En la sidebar sólo se muestran los informes de hoy (fecha local argentina).
+  // Los anteriores siguen guardados y se pueden consultar desde el servidor si hace falta.
+  const { informesDeHoy, cupoDiario, fechaDeHoy } = useMemo(() => {
+    const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const p = Object.fromEntries(partes.map(({ type, value }) => [type, value]));
+    const fecha = `${p.year}-${p.month}-${p.day}`;
+    const dia = new Date(`${fecha}T12:00:00Z`).getUTCDay();
+    const cupo = dia === 0 || dia === 6 ? 2 : 3;
+    const deHoy = (informes || []).filter((i) => i.fecha === fecha).sort((a, b) => b.id - a.id).slice(0, cupo);
+    return { informesDeHoy: deHoy, cupoDiario: cupo, fechaDeHoy: fecha };
   }, [informes]);
 
   return (
@@ -334,18 +339,18 @@ export default function AdminPage() {
 
         {correo && !correo.configurado && <div className="alert alert--error" role="status">El envío por correo todavía no está configurado en el servidor: faltan <code>GMAIL_USER</code> y <code>GMAIL_APP_PASSWORD</code> (la contraseña de aplicación de la cuenta de Gmail). Hasta entonces el botón «Enviar por correo» no puede mandar.</div>}
         {correo?.configurado && <p className="admin-panel__hint">Los correos salen desde {correo.remitente} ({correo.via === "gmail" ? "Gmail" : "Microsoft 365"}).</p>}
-        {!informes ? <p className="admin-panel__hint">Cargando los informes…</p> : !informes.length ? <p className="admin-panel__hint">Todavía no hay informes de los últimos días. Armá uno con «Nuevo informe».</p> : (
+        {!informes ? <p className="admin-panel__hint">Cargando los informes…</p> : !informesDeHoy.length ? <p className="admin-panel__hint">Todavía no hay informes para hoy. Armá uno con «Nuevo informe».</p> : (
           <div className="pron-pila">
-            {dias.map(([fecha, lista]) => <section key={fecha} aria-label={`Informes del ${fecha}`}>
-              <h2 className="pron-dia-titulo">{new Date(`${fecha}T12:00:00Z`).toLocaleDateString("es-AR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" })} · {lista.length} informe{lista.length === 1 ? "" : "s"}</h2>
+            <section aria-label={`Informes del ${fechaDeHoy}`}>
+              <h2 className="pron-dia-titulo">Hoy · {informesDeHoy.length} de {cupoDiario} informes</h2>
               <ul className="avisos-lista">
-                {lista.map((i) => <TarjetaInformePronostico key={i.id} informe={i} actual={publicado} enElMapa={i.id === vistaId} guardado={inf.guardado[i.id]} ocupado={ocupado} acciones={{
+                {informesDeHoy.map((i) => <TarjetaInformePronostico key={i.id} informe={i} actual={publicado} enElMapa={i.id === vistaId} guardado={inf.guardado[i.id]} ocupado={ocupado} acciones={{
                   editar: () => editar(i), verEnMapa: () => { setVista("mapa"); setVistaId(i.id); }, publicar: () => publicarInforme(i),
                   verPdf: () => verPdf(i), bajarPdf: () => verPdf(i, true), bajarDocx: () => bajarDocx(i), bajarRtf: () => bajarRtf(i), bajarDocxViejo: () => bajarDocx(i, true), bajarRtfViejo: () => bajarRtf(i, true), crearPlaca: () => crearPlaca(i), verPlaca: () => verPlaca(i),
                   enviar: () => enviarPorCorreo(i), destinatarios: editarDestinatarios, duplicar: () => duplicar(i), borrar: () => borrarInforme(i),
                 }} />)}
               </ul>
-            </section>)}
+            </section>
           </div>
         )}
         <p className="admin-panel__hint">{vistaId == null ? "El mapa de la derecha muestra lo publicado. Tocá una tarjeta para ver ese informe en el mapa." : !datosVista ? "Ese informe todavía está incompleto: el mapa muestra lo publicado." : sucio ? "El mapa de la derecha muestra el informe elegido, que todavía no está publicado." : "El mapa de la derecha coincide con lo publicado."}</p>
