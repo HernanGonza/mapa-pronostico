@@ -10,7 +10,7 @@ import * as api from "../api";
  * La pantalla aporta:
  *   vistaPrevia(valores) → { token, feedUrl, historiasUrl }   (genera sin guardar)
  *   guardar(valores, token) → la placa guardada
- * valores = { subtitulo, periodo, fondo, filas: [{ nombre, nota, periodo, mes, media, anomalia }] }
+ * valores = { subtitulo, periodo, fondo, columnas: { media, anomalia }, filas: [{ nombre, nota, periodo, mes, media, anomalia }] }
  */
 const NOTAS = { "": "—", 1: "SMN", 2: "INTA", 3: "Automática", 4: "Red Matteo" };
 const FONDOS = { lluvia: [6, 7, 8, 9, 10, 11], tormenta: [1, 2, 3, 4, 5] };
@@ -29,8 +29,10 @@ export function periodoDe(desde, hasta, horaDesde = "", horaHasta = "") {
 /** «PROVINCIA DE MISIONES · OCTUBRE 2026» con el mes del final del período. */
 export const subtituloDe = (hasta) => (hasta ? `Provincia de Misiones · ${MESES[Number(hasta.slice(5, 7)) - 1].toLowerCase().replace(/^./, (c) => c.toUpperCase())} ${hasta.slice(0, 4)}` : "Provincia de Misiones");
 const num = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return v === "" || v == null || !Number.isFinite(n) ? null : n; };
-const claveDe = (s) => JSON.stringify([s.subtitulo, s.periodo, s.fondo, s.filas]);
-const valoresDe = (s) => ({ subtitulo: s.subtitulo, periodo: s.periodo, fondo: s.fondo, filas: s.filas });
+const columnasPorDefecto = { media: true, anomalia: true };
+const columnasDe = (s) => ({ ...columnasPorDefecto, ...(s.columnas || {}) });
+const claveDe = (s) => JSON.stringify([s.subtitulo, s.periodo, s.fondo, columnasDe(s), s.filas]);
+const valoresDe = (s) => ({ subtitulo: s.subtitulo, periodo: s.periodo, fondo: s.fondo, columnas: columnasDe(s), filas: s.filas });
 
 const filaHtml = (f = {}) => `<tr>
   <td><input class="paso-input" data-c="nombre" maxlength="40" value="${esc(f.nombre ?? "")}" placeholder="Estación" aria-label="Estación"></td>
@@ -68,8 +70,11 @@ function pasoPeriodo() {
 function pasoEstaciones() {
   return {
     pregunta: "Revisá los datos de cada estación",
-    ayuda: "Vienen del informe: corregí lo que haga falta, sacá o sumá estaciones. En «Mes» va lo acumulado en el mes y en «Media» el valor medio; la anomalía se calcula sola (mes − media) si la dejás vacía.",
-    html: (s) => `<div class="paso-estaciones"><table class="paso-localidades"><thead><tr><th>Estación</th><th>Red</th><th>Período (mm)</th><th>Mes</th><th>Media</th><th>Anomalía</th><th></th></tr></thead>
+    ayuda: "Vienen del informe: corregí lo que haga falta, sacá o sumá estaciones. En «Acumulados del mes» va lo acumulado hasta la fecha; la anomalía se calcula sola (acumulado − media) si la dejás vacía. Elegí si la placa incluye media y anomalía.",
+    html: (s) => `<div class="paso-estaciones"><fieldset class="paso-columnas"><legend>Columnas de la placa</legend>
+        <label><input type="checkbox" data-columna="media" ${columnasDe(s).media ? "checked" : ""}> Media</label>
+        <label><input type="checkbox" data-columna="anomalia" ${columnasDe(s).anomalia ? "checked" : ""}> Anomalía</label>
+      </fieldset><table class="paso-localidades"><thead><tr><th>Estación</th><th>Red</th><th>Período (mm)</th><th>Acumulados del mes</th><th>Media</th><th>Anomalía</th><th></th></tr></thead>
         <tbody>${s.filas.map(filaHtml).join("")}</tbody></table>
         <button type="button" class="btn" data-sumar>+ Agregar estación</button></div>`,
     alMostrar: (popup) => {
@@ -77,7 +82,7 @@ function pasoEstaciones() {
       popup.querySelector("[data-sumar]").addEventListener("click", () => { cuerpo.insertAdjacentHTML("beforeend", filaHtml()); cuerpo.lastElementChild.querySelector("input").focus(); });
       cuerpo.addEventListener("click", (e) => { e.target.closest("[data-quitar]")?.closest("tr").remove(); });
     },
-    leer: (popup) => ({ filas: leerFilas(popup) }),
+    leer: (popup) => ({ filas: leerFilas(popup), columnas: Object.fromEntries([...popup.querySelectorAll("[data-columna]")].map((i) => [i.dataset.columna, i.checked])) }),
     validar: (s) => {
       if (!s.filas.length) return "Dejá al menos una estación.";
       for (const f of s.filas) {
@@ -110,7 +115,8 @@ function pasoFondo() {
 
 /** `inicial`: { desde, hasta, filas } (lo que sale del informe); el resto se arma solo. */
 export function crearPlacaPrecipitacionesPorPasos({ inicial = {}, vistaPrevia, guardar }) {
-  const estado = { desde: "", hasta: "", horaDesde: "", horaHasta: "", periodo: "", subtitulo: "", fondo: FONDOS.lluvia[0], pestana: "lluvia", filas: [], ...inicial };
+  const estado = { desde: "", hasta: "", horaDesde: "", horaHasta: "", periodo: "", subtitulo: "", fondo: FONDOS.lluvia[0], pestana: "lluvia", filas: [], columnas: columnasPorDefecto, ...inicial };
+  estado.columnas = columnasDe(estado);
   if (!estado.periodo) estado.periodo = periodoDe(estado.desde, estado.hasta);
   if (!estado.subtitulo) estado.subtitulo = subtituloDe(estado.hasta);
   const pasos = [

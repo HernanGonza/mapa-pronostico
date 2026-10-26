@@ -47,10 +47,11 @@ function anomaliaDe(f) {
 }
 const conSigno = (a) => (a == null ? "—" : `${a > 0 ? "+" : a < 0 ? MENOS : ""}${coma(Math.abs(a))}`);
 
-function errorDePlacaPrecipitaciones({ subtitulo = "", periodo, filas, fondo = FONDO_POR_DEFECTO } = {}) {
+function errorDePlacaPrecipitaciones({ subtitulo = "", periodo, filas, fondo = FONDO_POR_DEFECTO, columnas = {} } = {}) {
   if (typeof subtitulo !== "string" || !subtitulo.trim() || subtitulo.length > LIMITES.subtitulo) return `Escribí la segunda línea del título (hasta ${LIMITES.subtitulo} caracteres).`;
   if (typeof periodo !== "string" || !periodo.trim() || periodo.length > LIMITES.periodo) return `Escribí el período (ej.: «8 AL 13/10»; con horas: «20/10 09:00hs a 21/10 09:00hs»; hasta ${LIMITES.periodo} caracteres).`;
   if (!FONDOS.some((f) => f.id === Number(fondo))) return "Elegí una foto de fondo (de lluvia o de tormenta).";
+  if (columnas != null && (typeof columnas !== "object" || Array.isArray(columnas) || ["media", "anomalia"].some((k) => columnas[k] != null && typeof columnas[k] !== "boolean"))) return "La selección de columnas no es válida.";
   if (!Array.isArray(filas) || !filas.length) return "Cargá al menos una estación.";
   if (filas.length > LIMITES.filas) return `La placa admite hasta ${LIMITES.filas} estaciones.`;
   for (const [i, f] of filas.entries()) {
@@ -81,8 +82,9 @@ function gota(ctx, x0, y0, size, color) { // la misma gota que icon_drop del scr
   ctx.beginPath(); ctx.moveTo(cx, y0 + size * 0.06); ctx.lineTo(cx - r * 0.96, cy - r * 0.3); ctx.lineTo(cx + r * 0.96, cy - r * 0.3); ctx.closePath(); ctx.fill();
 }
 
-async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = FONDO_POR_DEFECTO, tamano = "feed", fecha = new Date().toISOString().slice(0, 10) }) {
-  const error = errorDePlacaPrecipitaciones({ subtitulo, periodo, filas, fondo }) || (TAMANOS[tamano] ? null : "Tamaño inválido.");
+async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = FONDO_POR_DEFECTO, columnas: columnasOpt, tamano = "feed", fecha = new Date().toISOString().slice(0, 10) }) {
+  const columnas = { media: true, anomalia: true, ...(columnasOpt || {}) };
+  const error = errorDePlacaPrecipitaciones({ subtitulo, periodo, filas, fondo, columnas }) || (TAMANOS[tamano] ? null : "Tamaño inválido.");
   if (error) throw Object.assign(new Error(error), { status: 400 });
   const { w: W, h: H, limite } = TAMANOS[tamano];
   const canvas = createCanvas(W, H), ctx = canvas.getContext("2d");
@@ -132,11 +134,20 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   const top = y + Math.floor(90 * ts);
 
   // Tabla: columnas y reparto vertical (la letra más grande con la que todo entra hasta `limite`, y después se estira).
-  const mx = 110, tw = W - 2 * mx, fr = [0.34, 0.165, 0.165, 0.165, 0.165], colw = fr.map((f) => tw * f), xs = [mx];
+  const mx = 110, tw = W - 2 * mx;
+  const columnasTabla = [
+    { campo: "nombre", titulo: "ESTACIÓN" },
+    { campo: "periodo", titulo: conHoras ? "PERÍODO" : periodo.trim().toLocaleUpperCase("es-AR") },
+    { campo: "mes", titulo: "ACUMULADOS\nDEL MES" },
+    ...(columnas.media ? [{ campo: "media", titulo: "MEDIA" }] : []),
+    ...(columnas.anomalia ? [{ campo: "anomalia", titulo: "ANOMALÍA" }] : []),
+  ];
+  const resto = tw * 0.66 / (columnasTabla.length - 1);
+  const colw = columnasTabla.map((_, i) => i === 0 ? tw * 0.34 : resto), xs = [mx];
   for (const c of colw) xs.push(xs[xs.length - 1] + c);
   const usadas = [...new Set(filas.map((f) => Number(f.nota)).filter(Boolean))].sort();
-  const LEG = [usadas.map((u) => `${SUPER[u]} ${NOTAS[u]}`).join("     "), "Anomalía: diferencia entre lo acumulado en el mes y el valor medio."].filter(Boolean);
-  const HEAD = ["ESTACIÓN", conHoras ? "PERÍODO" : periodo.trim().toLocaleUpperCase("es-AR"), "MES", "MEDIA", "ANOMALÍA"];
+  const LEG = [usadas.map((u) => `${SUPER[u]} ${NOTAS[u]}`).join("     "), columnas.anomalia ? "Anomalía: diferencia entre lo acumulado en el mes y el valor medio." : ""].filter(Boolean);
+  const HEAD = columnasTabla.map((c) => c.titulo);
   let u = 0, fh, fn, fb, fm, fl, fs, icon, gap, subH, headH, rh, legH, total, legGap;
   for (let i = 0; i < 40; i++) {
     u = Math.round((1.5 - 0.03 * i) * 100) / 100;
@@ -146,7 +157,8 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
     legGap = Math.floor(14 * u); legH = LEG.length * (lh(fl) + legGap);
     total = subH + gap + headH + rh * n + Math.floor(rh * 0.95) + gap + legH;
     if (Math.max(...filas.map((f) => ancho(f.nombre.trim(), fn) + ancho(String(f.nota || ""), fm) + 30)) > colw[0] - 30) continue;
-    if (Math.max(...HEAD.slice(1).flatMap((h) => h.split("\n")).map((h) => ancho(h, fh))) > colw[1] - 16) continue;
+    const cabenEncabezados = HEAD.every((h, j) => Math.max(...h.split("\n").map((linea) => ancho(linea, fh))) <= colw[j] - 16);
+    if (!cabenEncabezados) continue;
     if (top + total <= limite) break;
   }
   for (let i = 0; i < 9; i++) { // estirado vertical
@@ -188,11 +200,17 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
     ctx.textAlign = "left"; ctx.fillStyle = BLANCO; ctx.font = fn; ctx.fillText(nombre, xs[0] + 24, yc);
     if (f.nota) { const wn = ancho(nombre, fn); ctx.fillStyle = AZUL; ctx.font = fm; ctx.fillText(String(f.nota), xs[0] + 24 + wn + 6, yc - lh(fn) * 0.3); }
     ctx.textAlign = "center";
-    ctx.fillStyle = BLANCO; ctx.font = fb; ctx.fillText(coma(numero(f.periodo)), xs[1] + colw[1] / 2, yc);
-    ctx.font = fn; ctx.fillText(coma(numero(f.mes)), xs[2] + colw[2] / 2, yc);
-    ctx.fillStyle = GRIS; ctx.fillText(coma(numero(f.media)), xs[3] + colw[3] / 2, yc);
-    const a = anomaliaDe(f);
-    ctx.fillStyle = a == null || a >= 0 ? AZUL : NARANJA; ctx.font = fb; ctx.fillText(conSigno(a), xs[4] + colw[4] / 2, yc);
+    columnasTabla.slice(1).forEach((c, j) => {
+      const col = j + 1;
+      if (c.campo === "anomalia") {
+        const a = anomaliaDe(f);
+        ctx.fillStyle = a == null || a >= 0 ? AZUL : NARANJA; ctx.font = fb; ctx.fillText(conSigno(a), xs[col] + colw[col] / 2, yc);
+      } else {
+        ctx.fillStyle = c.campo === "media" ? GRIS : BLANCO;
+        ctx.font = c.campo === "periodo" ? fb : fn;
+        ctx.fillText(coma(numero(f[c.campo])), xs[col] + colw[col] / 2, yc);
+      }
+    });
   });
   let sepS = Math.floor(34 * u);
   while (ancho(BANDA, `bold ${sepS}px "${LS}"`) > tw - 60 && sepS > 12) sepS -= 2;

@@ -354,6 +354,10 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); 
 
 /* --- Asistente del pronóstico --- */
 .paso-etiqueta { display: grid; gap: 6px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+.paso-columnas { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.paso-columnas legend { padding: 0 5px; color: var(--text-muted); font-size: 12px; font-weight: 700; }
+.paso-columnas label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.paso-columnas input { accent-color: var(--accent); }
 .paso-docx-estado { margin: 0; color: var(--text-muted); font-size: 13.5px; }
 .paso-tabla { max-height: min(58vh, 520px); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .paso-localidades { width: 100%; }

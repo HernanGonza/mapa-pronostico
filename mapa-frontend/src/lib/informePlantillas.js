@@ -13,7 +13,7 @@
 import { masSevera, CATALOGO } from "./condiciones.js";
 
 export const ZONAS_ORDEN = ["Sur", "Centro", "Norte"];
-export const CIUDADES = ["POSADAS", "LEANDRO ALEM", "APÓSTOLES", "SAN JAVIER", "OBERÁ", "JARDÍN AMÉRICA", "SAN VICENTE", "ARISTÓBULO DEL VALLE", "MONTECARLO", "PUERTO IGUAZÚ", "BERNARDO DE IRIGOYEN", "ELDORADO", "SAN PEDRO"];
+export const CIUDADES = ["POSADAS", "APÓSTOLES", "SAN JAVIER", "LEANDRO ALEM", "OBERÁ", "JARDÍN AMÉRICA", "ARISTÓBULO DEL VALLE", "SAN VICENTE", "MONTECARLO", "ELDORADO", "SAN PEDRO", "BERNARDO DE IRIGOYEN", "PUERTO IGUAZÚ"];
 
 export const ROTULO_TEMP = { tmax: "Temperaturas máximas", tmin: "Temperaturas mínimas", tnoct: "Temperaturas nocturnas" };
 export const CORTO_TEMP = { tmax: "Máxima", tmin: "Mínima", tnoct: "Nocturna" };
@@ -148,8 +148,8 @@ export function problemasV2(b) {
  */
 const LOCALIDAD_MAPA = { "LEANDRO ALEM": "L. N. ALEM", "ARISTÓBULO DEL VALLE": "A. DEL VALLE", "BERNARDO DE IRIGOYEN": "BDO. DE IRIGOYEN" };
 const ZONA_DE = {
-  Norte: ["PUERTO IGUAZÚ", "BERNARDO DE IRIGOYEN", "ELDORADO", "SAN PEDRO"],
-  Centro: ["MONTECARLO", "JARDÍN AMÉRICA", "SAN VICENTE", "ARISTÓBULO DEL VALLE", "OBERÁ"],
+  Norte: ["MONTECARLO", "ELDORADO", "SAN PEDRO", "BERNARDO DE IRIGOYEN", "PUERTO IGUAZÚ"],
+  Centro: ["OBERÁ", "JARDÍN AMÉRICA", "ARISTÓBULO DEL VALLE", "SAN VICENTE"],
   Sur: ["POSADAS", "LEANDRO ALEM", "APÓSTOLES", "SAN JAVIER"],
 };
 const zonaDe = (ciudad) => Object.keys(ZONA_DE).find((z) => ZONA_DE[z].includes(ciudad));

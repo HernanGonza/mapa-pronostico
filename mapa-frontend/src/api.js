@@ -443,8 +443,8 @@ export async function generarAvisoEspecial({ texto, emitidoEn, imagen, titulo = 
   return handleJson(await fetch(`${API_URL}/api/avisos-especiales/generar`, { method: "POST", body: form, ...CON_SESION }));
 }
 /** Placa «Monitoreo de precipitaciones». `opciones`: { vistaPrevia: true } o { confirmarToken } (al confirmar se guarda la vista previa ya generada). */
-export async function generarPlacaPrecipitaciones({ subtitulo, periodo, fondo, filas }, { vistaPrevia = false, confirmarToken = null } = {}) {
-  const res = await fetch(`${API_URL}/api/placas-precipitaciones/generar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subtitulo, periodo, fondo, filas, ...(confirmarToken ? { confirmarToken } : vistaPrevia ? { vistaPrevia: true } : {}) }), ...CON_SESION });
+export async function generarPlacaPrecipitaciones({ subtitulo, periodo, fondo, filas, columnas }, { vistaPrevia = false, confirmarToken = null } = {}) {
+  const res = await fetch(`${API_URL}/api/placas-precipitaciones/generar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subtitulo, periodo, fondo, filas, columnas, ...(confirmarToken ? { confirmarToken } : vistaPrevia ? { vistaPrevia: true } : {}) }), ...CON_SESION });
   return handleJson(res);
 }
 /** Placas de precipitaciones ya generadas (las más nuevas primero): [{ id, generadoEn, periodo, subtitulo, generadoPorEmail, feedUrl, historiasUrl }]. */

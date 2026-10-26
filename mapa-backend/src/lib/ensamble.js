@@ -14,13 +14,13 @@ const { monanConEspera, progreso: progresoMonan } = require("./monan");
 const { loadMunicipios } = require("./municipios");
 // Las ciudades del informe, en el orden de la tabla. `municipio`: cómo figura en municipios.json (para ubicarlas).
 const CIUDADES = [
-  { nombre: "POSADAS", municipio: "POSADAS" }, { nombre: "L. N. ALEM", municipio: "LEANDRO N. ALEM" },
-  { nombre: "APÓSTOLES", municipio: "APOSTOLES" }, { nombre: "SAN JAVIER", municipio: "SAN JAVIER" },
-  { nombre: "MONTECARLO", municipio: "MONTECARLO" }, { nombre: "JARDÍN AMÉRICA", municipio: "JARDÍN AMERICA" },
-  { nombre: "SAN VICENTE", municipio: "SAN VICENTE" }, { nombre: "A. DEL VALLE", municipio: "ARISTOBULO DEL VALLE" },
-  { nombre: "OBERÁ", municipio: "OBERA" }, { nombre: "PUERTO IGUAZÚ", municipio: "PUERTO IGUAZU" },
-  { nombre: "BDO. DE IRIGOYEN", municipio: "BERNARDO DE IRIGOYEN" }, { nombre: "ELDORADO", municipio: "ELDORADO" },
-  { nombre: "SAN PEDRO", municipio: "SAN PEDRO" },
+  { nombre: "POSADAS", municipio: "POSADAS" }, { nombre: "APÓSTOLES", municipio: "APOSTOLES" },
+  { nombre: "SAN JAVIER", municipio: "SAN JAVIER" }, { nombre: "L. N. ALEM", municipio: "LEANDRO N. ALEM" },
+  { nombre: "OBERÁ", municipio: "OBERA" }, { nombre: "JARDÍN AMÉRICA", municipio: "JARDÍN AMERICA" },
+  { nombre: "A. DEL VALLE", municipio: "ARISTOBULO DEL VALLE" }, { nombre: "SAN VICENTE", municipio: "SAN VICENTE" },
+  { nombre: "MONTECARLO", municipio: "MONTECARLO" }, { nombre: "ELDORADO", municipio: "ELDORADO" },
+  { nombre: "SAN PEDRO", municipio: "SAN PEDRO" }, { nombre: "BDO. DE IRIGOYEN", municipio: "BERNARDO DE IRIGOYEN" },
+  { nombre: "PUERTO IGUAZÚ", municipio: "PUERTO IGUAZU" },
 ];
 
 const N_DEPARTAMENTOS = 17;

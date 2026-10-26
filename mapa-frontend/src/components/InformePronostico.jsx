@@ -17,9 +17,9 @@ import "../pages/ensamble.css"; // el cajón lateral (.ens-cajon) y los pasos so
  */
 export const ZONAS = ["Norte", "Centro", "Sur"];
 export const LOCALIDADES = {
-  Norte: ["PUERTO IGUAZÚ", "BDO. DE IRIGOYEN", "ELDORADO", "SAN PEDRO"],
-  Centro: ["MONTECARLO", "JARDÍN AMÉRICA", "SAN VICENTE", "A. DEL VALLE", "OBERÁ"],
-  Sur: ["POSADAS", "L. N. ALEM", "APÓSTOLES", "SAN JAVIER"],
+  Norte: ["MONTECARLO", "ELDORADO", "SAN PEDRO", "BDO. DE IRIGOYEN", "PUERTO IGUAZÚ"],
+  Centro: ["OBERÁ", "JARDÍN AMÉRICA", "A. DEL VALLE", "SAN VICENTE"],
+  Sur: ["POSADAS", "APÓSTOLES", "SAN JAVIER", "L. N. ALEM"],
 };
 const CLAVE = "pronostico-informe-v1";
 const AR = "America/Argentina/Buenos_Aires";
@@ -50,7 +50,7 @@ export function borradorVacio() {
     fecha: f, emision: "09:00",
     generales: { vientos: "", humedad: "", presion: "", riesgo: "BAJO PARA TODA LA PROVINCIA." }, avisoGeneral: "SIN AVISOS.",
     zonas: Object.fromEntries(ZONAS.map((z) => [z, zonaVacia()])),
-    localidades: ZONAS.flatMap((z) => LOCALIDADES[z].map((localidad) => ({ localidad, zona: z, tmin: "", tmax: "", condicion: "" }))),
+    localidades: ["Sur", "Centro", "Norte"].flatMap((z) => LOCALIDADES[z].map((localidad) => ({ localidad, zona: z, tmin: "", tmax: "", condicion: "" }))),
     extendido: Object.fromEntries(ZONAS.map((z) => [z, [diaVacio(f), diaVacio(f)]])),
     informes: [informeVacio(f), informeVacio(f), informeVacio(f)],
   });
@@ -163,7 +163,7 @@ function PasoProvincia({ b, set }) {
 }
 
 // El orden de las 13 ciudades en la propuesta del ensamble (backend/lib/ensamble.js).
-const CIUDADES_ENSAMBLE = ["POSADAS", "L. N. ALEM", "APÓSTOLES", "SAN JAVIER", "MONTECARLO", "JARDÍN AMÉRICA", "SAN VICENTE", "A. DEL VALLE", "OBERÁ", "PUERTO IGUAZÚ", "BDO. DE IRIGOYEN", "ELDORADO", "SAN PEDRO"];
+const CIUDADES_ENSAMBLE = ["POSADAS", "APÓSTOLES", "SAN JAVIER", "L. N. ALEM", "OBERÁ", "JARDÍN AMÉRICA", "A. DEL VALLE", "SAN VICENTE", "MONTECARLO", "ELDORADO", "SAN PEDRO", "BDO. DE IRIGOYEN", "PUERTO IGUAZÚ"];
 
 /** Sólo en el ensamble: completa las temperaturas, la humedad y el viento con el promedio de los modelos prendidos. */
 function PasoModelos({ b, reemplazar, modelos }) {

@@ -5,8 +5,8 @@ const { masSevera, masGraveDe } = require("./condiciones");
  * zona, la condición de cada zona y de cada ciudad (una sola, la más grave) y el rango de la tabla de ciudades.
  */
 const ZONA_DE_CIUDAD = {
-  Norte: ["PUERTO IGUAZÚ", "BERNARDO DE IRIGOYEN", "ELDORADO", "SAN PEDRO"],
-  Centro: ["MONTECARLO", "JARDÍN AMÉRICA", "SAN VICENTE", "ARISTÓBULO DEL VALLE", "OBERÁ"],
+  Norte: ["MONTECARLO", "ELDORADO", "SAN PEDRO", "BERNARDO DE IRIGOYEN", "PUERTO IGUAZÚ"],
+  Centro: ["OBERÁ", "JARDÍN AMÉRICA", "ARISTÓBULO DEL VALLE", "SAN VICENTE"],
   Sur: ["POSADAS", "LEANDRO ALEM", "APÓSTOLES", "SAN JAVIER"],
 };
 
