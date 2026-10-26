@@ -30,7 +30,7 @@ const execFileAsync = promisify(execFile);
 const ART = "America/Argentina/Buenos_Aires";
 const HORA = 3600e3;
 const REVISION_MS = 10 * 60e3;
-const META_OM = { ecmwf_ifs025: "ecmwf_ifs025", gfs_seamless: "ncep_gfs025", icon_seamless: "dwd_icon", gem_seamless: "cmc_gem_gdps", kma_gdps: "kma_gdps", bom_access_global: "bom_access_global",
+const META_OM = { ecmwf_ifs025: "ecmwf_ifs025", ecmwf_aifs025_single: "ecmwf_aifs025_single", gfs_seamless: "ncep_gfs025", icon_seamless: "dwd_icon", gem_seamless: "cmc_gem_gdps", kma_gdps: "kma_gdps", bom_access_global: "bom_access_global",
   meteofrance_arpege_world: "meteofrance_arpege_world025", jma_gsm: "jma_gsm", ukmo_global_deterministic_10km: "ukmo_global_deterministic_10km", cma_grapes_global: "cma_grapes_global" };
 const SLOTS_GEM_UTC = [5.5, 17.5];
 const SLOTS_WEATHERNEXT_UTC = [7, 19]; // Open-Meteo procesa las corridas 00/12 UTC cuando llegan (unas 7 h después).
