@@ -118,7 +118,7 @@ export default function PronosticoExtendidoView({ extendido, publicadoEn, embebi
                 <span className="extendido__icono"><WeatherIcon condicion={z.condicion} size={64} /></span>
                 <strong>{z.zona}</strong>
                 <span className="extendido__temp">
-                  <b>{z.tmax}°</b> / {z.tmin}°
+                  {z.tmax != null && <><b>{z.tmax}°</b> / </>}{z.tmin}°
                 </span>
                 <small>{z.condicion?.charAt(0)}{z.condicion?.slice(1).toLowerCase()}</small>
               </div>

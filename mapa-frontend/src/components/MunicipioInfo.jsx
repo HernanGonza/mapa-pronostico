@@ -119,7 +119,7 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
               <div className="municipio-popover__dia" key={d.etiqueta + (d.fecha || "")} title={d.condicion}>
                 <span className="municipio-popover__dia-nombre">{d.etiqueta}</span>
                 <WeatherIcon condicion={d.condicion} size={32} title={d.condicion} />
-                <span className="municipio-popover__dia-temp">{d.tmin}°/{d.tmax}°</span>
+                <span className="municipio-popover__dia-temp">{d.tmin != null ? `${d.tmin}°` : "—"}/{d.tmax != null ? `${d.tmax}°` : "—"}</span>
               </div>
             ))}
           </div>

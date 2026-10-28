@@ -68,12 +68,14 @@ function resolverEstacionesConCoordenadas(filasPronostico) {
  * - `esOficial: false` → se muestra el dato de la estación más cercana,
  *   con `estacionReferencia` y `distanciaKm` para dejarlo claro en el UI.
  */
-/** Días del pronóstico extendido de una zona, sin el primero ("Hoy", o el día `principal` de los informes con plantilla: ese ya es el
- * pronóstico del día de la tarjeta). [] si no hay extendido o zona. */
+/** Días del pronóstico extendido de una zona, sin el "Hoy" que ya es el pronóstico de la tarjeta. [] si no hay extendido o zona. */
 function extendidoDeZona(extendido, zona) {
   const dias = (extendido?.zonas || []).find((z) => z.zona === zona)?.dias || [];
+  // Con plantilla (hay `principal`) el día de la tarjeta se descarta sólo si es "Hoy" (3° informe); en el 1° y 2° informe la tarjeta
+  // muestra mañana y "Hoy", mañana y pasado van todos en la lista.
+  const conPrincipal = dias.some((d) => d.principal);
   return dias
-    .filter((d) => d.etiqueta !== "Hoy" && !d.principal && d.tmin !== undefined)
+    .filter((d) => (conPrincipal ? !(d.principal && d.etiqueta === "Hoy") : d.etiqueta !== "Hoy") && (d.tmin !== undefined || d.tmax !== undefined))
     .map(({ etiqueta, fecha, tmin, tmax, condicion }) => ({ etiqueta, fecha: fecha || null, tmin, tmax, condicion }));
 }
 

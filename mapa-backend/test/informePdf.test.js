@@ -83,8 +83,9 @@ test("el informe con plantilla también sale en .docx, con los textos editables 
   assert.match(xml, /Un sistema de alta presión mantiene el buen tiempo\./);
   assert.match(xml, /Lunes 19 de octubre de 2026/);
   assert.match(xml, /TEMPERATURAS NOCTURNAS/);
-  assert.match(xml, /12° C a 15° C/);
-  assert.equal((xml.match(/<w:tbl>/g) || []).length, 9);
+  assert.match(xml, /RANGO DE TEMPERATURAS/);
+  assert.match(xml, /14° C/); // el rango sale de las temperaturas de las ciudades
+  assert.equal((xml.match(/<w:tbl>/g) || []).length, 12); // por día: zonas, datos, ciudades y rangos
   await assert.rejects(() => generarInformeDocx({ ...informeV2(), dias: [] }), /tres días/);
 });
 
@@ -94,7 +95,7 @@ test("el informe con plantilla también sale en .rtf, con acentos escapados y la
   assert.match(rtf, /^\{\\rtf1/);
   assert.ok(!/[^\x00-\x7f]/.test(rtf), "sólo ASCII");
   assert.match(rtf, /PREVISI\\u211\?N DEL TIEMPO|PREVISI\\u-?\d+\?N DEL TIEMPO/);
-  assert.equal((rtf.match(/\\row/g) || []).length, 10 + 11 + 11); // por día: zonas (cabecera + temps), datos (4, o 5 con presión) y ciudades (cabecera + 2)
+  assert.equal((rtf.match(/\\row/g) || []).length, 14 + 15 + 15); // por día: zonas (cabecera + temps + condición), datos (5, o 6 con presión), ciudades (cabecera + 2) y rangos (cabecera + 1)
   assert.equal((rtf.match(/\{/g) || []).length - (rtf.match(/\\\{/g) || []).length, (rtf.match(/\}/g) || []).length - (rtf.match(/\\\}/g) || []).length);
   await assert.rejects(() => generarInformeRtf({ ...informeV2(), dias: [] }), /tres días/);
 });

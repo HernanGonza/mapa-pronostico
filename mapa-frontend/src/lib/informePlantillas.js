@@ -195,7 +195,9 @@ export function aMapaV2(b) {
   // Los días anteriores al principal (el "Hoy" de las emisiones de tarde/noche, que sólo traen máxima y nocturna) también van al extendido:
   // la mínima es la temperatura nocturna.
   const tmaxDe = (z) => z.tmax?.hasta || z.tmax?.desde, tminDe = (z) => (z.tmin || z.tnoct)?.desde;
-  const dias = b.dias.filter((d, k) => k >= i0 || (d.temps.includes("tmax") && ZONAS_ORDEN.every((zn) => tmaxDe(d.zonas[zn]) !== "" && tmaxDe(d.zonas[zn]) !== undefined)));
+  // Con que cada zona traiga al menos una temperatura (máxima, o nocturna en el 2° informe), el día entra: "Hoy" siempre debe verse.
+  const hayTemp = (v) => v !== "" && v !== undefined;
+  const dias = b.dias.filter((d, k) => k >= i0 || ZONAS_ORDEN.every((zn) => hayTemp(tmaxDe(d.zonas[zn])) || hayTemp(tminDe(d.zonas[zn]))));
   const zonas = ["Sur", "Centro", "Norte"].map((zona) => ({ zona, dias: dias.map((d) => {
     const z = d.zonas[zona], k = b.dias.indexOf(d);
     return {
