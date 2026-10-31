@@ -3,6 +3,7 @@ const { createCanvas, loadImage, registerFont } = require("canvas");
 const { dibujarIcono } = require("./iconosPlaca");
 const { MATERIALES_DIR } = require("./generateMap");
 const { incrustarFirma, conMetadatos } = require("./proteccionPlaca");
+const { dibujarLogos, anchoLogo } = require("./logosFuentes");
 
 /**
  * Placa «Monitoreo de precipitaciones» — port a node-canvas de compose_monitoreo.py + wm_tile.py + protect.py del kit que
@@ -226,7 +227,15 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   const partes = [["Emergencias ", 0], [null, 0], ["911", 1], [" o Defensa Civil ", 0], ["103", 1]];
   const fuenteE = (b) => `${b ? "bold" : "normal"} ${fe}px "${LS}"`;
   const medida = (p) => (p[0] === null ? ico + 16 * ts : (ctx.font = fuenteE(p[1]), ctx.measureText(p[0]).width + (p[0] === "911" ? 8 * ts : 0)));
-  let xe = W - 150 - partes.reduce((s, p) => s + medida(p), 0);
+  const anchoE = partes.reduce((s, p) => s + medida(p), 0);
+  let xe = W - 150 - anchoE;
+  // Logos de los organismos que aportan los datos, a la izquierda de la misma línea (se achican si no entran).
+  const LOGOS = ["smn", "inta", "hidrologico"], sepL = Math.round(48 * ts), libre = xe - 150 - Math.round(70 * ts);
+  let altoL = Math.round(fe * 1.7);
+  const anchoL = async (a) => (await Promise.all(LOGOS.map((n) => anchoLogo(n, a)))).reduce((s, w) => s + w, 0) + sepL * (LOGOS.length - 1);
+  const anchoTotal = await anchoL(altoL);
+  if (anchoTotal > libre) altoL = Math.floor((altoL * libre) / anchoTotal);
+  await dibujarLogos(ctx, LOGOS, 150, ye, altoL, sepL);
   ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillStyle = BLANCO;
   for (const p of partes) {
     if (p[0] === null) { dibujarIcono(ctx, "emergencias", xe, ye - ico / 2, ico, "#fff"); xe += ico + 16 * ts; continue; }

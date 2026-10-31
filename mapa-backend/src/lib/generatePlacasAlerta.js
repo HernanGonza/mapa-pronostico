@@ -3,6 +3,7 @@ const { createCanvas, loadImage } = require('canvas');
 const { OAK_SANS, OAK_SANS_TITULO } = require('./fuentes');
 const { dibujarIcono, NOMBRES: ICONOS } = require('./iconosPlaca');
 const { categorias } = require('./alertasMeteorologicas');
+const { dibujarLogos } = require('./logosFuentes');
 
 /**
  * Placas que acompañan a una alerta meteorológica ya publicada (las tarjetas de la
@@ -274,6 +275,18 @@ async function dibujarFilas(ctx, W, plan, zonaY, zonaH, color) {
   }
 }
 
+/** Logo del SMN + «Fuente: Servicio Meteorológico Nacional» a la izquierda del «Emergencias 911…» impreso en el fondo. */
+async function dibujarFuenteSmn(ctx, W, L) {
+  const ts = W / 2250, alto = Math.round(120 * ts), yc = L.pie + Math.round(60 * ts), x = Math.round(150 * ts);
+  const xf = await dibujarLogos(ctx, ['smn'], x, yc, alto, 0);
+  ctx.font = `${Math.round(46 * ts)}px ${OAK_SANS}`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = SOMBRA; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
+  const h = Math.round(46 * ts * 1.25);
+  ctx.fillText('Fuente: Servicio', xf + Math.round(36 * ts), yc - h / 2);
+  ctx.fillText('Meteorológico Nacional', xf + Math.round(36 * ts), yc + h / 2);
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+}
+
 async function generatePlacaAlerta(placa, tamano = 'feed') {
   const error = errorDePlacaAlerta(placa) || (TAMANOS.includes(tamano) ? null : 'Tamaño inválido.');
   if (error) throw Object.assign(new Error(error), { status: 400 });
@@ -287,6 +300,7 @@ async function generatePlacaAlerta(placa, tamano = 'feed') {
   const plan = planearFilas(ctx, W, L, filas, zonaH, iconoGrande);
   if (!plan) throw Object.assign(new Error('El texto es demasiado largo para la placa: acortalo un poco.'), { status: 400 });
   await dibujarFilas(ctx, W, plan, zonaY, zonaH, color);
+  await dibujarFuenteSmn(ctx, W, L);
   return canvas.toBuffer('image/png');
 }
 
