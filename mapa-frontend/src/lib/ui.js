@@ -40,7 +40,7 @@ export async function confirmar({ titulo, texto, html, confirmar = "Confirmar", 
   const { default: Swal } = await import("sweetalert2");
   const r = await Swal.fire({
     title: titulo, text: html ? undefined : texto, html,
-    icon: peligro ? "warning" : "question", target: target || undefined,
+    icon: peligro ? "warning" : "question", ...(target ? { target } : {}), // sin `target` SweetAlert2 usa «body»; pasarlo como undefined hace que avise «Target parameter is not valid»
     showCancelButton: true, confirmButtonText: confirmar, cancelButtonText: cancelar,
     reverseButtons: true, focusCancel: peligro, buttonsStyling: false,
     customClass: { popup: "swal-eco", title: "swal-eco__titulo", confirmButton: "btn btn--primary", cancelButton: "btn btn--ghost", actions: "swal-eco__acciones" },

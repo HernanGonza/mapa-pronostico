@@ -31,7 +31,9 @@ export async function asistente({ pasos, estado: inicial = {}, enviar, textoEnvi
   const visibles = () => pasos.filter((p) => !p.omitir?.(estado));
 
   function cuerpo(retroceso) {
-    const L = visibles(), p = L[idx], n = idx + 1, pct = (n / L.length) * 100;
+    const L = visibles();
+    idx = Math.max(0, Math.min(idx, L.length - 1)); // los pasos que se omiten dependen de lo elegido: si la lista se achicó, no pasarse del final
+    const p = L[idx], n = idx + 1, pct = (n / L.length) * 100;
     const html = `<div class="paso-cabecera"><div class="paso-barra" role="progressbar" aria-label="Progreso" aria-valuemin="0" aria-valuemax="${L.length}" aria-valuenow="${n}"><i style="--desde:${previo}%;--p:${pct}%"></i></div><span class="paso-contador">Paso ${n} de ${L.length}</span></div>
       <div class="paso ${retroceso ? "paso--atras" : ""}">${p.ayuda ? `<p class="paso__ayuda">${p.ayuda}</p>` : ""}${p.html(estado)}</div>`;
     previo = pct;
@@ -94,12 +96,15 @@ export async function asistente({ pasos, estado: inicial = {}, enviar, textoEnvi
       const error = p.validar?.(nuevo);
       if (error) { Swal.showValidationMessage(error); return false; }
       estado = nuevo;
-      if (idx < L.length - 1) { idx++; mostrar(false); return false; }
+      // Lo que se acaba de elegir puede sumar u omitir pasos: el siguiente se busca en la lista NUEVA, a partir de este mismo paso.
+      const nueva = visibles(), pos = nueva.indexOf(p), siguiente = pos >= 0 ? pos + 1 : idx;
+      if (siguiente < nueva.length) { idx = siguiente; mostrar(false); return false; }
+      idx = nueva.length - 1;
       return await ejecutar(() => enviar(estado));
     },
     preDeny: async () => {
       if (fase === "resultado" && accion) { const a = accion; return await ejecutar(() => a.alHacer(estado)); }
-      if (idx > 0) { idx--; mostrar(true); }
+      if (idx > 0) { idx = Math.max(0, Math.min(idx, visibles().length - 1) - 1); mostrar(true); }
       return false;
     },
   });
