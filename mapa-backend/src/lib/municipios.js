@@ -76,11 +76,19 @@ function extendidoDeZona(extendido, zona) {
   const conPrincipal = dias.some((d) => d.principal);
   return dias
     .filter((d) => (conPrincipal ? !(d.principal && d.etiqueta === "Hoy") : d.etiqueta !== "Hoy") && (d.tmin !== undefined || d.tmax !== undefined))
-    .map(({ etiqueta, fecha, tmin, tmax, condicion }) => ({ etiqueta, fecha: fecha || null, tmin, tmax, condicion }));
+    .map(({ etiqueta, iso, fecha, tmin, tmax, condicion }) => ({ etiqueta, iso: iso || null, fecha: fecha || null, tmin, tmax, condicion }));
 }
 
 /** `extendido` (opcional): el pronóstico de 3 días; cada municipio lleva el
  * de la ZONA de su localidad de referencia. */
+/** Los días de UNA localidad (los informes con plantilla los traen en `extendido.ciudades`): sus propias temperaturas y su propio estado
+ * del tiempo, incluido el día de la tarjeta. null si el extendido no los trae (informes viejos): ahí se usa el de la zona. */
+function extendidoDeLocalidad(extendido, localidad) {
+  const dias = extendido?.ciudades?.[localidad];
+  if (!Array.isArray(dias) || !dias.length) return null;
+  return dias.map(({ etiqueta, iso, fecha, principal, tmin, tmax, condicion }) => ({ etiqueta, iso: iso || null, fecha: fecha || null, ...(principal ? { principal: true } : {}), tmin, tmax, condicion }));
+}
+
 function armarMunicipiosConPronostico(filasPronostico, extendido = null) {
   const municipios = loadMunicipios();
   const estaciones = filasPronostico ? resolverEstacionesConCoordenadas(filasPronostico) : [];
@@ -113,7 +121,7 @@ function armarMunicipiosConPronostico(filasPronostico, extendido = null) {
         CONDICION: mejor.CONDICION,
         ZONA: mejor.ZONA || null,
       },
-      extendido: extendidoDeZona(extendido, mejor.ZONA),
+      extendido: extendidoDeLocalidad(extendido, mejor.LOCALIDAD) || extendidoDeZona(extendido, mejor.ZONA),
     };
   });
 }

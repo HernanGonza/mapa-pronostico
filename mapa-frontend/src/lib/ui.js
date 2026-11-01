@@ -15,11 +15,11 @@ async function obtenerNotyf() {
       duration: 4500,
       dismissible: true,
       ripple: false,
-      position: { x: "right", y: "bottom" },
+      position: { x: "center", y: "top" }, // arriba al centro: a la vista, sin quedar pegado a una esquina ni tapar las barras de acciones de abajo
       types: [
-        { type: "success", className: "toast-eco toast-eco--ok", icon: false },
-        { type: "error", className: "toast-eco toast-eco--error", icon: false, duration: 8000 },
-        { type: "info", className: "toast-eco toast-eco--info", icon: false },
+        { type: "success", className: "toast-eco toast-eco--ok", icon: { className: "toast-eco__icono", tagName: "i", text: "✓" } },
+        { type: "error", className: "toast-eco toast-eco--error", icon: { className: "toast-eco__icono", tagName: "i", text: "!" }, duration: 8000 },
+        { type: "info", className: "toast-eco toast-eco--info", icon: { className: "toast-eco__icono", tagName: "i", text: "i" } },
       ],
     });
   }

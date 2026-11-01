@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import WeatherIcon from "./WeatherIcon";
+import { etiquetaDia } from "../lib/informePlantillas";
 import { fechaLarga, tiempoRelativo } from "../lib/tiempoRelativo";
 
 /** Reordena {zonas:[{zona,dias:[...]}], informes:[...]} a una lista por
@@ -14,7 +15,7 @@ export function porDia(extendido) {
     const referencia = zonas.find((z) => z.dias[i])?.dias[i];
     if (!referencia) continue;
     dias.push({
-      etiqueta: referencia.etiqueta,
+      etiqueta: referencia.iso ? etiquetaDia(referencia.iso) : referencia.etiqueta,
       fecha: referencia.fecha,
       zonas: zonas.map((z) => ({ zona: z.zona, ...z.dias[i] })).filter((z) => z.tmin !== undefined),
       informe: informes[i]?.texto || null,

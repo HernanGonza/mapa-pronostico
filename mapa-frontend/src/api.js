@@ -625,6 +625,21 @@ export async function proponerInforme({ emision, diaTablas, modelos, diasExtendi
   return handleJson(await fetch(`${API_URL}/api/ensamble/informe/propuesta`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emision, diaTablas, modelos, diasExtendido }), cache: "no-store", ...CON_SESION }));
 }
 
+// --- Informe mensual (módulo «informe-mensual»): uno por mes y año, con los mapas dentro como data URL ---
+export const listarInformesMensuales = async () => (await handleJson(await fetch(`${API_URL}/api/informe-mensual`, { cache: "no-store", ...CON_SESION }))).informes;
+/** El informe guardado de ese mes ({ borrador, actualizadoPor, actualizadoEn }) o null si todavía no hay. */
+export async function getInformeMensual(anio, mes) {
+  const r = await fetch(`${API_URL}/api/informe-mensual/${anio}/${mes}`, { cache: "no-store", ...CON_SESION });
+  return r.status === 404 ? null : handleJson(r);
+}
+export const guardarInformeMensual = async (anio, mes, borrador) => handleJson(await fetch(`${API_URL}/api/informe-mensual/${anio}/${mes}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrador }), ...CON_SESION }));
+export const borrarInformeMensual = async (anio, mes) => handleJson(await fetch(`${API_URL}/api/informe-mensual/${anio}/${mes}`, { method: "DELETE", ...CON_SESION }));
+export async function generarInformeMensualPdf(borrador) {
+  const r = await fetch(`${API_URL}/api/informe-mensual/pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrador }), ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el PDF.");
+  return r.blob();
+}
+
 // Previsión del tiempo: el informe armado en el panel, como PDF (cifrado y con marca de agua) y los datos del sol y la luna.
 export async function generarInformePdf(informe) {
   const r = await fetch(`${API_URL}/api/pronostico/informe-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });

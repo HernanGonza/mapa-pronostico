@@ -23,6 +23,7 @@ const AvisoEspecialPage = lazy(() => import("./pages/AvisoEspecialPage"));
 const EmbedAvisosCortoPlazoPage = lazy(() => import("./pages/EmbedAvisosCortoPlazoPage"));
 const EmbedHistoricoPage = lazy(() => import("./pages/EmbedHistoricoPage"));
 const TablaPrecipitacionesPage = lazy(() => import("./pages/TablaPrecipitacionesPage"));
+const InformeMensualPage = lazy(() => import("./pages/InformeMensualPage"));
 const EmbedPrecipitacionesMapaPage = lazy(() => import("./pages/EmbedPrecipitacionesMapaPage"));
 const EmbedPrecipitacionesPage = lazy(() => import("./pages/EmbedPrecipitacionesPage"));
 const InundacionesPage = lazy(() => import("./pages/InundacionesPage"));
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/panel/configuracion" element={<RutaProtegida soloSuperadmin><ConfiguracionPage /></RutaProtegida>} />
           <Route path="/panel/ensamble" element={<RutaProtegida modulo="ensamble"><EnsamblePage /></RutaProtegida>} />
           <Route path="/panel/informe-precipitaciones" element={<Navigate to="/panel/precipitaciones?informe=1" replace />} />
+          <Route path="/panel/informe-mensual" element={<RutaProtegida modulo="informe-mensual"><InformeMensualPage /></RutaProtegida>} />
           <Route path="/panel/precipitaciones" element={<RutaProtegida modulo="tabla-precipitaciones"><TablaPrecipitacionesPage /></RutaProtegida>} />
           <Route path="/panel/informes-diarios" element={<Navigate to="/panel/informe-precipitaciones" replace />} />
           <Route

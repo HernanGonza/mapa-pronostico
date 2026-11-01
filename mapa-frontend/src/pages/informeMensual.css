@@ -1,0 +1,76 @@
+/* Informe mensual: pantalla del panel. Colores del tema (claro/oscuro). */
+.admin-layout--sin-mapa .admin-panel.im-pagina { max-width: 1040px; padding-bottom: 0; }
+.im-barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 4px 0 8px; }
+.im-select { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.im-select select { font: inherit; font-size: 0.9rem; min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); min-width: 9em; }
+.im-estado { margin: 0 0 6px auto; font-size: 0.85rem; color: var(--text-muted); }
+.im-estado strong { color: var(--text); }
+.im-guardados { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; font-size: 0.82rem; color: var(--text-muted); }
+.im-chip { font: inherit; font-size: 0.82rem; padding: 3px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); cursor: pointer; text-transform: capitalize; }
+.im-chip:hover { background: var(--surface-3); }
+.im-chip--on { background: var(--accent, #872338); border-color: transparent; color: var(--accent-contrast, #fff); }
+
+.im-btn { font: inherit; font-size: 0.85rem; min-height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.im-btn:hover:not(:disabled) { background: var(--surface-3); }
+.im-btn:disabled { opacity: 0.5; cursor: default; }
+.im-btn:focus-visible, .im-chip:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 2px; }
+.im-btn--primario { background: var(--accent, #872338); border-color: transparent; color: var(--accent-contrast, #fff); }
+.im-btn--primario:hover:not(:disabled) { background: var(--accent, #872338); filter: brightness(1.1); }
+.im-btn--peligro { color: #a12b2b; border-color: currentColor; }
+.im-btn--peligro:hover:not(:disabled) { background: #a12b2b; color: #fff; }
+.im-btn--chico { min-height: 30px; padding: 0 9px; }
+
+/* Cada sección: el esquema de la hoja a la izquierda y el contenido a la derecha. */
+.im-seccion { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 18px; padding: 16px; margin: 0 0 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.im-seccion-cuerpo h2 { margin: 0 0 2px; font-size: 1.05rem; }
+.im-ubicacion { margin: 0 0 12px; font-size: 0.8rem; color: var(--text-muted); max-width: 70ch; }
+.im-titulo-vista { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-weight: 700; letter-spacing: 0.02em; font-size: 0.9rem; }
+.im-esquema { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.im-esquema figcaption { font-size: 0.68rem; line-height: 1.25; text-align: center; color: var(--text-muted); }
+.im-hoja { display: flex; flex-direction: column; gap: 3px; width: 82px; height: 116px; padding: 6px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 3px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.im-bloque { display: flex; flex-direction: column; gap: 2px; padding: 2px; border-radius: 2px; background: #e8ece9; min-height: 0; overflow: hidden; }
+.im-bloque--activo { background: color-mix(in srgb, var(--accent, #872338) 22%, #fff); outline: 1.5px solid var(--accent, #872338); }
+.im-bloque-imagen { flex: 1.6; border-radius: 1px; background: repeating-linear-gradient(45deg, #9fb3a7 0 2px, #cfdad3 2px 4px); }
+.im-bloque--activo .im-bloque-imagen { background: repeating-linear-gradient(45deg, var(--accent, #872338) 0 2px, #f1cdd4 2px 4px); }
+.im-bloque-texto { flex: 1; min-height: 3px; border-radius: 1px; background: repeating-linear-gradient(#b7c4bc 0 1.5px, transparent 1.5px 4px); }
+.im-bloque--activo .im-bloque-texto { background: repeating-linear-gradient(var(--accent, #872338) 0 1.5px, transparent 1.5px 4px); }
+
+.im-tabla-envoltorio { overflow-x: auto; }
+.im-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 760px; }
+.im-tabla th, .im-tabla td { padding: 4px; border-bottom: 1px solid var(--border); vertical-align: bottom; text-align: center; }
+.im-tabla thead th { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); line-height: 1.2; padding-bottom: 6px; }
+.im-tabla tbody th { text-align: left; min-width: 150px; }
+.im-tabla input { font: inherit; width: 100%; box-sizing: border-box; min-height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; }
+.im-tabla tbody th input { text-align: left; font-weight: 600; }
+.im-tabla input:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 1px; }
+.im-tabla input.im-malo { border-color: #c0392b; background: color-mix(in srgb, #c0392b 10%, var(--bg)); }
+.im-acciones-tabla { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; }
+.im-acciones-tabla small { color: var(--text-muted); font-size: 0.76rem; }
+.im-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.im-campo { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.im-campo > span { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.im-campo textarea { font: inherit; font-size: 0.92rem; line-height: 1.45; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); resize: vertical; width: 100%; box-sizing: border-box; }
+.im-campo textarea:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 1px; }
+.im-campo small { align-self: flex-end; font-size: 0.74rem; color: var(--text-muted); }
+.im-ayuda-fila { margin: 0 0 6px; font-size: 0.78rem; color: var(--text-muted); }
+/* La vista previa de las imágenes se achica igual que en el PDF: una fila, mismo alto, cada una proporcional a su ancho. */
+.im-fila-imagenes { display: flex; gap: 8px; align-items: flex-start; list-style: none; margin: 0 0 12px; padding: 0; }
+.im-fila-imagenes li { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex-basis: 0; }
+.im-fila-imagenes img { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+.im-fila-acciones { display: flex; flex-wrap: wrap; gap: 4px; }
+.im-fila-acciones .im-btn--chico { min-height: 28px; padding: 0 7px; font-size: 0.78rem; }
+.im-error { margin: 6px 0 0; font-size: 0.82rem; color: #b3261e; }
+.im-faltan { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); }
+
+/* Barra de acciones fija abajo: siempre a mano mientras se baja por el formulario. */
+.im-pie { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; margin: 0 -16px; padding: 12px 16px; background: var(--bg); border-top: 1px solid var(--border); z-index: 5; }
+.im-pie-estado p { margin: 0; }
+.im-pie-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+
+@media (max-width: 720px) {
+  .im-seccion { grid-template-columns: 1fr; }
+  .im-esquema { flex-direction: row; justify-content: flex-start; }
+  .im-esquema figcaption { text-align: left; max-width: 18ch; }
+  .im-estado { margin-left: 0; width: 100%; }
+}

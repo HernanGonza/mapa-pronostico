@@ -183,7 +183,8 @@ const ZONA_DE = {
 };
 const zonaDe = (ciudad) => Object.keys(ZONA_DE).find((z) => ZONA_DE[z].includes(ciudad));
 export const diaPrincipal = (b) => Math.max(0, b.dias.findIndex((d) => d.temps.includes("tmin") && d.temps.includes("tmax")));
-const etiquetaDia = (f) => { const hoy = hoyART(); return f === hoy ? "Hoy" : f === sumarDias(hoy, 1) ? "Mañana" : nombreDia(f); };
+/** «Hoy», «Mañana» o el nombre del día, según el día de HOY (se calcula al mostrar: lo publicado ayer como «Mañana» hoy es «Hoy»). */
+export const etiquetaDia = (f) => { const hoy = hoyART(); return f === hoy ? "Hoy" : f === sumarDias(hoy, 1) ? "Mañana" : nombreDia(f); };
 /** El estado del tiempo de la zona es el más severo de sus ciudades (el texto completo de esa ciudad); si empatan, el de la primera. */
 const gravedad = (t) => { const c = masSevera(t); return c ? CATALOGO.indexOf(c) : -1; };
 const masSeveraDe = (xs) => xs.reduce((a, x) => (a === undefined || gravedad(x) > gravedad(a) ? x : a), undefined) ?? "";
@@ -201,16 +202,24 @@ export function aMapaV2(b) {
   const zonas = ["Sur", "Centro", "Norte"].map((zona) => ({ zona, dias: dias.map((d) => {
     const z = d.zonas[zona], k = b.dias.indexOf(d);
     return {
-      etiqueta: k <= i0 ? etiquetaDia(d.fecha) : nombreDia(d.fecha), fecha: fechaLargaMapa(d.fecha), ...(k === i0 ? { principal: true } : {}),
+      etiqueta: etiquetaDia(d.fecha), iso: d.fecha, fecha: fechaLargaMapa(d.fecha), ...(k === i0 ? { principal: true } : {}),
       tmin: tminDe(z), tmax: tmaxDe(z),
       condicion: masSeveraDe(d.ciudades.filter((c) => zonaDe(c.ciudad) === zona).map((c) => c.condicion)),
     };
   }) }));
+  // Cada localidad con SUS días (sus propias temperaturas y su propio estado del tiempo, no los de la zona): la tarjeta del municipio y
+  // su lista de próximos días salen de acá, así dicen siempre lo mismo. La mínima de un día sin mínima es la nocturna.
+  const vacio = (v) => (v === "" || v == null ? undefined : String(v));
+  const ciudades = Object.fromEntries(principal.ciudades.map((pc) => [LOCALIDAD_MAPA[pc.ciudad] || pc.ciudad, dias.map((d) => {
+    const c = d.ciudades.find((x) => x.ciudad === pc.ciudad), k = b.dias.indexOf(d);
+    return { etiqueta: etiquetaDia(d.fecha), iso: d.fecha, fecha: fechaLargaMapa(d.fecha), ...(k === i0 ? { principal: true } : {}),
+      tmin: vacio(c?.tmin ?? c?.tnoct), tmax: vacio(c?.tmax), condicion: c?.condicion || "" };
+  })]));
   const informes = dias.map((d) => ({
     dia: nombreDia(d.fecha), fecha: fechaLargaMapa(d.fecha),
     texto: [d.resumen, d.precipitaciones && `Precipitaciones: ${d.precipitaciones}.`, d.vientos && `Vientos: ${d.vientos}.`].map((t) => String(t ?? "").trim()).filter(Boolean).join(" ").slice(0, 800),
   }));
-  return { filas, extendido: { zonas, informes }, fecha: principal.fecha };
+  return { filas, extendido: { zonas, ciudades, informes }, fecha: principal.fecha };
 }
 /** Para el mapa hace falta el informe completo (el mismo control del paso final). */
 export const problemasMapaV2 = (b) => problemasV2(b);

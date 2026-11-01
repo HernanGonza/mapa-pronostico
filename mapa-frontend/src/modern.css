@@ -109,12 +109,17 @@ main, .admin-layout > .admin-panel, .admin-layout > .admin-map-area { animation:
 @media (max-width: 760px) { .historico-observatorio__resumen > div { border: 1px solid var(--border) !important; } }
 
 /* --- Avisos (Notyf) y confirmaciones (SweetAlert2) con la identidad del sistema --- */
-.notyf { font-family: var(--font); }
-.notyf__toast.toast-eco { max-width: 420px; padding: 4px 8px; border-radius: 12px; color: #fff; box-shadow: var(--shadow-pop); font-size: 14px; line-height: 1.4; }
+.notyf { font-family: var(--font); align-items: center; padding: 18px 16px; }
+.notyf__toast.toast-eco { min-width: min(360px, calc(100vw - 32px)); max-width: min(520px, calc(100vw - 32px)); padding: 0 22px; border-radius: 14px; color: #fff; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28); font-size: 15px; line-height: 1.45; font-weight: 500; }
+.toast-eco .notyf__wrapper { padding-top: 16px; padding-bottom: 16px; }
+.toast-eco .notyf__icon { width: 30px; margin-right: 14px; flex: none; font-size: 1em; }
+.toast-eco .toast-eco__icono { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255, 255, 255, 0.22); font-style: normal; font-weight: 700; font-size: 16px; line-height: 1; }
 .toast-eco--ok { background: var(--ok-solid); }
 .toast-eco--error { background: var(--danger-solid); }
-.toast-eco--info { background: var(--info-solid); }
-.notyf__dismiss-btn { background: rgba(255, 255, 255, 0.25); }
+.toast-eco--info { background: var(--verde-800, #234131); }
+.toast-eco .notyf__dismiss { width: 38px; margin-right: -22px; }
+.notyf__dismiss-btn { background: rgba(255, 255, 255, 0.18); }
+@media (max-width: 480px) { .notyf { padding: 0; } .notyf__toast.toast-eco { max-width: none; width: 100%; border-radius: 0 0 14px 14px; } }
 .swal2-container { font-family: var(--font); }
 .swal-eco { padding: 24px 22px 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-2); }
 .swal-eco__titulo { color: var(--heading); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }

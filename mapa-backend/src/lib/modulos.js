@@ -12,6 +12,7 @@ const MODULOS = [
   "cuencas",
   "tabla-precipitaciones",
   "ensamble",
+  "informe-mensual",
 ];
 
 /** Módulos que ya no existen: si un usuario todavía los tiene asignados se ignoran en vez de dar error. */

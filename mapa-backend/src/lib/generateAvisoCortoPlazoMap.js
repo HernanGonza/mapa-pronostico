@@ -33,9 +33,12 @@ const FONDOS = {
   tormenta: { feed: 'feed-tormenta.png', historias: 'historias-tormenta.png' },
 };
 const TAMANOS = ['feed', 'historias'];
-// «Fuente Servicio Meteorológico Nacional» impreso en los fondos: dónde empieza (x) y su centro vertical (y), medidos a ojo.
-// El logo del SMN va pegado a su izquierda.
-const FUENTE_SMN = { feed: { x: 548, y: 1203, alto: 48 }, historias: { x: 278, y: 1529, alto: 48 } };
+// «Fuente Servicio Meteorológico Nacional» impreso en los fondos: dónde empieza (x) y su centro vertical (y), medidos sobre los píxeles
+// del texto en cada fondo (cambia de uno a otro). El logo del SMN va pegado a su izquierda, sin tocar la línea de «Emergencias» de arriba.
+const FUENTE_SMN = {
+  tormenta: { feed: { x: 549, y: 1201, alto: 40 }, historias: { x: 280, y: 1528, alto: 48 } },
+  nubes: { feed: { x: 548, y: 1170, alto: 40 }, historias: { x: 280, y: 1528, alto: 48 } },
+};
 
 // Recuadro del título "AVISO A MUY CORTO PLAZO" impreso en cada fondo (x0, y0, x1, y1, medido
 // buscando sus píxeles blancos, con unos px de margen). Ahí se recolorea el título con el color
@@ -204,7 +207,7 @@ async function generateAvisoCortoPlazoMap({ texto, partes = null, fondo = 'torme
   lineas.forEach(({ linea, color: c }, i) => { ctx.fillStyle = c; ctx.fillText(linea, cx, cy - offset + i * lineH, L.w); });
   ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
-  const f = FUENTE_SMN[tamano];
+  const f = FUENTE_SMN[fondo][tamano];
   await dibujarLogos(ctx, ['smn'], f.x - 22 - (await anchoLogo('smn', f.alto)), f.y, f.alto, 0);
 
   return canvas.toBuffer('image/png');

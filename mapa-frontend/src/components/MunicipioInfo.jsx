@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { getSolDeMunicipio, getLunaDeMunicipio } from "../api";
 import WeatherIcon from "./WeatherIcon";
 import { iconosCondicion } from "../lib/iconoCondicion";
+import { etiquetaDia } from "../lib/informePlantillas";
+
+/** «Hoy» / «Mañana» / nombre del día, calculado ahora (lo publicado ayer como «Mañana» hoy es «Hoy»). */
+const nombreDelDia = (d) => (d.iso ? etiquetaDia(d.iso) : d.etiqueta);
+const grado = (v) => (v != null && v !== "" ? `${v}°` : "—");
 
 /** Dato astronómico del municipio en la fecha del pronóstico (`pedir` = getSolDeMunicipio o getLunaDeMunicipio); si no hay dato, no se muestra nada. */
 function useAstro(pedir, id, fecha) {
@@ -21,6 +26,10 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
   if (!municipio) return null;
   const { nombre, esOficial, estacionReferencia, distanciaKm, pronostico, extendido = [], alerta, alertasProximas = [] } =
     municipio;
+  // El día de la tarjeta: el principal del extendido de la localidad (o la fecha del pronóstico si es un informe viejo).
+  const diaTarjeta = extendido.find((d) => d.principal);
+  const fechaTarjeta = diaTarjeta?.iso || (/^\d{4}-\d{2}-\d{2}/.test(String(fecha || "")) ? String(fecha).slice(0, 10) : null);
+  const etiquetaTarjeta = fechaTarjeta ? etiquetaDia(fechaTarjeta) : null;
 
   return (
     <div
@@ -51,6 +60,7 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
 
       {pronostico ? (
         <div className="municipio-popover__prono">
+          {etiquetaTarjeta && <span className="municipio-popover__extendido-titulo">{etiquetaTarjeta}</span>}
           <div className="municipio-popover__temps">
             <span className="municipio-popover__tmin">{pronostico.TMIN}°</span>
             <span className="municipio-popover__tmax">{pronostico.TMAX}°</span>
@@ -112,14 +122,14 @@ export default function MunicipioInfo({ municipio, onCerrar, fecha }) {
       {extendido.length > 0 && (
         <div className="municipio-popover__extendido">
           <span className="municipio-popover__extendido-titulo">
-            Próximos días{pronostico?.ZONA ? ` · zona ${pronostico.ZONA.toLowerCase()}` : ""}
+            {diaTarjeta ? `Hoy, mañana y pasado · ${estacionReferencia ? estacionReferencia.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : nombre}` : `Próximos días${pronostico?.ZONA ? ` · zona ${pronostico.ZONA.toLowerCase()}` : ""}`}
           </span>
           <div className="municipio-popover__extendido-dias">
             {extendido.map((d) => (
               <div className="municipio-popover__dia" key={d.etiqueta + (d.fecha || "")} title={d.condicion}>
-                <span className="municipio-popover__dia-nombre">{d.etiqueta}</span>
+                <span className="municipio-popover__dia-nombre">{nombreDelDia(d)}</span>
                 <WeatherIcon condicion={d.condicion} size={32} title={d.condicion} />
-                <span className="municipio-popover__dia-temp">{d.tmin != null ? `${d.tmin}°` : "—"}/{d.tmax != null ? `${d.tmax}°` : "—"}</span>
+                <span className="municipio-popover__dia-temp">{grado(d.tmin)}/{grado(d.tmax)}</span>
               </div>
             ))}
           </div>

@@ -223,19 +223,31 @@ async function generarPlacaPrecipitaciones({ subtitulo, periodo, filas, fondo = 
   ctx.restore();
 
   // «Emergencias ☎ 911 o Defensa Civil 103» entre el contenido y el pie (las fotos del pronóstico no lo traen).
-  const fe = Math.round(66 * ts), ico = Math.round(fe * 1.2), ye = limite + (pie - limite) * 0.42;
+  const fe = Math.round(66 * ts), ico = Math.round(fe * 1.2); let ye = limite + (pie - limite) * 0.42;
   const partes = [["Emergencias ", 0], [null, 0], ["911", 1], [" o Defensa Civil ", 0], ["103", 1]];
   const fuenteE = (b) => `${b ? "bold" : "normal"} ${fe}px "${LS}"`;
   const medida = (p) => (p[0] === null ? ico + 16 * ts : (ctx.font = fuenteE(p[1]), ctx.measureText(p[0]).width + (p[0] === "911" ? 8 * ts : 0)));
   const anchoE = partes.reduce((s, p) => s + medida(p), 0);
   let xe = W - 150 - anchoE;
-  // Logos de los organismos que aportan los datos, a la izquierda de la misma línea (se achican si no entran).
+  // Logos de los organismos que aportan los datos, a la izquierda de la misma línea (se achican si no entran). Si así quedarían
+  // diminutos (historias: la letra es más grande), cada cosa va en su renglón, centrada: los logos arriba y «Emergencias» abajo.
   const LOGOS = ["smn", "inta", "hidrologico"], sepL = Math.round(48 * ts), libre = xe - 150 - Math.round(70 * ts);
-  let altoL = Math.round(fe * 1.7);
   const anchoL = async (a) => (await Promise.all(LOGOS.map((n) => anchoLogo(n, a)))).reduce((s, w) => s + w, 0) + sepL * (LOGOS.length - 1);
+  let altoL = Math.round(fe * 1.7), yLogos = ye;
   const anchoTotal = await anchoL(altoL);
   if (anchoTotal > libre) altoL = Math.floor((altoL * libre) / anchoTotal);
-  await dibujarLogos(ctx, LOGOS, 150, ye, altoL, sepL);
+  let xl = 150;
+  if (altoL < fe * 1.2) {
+    altoL = Math.round(fe * 1.5);
+    const anchoMax = W - 300, a1 = await anchoL(altoL);
+    if (a1 > anchoMax) altoL = Math.floor((altoL * anchoMax) / a1);
+    xl = Math.round((W - (await anchoL(altoL))) / 2);
+    const alto2 = (pie - limite);
+    yLogos = limite + alto2 * 0.28;
+    ye = limite + alto2 * 0.72;
+    xe = Math.round((W - anchoE) / 2);
+  }
+  await dibujarLogos(ctx, LOGOS, xl, yLogos, altoL, sepL);
   ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillStyle = BLANCO;
   for (const p of partes) {
     if (p[0] === null) { dibujarIcono(ctx, "emergencias", xe, ye - ico / 2, ico, "#fff"); xe += ico + 16 * ts; continue; }
