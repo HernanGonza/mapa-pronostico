@@ -17,7 +17,6 @@ const MINISTERIO = "Ministerio de Ecología y Recursos Naturales Renovables de l
 
 const VERDE = "#3E6C51", VERDE_OSCURO = "#234131", GRIS = "#5d6f64", LINEA = "#cdd8d1", ROJO = "#B3262F", AZUL = "#1F5F9E", TEXTO = "#1b2a22";
 const M = 36, ANCHO = 595.28 - 2 * M, PIE = 36;
-const REFERENCIAS = "° C  Grados Celsius      N°  Número de eventos      mm  Milímetros de precipitación";
 
 const dato = (v, sufijo = "") => (String(v ?? "").trim() ? `${String(v).trim()}${sufijo}` : "—");
 const dataUrl = (s) => (s ? Buffer.from(s.slice(s.indexOf(",") + 1), "base64") : null);
@@ -121,27 +120,38 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
 
   // --- 1. valores medios del mes ----------------------------------------------------------------------------------
   barra("Valores medios del mes");
-  const cols = [
-    { t: "ESTACIÓN", w: 118 }, { t: "TEMPERATURA MEDIA (°C)", w: 80, centro: true, color: TEXTO }, { t: "TEMPERATURA MÍNIMA MEDIA (°C)", w: 82, centro: true, color: AZUL },
-    { t: "TEMPERATURA MÁXIMA MEDIA (°C)", w: 82, centro: true, color: ROJO }, { t: "EVENTOS HIDROMETEOROLÓGICOS (N°)", w: 86, centro: true },
+  const todas = [
+    { t: "ESTACIÓN", w: 118 },
+    { campo: "tmedia", t: "TEMPERATURA MEDIA (°C)", w: 80, centro: true, color: TEXTO }, { campo: "tmin", t: "TEMPERATURA MÍNIMA MEDIA (°C)", w: 82, centro: true, color: AZUL },
+    { campo: "tmax", t: "TEMPERATURA MÁXIMA MEDIA (°C)", w: 82, centro: true, color: ROJO }, { campo: "eventos", t: "EVENTOS HIDROMETEOROLÓGICOS (N°)", w: 86, centro: true },
+    { campo: "precipitacion", t: "PRECIPITACIÓN ACUMULADA (mm)", w: 96, centro: true },
   ];
-  cols.push({ t: "PRECIPITACIÓN ACUMULADA (mm)", w: ANCHO - cols.reduce((s, c) => s + c.w, 0), centro: true });
+  const ocultas = Array.isArray(b.columnasOcultas) ? b.columnasOcultas : [];
+  const cols = todas.filter((c) => !c.campo || !ocultas.includes(c.campo));
+  { const k = ANCHO / cols.reduce((n, c) => n + c.w, 0); cols.forEach((c) => { c.w *= k; }); } // las columnas que quedan reparten todo el ancho
   const xs = []; { let x = M; for (const c of cols) { xs.push(x); x += c.w; } }
-  doc.font("Oak-Bold").fontSize(7.5);
+  // Tipografía del encabezado: la más grande (hasta 7.5) con la que la palabra más larga de cada columna entra entera en su ancho.
+  let fuenteCab = 7.5;
+  doc.font("Oak-Bold");
+  for (const c of cols) for (const palabra of c.t.split(/\s+/)) {
+    const ancho = doc.fontSize(7.5).widthOfString(palabra);
+    if (ancho > c.w - 8) fuenteCab = Math.min(fuenteCab, Math.max(4.5, Math.floor((7.5 * (c.w - 8) / ancho) * 10) / 10));
+  }
+  doc.fontSize(fuenteCab);
   const altoCab = Math.max(...cols.map((c) => doc.heightOfString(c.t, { width: c.w - 8, align: c.centro ? "center" : "left" }))) + 10;
   const cabecera = () => {
     const y = doc.y;
     doc.rect(M, y, ANCHO, altoCab).fill("#eaf2ee");
-    doc.fillColor(VERDE_OSCURO).font("Oak-Bold").fontSize(7.5);
+    doc.fillColor(VERDE_OSCURO).font("Oak-Bold").fontSize(fuenteCab);
     cols.forEach((c, i) => doc.text(c.t, xs[i] + 4, y + 5, { width: c.w - 8, align: c.centro ? "center" : "left" }));
     doc.y = y + altoCab;
   };
   espacio(altoCab + 26);
   cabecera();
-  const filas = b.estaciones.length ? b.estaciones : [];
+  const filas = b.estaciones.filter((e) => !e.oculta);
   for (const e of filas) {
     if (doc.y + 26 > limite()) { doc.addPage(); cabecera(); }
-    const y = doc.y, valores = [dato(e.estacion).toUpperCase(), dato(e.tmedia), dato(e.tmin), dato(e.tmax), dato(e.eventos), dato(e.precipitacion)];
+    const y = doc.y, valores = cols.map((c) => (c.campo ? dato(e[c.campo]) : dato(e.estacion).toUpperCase()));
     cols.forEach((c, i) => {
       doc.fillColor(i === 0 ? VERDE_OSCURO : c.color || TEXTO).font(i === 0 ? "Oak-Bold" : "Oak-Bold").fontSize(9.5);
       doc.text(valores[i], xs[i] + 4, y + 8, { width: c.w - 8, align: c.centro ? "center" : "left", lineBreak: false });
@@ -151,7 +161,8 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
   }
   if (!filas.length) { doc.fillColor(GRIS).font("Oak").fontSize(9).text("Sin estaciones cargadas.", M + 4, doc.y + 6); doc.y += 24; }
   doc.y += 6;
-  doc.font("Oak").fontSize(8).fillColor(GRIS).text(REFERENCIAS, M, doc.y, { width: ANCHO, align: "center" });
+  const referencias = [!(ocultas.includes("tmedia") && ocultas.includes("tmin") && ocultas.includes("tmax")) && "° C  Grados Celsius", !ocultas.includes("eventos") && "N°  Número de eventos", !ocultas.includes("precipitacion") && "mm  Milímetros de precipitación"].filter(Boolean).join("      ");
+  if (referencias) doc.font("Oak").fontSize(8).fillColor(GRIS).text(referencias, M, doc.y, { width: ANCHO, align: "center" });
   doc.y += 14;
 
   // --- 2. resumen meteorológico del mes ---------------------------------------------------------------------------

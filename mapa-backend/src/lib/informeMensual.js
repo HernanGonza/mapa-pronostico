@@ -25,6 +25,7 @@ const RE_IMAGEN = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
 
 /** Las imágenes de una sección (los informes guardados antes traían una sola, en `imagen`). */
 const imagenesDe = (s) => (Array.isArray(s?.imagenes) ? s.imagenes : s?.imagen ? [s.imagen] : []);
+const CAMPOS_COLUMNA = ["tmedia", "tmin", "tmax", "eventos", "precipitacion"];
 const vacio = (v) => v == null || String(v).trim() === "";
 
 /** Qué está mal del borrador (los textos y las celdas pueden venir vacíos: el PDF se puede bajar incompleto), o null. */
@@ -44,6 +45,7 @@ function errorDeInformeMensual(b) {
       if (campo === "precipitacion" && String(v).trim().startsWith("-")) return `«${e.estacion || "Estación"}»: la precipitación no puede ser negativa.`;
     }
   }
+  if (b.columnasOcultas != null && (!Array.isArray(b.columnasOcultas) || b.columnasOcultas.some((c) => !CAMPOS_COLUMNA.includes(c)))) return "Las columnas ocultas no son válidas.";
   if (b.resumen != null && (typeof b.resumen !== "string" || b.resumen.length > LIMITES.texto)) return `El resumen del mes admite hasta ${LIMITES.texto} caracteres.`;
   for (const [clave, nombre] of [["trimestral", "pronóstico climático trimestral"], ["nino", "fenómeno del Niño"]]) {
     const s = b[clave];
@@ -65,11 +67,12 @@ function normalizarInformeMensual(b) {
   const seccion = (s) => ({ imagenes: imagenesDe(s).filter(Boolean), texto: t(s?.texto) });
   return {
     version: 1, anio: b.anio, mes: b.mes,
-    estaciones: b.estaciones.map((e) => ({ estacion: t(e.estacion), tmedia: n(e.tmedia), tmin: n(e.tmin), tmax: n(e.tmax), eventos: n(e.eventos), precipitacion: n(e.precipitacion) })),
+    columnasOcultas: CAMPOS_COLUMNA.filter((c) => Array.isArray(b.columnasOcultas) && b.columnasOcultas.includes(c)),
+    estaciones: b.estaciones.map((e) => ({ oculta: e.oculta === true, estacion: t(e.estacion), tmedia: n(e.tmedia), tmin: n(e.tmin), tmax: n(e.tmax), eventos: n(e.eventos), precipitacion: n(e.precipitacion) })),
     resumen: t(b.resumen), trimestral: seccion(b.trimestral), nino: seccion(b.nino),
   };
 }
 
 const tituloDe = (b) => `BALANCE HIDROMETEOROLÓGICO DEL MES DE ${MESES[b.mes - 1].toUpperCase()} DE ${b.anio}`;
 
-module.exports = { imagenesDe, MESES, ESTACIONES_PREDETERMINADAS, LIMITES, errorDeInformeMensual, normalizarInformeMensual, tituloDe };
+module.exports = { CAMPOS_COLUMNA, imagenesDe, MESES, ESTACIONES_PREDETERMINADAS, LIMITES, errorDeInformeMensual, normalizarInformeMensual, tituloDe };

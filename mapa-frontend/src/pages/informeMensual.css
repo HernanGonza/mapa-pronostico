@@ -74,3 +74,8 @@
   .im-esquema figcaption { text-align: left; max-width: 18ch; }
   .im-estado { margin-left: 0; width: 100%; }
 }
+
+.im-columnas { border: 1px solid var(--borde, #d5e0da); border-radius: 8px; padding: 6px 12px 8px; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.im-columnas legend { font-size: .85rem; padding: 0 4px; }
+.im-columnas label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; }
+.im-fila-oculta input { opacity: .5; text-decoration: line-through; }

@@ -24,8 +24,8 @@ const COLUMNAS = [
 const LIMITE_TEXTO = 8000;
 const RE_NUMERO = /^-?\d+([.,]\d+)?$/;
 
-const estacionVacia = (estacion = "") => ({ estacion, tmedia: "", tmin: "", tmax: "", eventos: "", precipitacion: "" });
-const borradorNuevo = (anio, mes) => ({ version: 1, anio, mes, estaciones: ESTACIONES.map(estacionVacia), resumen: "", trimestral: { imagenes: [], texto: "" }, nino: { imagenes: [], texto: "" } });
+const estacionVacia = (estacion = "") => ({ oculta: false, estacion, tmedia: "", tmin: "", tmax: "", eventos: "", precipitacion: "" });
+const borradorNuevo = (anio, mes) => ({ version: 1, anio, mes, columnasOcultas: [], estaciones: ESTACIONES.map(estacionVacia), resumen: "", trimestral: { imagenes: [], texto: "" }, nino: { imagenes: [], texto: "" } });
 /** Lo que está mal de una celda (o ""): número con coma o punto; los eventos, entero; la lluvia, sin signo. */
 function problemaCelda(col, valor) {
   const v = String(valor ?? "").trim();
@@ -132,7 +132,7 @@ export default function InformeMensualPage() {
     try {
       const r = await api.getInformeMensual(a, m);
       const sec = (x) => ({ imagenes: Array.isArray(x?.imagenes) ? x.imagenes : x?.imagen ? [x.imagen] : [], texto: x?.texto || "" }); // los guardados antes traían una sola imagen
-      setB(r ? { ...borradorNuevo(a, m), ...r.borrador, trimestral: sec(r.borrador.trimestral), nino: sec(r.borrador.nino), anio: a, mes: m } : borradorNuevo(a, m));
+      setB(r ? { ...borradorNuevo(a, m), ...r.borrador, columnasOcultas: r.borrador.columnasOcultas || [], trimestral: sec(r.borrador.trimestral), nino: sec(r.borrador.nino), anio: a, mes: m } : borradorNuevo(a, m));
       setGuardado(r ? { actualizadoEn: r.actualizadoEn, actualizadoPor: r.actualizadoPor } : null);
       setSucio(false); setAnioMes(`${a}-${m}`);
     } catch (e) { setError(e.message); }
@@ -160,13 +160,13 @@ export default function InformeMensualPage() {
   const problemas = useMemo(() => {
     if (!b) return [];
     const p = [];
-    b.estaciones.forEach((e) => COLUMNAS.forEach((c) => { const t = problemaCelda(c, e[c.campo]); if (t) p.push(`${e.estacion || "Estación"} · ${c.corto}: ${t.toLowerCase()}`); }));
+    b.estaciones.forEach((e) => COLUMNAS.filter((c) => !b.columnasOcultas.includes(c.campo)).forEach((c) => { const t = problemaCelda(c, e[c.campo]); if (t) p.push(`${e.estacion || "Estación"} · ${c.corto}: ${t.toLowerCase()}`); }));
     return p;
   }, [b]);
   const faltantes = useMemo(() => {
     if (!b) return [];
     const f = [];
-    const vacias = b.estaciones.reduce((n, e) => n + COLUMNAS.filter((c) => !String(e[c.campo] ?? "").trim()).length, 0);
+    const vacias = b.estaciones.filter((e) => !e.oculta).reduce((n, e) => n + COLUMNAS.filter((c) => !b.columnasOcultas.includes(c.campo)).filter((c) => !String(e[c.campo] ?? "").trim()).length, 0);
     if (vacias) f.push(`${vacias} ${vacias === 1 ? "celda" : "celdas"} de la tabla sin completar`);
     if (!b.resumen.trim()) f.push("el resumen del mes");
     if (!b.trimestral.imagenes.length) f.push("los mapas del pronóstico trimestral");
@@ -212,6 +212,8 @@ export default function InformeMensualPage() {
   }
 
   const anios = useMemo(() => Array.from({ length: 8 }, (_, i) => hoy.getFullYear() + 1 - i), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const columnasVisibles = b ? COLUMNAS.filter((c) => !b.columnasOcultas.includes(c.campo)) : COLUMNAS;
+  const alternarColumna = (campo) => cambiar((x) => ({ ...x, columnasOcultas: x.columnasOcultas.includes(campo) ? x.columnasOcultas.filter((c) => c !== campo) : [...x.columnasOcultas, campo] }));
   const celdaMala = (c, e) => !!problemaCelda(c, e[c.campo]);
 
   return <div className="admin-layout admin-layout--sin-mapa">
@@ -253,14 +255,19 @@ export default function InformeMensualPage() {
           <div className="im-seccion-cuerpo">
             <h2 id="im-s1">Valores medios del mes</h2>
             <p className="im-ubicacion">Tabla debajo del título, una fila por estación. Los números con coma o punto (24,5); los eventos, enteros.</p>
+            <fieldset className="im-columnas">
+              <legend>Columnas que salen en el PDF</legend>
+              {COLUMNAS.map((c) => <label key={c.campo}><input type="checkbox" checked={!b.columnasOcultas.includes(c.campo)} onChange={() => alternarColumna(c.campo)} /> {c.corto}</label>)}
+            </fieldset>
             <div className="im-tabla-envoltorio">
               <table className="im-tabla">
-                <thead><tr><th scope="col">Estación</th>{COLUMNAS.map((c) => <th scope="col" key={c.campo}>{c.titulo}</th>)}<th><span className="im-sr">Quitar</span></th></tr></thead>
+                <thead><tr><th scope="col">Estación</th>{columnasVisibles.map((c) => <th scope="col" key={c.campo}>{c.titulo}</th>)}<th><span className="im-sr">Mostrar u ocultar</span></th><th><span className="im-sr">Quitar</span></th></tr></thead>
                 <tbody>
-                  {b.estaciones.map((e, i) => <tr key={i}>
+                  {b.estaciones.map((e, i) => <tr key={i} className={e.oculta ? "im-fila-oculta" : ""}>
                     <th scope="row"><input type="text" aria-label={`Nombre de la estación ${i + 1}`} value={e.estacion} maxLength={60} onChange={(ev) => ponerCelda(i, "estacion", ev.target.value)} /></th>
-                    {COLUMNAS.map((c) => <td key={c.campo}><input type="text" inputMode="decimal" aria-label={`${e.estacion || "Estación"}: ${c.titulo}`} aria-invalid={celdaMala(c, e) || undefined} title={problemaCelda(c, e[c.campo]) || undefined}
+                    {columnasVisibles.map((c) => <td key={c.campo}><input type="text" inputMode="decimal" aria-label={`${e.estacion || "Estación"}: ${c.titulo}`} aria-invalid={celdaMala(c, e) || undefined} title={problemaCelda(c, e[c.campo]) || undefined}
                       className={celdaMala(c, e) ? "im-malo" : ""} value={e[c.campo]} maxLength={12} onChange={(ev) => ponerCelda(i, c.campo, ev.target.value)} /></td>)}
+                    <td><button type="button" className="im-btn im-btn--chico" aria-pressed={!!e.oculta} title={e.oculta ? "Oculta: no sale en el PDF. Tocá para mostrarla" : "Ocultar esta fila del PDF"} aria-label={`${e.oculta ? "Mostrar" : "Ocultar"} ${e.estacion || "la estación"} en el PDF`} onClick={() => ponerCelda(i, "oculta", !e.oculta)}>{e.oculta ? "Mostrar" : "Ocultar"}</button></td>
                     <td><button type="button" className="im-btn im-btn--chico" aria-label={`Quitar ${e.estacion || "la estación"}`} onClick={() => cambiar((x) => ({ ...x, estaciones: x.estaciones.filter((_, k) => k !== i) }))}>✕</button></td>
                   </tr>)}
                 </tbody>
