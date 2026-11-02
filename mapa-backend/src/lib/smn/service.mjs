@@ -5,6 +5,16 @@ import alertasManuales from '../alertasMeteorologicasStore.js';
 import notificaciones from '../notificacionesStore.js';
 import avisos from '../avisosCortoPlazoStore.js';
 import alertasAuto from '../alertasSmnAuto.js';
+/** Separa los tramos «Future» (el SMN los adelanta pero puede no volver a emitirlos): no se publican, se muestran aparte. */
+export function separarFuturas(alertas) {
+  const publicables = [], proximas = [];
+  for (const r of alertas) {
+    const ok = (r.infos || []).filter(i => i.urgencia !== 'Future'), fut = (r.infos || []).filter(i => i.urgencia === 'Future');
+    if (ok.length) publicables.push({ ...r, infos: ok });
+    if (fut.length) proximas.push({ ...r, infos: fut });
+  }
+  return { publicables, proximas };
+}
 export const INTERVALO = 5 * 60 * 1000;
 const errores = {};
 let actualizando = null;
@@ -28,7 +38,7 @@ export async function avisarAcpNuevos(vigentesAcp, logger = console, notificar =
 }
 
 export async function revisarSat(datos, logger = console, revisar = alertasAuto.revisar) {
-  try { await revisar(unirZonas(vigentes(ultimaEmisionVigente(datos))), { logger }); }
+  try { await revisar(separarFuturas(unirZonas(vigentes(ultimaEmisionVigente(datos)))).publicables, { logger }); }
   catch (e) { logger.error(`[SMN SAT] aviso de alertas: ${e.message}`); }
 }
 
@@ -78,6 +88,7 @@ export async function obtenerActual() {
       // SAT: sólo la última emisión (reemplaza a las anteriores). Los ACP son
       // avisos sueltos de corta duración: se muestran todos los vigentes.
       error: errores[fuente] || null, alertas: fuente === 'SAT' ? unirZonas(vigentes(ultimaEmisionVigente(r?.datos || []))) : vigentes(r?.datos || []) };
+    if (fuente === 'SAT') { const { publicables, proximas } = separarFuturas(fuentes.SAT.alertas); fuentes.SAT.alertas = publicables; fuentes.SAT.proximas = proximas; }
   }));
   // Los ACP no traen nivel en `severity`: va el de su titular («AVISO NARANJA…») o, si
   // no lo dice, el de la alerta (SMN o manual) en cuya vigencia caen (ver colorAcp.js). `acpAhora`: el de un ACP que se cree ya.

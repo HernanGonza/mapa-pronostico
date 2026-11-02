@@ -356,6 +356,17 @@ export default function AlertasMeteorologicasPage() {
             etiqueta: c.reemplazada ? `Era la #${c.reemplazada.id}: el SMN la corrigió y ya no vale.` : [c.yaNoLaLista ? 'El SMN ya no la lista en su última emisión, pero sigue vigente.' : null, c.yaPublicada ? 'Está en la pila de abajo: se edita, se le sacan placas o se despublica desde su tarjeta.' : c.actualizaA ? `El SMN actualizó la #${c.actualizaA.id}${c.actualizaA.cambios.length ? `: ${c.actualizaA.cambios.map(x => ({ vigencia: 'cambió la vigencia', nivel: 'cambió el nivel', zonas: 'cambiaron los departamentos' })[x]).join(', ')}` : ''}.` : null].filter(Boolean).join(' ') || null,
             textoBoton: c.yaPublicada ? 'Ver la publicada' : c.actualizaA ? `Actualizar la #${c.actualizaA.id}` : 'Usar como base' }))}
           onElegir={(emision) => { const c = smn?.alertas.find(a => a.emision === emision); if (c?.yaPublicada) irAPublicada(c.yaPublicada); else usarComoBase(emision); }} />
+        {smn?.anunciadas?.length > 0 && <section className="smn-tarjetas smn-tarjetas--anunciadas" aria-label="Anunciadas por el SMN, todavía no publicables">
+          <h2 className="smn-tarjetas__titulo"><span className="smn-tarjetas__punto" aria-hidden="true" />Anunciadas por el SMN (no publicadas)</h2>
+          <p className="admin-panel__hint">El SMN las adelanta con urgencia «Future»: todavía no valen y puede que no las vuelva a emitir. Se muestran sólo para que las tengas presentes.</p>
+          <ul>{smn.anunciadas.map((a) => <li key={`${a.nivel}|${a.fenomeno}|${a.inicio}`} className="smn-tarjeta smn-tarjeta--reemplazada" style={{ '--nivel': a.color || '#8b3fc4' }}>
+            <div className="smn-tarjeta__cuerpo">
+              <strong>Alerta {enFemenino(a.nivel).toLowerCase()} · {String(a.fenomeno).toLowerCase()}</strong>
+              <span>{a.departamentos.length} departamento{a.departamentos.length === 1 ? '' : 's'}: {a.departamentos.join(', ')}</span>
+              <ul className="smn-tarjeta__lineas"><li><i style={{ background: a.color }} />{diaCorto(a.inicio)} {hhmm(a.inicio)} → {diaCorto(a.fin) === diaCorto(a.inicio) ? '' : `${diaCorto(a.fin)} `}{hhmm(a.fin)}</li></ul>
+            </div>
+          </li>)}</ul>
+        </section>}
         <div className="admin-acciones">
           <button className="btn btn--primary btn--block" onClick={nuevaAlerta}>Nueva alerta</button>
         </div>
