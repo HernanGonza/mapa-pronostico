@@ -25,7 +25,7 @@ const LIMITE_TEXTO = 8000;
 const RE_NUMERO = /^-?\d+([.,]\d+)?$/;
 
 const estacionVacia = (estacion = "") => ({ oculta: false, estacion, tmedia: "", tmin: "", tmax: "", eventos: "", precipitacion: "" });
-const borradorNuevo = (anio, mes) => ({ version: 1, anio, mes, columnasOcultas: [], estaciones: ESTACIONES.map(estacionVacia), resumen: "", trimestral: { imagenes: [], texto: "" }, nino: { imagenes: [], texto: "" } });
+const borradorNuevo = (anio, mes) => ({ version: 1, anio, mes, titulo: "", subtitulo: "", columnasOcultas: [], estaciones: ESTACIONES.map(estacionVacia), resumen: "", trimestral: { imagenes: [], texto: "" }, nino: { imagenes: [], texto: "" } });
 /** Lo que está mal de una celda (o ""): número con coma o punto; los eventos, entero; la lluvia, sin signo. */
 function problemaCelda(col, valor) {
   const v = String(valor ?? "").trim();
@@ -132,7 +132,7 @@ export default function InformeMensualPage() {
     try {
       const r = await api.getInformeMensual(a, m);
       const sec = (x) => ({ imagenes: Array.isArray(x?.imagenes) ? x.imagenes : x?.imagen ? [x.imagen] : [], texto: x?.texto || "" }); // los guardados antes traían una sola imagen
-      setB(r ? { ...borradorNuevo(a, m), ...r.borrador, columnasOcultas: r.borrador.columnasOcultas || [], trimestral: sec(r.borrador.trimestral), nino: sec(r.borrador.nino), anio: a, mes: m } : borradorNuevo(a, m));
+      setB(r ? { ...borradorNuevo(a, m), ...r.borrador, columnasOcultas: r.borrador.columnasOcultas || [], titulo: r.borrador.titulo || "", subtitulo: r.borrador.subtitulo || "", trimestral: sec(r.borrador.trimestral), nino: sec(r.borrador.nino), anio: a, mes: m } : borradorNuevo(a, m));
       setGuardado(r ? { actualizadoEn: r.actualizadoEn, actualizadoPor: r.actualizadoPor } : null);
       setSucio(false); setAnioMes(`${a}-${m}`);
     } catch (e) { setError(e.message); }
@@ -245,8 +245,11 @@ export default function InformeMensualPage() {
           <EsquemaHoja activo="titulo" />
           <div className="im-seccion-cuerpo">
             <h2 id="im-s0">Título</h2>
-            <p className="im-ubicacion">Arriba de todo, con los logos y la dirección: se arma solo con el mes y el año elegidos.</p>
-            <p className="im-titulo-vista">BALANCE HIDROMETEOROLÓGICO DEL MES DE {MESES[b.mes - 1].toUpperCase()} DE {b.anio}</p>
+            <p className="im-ubicacion">Arriba de todo, con los logos y la dirección. Sale en dos renglones; si dejás uno vacío, se usa el texto de siempre (con el mes y el año elegidos).</p>
+            <label className="im-campo" htmlFor="im-titulo"><span>Título (renglón grande)</span>
+              <input id="im-titulo" type="text" maxLength={90} value={b.titulo} placeholder="BALANCE HIDROMETEOROLÓGICO" onChange={(e) => cambiar((x) => ({ ...x, titulo: e.target.value }))} /></label>
+            <label className="im-campo" htmlFor="im-subtitulo"><span>Subtítulo (segundo renglón)</span>
+              <input id="im-subtitulo" type="text" maxLength={90} value={b.subtitulo} placeholder={`DEL MES DE ${MESES[b.mes - 1].toUpperCase()} DE ${b.anio}`} onChange={(e) => cambiar((x) => ({ ...x, subtitulo: e.target.value }))} /></label>
           </div>
         </section>
 

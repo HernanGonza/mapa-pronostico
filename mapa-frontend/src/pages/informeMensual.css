@@ -50,8 +50,8 @@
 
 .im-campo { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
 .im-campo > span { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-.im-campo textarea { font: inherit; font-size: 0.92rem; line-height: 1.45; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); resize: vertical; width: 100%; box-sizing: border-box; }
-.im-campo textarea:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 1px; }
+.im-campo input, .im-campo textarea { font: inherit; font-size: 0.92rem; line-height: 1.45; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); resize: vertical; width: 100%; box-sizing: border-box; }
+.im-campo input:focus-visible, .im-campo textarea:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: 1px; }
 .im-campo small { align-self: flex-end; font-size: 0.74rem; color: var(--text-muted); }
 .im-ayuda-fila { margin: 0 0 6px; font-size: 0.78rem; color: var(--text-muted); }
 /* La vista previa de las imágenes se achica igual que en el PDF: una fila, mismo alto, cada una proporcional a su ancho. */

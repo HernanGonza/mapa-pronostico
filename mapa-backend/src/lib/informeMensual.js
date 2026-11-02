@@ -19,7 +19,7 @@
  */
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const ESTACIONES_PREDETERMINADAS = ["Posadas", "Valle Hermoso", "San Pedro", "Andresito", "Campo Grande"];
-const LIMITES = { estaciones: 20, nombre: 60, celda: 12, texto: 8000, imagen: 4_800_000, imagenes: 6, imagenesTotal: 12_000_000 };
+const LIMITES = { estaciones: 20, nombre: 60, titulo: 90, celda: 12, texto: 8000, imagen: 4_800_000, imagenes: 6, imagenesTotal: 12_000_000 };
 const RE_NUMERO = /^-?\d+([.,]\d+)?$/;
 const RE_IMAGEN = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
 
@@ -46,6 +46,7 @@ function errorDeInformeMensual(b) {
     }
   }
   if (b.columnasOcultas != null && (!Array.isArray(b.columnasOcultas) || b.columnasOcultas.some((c) => !CAMPOS_COLUMNA.includes(c)))) return "Las columnas ocultas no son válidas.";
+  for (const c of ["titulo", "subtitulo"]) if (b[c] != null && (typeof b[c] !== "string" || b[c].length > LIMITES.titulo)) return `El título admite hasta ${LIMITES.titulo} caracteres.`;
   if (b.resumen != null && (typeof b.resumen !== "string" || b.resumen.length > LIMITES.texto)) return `El resumen del mes admite hasta ${LIMITES.texto} caracteres.`;
   for (const [clave, nombre] of [["trimestral", "pronóstico climático trimestral"], ["nino", "fenómeno del Niño"]]) {
     const s = b[clave];
@@ -69,10 +70,14 @@ function normalizarInformeMensual(b) {
     version: 1, anio: b.anio, mes: b.mes,
     columnasOcultas: CAMPOS_COLUMNA.filter((c) => Array.isArray(b.columnasOcultas) && b.columnasOcultas.includes(c)),
     estaciones: b.estaciones.map((e) => ({ oculta: e.oculta === true, estacion: t(e.estacion), tmedia: n(e.tmedia), tmin: n(e.tmin), tmax: n(e.tmax), eventos: n(e.eventos), precipitacion: n(e.precipitacion) })),
-    resumen: t(b.resumen), trimestral: seccion(b.trimestral), nino: seccion(b.nino),
+    titulo: t(b.titulo), subtitulo: t(b.subtitulo), resumen: t(b.resumen), trimestral: seccion(b.trimestral), nino: seccion(b.nino),
   };
 }
 
-const tituloDe = (b) => `BALANCE HIDROMETEOROLÓGICO DEL MES DE ${MESES[b.mes - 1].toUpperCase()} DE ${b.anio}`;
+/** Título en dos renglones; lo que se dejó vacío (o no se tocó) sale con el texto de siempre. */
+const TITULO_BASE = "BALANCE HIDROMETEOROLÓGICO";
+const subtituloBase = (b) => `DEL MES DE ${MESES[b.mes - 1].toUpperCase()} DE ${b.anio}`;
+const titulosDe = (b) => ({ titulo: (b.titulo || "").trim() || TITULO_BASE, subtitulo: (b.subtitulo || "").trim() || subtituloBase(b) });
+const tituloDe = (b) => { const t = titulosDe(b); return `${t.titulo} ${t.subtitulo}`; };
 
-module.exports = { CAMPOS_COLUMNA, imagenesDe, MESES, ESTACIONES_PREDETERMINADAS, LIMITES, errorDeInformeMensual, normalizarInformeMensual, tituloDe };
+module.exports = { TITULO_BASE, subtituloBase, titulosDe, CAMPOS_COLUMNA, imagenesDe, MESES, ESTACIONES_PREDETERMINADAS, LIMITES, errorDeInformeMensual, normalizarInformeMensual, tituloDe };

@@ -1,7 +1,7 @@
 const path = require("path");
 const crypto = require("crypto");
 const PDFDocument = require("pdfkit");
-const { errorDeInformeMensual, normalizarInformeMensual, MESES } = require("./informeMensual");
+const { errorDeInformeMensual, normalizarInformeMensual, titulosDe, MESES } = require("./informeMensual");
 
 /**
  * «BALANCE HIDROMETEOROLÓGICO DEL MES DE …» en PDF, con el mismo aspecto que el informe de «Previsión del tiempo»
@@ -110,8 +110,10 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
   doc.image(LOGOS.alerta, M - 6, M - 14, { width: 92 });
   doc.image(LOGOS.flor, M + ANCHO - 44, M - 2, { width: 44 });
   const centro = { width: ANCHO, align: "center", lineBreak: false };
-  doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(17).text("BALANCE HIDROMETEOROLÓGICO", M, M - 6, centro);
-  doc.font("Oak-Bold").fontSize(11.5).fillColor(VERDE).text(`DEL MES DE ${MESES[b.mes - 1].toUpperCase()} DE ${b.anio}`, M, M + 16, centro);
+  const tt = titulosDe(b), ajustar = (texto, tam, fuente, min) => { doc.font(fuente).fontSize(tam); const w = doc.widthOfString(texto), disp = ANCHO - 2 * 92; return w > disp ? Math.max(min, tam * disp / w) : tam; }; // lo largo se achica para no pisar los logos
+  const T1 = tt.titulo.toUpperCase(), T2 = tt.subtitulo.toUpperCase();
+  doc.fillColor(VERDE_OSCURO).font("Oak-Titulo").fontSize(ajustar(T1, 17, "Oak-Titulo", 9)).text(T1, M, M - 6, centro);
+  doc.font("Oak-Bold").fontSize(ajustar(T2, 11.5, "Oak-Bold", 7)).fillColor(VERDE).text(T2, M, M + 16, centro);
   doc.font("Oak-Bold").fontSize(8.5).fillColor(VERDE_OSCURO).text(DIRECCION, M, M + 33, centro);
   doc.font("Oak").fontSize(7.5).fillColor(GRIS).text(SUBSECRETARIA, M, M + 44, centro);
   doc.text(MINISTERIO, M, M + 54, centro);
