@@ -34,3 +34,8 @@ test('las infos Future se separan de las publicables', () => {
   assert.equal(publicables.length, 1); assert.equal(publicables[0].infos.length, 1);
   assert.equal(proximas.length, 2);
 });
+
+test('las Future pasan del horizonte sin recortarse (se muestran aparte)', () => {
+  const r = limitarHorizonte({ fuente: 'SAT', emitidoEn, infos: [{ urgencia: 'Future', inicio: '2026-11-04T09:00:00.000Z', fin: '2026-11-04T20:59:59.000Z', zonas: [{ nombre: 'x' }] }] });
+  assert.equal(r.infos.length, 1); assert.equal(r.infos[0].fin, '2026-11-04T20:59:59.000Z');
+});

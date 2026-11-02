@@ -83,7 +83,8 @@ export function limitarHorizonte(r) {
   if (!r.infos?.length) return r;
   if (r.fuente !== 'SAT' || !r.infos.length) return r;
   const tope = horizonteSat(r.emitidoEn);
-  const infos = r.infos.filter(i => Date.parse(i.inicio) < tope).map(i => Date.parse(i.fin) > tope ? { ...i, fin: new Date(tope - 1000).toISOString() } : i);
+  // Las «Future» no se publican, así que se conservan enteras (se muestran aparte) aunque pasen del horizonte.
+  const infos = r.infos.filter(i => i.urgencia === 'Future' || Date.parse(i.inicio) < tope).map(i => i.urgencia !== 'Future' && Date.parse(i.fin) > tope ? { ...i, fin: new Date(tope - 1000).toISOString() } : i);
   return infos.length === r.infos.length && infos.every((i, k) => i === r.infos[k]) ? r : { ...r, infos };
 }
 export function polygon(text) {
@@ -186,7 +187,7 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
     const inicio = fecha(info.onset || info.effective || a.sent), fin = fecha(info.expires);
     if (Date.parse(fin) <= Date.parse(inicio)) throw new Error('SMN: vigencia CAP inválida');
     // «Future»: tramos de más adelante; se guardan con su `urgencia` pero no se publican (el servicio los separa en `proximas`).
-    if (fuente === 'SAT' && Date.parse(inicio) >= horizonteSat(result.emitidoEn)) continue; // respaldo: más allá de lo que publica el SMN (ver horizonteSat)
+    if (fuente === 'SAT' && info.urgency !== 'Future' && Date.parse(inicio) >= horizonteSat(result.emitidoEn)) continue; // respaldo: más allá de lo que publica el SMN (ver horizonteSat)
     const zonas = [];
     for (const area of array(info.area)) {
       const campos = Object.keys(area || {});
