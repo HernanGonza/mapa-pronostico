@@ -250,7 +250,11 @@ const VENTANA_EMISION_MS = 10 * 60 * 1000;
  * La última emisión que todavía tiene alertas vigentes. Si el SMN manda una emisión nueva que ya no menciona Misiones (la corrige o
  * la reemplaza por otras zonas), la alerta de la anterior sigue rigiendo hasta que termina su vigencia, así que se sigue viendo.
  */
-export const ultimaEmisionVigente = (rows, now = Date.now()) => { const v = vigentes(rows, now); return v.length ? ultimaEmision(v) : []; };
+export const ultimaEmisionVigente = (rows, now = Date.now()) => {
+  // Cada alerta del RSS es independiente: sólo la reemplaza una emisión posterior que la referencie (el ID es `emisión.zona`, la referencia es la emisión sin zona).
+  const reemplazadas = new Set(rows.flatMap(r => r.referencias || []));
+  return vigentes(rows, now).filter(r => !reemplazadas.has(r.id) && !reemplazadas.has(r.id.slice(0, r.id.lastIndexOf('.'))));
+};
 /**
  * El SMN manda una alerta por cada subzona de Misiones (mismo fenómeno, nivel, período y
  * texto, distinto polígono). Se unen en una sola, con todas las zonas, para verla y

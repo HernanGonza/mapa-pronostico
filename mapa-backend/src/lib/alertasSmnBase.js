@@ -141,16 +141,16 @@ function candidata(alertas, departamentos, { ahora = Date.now(), tramo = null } 
 /** Día (AAAA-MM-DD, hora de Misiones) en que empieza un horario del SMN. */
 const diaDe = (inicio) => new Date(Date.parse(inicio) - 3 * 3600 * 1000).toISOString().slice(0, 10);
 
-/** El horario de un mensaje del SMN (desde-hasta), que identifica a su alerta. */
-const tramoDe = (info) => `${Date.parse(info.inicio)}-${auto.redondeado(info.fin)}`;
+/** Lo que identifica a una alerta del SMN: fenómeno, nivel y horario (desde-hasta). */
+const tramoDe = (info) => `${Date.parse(info.inicio)}-${auto.redondeado(info.fin)}|${info.categoria}|${auto.sinTildes(info.evento || info.titulo)}`;
 
 /**
- * Las alertas de la última emisión tal cual vienen del SMN: una por horario (desde-hasta). Los mensajes con el mismo horario son la misma
- * alerta partida en zonas, y se juntan; horarios distintos NO se juntan. Si hay un solo horario, es una sola, igual que `candidata`.
+ * Las alertas de la última emisión tal cual vienen del SMN: una por fenómeno, nivel y horario. Los mensajes iguales en eso son la misma
+ * alerta partida en zonas, y se juntan; las demás NO se juntan nunca. Si hay una sola, es una sola, igual que `candidata`.
  */
 function candidatas(alertas, departamentos, opciones = {}) {
   const tramos = [...new Set((alertas || []).flatMap((a) => (a.infos || []).map((i) => auto.publicable(i)).filter(Boolean).map(tramoDe)))]
-    .sort((a, b) => parseInt(a) - parseInt(b) || parseInt(a.split("-")[1]) - parseInt(b.split("-")[1]));
+    .sort((a, b) => parseInt(a) - parseInt(b) || parseInt(a.split("-")[1]) - parseInt(b.split("-")[1]) || a.localeCompare(b));
   if (tramos.length <= 1) { const c = candidata(alertas, departamentos, opciones); return c ? [c] : []; }
   return tramos.map((tramo) => candidata(alertas, departamentos, { ...opciones, tramo })).filter(Boolean);
 }

@@ -5,7 +5,7 @@ import alertasManuales from '../alertasMeteorologicasStore.js';
 import notificaciones from '../notificacionesStore.js';
 import avisos from '../avisosCortoPlazoStore.js';
 import alertasAuto from '../alertasSmnAuto.js';
-export const INTERVALO = 5 * 60 * 1000;
+export const INTERVALO = 3 * 60 * 1000;
 const errores = {};
 let actualizando = null;
 const FUENTES_ACTIVAS = ['SAT', 'ACP'];

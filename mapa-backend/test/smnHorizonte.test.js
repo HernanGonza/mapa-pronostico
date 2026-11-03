@@ -27,3 +27,14 @@ test("no toca los avisos a muy corto plazo ni lo que ya está dentro", () => {
   const dentro = { fuente: "SAT", emitidoEn, infos: [info("2026-11-01T22:38:59.000Z", "2026-11-02T14:59:59.000Z")] };
   assert.equal(limitarHorizonte(dentro), dentro);
 });
+
+test('una alerta naranja no desaparece porque salió otra emisión después; sólo la reemplaza una que la referencie', async () => {
+  const { ultimaEmisionVigente } = await import('../src/lib/smn/cap.mjs');
+  const fin = new Date(Date.now() + 3600e3).toISOString();
+  const msg = (id, emitidoEn, referencias = []) => ({ id, emitidoEn, referencias, infos: [{ fin }] });
+  const naranja = msg('urn:oid:2.49.0.1.32.0.2026.11.03.18.00.00.1', '2026-11-03T18:00:00Z');
+  const amarilla = msg('urn:oid:2.49.0.1.32.0.2026.11.03.20.00.00.1', '2026-11-03T20:00:00Z');
+  assert.deepEqual(ultimaEmisionVigente([naranja, amarilla]).map(r => r.id), [naranja.id, amarilla.id]);
+  const act = msg('urn:oid:2.49.0.1.32.0.2026.11.03.21.00.00.1', '2026-11-03T21:00:00Z', ['urn:oid:2.49.0.1.32.0.2026.11.03.18.00.00']);
+  assert.deepEqual(ultimaEmisionVigente([naranja, amarilla, act]).map(r => r.id), [amarilla.id, act.id]);
+});
