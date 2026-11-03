@@ -25,23 +25,6 @@ async function candidataActual(ahora = Date.now()) {
   return { cand: null, recordada: false, consultadoEn };
 }
 
-/** Tramos que el SMN adelantó con urgencia «Future»: no se publican; se muestran aparte por si no los vuelve a emitir. */
-async function anunciadas(ahora = Date.now()) {
-  try {
-    const { obtenerActual } = await import("./smn/service.mjs");
-    const COLOR = { Amarillo: "#FFCC35", Naranja: "#F67F15", Rojo: "#D62E42" };
-    const porClave = new Map();
-    for (const r of (await obtenerActual()).fuentes.SAT?.proximas || []) for (const i of r.infos) {
-      if (Date.parse(i.fin) <= ahora) continue;
-      const dptos = [...new Set((i.zonas || []).flatMap((z) => (z.departamentos?.length ? z.departamentos : [z.nombre])).filter(Boolean))].sort();
-      const k = `${i.categoria}|${i.evento || i.titulo}|${i.inicio}|${i.fin}`, previo = porClave.get(k);
-      if (previo) previo.departamentos = [...new Set([...previo.departamentos, ...dptos])].sort();
-      else porClave.set(k, { nivel: i.categoria, color: COLOR[i.categoria] || null, fenomeno: i.evento || i.titulo, inicio: i.inicio, fin: i.fin, departamentos: dptos, emitidoEn: r.emitidoEn });
-    }
-    return [...porClave.values()].sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio));
-  } catch (e) { console.error(`[alertas SMN] anunciadas: ${e.message}`); return []; }
-}
-
 /**
  * Lo que el SMN mandó en su última emisión, listo para usarse como base de una alerta del módulo «Alertas meteorologicas»
  * (ver alertasSmnBase.js), y si ya está en la pila: `yaPublicada` (la misma emisión) o `actualizaA` (el SMN corrigió una alerta
@@ -51,11 +34,10 @@ async function recibidas({ pendientes = require("./alertasMeteorologicasStore").
   const base = require("./alertasSmnBase");
   const { cand, recordada, consultadoEn } = await candidataActual(ahora);
   const { vigentes, enFila } = await pendientes();
-  const anun = await anunciadas(ahora);
-  if (!cand) return { alertas: await reemplazadas([], pendientes), consultadoEn, anunciadas: anun };
+  if (!cand) return { alertas: await reemplazadas([], pendientes), consultadoEn };
   const { yaPublicada, actualizaA } = base.clasificar(cand, [...vigentes, ...enFila]);
   const { _entera, ...publico } = cand;
-  return { consultadoEn, anunciadas: anun, alertas: [{ ...publico, yaPublicada, actualizaA, yaNoLaLista: recordada }, ...(await reemplazadas([cand.emision, ...[...vigentes, ...enFila].map((p) => p.origenSmn?.emision)], pendientes))] };
+  return { consultadoEn, alertas: [{ ...publico, yaPublicada, actualizaA, yaNoLaLista: recordada }, ...(await reemplazadas([cand.emision, ...[...vigentes, ...enFila].map((p) => p.origenSmn?.emision)], pendientes))] };
 }
 
 /** Emisiones del SMN ya reemplazadas por otra publicación, para mostrarlas apagadas (`reemplazada`). `excluir`: emisiones que ya se ven. */

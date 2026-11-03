@@ -65,28 +65,6 @@ export function corregirHoraVieja(r) {
     titulo: textoPlano(i.titulo), descripcion: textoPlano(i.descripcion), instrucciones: textoPlano(i.instrucciones),
     zonas: (i.zonas || []).map(z => ({ ...z, nombre: textoPlano(z.nombre) })) })) };
 }
-/**
- * Horizonte de los avisos SAT: el SMN publica hacia adelante hasta «pasado mañana» (el día de la emisión y 2 más). Sus CAP incluyen
- * además tramos "Future" que caen en el cuarto día (ej. una emisión del domingo a la noche con tramos del miércoles de 06 a 18 h), dentro
- * de su ventana interna de 72 h pero fuera de lo que el SMN muestra en su página (2/11/2026). Esos tramos no se toman: ni se guardan
- * ni extienden la vigencia de la alerta. Si el SMN empezara a publicar más días, subir DIAS_HORIZONTE_SAT.
- * El reloj del CAP es UTC (ver `fecha`): la medianoche de Misiones es 03:00.
- */
-export const DIAS_HORIZONTE_SAT = 2;
-const DIA_MS = 24 * 3600 * 1000;
-export function horizonteSat(emitidoEn) {
-  const local = Date.parse(emitidoEn) - TRES_HORAS; // hora de Misiones, leída como UTC
-  return Math.floor(local / DIA_MS) * DIA_MS + (DIAS_HORIZONTE_SAT + 1) * DIA_MS + TRES_HORAS; // 00:00 del día siguiente al último que se toma
-}
-/** Recorta los tramos de una emisión SAT al horizonte: los que empiezan después se descartan y los que lo cruzan terminan en él. */
-export function limitarHorizonte(r) {
-  if (!r.infos?.length) return r;
-  if (r.fuente !== 'SAT' || !r.infos.length) return r;
-  const tope = horizonteSat(r.emitidoEn);
-  // Las «Future» no se publican, así que se conservan enteras (se muestran aparte) aunque pasen del horizonte.
-  const infos = r.infos.filter(i => i.urgencia === 'Future' || Date.parse(i.inicio) < tope).map(i => i.urgencia !== 'Future' && Date.parse(i.fin) > tope ? { ...i, fin: new Date(tope - 1000).toISOString() } : i);
-  return infos.length === r.infos.length && infos.every((i, k) => i === r.infos[k]) ? r : { ...r, infos };
-}
 export function polygon(text) {
   const ring = String(text).trim().split(/\s+/).map(pair => {
     const parts = pair.split(',');
@@ -165,7 +143,7 @@ function corregirGuardado(r) {
  * no caen en Misiones; las zonas sin polígono (ACP por texto) no se tocan.
  */
 export function depurarGuardados(rows, alcance = process.env.SMN_SCOPE || 'argentina') {
-  rows = rows.map(corregirGuardado).map(limitarHorizonte);
+  rows = rows.map(corregirGuardado);
   if (alcance !== 'misiones') return rows;
   return rows.map(r => ({ ...r, infos: (r.infos || []).map(i => ({ ...i, zonas: (i.zonas || []).flatMap(z => {
     if (!z.geometry) return [z];
@@ -186,8 +164,6 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
     if (info.language && !info.language.startsWith('es')) continue;
     const inicio = fecha(info.onset || info.effective || a.sent), fin = fecha(info.expires);
     if (Date.parse(fin) <= Date.parse(inicio)) throw new Error('SMN: vigencia CAP inválida');
-    // «Future»: tramos de más adelante; se guardan con su `urgencia` pero no se publican (el servicio los separa en `proximas`).
-    if (fuente === 'SAT' && info.urgency !== 'Future' && Date.parse(inicio) >= horizonteSat(result.emitidoEn)) continue; // respaldo: más allá de lo que publica el SMN (ver horizonteSat)
     const zonas = [];
     for (const area of array(info.area)) {
       const campos = Object.keys(area || {});
@@ -226,7 +202,7 @@ export function normalizarCap(text, fuente, url, alcance = process.env.SMN_SCOPE
       severidad: String(info.severity || ''), categoria: fuente === 'ACP' ? 'ACP' : categoria,
       urgencia: String(info.urgency || ''), inicio, fin, zonas });
   }
-  return limitarHorizonte(result);
+  return result;
 }
 /**
  * Sólo la emisión más reciente. Cada emisión SAT del SMN es un informe

@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import legacy from '../store.js';
-import { hash, corregirHoraVieja, limitarHorizonte } from './cap.mjs';
-// Lo guardado se lee ya recortado al horizonte del SMN (ver cap.mjs): así lo que quedó de antes no alarga la vigencia aunque falle la próxima consulta.
-const alLeer = r => limitarHorizonte(corregirHoraVieja(r));
+import { hash, corregirHoraVieja } from './cap.mjs';
 import { generarImagen } from './image.mjs';
 const dir = new URL('../../../data/store/', import.meta.url);
 let initialized;
@@ -18,9 +16,9 @@ export async function actual(fuente) {
     const { rows } = await pool.query('SELECT consultado_en, revision, datos, imagen FROM smn_estado WHERE fuente=$1', [fuente]);
     // Lo guardado antes del arreglo de la hora del SMN se corrige al leer (ver `fecha` en cap.mjs);
     // el próximo sondeo lo vuelve a guardar ya corregido.
-    const r = rows[0]; return r ? { consultadoEn: r.consultado_en.toISOString(), revision: r.revision, datos: r.datos.map(alLeer), imagen: r.imagen } : null;
+    const r = rows[0]; return r ? { consultadoEn: r.consultado_en.toISOString(), revision: r.revision, datos: r.datos.map(corregirHoraVieja), imagen: r.imagen } : null;
   }
-  try { const x = JSON.parse(await fs.readFile(new URL(`smn-${fuente}.json`, dir), 'utf8')); return { ...x, datos: x.datos.map(alLeer), imagen: Buffer.from(x.imagen, 'base64') }; }
+  try { const x = JSON.parse(await fs.readFile(new URL(`smn-${fuente}.json`, dir), 'utf8')); return { ...x, datos: x.datos.map(corregirHoraVieja), imagen: Buffer.from(x.imagen, 'base64') }; }
   catch (e) { if (e.code === 'ENOENT') return null; throw e; }
 }
 export async function guardar(fuente, datos, expected, now = new Date()) {

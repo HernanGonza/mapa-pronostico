@@ -132,7 +132,7 @@ function candidata(alertas, departamentos, { ahora = Date.now() } = {}) {
     niveles: [...new Set(infos.map((i) => i.categoria))].sort((a, b) => ORDEN[b] - ORDEN[a]), departamentos: todos,
     inicio: iso(inicio), fin: iso(fin), emitidoEn: emision, descripcion: principal.descripcion || "", avisos,
     // Los tramos por horario, a la vista del panel (para mostrar «Naranja de 03:00 a 09:00»).
-    lineas: infos.map((i) => ({ categoria: i.categoria, fenomeno: i.evento || i.titulo, inicio: i.inicio, fin: iso(auto.redondeado(i.fin)), departamentos: auto.departamentosDe(i) })),
+    lineas: infos.map((i) => ({ categoria: i.categoria, fenomeno: i.evento || i.titulo, inicio: i.inicio, fin: iso(auto.redondeado(i.fin)), futura: i.urgencia === 'Future', departamentos: auto.departamentosDe(i) })),
     base: { zonas, iconos, tramos, vigenteHasta: iso(fin), periodo: auto.recortar(auto.sentencia(auto.textoVigencia(iso(inicio), iso(fin - 1000))), 120) },
     _entera: entera,
   };
