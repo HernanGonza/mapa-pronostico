@@ -12,7 +12,7 @@ export const MODULOS = [
   { id: "cuencas", to: "/panel/cuencas", icono: Droplets, titulo: "Monitor de cuencas", descripcion: "Defluente de represas y altura de los ríos Paraná, Uruguay e Iguazú (SIG Misiones)." },
   { id: "tabla-precipitaciones", to: "/panel/precipitaciones", icono: Table, titulo: "Monitoreo de lluvias", descripcion: "Planilla de lluvia por día y estación (reemplaza al Excel), con totales, media y anomalía; de ahí salen la tabla y el mapa de la página y los informes (placa, PDF y Excel).", enDesarrollo: false },
   { id: "ensamble", to: "/panel/ensamble", icono: Layers, titulo: "Ensamble multimodelo", descripcion: "Qué dice cada modelo numérico (ECMWF, GFS, ICON, GEM, WRF-SMN y MONAN) para cada departamento a 10 días, y cuánto discrepan.", enDesarrollo: false },
-  { id: "informe-mensual", to: "/panel/informe-mensual", icono: CalendarRange, titulo: "Informe mensual", descripcion: "Balance hidrometeorológico del mes: valores medios por estación, resumen, pronóstico trimestral y fenómeno del Niño, cargado a mano y listo en PDF.", enDesarrollo: false },
+  { id: "informe-mensual", to: "/panel/informe-mensual", icono: CalendarRange, titulo: "Informes", descripcion: "Balance hidrometeorológico mensual y semanal (valores medios por estación, resumen, pronóstico trimestral y fenómeno del Niño, cargados a mano) y resumen de eventos del período, todo listo en PDF.", enDesarrollo: false },
 ];
 
 /** Las pantallas ya terminadas llevan `enDesarrollo: false`: no figuran en «En desarrollo» ni llevan esa etiqueta. */
