@@ -81,9 +81,9 @@ function iconosDeTexto(info) {
  * La base de la última emisión, o null si no hay nada publicable.
  * `alertas`: las SAT vigentes de `obtenerActual()` (ya con las zonas unidas); `departamentos`: el catálogo ({ id, nombre }).
  */
-function candidata(alertas, departamentos, { ahora = Date.now(), dia = null } = {}) {
+function candidata(alertas, departamentos, { ahora = Date.now(), tramo = null } = {}) {
   const infos = [];
-  for (const a of alertas || []) a.infos.forEach((info, i) => { const pub = auto.publicable(info); if (pub && (!dia || diaDe(pub.inicio) === dia)) infos.push({ ...pub, _smnId: `${a.id}:${i}`, _emitidoEn: a.emitidoEn }); });
+  for (const a of alertas || []) a.infos.forEach((info, i) => { const pub = auto.publicable(info); if (pub && (!tramo || tramoDe(pub) === tramo)) infos.push({ ...pub, _smnId: `${a.id}:${i}`, _emitidoEn: a.emitidoEn }); });
   if (!infos.length) return null;
   const idPorNombre = new Map(departamentos.map((d) => [auto.sinTildes(d.nombre), idDe(d)]));
   const sinId = new Set();
@@ -123,7 +123,7 @@ function candidata(alertas, departamentos, { ahora = Date.now(), dia = null } = 
   const fenomenos = [...new Set(infos.map((i) => auto.recortar(i.evento || i.titulo, 40)))];
   const entera = { ...principal, evento: fenomenos.join(" y "), titulo: fenomenos.join(" y "), categoria: nivelMax(infos.map((i) => i.categoria)), inicio: iso(inicio), fin: iso(fin - 1000),
     zonas: [{ departamentos: todos }] };
-  const emitidoEn = infos.map((i) => i._emitidoEn).sort().at(-1), emision = dia ? `${emitidoEn}#${dia}` : emitidoEn; // `dia`: una alerta por día, cada una con su propia clave
+  const emitidoEn = infos.map((i) => i._emitidoEn).sort().at(-1), emision = tramo ? `${emitidoEn}#${tramo}` : emitidoEn; // `tramo`: una alerta por horario, cada una con su propia clave
   const colorDe = (n) => categorias.find((c) => c.nombre === n)?.color || null;
 
   return {
@@ -141,14 +141,18 @@ function candidata(alertas, departamentos, { ahora = Date.now(), dia = null } = 
 /** Día (AAAA-MM-DD, hora de Misiones) en que empieza un horario del SMN. */
 const diaDe = (inicio) => new Date(Date.parse(inicio) - 3 * 3600 * 1000).toISOString().slice(0, 10);
 
+/** El horario de un mensaje del SMN (desde-hasta), que identifica a su alerta. */
+const tramoDe = (info) => `${Date.parse(info.inicio)}-${auto.redondeado(info.fin)}`;
+
 /**
- * Las alertas de la última emisión tal cual viene: una por día en que empiezan sus horarios (si todo cae en un solo día, es una sola,
- * igual que `candidata`). No se juntan días distintos en una misma alerta.
+ * Las alertas de la última emisión tal cual vienen del SMN: una por horario (desde-hasta). Los mensajes con el mismo horario son la misma
+ * alerta partida en zonas, y se juntan; horarios distintos NO se juntan. Si hay un solo horario, es una sola, igual que `candidata`.
  */
 function candidatas(alertas, departamentos, opciones = {}) {
-  const dias = [...new Set((alertas || []).flatMap((a) => (a.infos || []).map((i) => auto.publicable(i)).filter(Boolean).map((p) => diaDe(p.inicio))))].sort();
-  if (dias.length <= 1) { const c = candidata(alertas, departamentos, opciones); return c ? [c] : []; }
-  return dias.map((dia) => candidata(alertas, departamentos, { ...opciones, dia })).filter(Boolean);
+  const tramos = [...new Set((alertas || []).flatMap((a) => (a.infos || []).map((i) => auto.publicable(i)).filter(Boolean).map(tramoDe)))]
+    .sort((a, b) => parseInt(a) - parseInt(b) || parseInt(a.split("-")[1]) - parseInt(b.split("-")[1]));
+  if (tramos.length <= 1) { const c = candidata(alertas, departamentos, opciones); return c ? [c] : []; }
+  return tramos.map((tramo) => candidata(alertas, departamentos, { ...opciones, tramo })).filter(Boolean);
 }
 
 /** ¿La publicada (con `origenSmn`) es la misma alerta que `cand` (una emisión nueva con otros horarios)? Por horarios, fenómeno y departamentos. */

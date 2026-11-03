@@ -90,15 +90,17 @@ test("los departamentos que nombra el SMN existen todos en el mapa (nombres corr
   for (const f of geo.features) assert.ok(catalogo.has(sinTildes(f.properties.nombre)), f.properties.nombre);
 });
 
-test("los horarios de días distintos no se juntan: una alerta por día, como vienen en el SMN", () => {
+test("horarios distintos no se juntan: una alerta por horario, y los mensajes con el mismo horario son una sola (zonas)", () => {
   const { candidatas } = require("../src/lib/alertasSmnBase");
   const cs = candidatas([
-    alerta("a", info("Amarillo", "2026-10-08T15:00:00.000Z", "2026-10-08T20:59:59.000Z", NORTE)), // jueves 08/10 12–18 h
-    alerta("b", info("Amarillo", "2026-10-09T03:00:00.000Z", "2026-10-09T20:59:59.000Z", SUR)), // viernes 09/10 00–18 h
+    alerta("a", info("Amarillo", "2026-10-08T15:00:00.000Z", "2026-10-08T20:59:59.000Z", NORTE)), // jueves 12–18 h
+    alerta("b", info("Amarillo", "2026-10-09T03:00:00.000Z", "2026-10-09T20:59:59.000Z", SUR)), // viernes 00–18 h
+    alerta("c", info("Amarillo", "2026-10-09T03:00:00.000Z", "2026-10-09T20:59:59.000Z", ["Oberá"])), // mismo horario: misma alerta, otra zona
+    alerta("d", info("Amarillo", "2026-10-09T03:00:00.000Z", "2026-10-10T02:59:59.000Z", ["Apóstoles"])), // viernes 00–24 h: otra
   ], departamentos, { ahora: AHORA });
-  assert.equal(cs.length, 2);
-  assert.deepEqual(cs.map((c) => c.emision), ["2026-10-08T08:55:53.000Z#2026-10-08", "2026-10-08T08:55:53.000Z#2026-10-09"]);
-  assert.deepEqual(cs[0].departamentos, NORTE); assert.deepEqual(cs[1].departamentos, SUR);
+  assert.equal(cs.length, 3);
+  assert.deepEqual(cs[0].departamentos, NORTE); assert.deepEqual(cs[1].departamentos, [...SUR, "Oberá"]); assert.deepEqual(cs[2].departamentos, ["Apóstoles"]);
+  assert.equal(new Set(cs.map((c) => c.emision)).size, 3);
   assert.equal(cs[0].emitidoEn, "2026-10-08T08:55:53.000Z");
-  assert.equal(candidatas([alerta("a", info("Amarillo", "2026-10-08T15:00:00.000Z", "2026-10-08T20:59:59.000Z", NORTE))], departamentos, { ahora: AHORA })[0].emision, "2026-10-08T08:55:53.000Z"); // un solo día: igual que siempre
+  assert.equal(candidatas([alerta("a", info("Amarillo", "2026-10-08T15:00:00.000Z", "2026-10-08T20:59:59.000Z", NORTE))], departamentos, { ahora: AHORA })[0].emision, "2026-10-08T08:55:53.000Z"); // un solo horario: igual que siempre
 });
