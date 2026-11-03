@@ -640,6 +640,22 @@ export async function generarInformeMensualPdf(borrador) {
   return r.blob();
 }
 
+// --- Informe semanal (misma pantalla, pestaña «Informe semanal»): uno por semana, identificada por el día en que empieza (AAAA-MM-DD) ---
+export const listarInformesSemanales = async () => (await handleJson(await fetch(`${API_URL}/api/informe-semanal`, { cache: "no-store", ...CON_SESION }))).informes;
+export async function getInformeSemanal(desde) {
+  const r = await fetch(`${API_URL}/api/informe-semanal/${desde}`, { cache: "no-store", ...CON_SESION });
+  return r.status === 404 ? null : handleJson(r);
+}
+export const guardarInformeSemanal = async (desde, borrador) => handleJson(await fetch(`${API_URL}/api/informe-semanal/${desde}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrador }), ...CON_SESION }));
+export const borrarInformeSemanal = async (desde) => handleJson(await fetch(`${API_URL}/api/informe-semanal/${desde}`, { method: "DELETE", ...CON_SESION }));
+// --- Resumen de eventos del período (ACP, alertas, avisos…) y su PDF ---
+export const getInformeEventos = async (desde, hasta) => handleJson(await fetch(`${API_URL}/api/informe-eventos?desde=${desde}&hasta=${hasta}`, { cache: "no-store", ...CON_SESION }));
+export async function generarInformeEventosPdf(desde, hasta) {
+  const r = await fetch(`${API_URL}/api/informe-eventos/pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ desde, hasta }), ...CON_SESION });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo armar el PDF.");
+  return r.blob();
+}
+
 // Previsión del tiempo: el informe armado en el panel, como PDF (cifrado y con marca de agua) y los datos del sol y la luna.
 export async function generarInformePdf(informe) {
   const r = await fetch(`${API_URL}/api/pronostico/informe-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ informe }), ...CON_SESION });

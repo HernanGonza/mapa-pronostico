@@ -1,7 +1,7 @@
 const path = require("path");
 const crypto = require("crypto");
 const PDFDocument = require("pdfkit");
-const { errorDeInformeMensual, normalizarInformeMensual, titulosDe, MESES } = require("./informeMensual");
+const { errorDeInformeMensual, normalizarInformeMensual, titulosDe, rotulosDe, etiquetaDe, REFERENCIAS_BASE } = require("./informeMensual");
 
 /**
  * «BALANCE HIDROMETEOROLÓGICO DEL MES DE …» en PDF, con el mismo aspecto que el informe de «Previsión del tiempo»
@@ -25,14 +25,14 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
   const error = errorDeInformeMensual(entrada);
   if (error) throw Object.assign(new Error(error), { status: 400 });
   const b = normalizarInformeMensual(entrada);
-  const mesAnio = `${MESES[b.mes - 1]} de ${b.anio}`;
+  const mesAnio = etiquetaDe(b), R = rotulosDe(b);
 
   const chunks = [];
   const doc = new PDFDocument({
     size: "A4", margins: { top: M, bottom: PIE + 18, left: M, right: M }, bufferPages: true, pdfVersion: "1.7ext3",
     ownerPassword: claveDuenio || crypto.randomBytes(24).toString("hex"),
     permissions: { printing: "highResolution", modifying: false, copying: false, annotating: false, fillingForms: false, contentAccessibility: true, documentAssembly: false },
-    info: { Title: `Balance hidrometeorológico del mes de ${mesAnio}`, Author: "Dirección General de Alerta Temprana — Ministerio de Ecología y RNR de Misiones", Subject: "Informe mensual", Creator: "Sistema de Alerta Temprana" },
+    info: { Title: `Balance hidrometeorológico ${b.tipo === "semanal" ? "de la semana del" : "del mes de"} ${mesAnio}`, Author: "Dirección General de Alerta Temprana — Ministerio de Ecología y RNR de Misiones", Subject: b.tipo === "semanal" ? "Informe semanal" : "Informe mensual", Creator: "Sistema de Alerta Temprana" },
   });
   doc.on("data", (c) => chunks.push(c));
   const terminado = new Promise((ok, mal) => { doc.on("end", () => ok(Buffer.concat(chunks))); doc.on("error", mal); });
@@ -121,12 +121,12 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
   doc.y = M + 84;
 
   // --- 1. valores medios del mes ----------------------------------------------------------------------------------
-  barra("Valores medios del mes");
+  barra(R.valores);
   const todas = [
-    { t: "ESTACIÓN", w: 118 },
-    { campo: "tmedia", t: "TEMPERATURA MEDIA (°C)", w: 80, centro: true, color: TEXTO }, { campo: "tmin", t: "TEMPERATURA MÍNIMA MEDIA (°C)", w: 82, centro: true, color: AZUL },
-    { campo: "tmax", t: "TEMPERATURA MÁXIMA MEDIA (°C)", w: 82, centro: true, color: ROJO }, { campo: "eventos", t: "EVENTOS HIDROMETEOROLÓGICOS (N°)", w: 86, centro: true },
-    { campo: "precipitacion", t: "PRECIPITACIÓN ACUMULADA (mm)", w: 96, centro: true },
+    { t: R.estacion.toUpperCase(), w: 118 },
+    { campo: "tmedia", t: R.tmedia.toUpperCase(), w: 80, centro: true, color: TEXTO }, { campo: "tmin", t: R.tmin.toUpperCase(), w: 82, centro: true, color: AZUL },
+    { campo: "tmax", t: R.tmax.toUpperCase(), w: 82, centro: true, color: ROJO }, { campo: "eventos", t: R.eventos.toUpperCase(), w: 86, centro: true },
+    { campo: "precipitacion", t: R.precipitacion.toUpperCase(), w: 96, centro: true },
   ];
   const ocultas = Array.isArray(b.columnasOcultas) ? b.columnasOcultas : [];
   const cols = todas.filter((c) => !c.campo || !ocultas.includes(c.campo));
@@ -137,7 +137,7 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
   doc.font("Oak-Bold");
   for (const c of cols) for (const palabra of c.t.split(/\s+/)) {
     const ancho = doc.fontSize(7.5).widthOfString(palabra);
-    if (ancho > c.w - 8) fuenteCab = Math.min(fuenteCab, Math.max(4.5, Math.floor((7.5 * (c.w - 8) / ancho) * 10) / 10));
+    if (ancho > (c.w - 8) * 0.94) fuenteCab = Math.min(fuenteCab, Math.max(4.5, Math.floor((7.5 * (c.w - 8) * 0.94 / ancho) * 10) / 10)); // 6 % de aire: el corte de renglón de pdfkit no perdona
   }
   doc.fontSize(fuenteCab);
   const altoCab = Math.max(...cols.map((c) => doc.heightOfString(c.t, { width: c.w - 8, align: c.centro ? "center" : "left" }))) + 10;
@@ -163,33 +163,33 @@ async function generarInformeMensualPdf(entrada, { claveDuenio = process.env.PDF
   }
   if (!filas.length) { doc.fillColor(GRIS).font("Oak").fontSize(9).text("Sin estaciones cargadas.", M + 4, doc.y + 6); doc.y += 24; }
   doc.y += 6;
-  const referencias = [!(ocultas.includes("tmedia") && ocultas.includes("tmin") && ocultas.includes("tmax")) && "° C  Grados Celsius", !ocultas.includes("eventos") && "N°  Número de eventos", !ocultas.includes("precipitacion") && "mm  Milímetros de precipitación"].filter(Boolean).join("      ");
+  const referencias = R.referencias || [!(ocultas.includes("tmedia") && ocultas.includes("tmin") && ocultas.includes("tmax")) && "° C  Grados Celsius", !ocultas.includes("eventos") && "N°  Número de eventos", !ocultas.includes("precipitacion") && "mm  Milímetros de precipitación"].filter(Boolean).join("      ");
   if (referencias) doc.font("Oak").fontSize(8).fillColor(GRIS).text(referencias, M, doc.y, { width: ANCHO, align: "center" });
   doc.y += 14;
 
   // --- 2. resumen meteorológico del mes ---------------------------------------------------------------------------
-  barra("Resumen meteorológico del mes");
+  barra(R.resumen);
   parrafos(b.resumen);
   doc.y += 6;
 
   // --- 3. pronóstico climático trimestral -------------------------------------------------------------------------
   const ALTO_TRIM = 255, ALTO_NINO = 230;
   const filasTrim = filasDeImagenes(b.trimestral.imagenes, ALTO_TRIM);
-  barra("Pronóstico climático trimestral", alturaImagenes(filasTrim) + 40);
+  barra(R.trimestral, alturaImagenes(filasTrim) + 40);
   dibujarImagenes(filasTrim);
   parrafos(b.trimestral.texto);
   doc.y += 6;
 
   // --- 4. estado actual y proyección del fenómeno del Niño --------------------------------------------------------
   const filasNino = filasDeImagenes(b.nino.imagenes, ALTO_NINO);
-  barra("Estado actual y proyección del fenómeno del Niño", alturaImagenes(filasNino) + 40);
+  barra(R.nino, alturaImagenes(filasNino) + 40);
   dibujarImagenes(filasNino);
   parrafos(b.nino.texto);
 
   espacio(40);
   doc.moveTo(M, doc.y).lineTo(M + ANCHO, doc.y).lineWidth(0.5).strokeColor(LINEA).stroke();
   doc.y += 6;
-  doc.font("Oak-Bold").fontSize(8.5).fillColor(VERDE_OSCURO).text("INFORME ELABORADO POR", M, doc.y, { width: ANCHO });
+  doc.font("Oak-Bold").fontSize(8.5).fillColor(VERDE_OSCURO).text(R.elaborado.toUpperCase(), M, doc.y, { width: ANCHO });
   doc.font("Oak").fontSize(8.5).fillColor(GRIS).text(`${DIRECCION} – ${SUBSECRETARIA} – ${MINISTERIO}.`, M, doc.y, { width: ANCHO });
 
   const paginas = doc.bufferedPageRange();

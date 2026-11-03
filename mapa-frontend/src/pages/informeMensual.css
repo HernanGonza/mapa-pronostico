@@ -79,3 +79,27 @@
 .im-columnas legend { font-size: .85rem; padding: 0 4px; }
 .im-columnas label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; }
 .im-fila-oculta input { opacity: .5; text-decoration: line-through; }
+
+/* Pestañas (mensual / semanal / eventos) y lo propio del semanal y de los eventos. */
+.im-pestanas { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 14px; border-bottom: 1px solid var(--border); }
+.im-pestana { font: inherit; font-size: 0.9rem; font-weight: 600; padding: 9px 16px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--text-muted); cursor: pointer; margin-bottom: -1px; }
+.im-pestana:hover { color: var(--text); background: var(--surface-2); }
+.im-pestana--on { color: var(--text); background: var(--surface); border-color: var(--border); box-shadow: inset 0 3px 0 var(--accent, #872338); }
+.im-pestana:focus-visible { outline: 2px solid var(--accent, #872338); outline-offset: -2px; }
+[hidden].im-pagina, [role="tabpanel"][hidden] { display: none; }
+.im-select input[type="date"] { font: inherit; font-size: 0.9rem; min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.im-campo input[type="text"] { font: inherit; font-size: 0.92rem; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); width: 100%; box-sizing: border-box; }
+.im-campo--rotulo { margin-top: 0; margin-bottom: 10px; max-width: 640px; }
+.im-th-input { font-size: 0.72rem !important; font-weight: 700; text-align: center; min-height: 32px !important; }
+.im-seccion--simple { grid-template-columns: minmax(0, 1fr); }
+.im-segmentos { display: flex; gap: 6px; }
+.im-cuadros { list-style: none; margin: 8px 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.im-cuadros li { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.im-cuadros strong { font-size: 1.7rem; line-height: 1.1; }
+.im-cuadros span { font-size: 0.8rem; color: var(--text-muted); }
+.im-detalle { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin: 0 0 10px; padding: 0 14px; }
+.im-detalle summary { cursor: pointer; padding: 12px 0; font-weight: 600; }
+.im-detalle[open] summary { border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.im-tabla--datos { min-width: 640px; }
+.im-tabla--datos th, .im-tabla--datos td { text-align: left; vertical-align: top; font-size: 0.8rem; padding: 6px 8px; }
+.im-vacio { color: var(--text-muted); font-size: 0.85rem; margin: 6px 0 12px; }
