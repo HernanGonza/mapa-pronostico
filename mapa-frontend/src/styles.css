@@ -2029,4 +2029,3 @@ input[type="search"] { width: 100%; padding: 10px; border: 1px solid var(--borde
   .ens-cajon--ancho .alertas-dia__acciones { flex-direction: column; align-items: stretch; }
 }
 
-.smn-tarjeta__futura { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #ece6f5; color: #4b2a7a; border: 1px solid #c9b8e6; }

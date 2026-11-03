@@ -33,7 +33,7 @@ function resumenSmn(c) {
   const vistos = new Map();
   for (const l of c.lineas) vistos.set(`${l.categoria}|${l.inicio}|${l.fin}`, l);
   return [...vistos.values()].sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio) || Date.parse(a.fin) - Date.parse(b.fin))
-    .map(l => ({ color: COLOR_NIVEL[l.categoria], futura: !!l.futura, texto: `${l.categoria} · ${diaCorto(l.inicio)} ${hhmm(l.inicio)} → ${diaCorto(l.fin) === diaCorto(l.inicio) ? '' : `${diaCorto(l.fin)} `}${hhmm(l.fin)}` }));
+    .map(l => ({ color: COLOR_NIVEL[l.categoria], texto: `${l.categoria} · ${diaCorto(l.inicio)} ${hhmm(l.inicio)} → ${diaCorto(l.fin) === diaCorto(l.inicio) ? '' : `${diaCorto(l.fin)} `}${hhmm(l.fin)}` }));
 }
 
 export default function AlertasMeteorologicasPage() {

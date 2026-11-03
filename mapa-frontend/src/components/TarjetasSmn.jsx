@@ -15,7 +15,7 @@ export default function TarjetasSmn({ titulo, vacio, items, onElegir, ocupado = 
           {it.insignia && <span className="smn-tarjeta__insignia">{it.apagada ? "↻" : "✔"} {it.insignia}</span>}
           <strong>{it.titulo}</strong>
           <span>{it.detalle}</span>
-          {it.lineas?.length > 0 && <ul className="smn-tarjeta__lineas">{it.lineas.map((l) => <li key={l.texto}><i style={{ background: l.color }} />{l.texto}{l.futura && <span className="smn-tarjeta__futura" title="El SMN la adelanta con urgencia «Future»: todavía no rige">Futura</span>}</li>)}</ul>}
+          {it.lineas?.length > 0 && <ul className="smn-tarjeta__lineas">{it.lineas.map((l) => <li key={l.texto}><i style={{ background: l.color }} />{l.texto}</li>)}</ul>}
           {it.aviso && <small className="smn-tarjeta__aviso" role="note">⚠ {it.aviso}</small>}
           {it.etiqueta && <small className="smn-tarjeta__etiqueta">{it.etiqueta}</small>}
         </div>
