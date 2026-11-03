@@ -10,6 +10,7 @@ import PublicationStatus from "../components/PublicationStatus";
 import TarjetasSmn from "../components/TarjetasSmn";
 import * as api from "../api";
 import { confirmar, notificar } from "../lib/ui";
+import { epigrafeAcp } from "../lib/epigrafes";
 import { crearAvisoPorPasos, publicarAvisoPorPasos, publicarAvisoDibujadoPorPasos, partesSugeridas, textoDePartes, TITULO } from "../lib/asistenteAviso";
 
 // Violeta de los ACP mientras no hay alerta vigente; si hay, el backend manda su color (`acpAhora`).
@@ -220,7 +221,7 @@ export default function AvisosCortoPlazoPage() {
                   <small>Publicado el {hora(a.publicadoEn)}{a.generadoPorEmail && <> · {a.generadoPorEmail}</>} · {a.feedUrl ? <><a href={a.feedUrl} target="_blank" rel="noreferrer">feed</a> · <a href={a.historiasUrl} target="_blank" rel="noreferrer">historias</a></> : "sin placa de redes"}</small>
                   <div className="avisos-lista__acciones">
                     <button type="button" className="btn" onClick={() => abrirPublicar(a, { vigenteHasta: a.vigenteHasta })}>Cambiar vigencia</button>
-                    {a.feedUrl && <PublicarEnRedes unaVez feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={`${a.titulo}\n\n${a.texto}`} />}
+                    {a.feedUrl && <PublicarEnRedes unaVez feedUrl={a.feedUrl} historiasUrl={a.historiasUrl} epigrafe={epigrafeAcp(a.texto, { titulo: a.titulo })} />}
                     <button type="button" className="btn btn--ghost" disabled={despublicando != null} onClick={() => despublicar(a)}>{despublicando === a.id ? "Despublicando…" : "Despublicar"}</button>
                   </div>
                 </li>
@@ -230,7 +231,7 @@ export default function AvisosCortoPlazoPage() {
         )}
         <EmbedShare path="/embed/avisos-corto-plazo" title="Aviso a muy corto plazo · Misiones" />
       </section>
-      <PlacaPreview vista={vista} onVista={setVista} titulo="aviso a muy corto plazo" imagenes={undefined} recomendaciones={imagenes} labelRecomendaciones="Placa generada" epigrafe={`${TITULO}\n\n${texto}`}>
+      <PlacaPreview vista={vista} onVista={setVista} titulo="aviso a muy corto plazo" imagenes={undefined} recomendaciones={imagenes} labelRecomendaciones="Placa generada" epigrafe={epigrafeAcp(texto)}>
         <PolygonDrawMap puntos={puntos} onChange={cambiarPuntos} municipios={municipios} colorPoligono={colorAcp} />
       </PlacaPreview>
     </div>

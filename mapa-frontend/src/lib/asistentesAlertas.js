@@ -3,6 +3,8 @@ import { esc } from "./ui";
 import { asistente, opciones, leerOpciones, pasoVistaPrevia, htmlPlacaLista } from "./pasos";
 import { pasoNiveles, pasoFenomenos, htmlCambios } from "./pasosMapa";
 import { publicarEnRedes } from "./publicarEnRedes";
+import { epigrafeAlerta } from "./epigrafes";
+const nivelMaximo = (zonas = []) => ["Rojo", "Naranja", "Amarillo"].find((n) => zonas.some((z) => z.categoria === n)) || "";
 
 /**
  * Asistentes de "Alertas meteorológicas" (todo dentro de un modal, paso a paso):
@@ -61,7 +63,7 @@ export function crearPlacaMapaAlertas({ catalogo, inicial, vistaPrevia, guardar 
     pasoFondo,
     pasoVistaPrevia({ clave: (s) => JSON.stringify(cuerpo(s)), generar: (s) => vistaPrevia(cuerpo(s)) }),
   ];
-  const enviar = async (s) => resultadoPlaca(await guardar(cuerpo(s), s.vista.token), `Alerta meteorológica\n\n${s.periodo}`);
+  const enviar = async (s) => resultadoPlaca(await guardar(cuerpo(s), s.vista.token), epigrafeAlerta({ nivel: nivelMaximo(s.zonas), periodo: s.periodo, fenomenos: (s.iconos || []).map((i) => i.id), departamentos: s.zonas.filter((z) => z.categoria && z.categoria !== "Verde").map((z) => catalogo.departamentos.find((d) => String(d.id) === String(z.id))?.nombre).filter(Boolean) }));
   return asistente({ pasos, enviar, textoEnviar: "Confirmar y generar", estado: inicial, ancho: 760 });
 }
 

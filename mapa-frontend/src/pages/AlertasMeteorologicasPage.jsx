@@ -15,6 +15,7 @@ import MenuAcciones from '../components/MenuAcciones';
 import { cambiarVigenciaPorPasos, recomendacionesPorPasos, avisoDeAlertaPorPasos, actualizacionNivelPorPasos, placaMapaPorPasos, nivelDe, nivelDelMapa, proximoCambioDeNivel, ASISTENTE_DE, TIPO_PLACA } from '../lib/asistentePlacasAlerta';
 import { vigenciasPorNivelPorPasos } from '../lib/asistenteVigencias';
 import { enFemenino } from "../lib/nivelAlerta.js";
+import { epigrafeAlerta } from "../lib/epigrafes";
 
 const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
@@ -305,6 +306,7 @@ export default function AlertasMeteorologicasPage() {
     catch (e) { setError(e.message); }
     finally { setEliminando(null); }
   }
+  const nombresEnAlerta = (v) => (v.zonasBase || v.zonas || []).filter(z => z.categoria && z.categoria !== 'Verde').map(z => catalogo?.departamentos?.find(d => String(d.id) === String(z.id))?.nombre).filter(Boolean);
   const placasDe = (v) => v.placas?.length > 0 && <ul className="alerta-placas">{v.placas.map(pl => {
     const actual = (pl.redes || []).filter(r => r.version === 'actual'), anterior = (pl.redes || []).filter(r => r.version === 'anterior');
     return <li key={pl.id} style={{ '--nivel': colorNivel(pl.nivel) }}>
@@ -316,7 +318,7 @@ export default function AlertasMeteorologicasPage() {
         {actual.length > 0 && <span className="alerta-placas__redes">✓ Publicada en redes · {dondeSalio(actual)}</span>}
         {anterior.length > 0 && <span className="alerta-placas__redes alerta-placas__redes--anterior">La versión anterior se publicó en: {dondeSalio(anterior)}</span>}
         <div className="alerta-placas__acciones">
-          <PublicarEnRedes unaVez alTerminar={cargarVigentes} className="btn btn--ghost" feedUrl={pl.feedUrl} historiasUrl={pl.historiasUrl} epigrafe={`${TIPO_PLACA[pl.tipo]} · Alerta ${enFemenino(pl.nivel).toLowerCase()}\n\nMinisterio de Ecología y RNR de Misiones`} />
+          <PublicarEnRedes unaVez alTerminar={cargarVigentes} className="btn btn--ghost" feedUrl={pl.feedUrl} historiasUrl={pl.historiasUrl} epigrafe={epigrafeAlerta({ tipo: TIPO_PLACA[pl.tipo], nivel: pl.nivel, periodo: v.periodo, fenomenos: (v.iconosBase || v.iconos || []).map(i => i.id), departamentos: nombresEnAlerta(v) })} />
           <button type="button" className="btn btn--ghost" onClick={() => ASISTENTE_DE[pl.tipo]({ pub: v, catalogo, placa: pl, alTerminar: cargarVigentes })}>Editar</button>
           <button type="button" className="btn btn--ghost" disabled={eliminando != null} onClick={() => eliminarPlaca(pl)}>{eliminando === pl.id ? 'Eliminando…' : 'Eliminar'}</button>
         </div>
