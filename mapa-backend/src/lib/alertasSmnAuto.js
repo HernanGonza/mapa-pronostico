@@ -117,12 +117,12 @@ async function revisar(alertas, { logger = console, notificar = notificacionesSt
   const avisados = [];
   try {
     const base = require("./alertasSmnBase");
-    const cand = base.candidata(alertas, departamentos(), { ahora });
-    if (!cand) return avisados;
-    require("./alertasSmnRecibidas").recordar(cand); // si el SMN la deja de listar, el panel igual la muestra hasta que termine
+    const cands = base.candidatas(alertas, departamentos(), { ahora });
     const { vigentes, enFila } = await pendientes();
+    for (const cand of cands) {
+    require("./alertasSmnRecibidas").recordar(cand); // si el SMN la deja de listar, el panel igual la muestra hasta que termine
     const { yaPublicada, actualizaA } = base.clasificar(cand, [...vigentes, ...enFila]);
-    if (yaPublicada || (actualizaA && !actualizaA.cambios.length)) return avisados;
+    if (yaPublicada || (actualizaA && !actualizaA.cambios.length)) continue;
     const nombre = `${cand.fenomenos.join(" y ")} · ${cand.categoria}`, donde = listaCorta(cand.departamentos, 90);
     const clave = `${cand.niveles.join("")}:${Date.parse(cand.inicio)}:${Date.parse(cand.fin)}`;
     const cambios = { vigencia: `vigencia hasta el ${cuando(cand.fin)}`, nivel: actualizaA?.antes ? `el nivel pasa de ${actualizaA.antes.niveles.join(" y ")} a ${cand.niveles.join(" y ")}` : "cambia el nivel", zonas: "cambian los departamentos" };
@@ -131,6 +131,7 @@ async function revisar(alertas, { logger = console, notificar = notificacionesSt
       : { clave: `smn:nueva:${cand.fenomenos.join("+")}:${clave}`, titulo: `Alerta nueva del SMN: ${nombre}`, detalle: `${donde} · hasta el ${cuando(cand.fin)}` };
     try { if (await notificar.crearSiNoExiste({ tipo: "alerta-smn", ...n, url: "/panel/alertas-meteorologicas?smn=1", venceEn: cand.fin })) avisados.push(n.clave); }
     catch (e) { logger.error(`[alertas SMN] notificación: ${e.message}`); }
+    }
   } catch (e) { logger.error(`[alertas SMN] revisión: ${e.message}`); }
   return avisados;
 }

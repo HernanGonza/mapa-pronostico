@@ -89,3 +89,16 @@ test("los departamentos que nombra el SMN existen todos en el mapa (nombres corr
   const catalogo = new Set(departamentos.map((d) => sinTildes(d.nombre)));
   for (const f of geo.features) assert.ok(catalogo.has(sinTildes(f.properties.nombre)), f.properties.nombre);
 });
+
+test("los horarios de días distintos no se juntan: una alerta por día, como vienen en el SMN", () => {
+  const { candidatas } = require("../src/lib/alertasSmnBase");
+  const cs = candidatas([
+    alerta("a", info("Amarillo", "2026-10-08T15:00:00.000Z", "2026-10-08T20:59:59.000Z", NORTE)), // jueves 08/10 12–18 h
+    alerta("b", info("Amarillo", "2026-10-09T03:00:00.000Z", "2026-10-09T20:59:59.000Z", SUR)), // viernes 09/10 00–18 h
+  ], departamentos, { ahora: AHORA });
+  assert.equal(cs.length, 2);
+  assert.deepEqual(cs.map((c) => c.emision), ["2026-10-08T08:55:53.000Z#2026-10-08", "2026-10-08T08:55:53.000Z#2026-10-09"]);
+  assert.deepEqual(cs[0].departamentos, NORTE); assert.deepEqual(cs[1].departamentos, SUR);
+  assert.equal(cs[0].emitidoEn, "2026-10-08T08:55:53.000Z");
+  assert.equal(candidatas([alerta("a", info("Amarillo", "2026-10-08T15:00:00.000Z", "2026-10-08T20:59:59.000Z", NORTE))], departamentos, { ahora: AHORA })[0].emision, "2026-10-08T08:55:53.000Z"); // un solo día: igual que siempre
+});

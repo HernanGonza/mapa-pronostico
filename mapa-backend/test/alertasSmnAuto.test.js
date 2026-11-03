@@ -69,6 +69,6 @@ test("la alerta que el SMN dejó de listar se recuerda mientras siga vigente", a
   const cand = require("../src/lib/alertasSmnBase").candidata([alerta("a", info())], DEPARTAMENTOS, { ahora: Date.parse(dia(8)) });
   recordar(cand);
   const guardada = JSON.parse(fs.readFileSync(process.env.ALERTA_SMN_RECORDADA, "utf8"));
-  assert.equal(guardada.emision, cand.emision);
-  assert.ok(Date.parse(guardada.fin) > Date.parse(dia(8)) && Date.parse(guardada.fin) <= Date.parse(dia(16)));
+  assert.equal([].concat(guardada)[0].emision, cand.emision);
+  assert.ok(Date.parse([].concat(guardada)[0].fin) > Date.parse(dia(8)) && Date.parse([].concat(guardada)[0].fin) <= Date.parse(dia(16)));
 });

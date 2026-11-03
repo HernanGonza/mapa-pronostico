@@ -81,9 +81,9 @@ function iconosDeTexto(info) {
  * La base de la última emisión, o null si no hay nada publicable.
  * `alertas`: las SAT vigentes de `obtenerActual()` (ya con las zonas unidas); `departamentos`: el catálogo ({ id, nombre }).
  */
-function candidata(alertas, departamentos, { ahora = Date.now() } = {}) {
+function candidata(alertas, departamentos, { ahora = Date.now(), dia = null } = {}) {
   const infos = [];
-  for (const a of alertas || []) a.infos.forEach((info, i) => { const pub = auto.publicable(info); if (pub) infos.push({ ...pub, _smnId: `${a.id}:${i}`, _emitidoEn: a.emitidoEn }); });
+  for (const a of alertas || []) a.infos.forEach((info, i) => { const pub = auto.publicable(info); if (pub && (!dia || diaDe(pub.inicio) === dia)) infos.push({ ...pub, _smnId: `${a.id}:${i}`, _emitidoEn: a.emitidoEn }); });
   if (!infos.length) return null;
   const idPorNombre = new Map(departamentos.map((d) => [auto.sinTildes(d.nombre), idDe(d)]));
   const sinId = new Set();
@@ -123,19 +123,32 @@ function candidata(alertas, departamentos, { ahora = Date.now() } = {}) {
   const fenomenos = [...new Set(infos.map((i) => auto.recortar(i.evento || i.titulo, 40)))];
   const entera = { ...principal, evento: fenomenos.join(" y "), titulo: fenomenos.join(" y "), categoria: nivelMax(infos.map((i) => i.categoria)), inicio: iso(inicio), fin: iso(fin - 1000),
     zonas: [{ departamentos: todos }] };
-  const emision = infos.map((i) => i._emitidoEn).sort().at(-1);
+  const emitidoEn = infos.map((i) => i._emitidoEn).sort().at(-1), emision = dia ? `${emitidoEn}#${dia}` : emitidoEn; // `dia`: una alerta por día, cada una con su propia clave
   const colorDe = (n) => categorias.find((c) => c.nombre === n)?.color || null;
 
   return {
     emision, smnIds: infos.map((i) => i._smnId), fenomenos, categoria: entera.categoria, color: colorDe(entera.categoria),
     fenomenosLeidos: [...nivelesPorFenomeno.keys()].map((id) => iconos.find((i) => i.id === id)?.nombre || id),
     niveles: [...new Set(infos.map((i) => i.categoria))].sort((a, b) => ORDEN[b] - ORDEN[a]), departamentos: todos,
-    inicio: iso(inicio), fin: iso(fin), emitidoEn: emision, descripcion: principal.descripcion || "", avisos,
+    inicio: iso(inicio), fin: iso(fin), emitidoEn, descripcion: principal.descripcion || "", avisos,
     // Los tramos por horario, a la vista del panel (para mostrar «Naranja de 03:00 a 09:00»).
     lineas: infos.map((i) => ({ categoria: i.categoria, fenomeno: i.evento || i.titulo, inicio: i.inicio, fin: iso(auto.redondeado(i.fin)), departamentos: auto.departamentosDe(i) })),
     base: { zonas, iconos, tramos, vigenteHasta: iso(fin), periodo: auto.recortar(auto.sentencia(auto.textoVigencia(iso(inicio), iso(fin - 1000))), 120) },
     _entera: entera,
   };
+}
+
+/** Día (AAAA-MM-DD, hora de Misiones) en que empieza un horario del SMN. */
+const diaDe = (inicio) => new Date(Date.parse(inicio) - 3 * 3600 * 1000).toISOString().slice(0, 10);
+
+/**
+ * Las alertas de la última emisión tal cual viene: una por día en que empiezan sus horarios (si todo cae en un solo día, es una sola,
+ * igual que `candidata`). No se juntan días distintos en una misma alerta.
+ */
+function candidatas(alertas, departamentos, opciones = {}) {
+  const dias = [...new Set((alertas || []).flatMap((a) => (a.infos || []).map((i) => auto.publicable(i)).filter(Boolean).map((p) => diaDe(p.inicio))))].sort();
+  if (dias.length <= 1) { const c = candidata(alertas, departamentos, opciones); return c ? [c] : []; }
+  return dias.map((dia) => candidata(alertas, departamentos, { ...opciones, dia })).filter(Boolean);
 }
 
 /** ¿La publicada (con `origenSmn`) es la misma alerta que `cand` (una emisión nueva con otros horarios)? Por horarios, fenómeno y departamentos. */
@@ -163,7 +176,8 @@ function cambios(origen, cand) {
  */
 function clasificar(cand, pila) {
   const conOrigen = pila.filter((p) => p.origenSmn);
-  const igual = conOrigen.find((p) => p.origenSmn.emision === cand.emision);
+  // Una publicada de antes (clave sin día) cuenta como la misma si es de esa emisión y sus horarios coinciden.
+  const igual = conOrigen.find((p) => p.origenSmn.emision === cand.emision || (p.origenSmn.emision === cand.emitidoEn && esLaMisma(p.origenSmn, cand)));
   const lineage = !igual && conOrigen.filter((p) => esLaMisma(p.origenSmn, cand)).sort((a, b) => b.id - a.id)[0];
   return { yaPublicada: igual ? igual.id : null,
     actualizaA: lineage ? { id: lineage.id, periodo: lineage.periodo, cambios: cambios(lineage.origenSmn, cand), antes: { inicio: lineage.origenSmn.inicio, fin: lineage.origenSmn.fin, niveles: lineage.origenSmn.niveles } } : null };
@@ -171,4 +185,4 @@ function clasificar(cand, pila) {
 
 const origenDe = (cand) => ({ emision: cand.emision, fenomenos: cand.fenomenos, niveles: cand.niveles, departamentos: cand.departamentos, inicio: cand.inicio, fin: cand.fin });
 
-module.exports = { iconosDeTexto, candidata, esLaMisma, cambios, clasificar, origenDe, lineaDeTiempo };
+module.exports = { iconosDeTexto, candidata, candidatas, diaDe, esLaMisma, cambios, clasificar, origenDe, lineaDeTiempo };

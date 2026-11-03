@@ -345,7 +345,9 @@ router.get("/pronostico/alertas-del-dia", requireAuth, async (req, res) => {
     const { vigentes, enFila } = await require("../lib/alertasMeteorologicasStore").pendientes();
     let smn = null;
     try {
-      const r = (await require("../lib/alertasSmnRecibidas").recibidas({ pendientes: async () => ({ vigentes, enFila }) })).alertas[0];
+      const { diaDe } = require("../lib/alertasSmnBase");
+      const lista = (await require("../lib/alertasSmnRecibidas").recibidas({ pendientes: async () => ({ vigentes, enFila }) })).alertas.filter((a) => !a.reemplazada);
+      const r = lista.find((a) => diaDe(a.inicio) <= fecha && fecha <= diaDe(a.fin)) || lista[0]; // una alerta por día: la que cae en la fecha pedida
       if (r && !r.reemplazada && !r.yaPublicada && !r.actualizaA) smn = r;
     } catch (e) { /* sin lo del SMN se ofrecen sólo las publicadas */ }
     const departamentos = require("../lib/departamentos").loadDepartamentos();
